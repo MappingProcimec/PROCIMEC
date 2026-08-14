@@ -25,7 +25,7 @@ export default function ReportsPage() {
   const params = useParams();
   const projectId = params.projectId as string;
 
-  const { data: reports = [], isLoading, error } = useQuery({
+  const { data: reports = [], isLoading } = useQuery({
     queryKey: ['reports', projectId],
     queryFn: () => fetchReports(projectId),
   });

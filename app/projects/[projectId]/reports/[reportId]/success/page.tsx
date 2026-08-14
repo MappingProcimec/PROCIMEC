@@ -9,7 +9,6 @@ export default function SuccessPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const projectId = params.projectId as string;
-  const reportId = params.reportId as string;
   const folderUrl = searchParams.get('folderUrl') || '';
   const docxUrl = searchParams.get('docxUrl') || '';
   const [showConfetti, setShowConfetti] = useState(true);

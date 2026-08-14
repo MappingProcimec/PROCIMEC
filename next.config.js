@@ -25,7 +25,9 @@ const nextConfig = {
     ],
   },
   // Required for googleapis on server
-  serverExternalPackages: ['googleapis', 'google-auth-library'],
+  experimental: {
+    serverComponentsExternalPackages: ['googleapis', 'google-auth-library'],
+  },
 };
 
 module.exports = withPWA(nextConfig);

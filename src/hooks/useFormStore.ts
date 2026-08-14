@@ -73,7 +73,7 @@ const defaultStep5: Step5Data = {
 
 export const useFormStore = create<FormState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       projectId: '',
       currentStep: 1,
       step1: defaultStep1,
