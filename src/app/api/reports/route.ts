@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 import { createSessionFolder } from '@/lib/drive';
 import { generateFieldReportDocx } from '@/lib/docx-generator';
