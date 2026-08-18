@@ -117,18 +117,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Insert field report
+    // Format fields to map to base database columns
+    const formattedEquipments = reportData.equipments_used && reportData.equipments_used.length > 0
+      ? reportData.equipments_used.join(', ')
+      : (reportData.gpr_equipment || 'GPR');
+
+    const formattedTime = reportData.report_time
+      ? (reportData.report_end_time ? `${reportData.report_time} - ${reportData.report_end_time}` : reportData.report_time)
+      : null;
+
+    const formattedFrequency = [
+      reportData.antenna_frequency,
+      reportData.rdp_value ? `RDP: ${reportData.rdp_value}` : '',
+      reportData.scans_per_meter ? `Trazas/m: ${reportData.scans_per_meter}` : '',
+    ].filter(Boolean).join(' | ') || null;
+
+    const formattedFilterGain = [
+      reportData.filter_gain_notes,
+      reportData.rd_data_notes ? `Config RD: ${reportData.rd_data_notes}` : '',
+    ].filter(Boolean).join(' | ') || null;
+
+    // Insert field report with base schema column names ONLY
     const { data: fieldReport, error: reportError } = await supabase
       .from('field_reports')
       .insert({
         project_id: reportData.project_id,
         created_by: session.user.id,
         report_date: reportData.report_date,
-        report_time: reportData.report_time || null,
-        report_end_time: reportData.report_end_time || null,
+        report_time: formattedTime,
         operator_name: reportData.operator_name,
-        equipments_used: reportData.equipments_used || [],
-        gpr_equipment: reportData.gpr_equipment || (reportData.equipments_used ? reportData.equipments_used.join(', ') : 'GPR'),
+        gpr_equipment: formattedEquipments,
         positioning_equipment: reportData.positioning_equipment,
         terrain_conditions: reportData.terrain_conditions,
         weather_conditions: reportData.weather_conditions || null,
@@ -136,11 +154,8 @@ export async function POST(request: NextRequest) {
         operational_summary: reportData.operational_summary || [],
         global_max_depth: reportData.global_max_depth || null,
 
-        antenna_frequency: reportData.antenna_frequency || null,
-        rdp_value: reportData.rdp_value || null,
-        scans_per_meter: reportData.scans_per_meter || null,
-        rd_data_notes: reportData.rd_data_notes || null,
-        filter_gain_notes: reportData.filter_gain_notes || null,
+        antenna_frequency: formattedFrequency,
+        filter_gain_notes: formattedFilterGain,
 
         detected_utilities: reportData.detected_utilities || [],
         anomalies_notes: reportData.anomalies_notes || null,
@@ -193,7 +208,6 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Faltan parámetros del archivo' }, { status: 400 });
       }
 
-      // Set public link permission in Drive
       let webViewUrl = `https://drive.google.com/file/d/${driveFileId}/view`;
       if (driveFileId !== 'pending') {
         const permResult = await setFilePublicPermission(driveFileId);
