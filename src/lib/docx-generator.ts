@@ -13,8 +13,6 @@ import {
   ImageRun,
   Footer,
   PageNumber,
-  NumberFormat,
-  UnderlineType,
   convertInchesToTwip,
   PageBreak,
 } from 'docx';
