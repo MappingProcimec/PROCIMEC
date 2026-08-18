@@ -3,9 +3,20 @@
 import { useFormStore } from '@/hooks/useFormStore';
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { OperationalRow } from '@/types';
+import { DetectedUtility } from '@/types';
 
-const SURFACE_TYPES = ['Asfalto', 'Concreto', 'Tierra', 'Grava', 'Césped', 'Mixto', 'Otro'];
+const UTILITY_TYPES = [
+  'Tubería Agua', 'Gas', 'Electricidad BT', 'Electricidad AT',
+  'Telecomunicaciones', 'Alcantarillado', 'Cavidad', 'Sin identificar', 'Otro'
+];
+
+const CONFIDENCE_LEVELS = ['Alta', 'Media', 'Baja'] as const;
+
+const PRIORITIES = [
+  { value: 'Alta', color: 'error', desc: 'Urgente para entrega', icon: '🔴' },
+  { value: 'Media', color: 'warning', desc: 'Prioridad normal', icon: '🟡' },
+  { value: 'Baja', color: 'success', desc: 'Sin urgencia especial', icon: '🟢' },
+] as const;
 
 interface Step2Props {
   onNext: () => void;
@@ -13,43 +24,69 @@ interface Step2Props {
 }
 
 export function Step2({ onNext, onBack }: Step2Props) {
-  const { step2, updateStep2 } = useFormStore();
-  const [rows, setRows] = useState<OperationalRow[]>(
-    step2.operational_summary.length > 0
-      ? step2.operational_summary
-      : [{ id: uuidv4(), sector: '', ml: '', m2: '', max_depth_m: '', surface_type: '', observations: '' }]
-  );
-  const [globalMaxDepth, setGlobalMaxDepth] = useState<number | ''>(step2.global_max_depth);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { section1, section2, updateSection2 } = useFormStore();
 
-  const totalML = rows.reduce((s, r) => s + (Number(r.ml) || 0), 0);
-  const totalM2 = rows.reduce((s, r) => s + (Number(r.m2) || 0), 0);
+  const equipments = section1.equipments_used || ['GPR'];
+  const hasGprOrPpr = equipments.some(e => e === 'GPR' || e === 'PPR');
+  const hasRd = equipments.some(e => e === 'RD');
 
-  const addRow = () => {
-    setRows([...rows, { id: uuidv4(), sector: '', ml: '', m2: '', max_depth_m: '', surface_type: '', observations: '' }]);
+  const [antennaFrequency, setAntennaFrequency] = useState(section2.antenna_frequency || '');
+  const [rdpValue, setRdpValue] = useState(section2.rdp_value || '');
+  const [filterGainNotes, setFilterGainNotes] = useState(section2.filter_gain_notes || '');
+  const [scansPerMeter, setScansPerMeter] = useState(section2.scans_per_meter || '');
+  const [rdDataNotes, setRdDataNotes] = useState(section2.rd_data_notes || '');
+
+  const [utilities, setUtilities] = useState<DetectedUtility[]>(section2.detected_utilities || []);
+  const [anomaliesNotes, setAnomaliesNotes] = useState(section2.anomalies_notes || '');
+  const [siteRestrictions, setSiteRestrictions] = useState(section2.site_restrictions || '');
+  const [cadPriority, setCadPriority] = useState<'Alta' | 'Media' | 'Baja' | ''>(section2.cad_priority || 'Media');
+  const [processingRecommendations, setProcessingRecommendations] = useState(section2.processing_recommendations || '');
+
+  const [priorityError, setPriorityError] = useState('');
+
+  const addUtility = () => {
+    setUtilities([...utilities, {
+      id: uuidv4(),
+      type: '',
+      estimated_depth_m: '',
+      confidence: '',
+      description: '',
+    }]);
   };
 
-  const removeRow = (id: string) => {
-    if (rows.length > 1) setRows(rows.filter(r => r.id !== id));
+  const removeUtility = (id: string) => {
+    setUtilities(utilities.filter(u => u.id !== id));
   };
 
-  const updateRow = (id: string, field: keyof OperationalRow, value: string | number) => {
-    setRows(rows.map(r => r.id === id ? { ...r, [field]: value } : r));
+  const updateUtility = (id: string, field: keyof DetectedUtility, value: string | number) => {
+    setUtilities(utilities.map(u => u.id === id ? { ...u, [field]: value } : u));
+  };
+
+  const confidenceColor = (confidence: string) => {
+    if (confidence === 'Alta') return 'badge-success';
+    if (confidence === 'Media') return 'badge-warning';
+    if (confidence === 'Baja') return 'badge-error';
+    return 'badge-gray';
   };
 
   const handleNext = () => {
-    const newErrors: Record<string, string> = {};
-    rows.forEach((r, i) => {
-      if (!r.sector.trim()) newErrors[`sector_${i}`] = 'Requerido';
-    });
-    if (rows.length === 0) newErrors.rows = 'Agrega al menos una fila';
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    if (!cadPriority) {
+      setPriorityError('La prioridad de digitalización es requerida');
       return;
     }
 
-    updateStep2({ operational_summary: rows, global_max_depth: globalMaxDepth });
+    updateSection2({
+      antenna_frequency: antennaFrequency,
+      rdp_value: rdpValue,
+      filter_gain_notes: filterGainNotes,
+      scans_per_meter: scansPerMeter,
+      rd_data_notes: rdDataNotes,
+      detected_utilities: utilities,
+      anomalies_notes: anomaliesNotes,
+      site_restrictions: siteRestrictions,
+      cad_priority: cadPriority,
+      processing_recommendations: processingRecommendations,
+    });
     onNext();
   };
 
@@ -59,176 +96,202 @@ export function Step2({ onNext, onBack }: Step2Props) {
       <div className="section-header">
         <div className="section-icon">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-1.5 0H3.375m11.25 4.5c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0m-9.75 0H12" />
           </svg>
         </div>
         <div>
-          <h2 className="text-lg font-bold text-text-primary">Resumen Operativo y Volumetría</h2>
-          <p className="text-sm text-text-muted">Soporte de facturación — ingresa cada tramo o sector levantado</p>
+          <h2 className="text-lg font-bold text-text-primary">Sección 2 — Configuración Técnica, Hallazgos y Notas de Oficina</h2>
+          <p className="text-sm text-text-muted">Parámetros técnicos de equipos, interferencias halladas y prioridad CAD</p>
         </div>
       </div>
 
-      {/* Table — Desktop */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="table-base min-w-full">
-          <thead>
-            <tr>
-              <th className="min-w-[160px]">Tramo / Sector</th>
-              <th className="min-w-[90px]">ML</th>
-              <th className="min-w-[90px]">M²</th>
-              <th className="min-w-[130px]">Prof. Máx. (m)</th>
-              <th className="min-w-[150px]">Superficie</th>
-              <th className="min-w-[180px]">Observaciones</th>
-              <th className="w-10"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr key={row.id} className="hover:bg-primary-50/30">
-                <td>
-                  <input
-                    className={`input text-sm py-1.5 ${errors[`sector_${idx}`] ? 'input-error' : ''}`}
-                    placeholder="Ej: Calle Principal"
-                    value={row.sector}
-                    onChange={e => updateRow(row.id, 'sector', e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input type="number" min="0" step="0.01" className="input text-sm py-1.5" placeholder="0.00"
-                    value={row.ml} onChange={e => updateRow(row.id, 'ml', e.target.value === '' ? '' : Number(e.target.value))} />
-                </td>
-                <td>
-                  <input type="number" min="0" step="0.01" className="input text-sm py-1.5" placeholder="0.00"
-                    value={row.m2} onChange={e => updateRow(row.id, 'm2', e.target.value === '' ? '' : Number(e.target.value))} />
-                </td>
-                <td>
-                  <input type="number" min="0" step="0.01" className="input text-sm py-1.5" placeholder="0.00"
-                    value={row.max_depth_m} onChange={e => updateRow(row.id, 'max_depth_m', e.target.value === '' ? '' : Number(e.target.value))} />
-                </td>
-                <td>
-                  <select className="select text-sm py-1.5"
-                    value={row.surface_type} onChange={e => updateRow(row.id, 'surface_type', e.target.value)}>
-                    <option value="">Seleccionar...</option>
-                    {SURFACE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+      {/* Dynamic Equipment Settings */}
+      {hasGprOrPpr && (
+        <div className="card p-5 space-y-4 bg-primary-50/40 border-primary-200">
+          <h3 className="font-bold text-primary text-sm flex items-center gap-2">
+            📡 Configuración Técnica GPR / PPR
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="form-group">
+              <label className="label">Frecuencia de antena</label>
+              <input className="input" placeholder="Ej: 400 MHz, 800 MHz, 1.5 GHz..."
+                value={antennaFrequency} onChange={e => setAntennaFrequency(e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label className="label">RDP / Constante dieléctrica / Vel.</label>
+              <input className="input" placeholder="Ej: RDP = 9 (v = 0.1 m/ns)"
+                value={rdpValue} onChange={e => setRdpValue(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="form-group">
+              <label className="label">Filtro o rango recomendado</label>
+              <input className="input" placeholder="Ej: Dewow, filtro de tiempo, ganancia SEC"
+                value={filterGainNotes} onChange={e => setFilterGainNotes(e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label className="label">Trazas por metro (Scans/m)</label>
+              <input className="input" placeholder="Ej: 50 trazas/m"
+                value={scansPerMeter} onChange={e => setScansPerMeter(e.target.value)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasRd && (
+        <div className="card p-5 space-y-3 bg-amber-50/50 border-amber-200">
+          <h3 className="font-bold text-amber-800 text-sm flex items-center gap-2">
+            ⚡ Datos y Configuración RD (Detector Electromagnético)
+          </h3>
+          <div className="form-group">
+            <label className="label">Modos y frecuencias RD utilizadas</label>
+            <textarea className="textarea min-h-[75px]" placeholder="Indica frecuencias (ej: 8kHz, 33kHz, Power, Radio) y modo directo/inductivo..."
+              value={rdDataNotes} onChange={e => setRdDataNotes(e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {/* Hallazgos y Servicios Detectados */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-text-primary text-sm flex items-center gap-2">
+            🔍 Servicios e Interferencias Detectadas
+          </h3>
+          <span className="badge badge-primary">{utilities.length} detectados</span>
+        </div>
+
+        {utilities.length === 0 && (
+          <div className="card p-6 text-center text-text-muted border-dashed">
+            <p className="text-sm">Sin servicios registrados en esta sección aún</p>
+            <p className="text-xs mt-1">Si identificaste tuberías, cables o anomalías, agrégalas aquí</p>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {utilities.map((util, idx) => (
+            <div key={util.id} className="card p-4 space-y-3 animate-slide-up">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="badge badge-primary">Hallazgo {idx + 1}</span>
+                  {util.confidence && (
+                    <span className={`badge ${confidenceColor(util.confidence)}`}>
+                      Confianza {util.confidence}
+                    </span>
+                  )}
+                </div>
+                <button type="button" onClick={() => removeUtility(util.id)}
+                  className="p-1.5 text-error hover:bg-red-50 rounded-lg transition-colors">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="form-group sm:col-span-2">
+                  <label className="label">Tipo de servicio / anomalía</label>
+                  <select className="select" value={util.type}
+                    onChange={e => updateUtility(util.id, 'type', e.target.value)}>
+                    <option value="">Seleccionar tipo...</option>
+                    {UTILITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
-                </td>
-                <td>
-                  <input className="input text-sm py-1.5" placeholder="Notas..."
-                    value={row.observations} onChange={e => updateRow(row.id, 'observations', e.target.value)} />
-                </td>
-                <td>
-                  <button onClick={() => removeRow(row.id)} disabled={rows.length === 1}
-                    className="p-1.5 text-error hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                    </svg>
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {/* Totals row */}
-            <tr className="bg-accent/10 border-t-2 border-accent/30 font-semibold">
-              <td className="text-right text-sm font-bold text-accent pr-4 py-2.5">TOTALES</td>
-              <td className="text-center text-sm font-bold text-primary py-2.5">{totalML.toFixed(2)}</td>
-              <td className="text-center text-sm font-bold text-primary py-2.5">{totalM2.toFixed(2)}</td>
-              <td colSpan={4} className="text-sm text-text-muted py-2.5 pl-2">
-                <span className="badge badge-accent">Soporte de facturación</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                </div>
+                <div className="form-group">
+                  <label className="label">Prof. Est. (m)</label>
+                  <input type="number" min="0" step="0.01" className="input" placeholder="0.00"
+                    value={util.estimated_depth_m}
+                    onChange={e => updateUtility(util.id, 'estimated_depth_m', e.target.value === '' ? '' : Number(e.target.value))} />
+                </div>
+              </div>
 
-      {/* Mobile cards */}
-      <div className="md:hidden space-y-4">
-        {rows.map((row, idx) => (
-          <div key={row.id} className="card p-4 space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="badge badge-primary">Tramo {idx + 1}</span>
-              <button onClick={() => removeRow(row.id)} disabled={rows.length === 1}
-                className="btn-icon btn-ghost text-error disabled:opacity-30">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="form-group">
-              <label className="label label-required">Tramo / Sector</label>
-              <input className={`input ${errors[`sector_${idx}`] ? 'input-error' : ''}`} placeholder="Nombre del tramo"
-                value={row.sector} onChange={e => updateRow(row.id, 'sector', e.target.value)} />
-            </div>
-            <div className="grid grid-cols-3 gap-2">
               <div className="form-group">
-                <label className="label text-xs">ML</label>
-                <input type="number" min="0" step="0.01" className="input text-sm" placeholder="0.00"
-                  value={row.ml} onChange={e => updateRow(row.id, 'ml', e.target.value === '' ? '' : Number(e.target.value))} />
+                <label className="label">Nivel de confianza</label>
+                <div className="flex gap-2">
+                  {CONFIDENCE_LEVELS.map(level => (
+                    <button key={level} type="button"
+                      onClick={() => updateUtility(util.id, 'confidence', level)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-all ${
+                        util.confidence === level
+                          ? level === 'Alta' ? 'bg-success border-success text-white'
+                            : level === 'Media' ? 'bg-warning border-warning text-white'
+                            : 'bg-error border-error text-white'
+                          : 'border-border text-text-secondary hover:border-primary hover:bg-primary-50'
+                      }`}>
+                      {level}
+                    </button>
+                  ))}
+                </div>
               </div>
+
               <div className="form-group">
-                <label className="label text-xs">M²</label>
-                <input type="number" min="0" step="0.01" className="input text-sm" placeholder="0.00"
-                  value={row.m2} onChange={e => updateRow(row.id, 'm2', e.target.value === '' ? '' : Number(e.target.value))} />
-              </div>
-              <div className="form-group">
-                <label className="label text-xs">Prof. Máx. (m)</label>
-                <input type="number" min="0" step="0.01" className="input text-sm" placeholder="0.00"
-                  value={row.max_depth_m} onChange={e => updateRow(row.id, 'max_depth_m', e.target.value === '' ? '' : Number(e.target.value))} />
+                <label className="label">Descripción</label>
+                <textarea className="textarea min-h-[60px]" placeholder="Descripción del hallazgo, ubicación o notas..."
+                  value={util.description}
+                  onChange={e => updateUtility(util.id, 'description', e.target.value)} />
               </div>
             </div>
-            <div className="form-group">
-              <label className="label">Superficie</label>
-              <select className="select" value={row.surface_type} onChange={e => updateRow(row.id, 'surface_type', e.target.value)}>
-                <option value="">Seleccionar...</option>
-                {SURFACE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="label">Observaciones</label>
-              <input className="input" placeholder="Notas adicionales..."
-                value={row.observations} onChange={e => updateRow(row.id, 'observations', e.target.value)} />
-            </div>
-          </div>
-        ))}
-        {/* Mobile totals */}
-        <div className="card p-4 bg-accent/5 border-accent/20">
-          <div className="flex justify-between items-center">
-            <span className="font-bold text-accent">TOTALES</span>
-            <div className="flex gap-4">
-              <div className="text-center">
-                <p className="text-xs text-text-muted">ML</p>
-                <p className="font-bold text-primary">{totalML.toFixed(2)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs text-text-muted">M²</p>
-                <p className="font-bold text-primary">{totalM2.toFixed(2)}</p>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
+
+        <button type="button" onClick={addUtility} className="btn-outline w-full mt-3">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Agregar hallazgo / servicio detectado
+        </button>
       </div>
 
-      {/* Add row button */}
-      <button onClick={addRow} className="btn-outline w-full">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        Agregar fila
-      </button>
-
-      {/* Global max depth */}
+      {/* Anomalies Notes */}
       <div className="form-group">
-        <label className="label">Profundidad máxima global estimada (m)</label>
-        <div className="relative max-w-xs">
-          <input type="number" min="0" step="0.01" className="input pl-4 pr-10"
-            placeholder="0.00"
-            value={globalMaxDepth}
-            onChange={e => setGlobalMaxDepth(e.target.value === '' ? '' : Number(e.target.value))}
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-sm font-medium">m</span>
-        </div>
-        <p className="text-xs text-text-muted mt-1">Profundidad máxima registrada en todo el levantamiento</p>
+        <label className="label">Anomalías destacadas</label>
+        <textarea className="textarea" placeholder="Describa anomalías encontradas durante el levantamiento..."
+          value={anomaliesNotes} onChange={e => setAnomaliesNotes(e.target.value)} />
       </div>
 
-      {errors.rows && <p className="error-msg">⚠ {errors.rows}</p>}
+      {/* Restrictions */}
+      <div className="form-group">
+        <label className="label">Restricciones o limitaciones encontradas en el sitio</label>
+        <textarea className="textarea" placeholder="Ej: Cobertura vegetal, vehículos estacionados, interferencia metálica..."
+          value={siteRestrictions} onChange={e => setSiteRestrictions(e.target.value)} />
+      </div>
+
+      {/* CAD Priority */}
+      <div className="form-group pt-2 border-t border-border">
+        <label className="label label-required">Prioridad de digitalización para Oficina / CAD</label>
+        <div className="grid grid-cols-3 gap-3">
+          {PRIORITIES.map(({ value, color, desc, icon }) => (
+            <button key={value} type="button"
+              onClick={() => { setCadPriority(value); setPriorityError(''); }}
+              className={`card p-3 text-center transition-all duration-200 border-2 ${
+                cadPriority === value
+                  ? color === 'error' ? 'border-error bg-red-50 shadow-sm'
+                    : color === 'warning' ? 'border-amber-400 bg-amber-50 shadow-sm'
+                    : 'border-success bg-emerald-50 shadow-sm'
+                  : 'border-border hover:border-primary-200'
+              }`}>
+              <div className="text-xl mb-1">{icon}</div>
+              <div className={`font-bold text-xs ${
+                cadPriority === value
+                  ? color === 'error' ? 'text-error' : color === 'warning' ? 'text-amber-600' : 'text-success'
+                  : 'text-text-primary'
+              }`}>{value}</div>
+              <div className="text-[10px] text-text-muted mt-0.5">{desc}</div>
+            </button>
+          ))}
+        </div>
+        {priorityError && <p className="error-msg">⚠ {priorityError}</p>}
+      </div>
+
+      {/* Additional CAD Notes */}
+      <div className="form-group">
+        <label className="label">Observaciones adicionales para posprocesamiento / CAD</label>
+        <textarea className="textarea" placeholder="Instrucciones específicas para la digitalización del plano..."
+          value={processingRecommendations} onChange={e => setProcessingRecommendations(e.target.value)} />
+      </div>
 
       {/* Navigation */}
       <div className="flex justify-between pt-2">
@@ -239,7 +302,7 @@ export function Step2({ onNext, onBack }: Step2Props) {
           Anterior
         </button>
         <button type="button" onClick={handleNext} className="btn-primary btn-lg">
-          Siguiente
+          Siguiente: Sección 3 (Archivos y Fotos)
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
           </svg>

@@ -42,7 +42,6 @@ export interface OperationalRow {
   ml: number | '';
   m2: number | '';
   max_depth_m: number | '';
-  surface_type: string;
   observations: string;
 }
 
@@ -64,34 +63,37 @@ export interface FieldReport {
   created_by: string;
   report_date: string;
   report_time?: string;
+  report_end_time?: string;
 
-  // Step 1
+  // Section 1
   operator_name?: string;
+  equipments_used?: string[];
   gpr_equipment?: string;
-  antenna_frequency?: string;
-  capture_method?: string;
   positioning_equipment?: string;
   terrain_conditions?: string;
   weather_conditions?: string;
+  capture_method?: string;
 
-  // Step 2
+  // Section 1: Volumetría
   operational_summary: OperationalRow[];
   total_ml?: number;
   total_m2?: number;
   global_max_depth?: number;
 
-  // Step 3
+  // Section 2: Configuración técnica
+  antenna_frequency?: string;
+  rdp_value?: string;
+  scans_per_meter?: string;
+  filter_gain_notes?: string;
+  rd_data_notes?: string;
+
+  // Section 2: Hallazgos y Oficina
   detected_utilities: DetectedUtility[];
   anomalies_notes?: string;
   site_restrictions?: string;
-
-  // Step 4
   cad_priority?: 'Alta' | 'Media' | 'Baja';
   processing_recommendations?: string;
-  filter_gain_notes?: string;
   additional_notes?: string;
-  elaborated_by?: string;
-  reviewed_by?: string;
 
   // Drive metadata
   drive_session_folder_id?: string;
@@ -122,38 +124,33 @@ export interface ReportFile {
   created_at: string;
 }
 
-// ─── Form State (multi-step) ──────────────────────────────────────────────────
+// ─── Form State (3-section form) ──────────────────────────────────────────────
 
-export interface Step1Data {
+export interface Section1Data {
   report_date: string;
   report_time: string;
+  report_end_time: string;
   operator_name: string;
-  gpr_equipment: string;
-  antenna_frequency: string;
-  capture_method: string;
+  equipments_used: string[];
   positioning_equipment: string;
   terrain_conditions: string;
   weather_conditions: string;
-}
-
-export interface Step2Data {
+  capture_method: string;
   operational_summary: OperationalRow[];
   global_max_depth: number | '';
 }
 
-export interface Step3Data {
+export interface Section2Data {
+  antenna_frequency: string;
+  rdp_value: string;
+  filter_gain_notes: string;
+  scans_per_meter: string;
+  rd_data_notes: string;
   detected_utilities: DetectedUtility[];
   anomalies_notes: string;
   site_restrictions: string;
-}
-
-export interface Step4Data {
   cad_priority: 'Alta' | 'Media' | 'Baja' | '';
   processing_recommendations: string;
-  filter_gain_notes: string;
-  additional_notes: string;
-  elaborated_by: string;
-  reviewed_by: string;
 }
 
 export interface UploadedFile {
@@ -168,7 +165,7 @@ export interface UploadedFile {
   error?: string;
 }
 
-export interface Step5Data {
+export interface Section3Data {
   rawGprFiles: UploadedFile[];
   gpsFiles: UploadedFile[];
   photoFiles: UploadedFile[];
@@ -176,14 +173,24 @@ export interface Step5Data {
 
 export interface FormStore {
   projectId: string;
-  currentStep: number;
-  step1: Step1Data;
-  step2: Step2Data;
-  step3: Step3Data;
-  step4: Step4Data;
-  step5: Step5Data;
-  isDraft: boolean;
-  lastSaved?: string;
+  currentStep: number; // 1, 2, 3
+  section1: Section1Data;
+  section2: Section2Data;
+  section3: Section3Data;
+  isDirty: boolean;
+  draftSavedAt?: string;
+  setProjectId: (id: string) => void;
+  setCurrentStep: (step: number) => void;
+  updateSection1: (data: Partial<Section1Data>) => void;
+  updateSection2: (data: Partial<Section2Data>) => void;
+  addRawGprFile: (file: UploadedFile) => void;
+  addGpsFile: (file: UploadedFile) => void;
+  addPhotoFile: (file: UploadedFile) => void;
+  updateFileProgress: (id: string, progress: number) => void;
+  removeFile: (id: string, fileType: FileType) => void;
+  updatePhotoCaption: (id: string, caption: string) => void;
+  saveDraft: () => void;
+  resetForm: () => void;
 }
 
 // ─── API Response Types ───────────────────────────────────────────────────────

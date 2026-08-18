@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
-import { createSessionFolder } from '@/lib/drive';
+import { createProjectFolder, createSessionFolder, uploadFileToDrive } from '@/lib/drive';
 import { generateFieldReportDocx } from '@/lib/docx-generator';
-import { uploadFileToDrive } from '@/lib/drive';
 import { FieldReport, Project, ReportFile, AppUser } from '@/types';
 
-// GET /api/reports — list reports for current user (or all for admin)
+// GET /api/reports — list reports for assigned project or user
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -21,12 +20,32 @@ export async function GET(request: NextRequest) {
     .select('*, projects(code, name, client), users(full_name)')
     .order('created_at', { ascending: false });
 
-  if (session.user.role !== 'admin') {
-    query = query.eq('created_by', session.user.id);
-  }
-
   if (projectId) {
+    // If not admin, check if user is assigned to this project
+    if (session.user.role !== 'admin') {
+      const { data: assignment } = await supabase
+        .from('user_projects')
+        .select('project_id')
+        .eq('user_id', session.user.id)
+        .eq('project_id', projectId)
+        .maybeSingle();
+
+      if (!assignment) {
+        return NextResponse.json({ error: 'No tienes acceso a este proyecto' }, { status: 403 });
+      }
+    }
+    // Return ALL reports for this project to any authorized user
     query = query.eq('project_id', projectId);
+  } else if (session.user.role !== 'admin') {
+    // Return all reports for projects assigned to this operator
+    const { data: userProjects } = await supabase
+      .from('user_projects')
+      .select('project_id')
+      .eq('user_id', session.user.id);
+
+    const projectIds = (userProjects || []).map((p: { project_id: string }) => p.project_id);
+    if (projectIds.length === 0) return NextResponse.json({ data: [] });
+    query = query.in('project_id', projectIds);
   }
 
   const { data, error } = await query;
@@ -53,24 +72,27 @@ export async function POST(request: NextRequest) {
     project_id: string;
     report_date: string;
     report_time: string;
+    report_end_time?: string;
     operator_name: string;
-    gpr_equipment: string;
-    antenna_frequency: string;
-    capture_method: string;
+    equipments_used?: string[];
+    gpr_equipment?: string;
     positioning_equipment: string;
     terrain_conditions: string;
-    weather_conditions: string;
+    weather_conditions?: string;
+    capture_method: string;
     operational_summary: unknown[];
     global_max_depth: number | null;
+
+    antenna_frequency?: string;
+    rdp_value?: string;
+    scans_per_meter?: string;
+    rd_data_notes?: string;
+    filter_gain_notes?: string;
     detected_utilities: unknown[];
-    anomalies_notes: string;
-    site_restrictions: string;
+    anomalies_notes?: string;
+    site_restrictions?: string;
     cad_priority: 'Alta' | 'Media' | 'Baja';
-    processing_recommendations: string;
-    filter_gain_notes: string;
-    additional_notes: string;
-    elaborated_by: string;
-    reviewed_by: string;
+    processing_recommendations?: string;
   };
 
   const supabase = createAdminClient();
@@ -93,6 +115,22 @@ export async function POST(request: NextRequest) {
     .eq('id', session.user.id)
     .single();
 
+  // Ensure Drive folder exists for project (lazy creation if missing)
+  let parentDriveFolderId = project.drive_folder_id;
+  if (!parentDriveFolderId) {
+    try {
+      const newFolder = await createProjectFolder(project.code, project.name);
+      parentDriveFolderId = newFolder.id;
+      // Save back to project record
+      await supabase
+        .from('projects')
+        .update({ drive_folder_id: newFolder.id, drive_folder_url: newFolder.webViewLink })
+        .eq('id', project.id);
+    } catch (e) {
+      console.error('Lazy Drive project folder creation error:', e);
+    }
+  }
+
   // Create Drive session folder
   let sessionFolderId: string | undefined;
   let sessionFolderUrl: string | undefined;
@@ -100,10 +138,10 @@ export async function POST(request: NextRequest) {
   let gpsFolderId: string | undefined;
   let photosFolderId: string | undefined;
 
-  if (project.drive_folder_id) {
+  if (parentDriveFolderId) {
     try {
       const { sessionFolder, rawGprFolder, gpsFolder, photosFolder } = await createSessionFolder(
-        project.drive_folder_id,
+        parentDriveFolderId,
         reportData.operator_name,
         new Date()
       );
@@ -113,7 +151,7 @@ export async function POST(request: NextRequest) {
       gpsFolderId = gpsFolder.id;
       photosFolderId = photosFolder.id;
     } catch (e) {
-      console.error('Drive folder creation error:', e);
+      console.error('Drive session folder creation error:', e);
     }
   }
 
@@ -125,26 +163,31 @@ export async function POST(request: NextRequest) {
       created_by: session.user.id,
       report_date: reportData.report_date,
       report_time: reportData.report_time || null,
+      report_end_time: reportData.report_end_time || null,
       operator_name: reportData.operator_name,
-      gpr_equipment: reportData.gpr_equipment,
-      antenna_frequency: reportData.antenna_frequency,
-      capture_method: reportData.capture_method,
+      equipments_used: reportData.equipments_used || [],
+      gpr_equipment: reportData.gpr_equipment || (reportData.equipments_used ? reportData.equipments_used.join(', ') : 'GPR'),
       positioning_equipment: reportData.positioning_equipment,
       terrain_conditions: reportData.terrain_conditions,
-      weather_conditions: reportData.weather_conditions,
+      weather_conditions: reportData.weather_conditions || null,
+      capture_method: reportData.capture_method,
       operational_summary: reportData.operational_summary,
       global_max_depth: reportData.global_max_depth || null,
+
+      antenna_frequency: reportData.antenna_frequency || null,
+      rdp_value: reportData.rdp_value || null,
+      scans_per_meter: reportData.scans_per_meter || null,
+      rd_data_notes: reportData.rd_data_notes || null,
+      filter_gain_notes: reportData.filter_gain_notes || null,
+
       detected_utilities: reportData.detected_utilities,
-      anomalies_notes: reportData.anomalies_notes,
-      site_restrictions: reportData.site_restrictions,
+      anomalies_notes: reportData.anomalies_notes || null,
+      site_restrictions: reportData.site_restrictions || null,
       cad_priority: reportData.cad_priority,
-      processing_recommendations: reportData.processing_recommendations,
-      filter_gain_notes: reportData.filter_gain_notes,
-      additional_notes: reportData.additional_notes,
-      elaborated_by: reportData.elaborated_by,
-      reviewed_by: reportData.reviewed_by,
-      drive_session_folder_id: sessionFolderId,
-      drive_session_folder_url: sessionFolderUrl,
+      processing_recommendations: reportData.processing_recommendations || null,
+
+      drive_session_folder_id: sessionFolderId || null,
+      drive_session_folder_url: sessionFolderUrl || null,
       status: 'submitted',
     })
     .select()
@@ -167,7 +210,7 @@ export async function POST(request: NextRequest) {
     const parts = key.split('_');
     const fileType = parts[1] as 'raw_gpr' | 'gps' | 'photo';
     const captionKey = `caption_${parts[1]}_${parts[2]}`;
-    const caption = formData.get(captionKey) as string || '';
+    const caption = (formData.get(captionKey) as string) || '';
 
     const arrayBuffer = await value.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -202,7 +245,7 @@ export async function POST(request: NextRequest) {
         file_type: fileType,
         original_name: value.name,
         drive_file_id: driveFileId || 'pending',
-        drive_webview_url: driveWebviewUrl,
+        drive_webview_url: driveWebviewUrl || null,
         caption: caption || null,
         size_bytes: value.size,
         mime_type: value.type,
@@ -245,16 +288,15 @@ export async function POST(request: NextRequest) {
       );
       docxDriveFileId = docxDriveFile.id;
       docxDriveUrl = docxDriveFile.webViewLink;
-    } else {
-      // Return docx as part of response if no Drive
-      // Stored in memory only — client will handle download
     }
 
     // Update field report with docx info
-    await supabase
-      .from('field_reports')
-      .update({ docx_drive_file_id: docxDriveFileId, docx_drive_url: docxDriveUrl })
-      .eq('id', fieldReport.id);
+    if (docxDriveUrl || docxDriveFileId) {
+      await supabase
+        .from('field_reports')
+        .update({ docx_drive_file_id: docxDriveFileId || null, docx_drive_url: docxDriveUrl || null })
+        .eq('id', fieldReport.id);
+    }
 
   } catch (e) {
     console.error('DOCX generation error:', e);
@@ -263,9 +305,9 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     data: {
       fieldReportId: fieldReport.id,
-      sessionFolderUrl,
-      docxDriveUrl,
-      docxDriveFileId,
+      sessionFolderUrl: sessionFolderUrl || null,
+      docxDriveUrl: docxDriveUrl || null,
+      docxDriveFileId: docxDriveFileId || null,
     },
   }, { status: 201 });
 }
