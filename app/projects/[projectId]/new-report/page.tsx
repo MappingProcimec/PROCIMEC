@@ -14,12 +14,9 @@ import { UploadedFile } from '@/types';
 
 async function uploadFileDirectToDrive(
   file: File,
-  targetFolderId: string | undefined,
+  targetFolderId: string,
   onProgress: (percent: number) => void
 ): Promise<{ driveFileId: string }> {
-  if (!targetFolderId) return { driveFileId: 'pending' };
-
-  // Step A: Request upload session URL from API
   const sessionRes = await fetch('/api/drive/upload-session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -38,7 +35,6 @@ async function uploadFileDirectToDrive(
 
   const { uploadUrl } = await sessionRes.json();
 
-  // Step B: Direct PUT to Google Drive with progress tracking
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', uploadUrl, true);
@@ -46,8 +42,7 @@ async function uploadFileDirectToDrive(
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
-        const percent = Math.round((e.loaded / e.total) * 100);
-        onProgress(percent);
+        onProgress(Math.round((e.loaded / e.total) * 100));
       }
     };
 
@@ -55,16 +50,20 @@ async function uploadFileDirectToDrive(
       if (xhr.status === 200 || xhr.status === 201) {
         try {
           const driveRes = JSON.parse(xhr.responseText);
+          if (!driveRes.id) {
+            reject(new Error(`Drive no devolvió ID para ${file.name}`));
+            return;
+          }
           resolve({ driveFileId: driveRes.id });
         } catch {
-          resolve({ driveFileId: 'uploaded' });
+          reject(new Error(`Respuesta inválida de Drive al subir ${file.name}`));
         }
       } else {
-        reject(new Error(`Error al subir archivo a Drive (HTTP ${xhr.status})`));
+        reject(new Error(`Error al subir ${file.name} a Drive (HTTP ${xhr.status})`));
       }
     };
 
-    xhr.onerror = () => reject(new Error('Error de red al conectar con Google Drive'));
+    xhr.onerror = () => reject(new Error(`Error de red al subir ${file.name} a Google Drive`));
     xhr.send(file);
   });
 }
@@ -82,7 +81,6 @@ export default function NewReportPage() {
 
   useEffect(() => {
     setProjectId(projectId);
-    // Pre-fill operator name from session
     if (session?.user?.fullName && !section1.operator_name) {
       updateSection1({ operator_name: session.user.fullName });
     }
@@ -125,7 +123,6 @@ export default function NewReportPage() {
         processing_recommendations: store.section2.processing_recommendations,
       };
 
-      // Step 1: Submit JSON report data (lightweight, ~5KB)
       const res = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -145,10 +142,15 @@ export default function NewReportPage() {
       }
 
       const result = await res.json();
-      const { fieldReportId, rawGprFolderId, gpsFolderId, photosFolderId } = result.data;
+      const { fieldReportId, rawGprFolderId, gpsFolderId, photosFolderId, sessionFolderUrl } = result.data;
 
-      // Step 2: Upload all files directly to Google Drive
-      const allFileItems: { fileItem: UploadedFile; folderId: string | undefined; type: 'raw_gpr' | 'gps' | 'photo' }[] = [
+      if (!rawGprFolderId || !gpsFolderId || !photosFolderId) {
+        throw new Error(
+          'No se pudieron crear las carpetas en Google Drive. Verifica que GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY y GOOGLE_DRIVE_ROOT_FOLDER_ID estén configurados en Vercel.'
+        );
+      }
+
+      const allFileItems: { fileItem: UploadedFile; folderId: string; type: 'raw_gpr' | 'gps' | 'photo' }[] = [
         ...store.section3.rawGprFiles.map(f => ({ fileItem: f, folderId: rawGprFolderId, type: 'raw_gpr' as const })),
         ...store.section3.gpsFiles.map(f => ({ fileItem: f, folderId: gpsFolderId, type: 'gps' as const })),
         ...store.section3.photoFiles.map(f => ({ fileItem: f, folderId: photosFolderId, type: 'photo' as const })),
@@ -158,20 +160,11 @@ export default function NewReportPage() {
         const { fileItem, folderId, type } = allFileItems[i];
         setUploadStatusMsg(`Subiendo archivo ${i + 1} de ${allFileItems.length}: ${fileItem.file.name}`);
 
-        let driveFileId = 'pending';
-        if (folderId) {
-          try {
-            const driveRes = await uploadFileDirectToDrive(fileItem.file, folderId, (percent) => {
-              updateFileProgress(fileItem.id, percent);
-            });
-            driveFileId = driveRes.driveFileId;
-          } catch (e) {
-            console.error(`Error uploading ${fileItem.file.name}:`, e);
-          }
-        }
+        const { driveFileId } = await uploadFileDirectToDrive(fileItem.file, folderId, (percent) => {
+          updateFileProgress(fileItem.id, percent);
+        });
 
-        // Record file in DB
-        await fetch('/api/reports', {
+        const addFileRes = await fetch('/api/reports', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -185,9 +178,13 @@ export default function NewReportPage() {
             mimeType: fileItem.file.type,
           }),
         });
+
+        if (!addFileRes.ok) {
+          const err = await addFileRes.json().catch(() => ({}));
+          throw new Error(err.error || `Error al registrar ${fileItem.file.name} en la base de datos`);
+        }
       }
 
-      // Step 3: Finalize report & generate DOCX
       setUploadStatusMsg('Generando informe de Word (.docx)...');
       const finalRes = await fetch('/api/reports', {
         method: 'PUT',
@@ -195,8 +192,13 @@ export default function NewReportPage() {
         body: JSON.stringify({ action: 'finalize', fieldReportId }),
       });
 
+      if (!finalRes.ok) {
+        const err = await finalRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al generar el reporte Word');
+      }
+
       const finalResult = await finalRes.json();
-      const { sessionFolderUrl, docxDriveUrl } = finalResult.data || {};
+      const { docxDriveUrl } = finalResult.data || {};
 
       resetForm();
       router.push(

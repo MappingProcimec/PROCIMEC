@@ -136,9 +136,20 @@ export async function generateFieldReportDocx({
   files,
   photoBuffers = [],
 }: GenerateDocxParams): Promise<Buffer> {
-  const reportDate = report.report_date
-    ? format(new Date(report.report_date + 'T00:00:00'), "dd 'de' MMMM 'de' yyyy", { locale: es })
-    : '—';
+  let reportDate = '—';
+  if (report.report_date) {
+    try {
+      const dateStr = String(report.report_date);
+      const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
+      if (!isNaN(d.getTime())) {
+        reportDate = format(d, "dd 'de' MMMM 'de' yyyy", { locale: es });
+      } else {
+        reportDate = dateStr;
+      }
+    } catch {
+      reportDate = String(report.report_date);
+    }
+  }
 
   const rawGprFiles = files.filter(f => f.file_type === 'raw_gpr');
   const gpsFiles = files.filter(f => f.file_type === 'gps');

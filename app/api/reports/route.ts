@@ -90,6 +90,10 @@ export async function POST(request: NextRequest) {
           .eq('id', project.id);
       } catch (e) {
         console.error('Lazy Drive project folder creation error:', e);
+        return NextResponse.json(
+          { error: `Error al crear carpeta del proyecto en Drive: ${e instanceof Error ? e.message : 'Error desconocido'}` },
+          { status: 500 }
+        );
       }
     }
 
@@ -114,7 +118,16 @@ export async function POST(request: NextRequest) {
         photosFolderId = photosFolder.id;
       } catch (e) {
         console.error('Drive session folder creation error:', e);
+        return NextResponse.json(
+          { error: `Error al crear carpetas en Google Drive: ${e instanceof Error ? e.message : 'Error desconocido'}` },
+          { status: 500 }
+        );
       }
+    } else {
+      return NextResponse.json(
+        { error: 'El proyecto no tiene carpeta en Google Drive. Configura GOOGLE_DRIVE_ROOT_FOLDER_ID y comparte la carpeta raíz con la service account.' },
+        { status: 500 }
+      );
     }
 
     // Format fields to map to base database columns
@@ -308,6 +321,17 @@ export async function PUT(request: NextRequest) {
         }
       } catch (e) {
         console.error('DOCX generation error during finalize:', e);
+        return NextResponse.json(
+          { error: `Error al generar o subir el reporte Word: ${e instanceof Error ? e.message : 'Error desconocido'}` },
+          { status: 500 }
+        );
+      }
+
+      if (!docxDriveUrl && !docxDriveFileId) {
+        return NextResponse.json(
+          { error: 'No se pudo subir el reporte Word a Google Drive. Verifica la configuración de Drive.' },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json({
