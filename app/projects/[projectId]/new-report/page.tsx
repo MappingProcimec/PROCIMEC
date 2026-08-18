@@ -85,8 +85,23 @@ export default function NewReportPage() {
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al guardar el registro');
+        let errorMsg = 'Error al guardar el registro';
+        try {
+          const text = await res.text();
+          try {
+            const err = JSON.parse(text);
+            errorMsg = err.error || errorMsg;
+          } catch {
+            if (res.status === 413 || text.includes('Request Entity Too Large')) {
+              errorMsg = 'El tamaño total de los archivos excede el límite de subida (4.5 MB). Por favor selecciona fotos o archivos más livianos.';
+            } else {
+              errorMsg = text.substring(0, 150) || errorMsg;
+            }
+          }
+        } catch {
+          // fallback
+        }
+        throw new Error(errorMsg);
       }
 
       const result = await res.json();

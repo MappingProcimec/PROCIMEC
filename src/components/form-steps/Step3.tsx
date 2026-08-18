@@ -9,6 +9,68 @@ const RAW_GPR_ACCEPT = '.gsf,.rd3,.dzt,.pair,.rad,.gpr,.pptx,.ppt';
 const GPS_ACCEPT = '.dwg,.txt,.csv,.kml,.gpx,.shp,.xlsx,.pdf';
 const PHOTO_ACCEPT = '.jpg,.jpeg,.png,.heic,.webp';
 
+async function compressImageFile(file: File): Promise<File> {
+  if (!file.type.startsWith('image/') || file.size < 500 * 1024) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX_WIDTH = 1600;
+      const MAX_HEIGHT = 1600;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width = Math.round((width * MAX_HEIGHT) / height);
+          height = MAX_HEIGHT;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(file);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        },
+        'image/jpeg',
+        0.8
+      );
+    };
+
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+}
+
 interface Step3Props {
   onBack: () => void;
   onSubmit: () => void;
@@ -33,24 +95,37 @@ function FileUploadSection({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleFiles = useCallback((fileList: FileList) => {
-    const newFiles: UploadedFile[] = Array.from(fileList).map(f => {
-      const id = uuidv4();
-      const preview = isPhotoSection && f.type.startsWith('image/')
-        ? URL.createObjectURL(f)
-        : undefined;
+  const handleFiles = useCallback(async (fileList: FileList) => {
+    setIsProcessing(true);
+    try {
+      const rawArray = Array.from(fileList);
+      const processedFiles: UploadedFile[] = [];
 
-      return {
-        id,
-        file: f,
-        fileType: isPhotoSection ? 'photo' : accept.includes('.dwg') ? 'gps' : 'raw_gpr',
-        caption: '',
-        preview,
-        progress: 0,
-      };
-    });
-    onAdd(newFiles);
+      for (const f of rawArray) {
+        const fileToUse = isPhotoSection ? await compressImageFile(f) : f;
+        const id = uuidv4();
+        const preview = isPhotoSection && fileToUse.type.startsWith('image/')
+          ? URL.createObjectURL(fileToUse)
+          : undefined;
+
+        processedFiles.push({
+          id,
+          file: fileToUse,
+          fileType: isPhotoSection ? 'photo' : accept.includes('.dwg') ? 'gps' : 'raw_gpr',
+          caption: '',
+          preview,
+          progress: 0,
+        });
+      }
+
+      onAdd(processedFiles);
+    } catch (err) {
+      console.error('File processing error:', err);
+    } finally {
+      setIsProcessing(false);
+    }
   }, [onAdd, accept, isPhotoSection]);
 
   const handleDrop = (e: React.DragEvent) => {
@@ -104,23 +179,33 @@ function FileUploadSection({
         onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => !isProcessing && fileInputRef.current?.click()}
       >
-        <svg className="w-8 h-8 text-primary mx-auto mb-2 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-        </svg>
-        <p className="text-sm font-semibold text-text-primary">
-          {isPhotoSection ? 'Subir fotos desde celular o computador' : 'Seleccionar o arrastrar archivos'}
-        </p>
-        <p className="text-xs text-text-muted mt-1">{accept.replace(/\./g, ' ').toUpperCase()}</p>
+        {isProcessing ? (
+          <div className="py-2 text-center">
+            <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-xs font-semibold text-primary">Procesando y optimizando imagen...</p>
+          </div>
+        ) : (
+          <>
+            <svg className="w-8 h-8 text-primary mx-auto mb-2 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+            <p className="text-sm font-semibold text-text-primary">
+              {isPhotoSection ? 'Subir fotos desde celular o computador' : 'Seleccionar o arrastrar archivos'}
+            </p>
+            <p className="text-xs text-text-muted mt-1">{accept.replace(/\./g, ' ').toUpperCase()}</p>
+          </>
+        )}
       </div>
 
       {/* Optional secondary Camera button for photos */}
       {isPhotoSection && (
         <button
           type="button"
+          disabled={isProcessing}
           onClick={() => cameraInputRef.current?.click()}
-          className="btn-outline w-full text-xs py-2 justify-center"
+          className="btn-outline w-full text-xs py-2 justify-center disabled:opacity-50"
         >
           <svg className="w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
@@ -230,7 +315,7 @@ export function Step3({ onBack, onSubmit, isSubmitting }: Step3Props) {
       {/* Section C — Photos */}
       <FileUploadSection
         title="Registro Fotográfico de Campo"
-        subtitle="Fotografías del sitio, terreno o hallazgos"
+        subtitle="Fotografías del sitio, terreno o hallazgos (optimizadas automáticamente)"
         icon="📷"
         accept={PHOTO_ACCEPT}
         files={section3.photoFiles}
