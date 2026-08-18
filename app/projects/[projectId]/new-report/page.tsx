@@ -10,14 +10,75 @@ import { useFormStore } from '@/hooks/useFormStore';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { UploadedFile } from '@/types';
+
+async function uploadFileDirectToDrive(
+  file: File,
+  targetFolderId: string | undefined,
+  onProgress: (percent: number) => void
+): Promise<{ driveFileId: string }> {
+  if (!targetFolderId) return { driveFileId: 'pending' };
+
+  // Step A: Request upload session URL from API
+  const sessionRes = await fetch('/api/drive/upload-session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      folderId: targetFolderId,
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      fileSize: file.size,
+    }),
+  });
+
+  if (!sessionRes.ok) {
+    const err = await sessionRes.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al iniciar sesión de subida a Drive');
+  }
+
+  const { uploadUrl } = await sessionRes.json();
+
+  // Step B: Direct PUT to Google Drive with progress tracking
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl, true);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        onProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200 || xhr.status === 201) {
+        try {
+          const driveRes = JSON.parse(xhr.responseText);
+          resolve({ driveFileId: driveRes.id });
+        } catch {
+          resolve({ driveFileId: 'uploaded' });
+        }
+      } else {
+        reject(new Error(`Error al subir archivo a Drive (HTTP ${xhr.status})`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Error de red al conectar con Google Drive'));
+    xhr.send(file);
+  });
+}
 
 export default function NewReportPage() {
   const { data: session } = useSession();
   const params = useParams();
   const router = useRouter();
   const projectId = params.projectId as string;
-  const { currentStep, setCurrentStep, setProjectId, updateSection1, section1, resetForm } = useFormStore();
+  const {
+    currentStep, setCurrentStep, setProjectId, updateSection1, section1, resetForm, updateFileProgress
+  } = useFormStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatusMsg, setUploadStatusMsg] = useState('');
 
   useEffect(() => {
     setProjectId(projectId);
@@ -34,10 +95,9 @@ export default function NewReportPage() {
   const handleSubmit = async () => {
     const store = useFormStore.getState();
     setIsSubmitting(true);
+    setUploadStatusMsg('Guardando datos del reporte...');
 
     try {
-      const formData = new FormData();
-
       const reportData = {
         project_id: store.projectId,
         report_date: store.section1.report_date,
@@ -65,47 +125,78 @@ export default function NewReportPage() {
         processing_recommendations: store.section2.processing_recommendations,
       };
 
-      formData.append('reportData', JSON.stringify(reportData));
-
-      // Attach files
-      store.section3.rawGprFiles.forEach((f, i) => {
-        formData.append(`file_raw_gpr_${i}`, f.file);
-      });
-      store.section3.gpsFiles.forEach((f, i) => {
-        formData.append(`file_gps_${i}`, f.file);
-      });
-      store.section3.photoFiles.forEach((f, i) => {
-        formData.append(`file_photo_${i}`, f.file);
-        if (f.caption) formData.append(`caption_photo_${i}`, f.caption);
-      });
-
+      // Step 1: Submit JSON report data (lightweight, ~5KB)
       const res = await fetch('/api/reports', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportData }),
       });
 
       if (!res.ok) {
-        let errorMsg = 'Error al guardar el registro';
+        const errText = await res.text();
+        let msg = 'Error al guardar el reporte';
         try {
-          const text = await res.text();
-          try {
-            const err = JSON.parse(text);
-            errorMsg = err.error || errorMsg;
-          } catch {
-            if (res.status === 413 || text.includes('Request Entity Too Large')) {
-              errorMsg = 'El tamaño total de los archivos excede el límite de subida (4.5 MB). Por favor selecciona fotos o archivos más livianos.';
-            } else {
-              errorMsg = text.substring(0, 150) || errorMsg;
-            }
-          }
+          const parsed = JSON.parse(errText);
+          msg = parsed.error || msg;
         } catch {
-          // fallback
+          msg = errText.substring(0, 150) || msg;
         }
-        throw new Error(errorMsg);
+        throw new Error(msg);
       }
 
       const result = await res.json();
-      const { fieldReportId, sessionFolderUrl, docxDriveUrl } = result.data;
+      const { fieldReportId, rawGprFolderId, gpsFolderId, photosFolderId } = result.data;
+
+      // Step 2: Upload all files directly to Google Drive
+      const allFileItems: { fileItem: UploadedFile; folderId: string | undefined; type: 'raw_gpr' | 'gps' | 'photo' }[] = [
+        ...store.section3.rawGprFiles.map(f => ({ fileItem: f, folderId: rawGprFolderId, type: 'raw_gpr' as const })),
+        ...store.section3.gpsFiles.map(f => ({ fileItem: f, folderId: gpsFolderId, type: 'gps' as const })),
+        ...store.section3.photoFiles.map(f => ({ fileItem: f, folderId: photosFolderId, type: 'photo' as const })),
+      ];
+
+      for (let i = 0; i < allFileItems.length; i++) {
+        const { fileItem, folderId, type } = allFileItems[i];
+        setUploadStatusMsg(`Subiendo archivo ${i + 1} de ${allFileItems.length}: ${fileItem.file.name}`);
+
+        let driveFileId = 'pending';
+        if (folderId) {
+          try {
+            const driveRes = await uploadFileDirectToDrive(fileItem.file, folderId, (percent) => {
+              updateFileProgress(fileItem.id, percent);
+            });
+            driveFileId = driveRes.driveFileId;
+          } catch (e) {
+            console.error(`Error uploading ${fileItem.file.name}:`, e);
+          }
+        }
+
+        // Record file in DB
+        await fetch('/api/reports', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'add_file',
+            fieldReportId,
+            fileType: type,
+            originalName: fileItem.file.name,
+            driveFileId,
+            caption: fileItem.caption || '',
+            sizeBytes: fileItem.file.size,
+            mimeType: fileItem.file.type,
+          }),
+        });
+      }
+
+      // Step 3: Finalize report & generate DOCX
+      setUploadStatusMsg('Generando informe de Word (.docx)...');
+      const finalRes = await fetch('/api/reports', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'finalize', fieldReportId }),
+      });
+
+      const finalResult = await finalRes.json();
+      const { sessionFolderUrl, docxDriveUrl } = finalResult.data || {};
 
       resetForm();
       router.push(
@@ -116,6 +207,7 @@ export default function NewReportPage() {
       alert(`Error al guardar: ${err instanceof Error ? err.message : 'Error desconocido'}`);
     } finally {
       setIsSubmitting(false);
+      setUploadStatusMsg('');
     }
   };
 
@@ -125,6 +217,13 @@ export default function NewReportPage() {
       <Stepper currentStep={currentStep} />
 
       <div className="max-w-3xl mx-auto px-4 py-6 pb-24">
+        {uploadStatusMsg && (
+          <div className="card p-4 mb-4 bg-primary-50 border-primary-200 flex items-center gap-3 animate-fade-in">
+            <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin flex-shrink-0" />
+            <p className="text-sm font-semibold text-primary">{uploadStatusMsg}</p>
+          </div>
+        )}
+
         {currentStep === 1 && <Step1 onNext={goNext} />}
         {currentStep === 2 && <Step2 onNext={goNext} onBack={goBack} />}
         {currentStep === 3 && <Step3 onBack={goBack} onSubmit={handleSubmit} isSubmitting={isSubmitting} />}
