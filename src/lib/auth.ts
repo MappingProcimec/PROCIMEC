@@ -12,6 +12,8 @@ export const authOptions: NextAuthOptions = {
           prompt: 'consent',
           access_type: 'offline',
           response_type: 'code',
+          // Solicitar permisos de Drive al admin
+          scope: 'openid email profile https://www.googleapis.com/auth/drive',
         },
       },
     }),
@@ -19,7 +21,7 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: 'jwt' },
   callbacks: {
-    async signIn({ user, profile }) {
+    async signIn({ user, account, profile }) {
       if (!user.email) return false;
 
       const supabase = createAdminClient();
@@ -45,8 +47,20 @@ export const authOptions: NextAuthOptions = {
           return false;
         }
       } else if (!existingUser.is_active) {
-        // Inactive user blocked
         return '/pending?reason=inactive';
+      }
+
+      // ── Si es el admin y viene con refresh_token, guardarlo en Supabase ──
+      if (
+        account?.refresh_token &&
+        user.email === process.env.GOOGLE_DRIVE_ADMIN_EMAIL
+      ) {
+        await supabase
+          .from('users')
+          .update({ drive_refresh_token: account.refresh_token })
+          .eq('email', user.email);
+
+        console.log('✅ Admin Drive refresh_token guardado en Supabase');
       }
 
       return true;
