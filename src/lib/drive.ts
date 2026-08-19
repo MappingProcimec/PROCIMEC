@@ -32,6 +32,7 @@ export async function createFolder(name: string, parentId: string): Promise<Driv
       parents: [parentId],
     },
     fields: 'id, name, webViewLink',
+    supportsAllDrives: true,
   });
 
   // Make folder readable by anyone with link
@@ -39,6 +40,7 @@ export async function createFolder(name: string, parentId: string): Promise<Driv
     await drive.permissions.create({
       fileId: res.data.id!,
       requestBody: { role: 'reader', type: 'anyone' },
+      supportsAllDrives: true,
     });
   } catch (e) {
     console.warn('Folder public permission set warning:', e);
@@ -104,7 +106,7 @@ export async function createResumableUploadSession(
   const tokenRes = await client.getAccessToken();
   const token = tokenRes.token;
 
-  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -138,6 +140,7 @@ export async function setFilePublicPermission(fileId: string): Promise<{ webView
     await drive.permissions.create({
       fileId,
       requestBody: { role: 'reader', type: 'anyone' },
+      supportsAllDrives: true,
     });
   } catch (e) {
     console.warn('Could not set public permission on Drive file:', e);
@@ -147,6 +150,7 @@ export async function setFilePublicPermission(fileId: string): Promise<{ webView
     const res = await drive.files.get({
       fileId,
       fields: 'id, webViewLink',
+      supportsAllDrives: true,
     });
     return {
       webViewLink: res.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`,
@@ -177,6 +181,7 @@ export async function uploadFileToDrive(
       body: stream,
     },
     fields: 'id, name, webViewLink, webContentLink, size',
+    supportsAllDrives: true,
   });
 
   // Make file readable
@@ -184,6 +189,7 @@ export async function uploadFileToDrive(
     await drive.permissions.create({
       fileId: res.data.id!,
       requestBody: { role: 'reader', type: 'anyone' },
+      supportsAllDrives: true,
     });
   } catch (e) {
     console.warn('File public permission set warning:', e);
@@ -205,6 +211,7 @@ export async function getFileMetadata(fileId: string): Promise<DriveFile | null>
     const res = await drive.files.get({
       fileId,
       fields: 'id, name, webViewLink, webContentLink, size',
+      supportsAllDrives: true,
     });
     return {
       id: res.data.id!,
