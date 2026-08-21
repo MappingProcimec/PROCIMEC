@@ -51,22 +51,22 @@ const schema = z
 
 type FormData = z.infer<typeof schema>;
 
-// ─── Toast simple ──────────────────────────────────────────────────────────────
+// ─── Toast visible en parte superior central ──────────────────────────────────
 function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
   useEffect(() => {
-    const t = setTimeout(onClose, 4000);
+    const t = setTimeout(onClose, 5000);
     return () => clearTimeout(t);
   }, [onClose]);
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-lg text-white text-sm font-medium transition-all animate-slide-up ${
-        type === 'success' ? 'bg-green-600' : 'bg-red-600'
+      className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-white text-sm font-semibold transition-all animate-slide-up border border-white/20 ${
+        type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
       }`}
     >
-      <span>{type === 'success' ? '✓' : '✕'}</span>
+      <span className="text-lg">{type === 'success' ? '🎉' : '⚠️'}</span>
       <span>{message}</span>
-      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100">
+      <button onClick={onClose} className="ml-3 opacity-80 hover:opacity-100 font-bold text-base">
         ×
       </button>
     </div>
@@ -78,6 +78,7 @@ export default function NuevaActividadPage() {
   const { data: session } = useSession();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [lastSuccess, setLastSuccess] = useState<{ project: string; software: string } | null>(null);
 
   // Fecha de hoy en formato YYYY-MM-DD
   const today = new Date().toISOString().split('T')[0];
@@ -101,8 +102,8 @@ export default function NuevaActividadPage() {
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
+    setToast(null);
     try {
-      // El responsable es el email del usuario logueado, las horas siempre 9
       const payload = {
         ...data,
         responsible: session?.user?.email || session?.user?.name || '',
@@ -115,13 +116,20 @@ export default function NuevaActividadPage() {
         body: JSON.stringify(payload),
       });
 
+      const resData = await res.json();
+
       if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Error al registrar');
+        throw new Error(resData.error || 'Error al registrar la actividad');
       }
 
-      setToast({ message: 'Actividad registrada correctamente', type: 'success' });
+      setLastSuccess({ project: data.project_name, software: data.software });
+      setToast({ message: '¡Actividad registrada exitosamente!', type: 'success' });
       reset({ activity_date: today, is_rework: false });
+
+      // Scroll arriba suavemente para mostrar el banner de éxito
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Error al registrar', type: 'error' });
     } finally {
@@ -154,6 +162,36 @@ export default function NuevaActividadPage() {
 
       {/* Form Card */}
       <div className="max-w-3xl mx-auto px-4 -mt-10">
+        {/* Banner de Éxito Prominente */}
+        {lastSuccess && (
+          <div className="mb-6 bg-emerald-50 border-2 border-emerald-400 rounded-2xl p-5 shadow-lg animate-fade-in flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold text-lg flex-shrink-0 shadow-sm">
+                ✓
+              </div>
+              <div>
+                <p className="font-bold text-emerald-900 text-base">¡Actividad registrada con éxito!</p>
+                <p className="text-emerald-700 text-xs mt-0.5">
+                  Proyecto: <span className="font-semibold">{lastSuccess.project}</span> · Software: <span className="font-semibold">{lastSuccess.software}</span> · <span className="font-bold">9 Horas</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <a
+                href="/dibujo/tablero"
+                className="btn-sm bg-emerald-600 text-white hover:bg-emerald-700 font-semibold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+              >
+                <span>📊</span> Ver en Tablero
+              </a>
+              <button
+                onClick={() => setLastSuccess(null)}
+                className="btn-sm btn-ghost text-emerald-800 hover:bg-emerald-100 text-xs"
+              >
+                Cerrar aviso
+              </button>
+            </div>
+          </div>
+        )}
         <div className="card shadow-xl overflow-hidden border border-border">
           {/* Informative Header Banner */}
           <div className="bg-primary-50/70 border-b border-primary-100 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
