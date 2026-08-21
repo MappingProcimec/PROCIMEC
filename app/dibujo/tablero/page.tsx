@@ -52,18 +52,7 @@ function DashboardSkeleton() {
   );
 }
 
-// ─── KPI Card ──────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, icon }: { label: string; value: string | number; icon: string }) {
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-      <span className="text-3xl">{icon}</span>
-      <div>
-        <p className="text-2xl font-bold text-gray-800">{value}</p>
-        <p className="text-sm text-gray-500">{label}</p>
-      </div>
-    </div>
-  );
-}
+
 
 // ─── Tipos de agregaciones ─────────────────────────────────────────────────────
 interface ProjectHours {
