@@ -1,4 +1,4 @@
-# GPR Field Reporter — PROCIMEC
+# GPR Field Reporter — Mapping Ingeniería
 
 > **Sistema PWA de registro digital de levantamientos con Radar de Penetración Terrestre (GPR)**
 
@@ -11,7 +11,7 @@
 
 ## 📋 Descripción
 
-Aplicación web progresiva (PWA) mobile-first para que el equipo de campo de PROCIMEC registre, formalice y almacene digitalmente los datos obtenidos con equipos GPR. La app:
+Aplicación web progresiva (PWA) mobile-first para que el equipo de campo de Mapping Ingeniería registre, formalice y almacene digitalmente los datos obtenidos con equipos GPR. La app:
 
 - ✅ Guarda datos del levantamiento en un formulario de **5 pasos**
 - ✅ **Sube archivos a Google Drive** (RAW GPR, GPS, Fotografías)

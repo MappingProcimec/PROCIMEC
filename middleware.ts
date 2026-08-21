@@ -22,13 +22,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/pending', request.url));
   }
 
-  // Operator trying to access admin
-  if (role === 'operator' && pathname.startsWith('/admin')) {
+  // Dibujo role → only allow /dibujo/*
+  if (role === 'dibujo' && !pathname.startsWith('/dibujo') && !pathname.startsWith('/api/dibujo')) {
+    return NextResponse.redirect(new URL('/dibujo', request.url));
+  }
+
+  // Operator cannot access /admin or /dibujo
+  if (role === 'operator' && (pathname.startsWith('/admin') || pathname.startsWith('/dibujo'))) {
     return NextResponse.redirect(new URL('/projects', request.url));
   }
 
-  // Admin going to /pending → redirect to admin dashboard
-  if (role === 'admin' && pathname === '/pending') {
+  // Admin cannot go to /pending or /dibujo
+  if (role === 'admin' && (pathname === '/pending' || pathname.startsWith('/dibujo'))) {
     return NextResponse.redirect(new URL('/admin/dashboard', request.url));
   }
 

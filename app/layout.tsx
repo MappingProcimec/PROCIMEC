@@ -10,11 +10,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'GPR Field Reporter — PROCIMEC',
-  description: 'Sistema de registro digital de levantamientos con Radar de Penetración Terrestre para PROCIMEC. Captura datos en campo, genera reportes y sincroniza con Google Drive.',
-  keywords: ['GPR', 'ground penetrating radar', 'PROCIMEC', 'field reporter', 'reporte técnico'],
-  authors: [{ name: 'PROCIMEC' }],
-  creator: 'PROCIMEC',
+  title: 'GPR Field Reporter — Mapping Ingeniería',
+  description: 'Sistema de registro digital de levantamientos con Radar de Penetración Terrestre para Mapping Ingeniería. Captura datos en campo, genera reportes y sincroniza con Google Drive.',
+  keywords: ['GPR', 'ground penetrating radar', 'Mapping Ingeniería', 'field reporter', 'reporte técnico'],
+  authors: [{ name: 'Mapping Ingeniería' }],
+  creator: 'Mapping Ingeniería',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     title: 'GPR Reporter',
   },
   openGraph: {
-    title: 'GPR Field Reporter — PROCIMEC',
+    title: 'GPR Field Reporter — Mapping Ingeniería',
     description: 'Sistema de registro digital de levantamientos GPR',
     type: 'website',
   },

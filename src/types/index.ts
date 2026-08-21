@@ -1,6 +1,6 @@
 // ─── Auth & Users ─────────────────────────────────────────────────────────────
 
-export type UserRole = 'admin' | 'operator' | 'pending';
+export type UserRole = 'admin' | 'operator' | 'pending' | 'dibujo';
 
 export interface AppUser {
   id: string;
@@ -231,3 +231,20 @@ export interface DashboardStats {
   activeOperators: number;
   activeProjects: number;
 }
+
+// ─── Drawing Activities (rol dibujo) ──────────────────────────────────────────────
+
+export type DrawingActivity = {
+  id: string;
+  created_at: string;
+  project_name: string;
+  activity_date: string;
+  responsible: string;
+  software: 'CIVIL 3D' | 'REVIT' | 'OTRO';
+  elaboration_stage?: 'INICIO' | 'PROCESO' | 'FINAL';
+  other_software_name?: string;
+  hours_worked: number;
+  is_rework: boolean;
+  rework_observations?: string;
+  user_id?: string;
+};

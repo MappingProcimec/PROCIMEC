@@ -9,7 +9,7 @@ interface User {
   email: string;
   full_name: string;
   avatar_url?: string;
-  role: 'admin' | 'operator' | 'pending';
+  role: 'admin' | 'operator' | 'pending' | 'dibujo';
   is_active: boolean;
   created_at: string;
   user_projects?: { project_id: string }[];
@@ -35,6 +35,7 @@ const ROLE_LABELS: Record<string, { label: string; badge: string }> = {
   admin: { label: 'Administrador', badge: 'badge-primary' },
   operator: { label: 'Operador', badge: 'badge-accent' },
   pending: { label: 'Pendiente', badge: 'badge-warning' },
+  dibujo: { label: 'Dibujo', badge: 'badge-success' },
 };
 
 export default function AdminUsersPage() {
@@ -205,8 +206,8 @@ export default function AdminUsersPage() {
               {/* Role */}
               <div className="form-group">
                 <label className="label">Rol</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['admin', 'operator', 'pending'] as const).map(role => (
+                <div className="grid grid-cols-2 gap-2">
+                  {(['admin', 'operator', 'pending', 'dibujo'] as const).map(role => (
                     <button key={role} type="button"
                       onClick={() => setEditRole(role)}
                       className={`py-2.5 px-3 rounded-xl border-2 text-sm font-medium transition-all ${

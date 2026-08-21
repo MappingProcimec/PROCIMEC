@@ -41,14 +41,14 @@ export default function PendingPage() {
               <div>
                 <p className="text-white font-semibold text-sm mb-1">Cuenta creada exitosamente</p>
                 <p className="text-white/60 text-xs leading-relaxed">
-                  Tu cuenta ha sido registrada. Un administrador de PROCIMEC debe aprobar tu acceso y asignarte proyectos antes de que puedas comenzar a usar la aplicación.
+                  Tu cuenta ha sido registrada. Un administrador de Mapping Ingeniería debe aprobar tu acceso y asignarte proyectos antes de que puedas comenzar a usar la aplicación.
                 </p>
               </div>
             </div>
           </div>
 
           <p className="text-white/50 text-xs mb-6">
-            Contacta a tu supervisor o al equipo de TI de PROCIMEC para acelerar el proceso de activación.
+            Contacta a tu supervisor o al equipo de TI de Mapping Ingeniería para acelerar el proceso de activación.
           </p>
 
           <button

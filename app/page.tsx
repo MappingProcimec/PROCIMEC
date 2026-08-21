@@ -14,6 +14,7 @@ export default function LoginPage() {
       const role = session?.user?.role;
       if (role === 'admin') router.replace('/admin/dashboard');
       else if (role === 'operator') router.replace('/projects');
+      else if (role === 'dibujo') router.replace('/dibujo');
       else router.replace('/pending');
     }
   }, [session, status, router]);
@@ -75,7 +76,7 @@ export default function LoginPage() {
             Sistema de registro digital de campo
           </p>
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-accent/20 border border-accent/30 rounded-full">
-            <span className="text-accent font-semibold text-xs tracking-wider">PROCIMEC</span>
+            <span className="text-accent font-semibold text-xs tracking-wider">Mapping Ingeniería</span>
           </div>
         </div>
 
@@ -107,13 +108,13 @@ export default function LoginPage() {
           </button>
 
           <p className="text-white/40 text-xs text-center mt-5">
-            Solo para personal autorizado de PROCIMEC.
+            Solo para personal autorizado de Mapping Ingeniería.
             <br />El acceso es aprobado por el administrador.
           </p>
         </div>
 
         <p className="text-white/30 text-xs text-center mt-6">
-          GPR Field Reporter v1.0 · PROCIMEC © {new Date().getFullYear()}
+          GPR Field Reporter v1.0 · Mapping Ingeniería © {new Date().getFullYear()}
         </p>
       </div>
     </main>

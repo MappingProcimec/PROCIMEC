@@ -1,6 +1,6 @@
 -- ============================================================
 -- GPR Field Reporter — Supabase Schema
--- PROCIMEC v1.0
+-- Mapping Ingeniería v1.1
 -- ============================================================
 
 -- ─────────────────────────────────────────────────────────────
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
   avatar_url TEXT,
-  role TEXT CHECK (role IN ('admin', 'operator', 'pending')) DEFAULT 'pending',
+  role TEXT CHECK (role IN ('admin', 'operator', 'pending', 'dibujo')) DEFAULT 'pending',
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -216,3 +216,40 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER field_reports_updated_at
   BEFORE UPDATE ON field_reports
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLA: drawing_activities (rol dibujo)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS drawing_activities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  project_name TEXT NOT NULL,
+  activity_date DATE NOT NULL,
+  responsible TEXT NOT NULL,
+  software TEXT NOT NULL CHECK (software IN ('CIVIL 3D', 'REVIT', 'OTRO')),
+  elaboration_stage TEXT CHECK (elaboration_stage IN ('INICIO', 'PROCESO', 'FINAL')),
+  other_software_name TEXT,
+  hours_worked NUMERIC(5,2) NOT NULL DEFAULT 0,
+  is_rework BOOLEAN NOT NULL DEFAULT FALSE,
+  rework_observations TEXT,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL
+);
+
+-- RLS para drawing_activities
+ALTER TABLE drawing_activities ENABLE ROW LEVEL SECURITY;
+
+-- Usuarios con rol 'dibujo' solo ven sus propios registros
+CREATE POLICY "dibujo_select_own" ON drawing_activities
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "dibujo_insert_own" ON drawing_activities
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Admin ve todo
+CREATE POLICY "admin_all_drawing" ON drawing_activities
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM users
+      WHERE users.id = auth.uid() AND users.role = 'admin'
+    )
+  );

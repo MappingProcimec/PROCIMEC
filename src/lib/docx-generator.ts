@@ -167,7 +167,7 @@ export async function generateFieldReportDocx({
     new Paragraph({
       children: [
         new TextRun({
-          text: 'PROCIMEC',
+          text: 'Mapping Ingeniería',
           bold: true,
           size: 48,
           color: COLORS.PRIMARY,
@@ -428,7 +428,7 @@ export async function generateFieldReportDocx({
             new TableCell({
               children: [
                 new Paragraph({ children: [boldRun('Supervisión / Recibido:', 22)], spacing: { after: 60 } }),
-                new Paragraph({ children: [normalRun('PROCIMEC Oficina / CAD', 20)] }),
+                new Paragraph({ children: [normalRun('Mapping Ingeniería Oficina / CAD', 20)] }),
                 new Paragraph({ children: [normalRun('', 20)], spacing: { after: 250 } }),
                 new Paragraph({ children: [normalRun('Firma: ________________________________', 20)] }),
                 new Paragraph({ children: [normalRun(`Fecha: ______/______/______`, 20)], spacing: { after: 150 } }),
@@ -447,7 +447,7 @@ export async function generateFieldReportDocx({
     children: [
       new Paragraph({
         children: [
-          boldRun('PROCIMEC', 16, COLORS.PRIMARY),
+          boldRun('Mapping Ingeniería', 16, COLORS.PRIMARY),
           normalRun(' — Reporte Técnico de Campo GPR | Página ', 16, COLORS.SECONDARY),
           new TextRun({
             children: [PageNumber.CURRENT],
