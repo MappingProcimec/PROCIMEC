@@ -164,18 +164,41 @@ export default function TableroDibujoPage() {
 
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Título */}
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">Tablero de Actividades</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Resumen de actividades registradas de dibujo</p>
+    <div className="min-h-screen bg-surface pb-20">
+      {/* Hero */}
+      <div className="page-hero">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="badge badge-accent">Área de Dibujo</span>
+            <span className="text-white/60 text-xs">Mapping Ingeniería</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-1">Tablero de Actividades</h1>
+          <p className="text-white/70 text-sm">Resumen y métricas de rendimiento en actividades de dibujo</p>
+        </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-4">
-        <KpiCard label="Total de registros" value={totalRegistros} icon="📋" />
-        <KpiCard label="Total horas trabajadas" value={`${totalHoras.toFixed(1)} h`} icon="⏱️" />
-      </div>
+      <div className="max-w-6xl mx-auto px-4 -mt-10 space-y-6">
+        {/* KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white rounded-2xl border border-border shadow-card p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary text-2xl flex-shrink-0">
+              📋
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-text-primary">{totalRegistros}</div>
+              <div className="text-sm font-medium text-text-secondary">Total de Registros</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-border shadow-card p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-accent-100 flex items-center justify-center text-accent-700 text-2xl flex-shrink-0">
+              ⏱️
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-text-primary">{totalHoras.toFixed(1)} h</div>
+              <div className="text-sm font-medium text-text-secondary">Total Horas Trabajadas</div>
+            </div>
+          </div>
+        </div>
 
       {/* Gráfico de barras: Proyectos vs Horas */}
       {proyectoData.length > 0 && (
@@ -374,5 +397,6 @@ export default function TableroDibujoPage() {
         )}
       </div>
     </div>
+  </div>
   );
 }
