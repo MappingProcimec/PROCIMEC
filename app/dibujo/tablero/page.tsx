@@ -78,14 +78,21 @@ export default function TableroDibujoPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/dibujo/actividades')
-      .then((r) => {
-        if (!r.ok) throw new Error('Error al cargar datos');
-        return r.json();
-      })
-      .then((data) => setActivities(data))
-      .catch((e) => setError(e.message))
-      .finally(() => setIsLoading(false));
+    async function loadData() {
+      try {
+        const r = await fetch('/api/dibujo/actividades');
+        const data = await r.json();
+        if (!r.ok) {
+          throw new Error(data.error || 'Error al cargar los datos del tablero');
+        }
+        setActivities(Array.isArray(data) ? data : []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Error al cargar datos');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
   }, []);
 
   if (isLoading) return <DashboardSkeleton />;
