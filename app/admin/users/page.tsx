@@ -59,7 +59,11 @@ export default function AdminUsersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      return res.json();
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al actualizar usuario');
+      }
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
@@ -255,7 +259,9 @@ export default function AdminUsersPage() {
               )}
 
               {updateMutation.isError && (
-                <p className="error-msg">⚠ Error al actualizar usuario</p>
+                <p className="error-msg text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">
+                  ⚠️ {updateMutation.error instanceof Error ? updateMutation.error.message : 'Error al actualizar usuario'}
+                </p>
               )}
 
               <div className="flex gap-3 pt-2">
