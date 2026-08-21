@@ -1,4 +1,4 @@
-# GPR Field Reporter — Mapping Ingeniería
+# PROCIMEC — Mapping Ingeniería
 
 > **Sistema PWA de registro digital de levantamientos con Radar de Penetración Terrestre (GPR)**
 
@@ -243,4 +243,4 @@ El `.docx` generado incluye:
 
 ---
 
-*PROCIMEC — GPR Field Reporter v1.0*
+*PROCIMEC — Mapping Ingeniería v1.0*

@@ -1,6 +1,6 @@
 {
-  "name": "GPR Field Reporter",
-  "short_name": "GPR Reporter",
+  "name": "PROCIMEC",
+  "short_name": "PROCIMEC",
   "description": "Sistema de registro digital de levantamientos GPR para Mapping Ingeniería",
   "start_url": "/projects",
   "display": "standalone",

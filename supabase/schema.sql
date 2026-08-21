@@ -1,5 +1,5 @@
 -- ============================================================
--- GPR Field Reporter — Supabase Schema
+-- PROCIMEC — Supabase Schema
 -- Mapping Ingeniería v1.1
 -- ============================================================
 

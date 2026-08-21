@@ -58,7 +58,7 @@ export default function AdminDashboard() {
       <div className="page-hero">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-2xl font-bold text-white mb-1">Dashboard de Administración</h1>
-          <p className="text-white/70 text-sm">Vista general de GPR Field Reporter — Mapping Ingeniería</p>
+          <p className="text-white/70 text-sm">Vista general de PROCIMEC — Mapping Ingeniería</p>
         </div>
       </div>
 

@@ -70,7 +70,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">
-            GPR Field Reporter
+            PROCIMEC
           </h1>
           <p className="text-white/70 text-sm mt-2">
             Sistema de registro digital de campo
@@ -114,7 +114,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-white/30 text-xs text-center mt-6">
-          GPR Field Reporter v1.0 · Mapping Ingeniería © {new Date().getFullYear()}
+          PROCIMEC v1.0 · Mapping Ingeniería © {new Date().getFullYear()}
         </p>
       </div>
     </main>
