@@ -19,15 +19,20 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   const { pathname } = request.nextUrl;
 
-  // Rutas 100% públicas (landing, privacy, terms, login, assets)
+  // Rutas 100% públicas (landing, privacy, terms, login, logout, assets)
   const isPublicRoute =
     pathname === '/' ||
     pathname === '/login' ||
     pathname === '/privacy' ||
     pathname === '/terms' ||
+    pathname === '/api/logout' ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/icons');
+
+  if (pathname === '/api/logout') {
+    return NextResponse.next();
+  }
 
   // Si no está autenticado
   if (!token) {
