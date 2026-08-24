@@ -9,34 +9,58 @@ const supabase = createClient(
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function getValidUserUuid(token: { userId?: string; email?: string | null; sub?: string }): Promise<string | null> {
-  // 1. Probar userId si es UUID válido
-  if (token.userId && UUID_REGEX.test(token.userId)) {
-    return token.userId;
-  }
-  // 2. Si no, buscar el id UUID en la tabla users por email
+const ADMIN_EMAILS = [
+  'mapping.procimec2024@gmail.com',
+  'marcelobarrazasantiago@gmail.com',
+];
+
+function isKnownAdmin(email?: string | null): boolean {
+  if (!email) return false;
+  const envAdmin = process.env.GOOGLE_DRIVE_ADMIN_EMAIL;
+  if (envAdmin && email.toLowerCase() === envAdmin.toLowerCase()) return true;
+  return ADMIN_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase());
+}
+
+async function getUserInfo(token: { userId?: string; email?: string | null; role?: string }) {
+  let role = token.role;
+  let userId = token.userId;
+
   if (token.email) {
+    if (isKnownAdmin(token.email)) {
+      role = 'admin';
+    }
+
     const { data } = await supabase
       .from('users')
-      .select('id')
+      .select('id, role')
       .eq('email', token.email)
       .maybeSingle();
 
-    if (data?.id && UUID_REGEX.test(data.id)) {
-      return data.id;
+    if (data) {
+      if (!isKnownAdmin(token.email)) {
+        role = data.role;
+      }
+      if (data.id && UUID_REGEX.test(data.id)) {
+        userId = data.id;
+      }
     }
   }
-  return null;
+
+  return { role, userId };
 }
 
 export async function POST(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
-  if (!token || (token.role !== 'dibujo' && token.role !== 'admin')) {
+  if (!token) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
-  const userId = await getValidUserUuid(token);
+  const { role, userId } = await getUserInfo(token);
+
+  if (role !== 'dibujo' && role !== 'admin') {
+    return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
+  }
 
   if (!userId) {
     return NextResponse.json({ error: 'Usuario no encontrado en la base de datos' }, { status: 400 });
@@ -73,18 +97,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
-  if (token.role !== 'dibujo' && token.role !== 'admin') {
+  const { role, userId } = await getUserInfo(token);
+
+  if (role !== 'dibujo' && role !== 'admin') {
     return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
   }
-
-  const userId = await getValidUserUuid(token);
 
   let query = supabase
     .from('drawing_activities')
     .select('*')
     .order('activity_date', { ascending: false });
 
-  if (token.role === 'dibujo' && userId) {
+  if (role === 'dibujo' && userId) {
     query = query.eq('user_id', userId);
   }
 
