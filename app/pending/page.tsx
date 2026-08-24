@@ -34,19 +34,12 @@ export default function PendingPage() {
     setIsRefreshing(false);
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     setIsSigningOut(true);
-    try {
-      if (typeof window !== 'undefined') {
-        localStorage.clear();
-        sessionStorage.clear();
-        // Navegar directamente al endpoint de signout de NextAuth
-        // Esto evita el error de CSRF que ocurre con signOut() en fetch
-        window.location.href = '/api/auth/signout?callbackUrl=' + encodeURIComponent('/login');
-      }
-    } catch {
-      // Fallback: usar signOut normal
-      await signOut({ callbackUrl: '/login', redirect: true });
+    if (typeof window !== 'undefined') {
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/api/logout';
     }
   };
 

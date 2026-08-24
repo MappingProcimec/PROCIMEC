@@ -94,7 +94,7 @@ export function Navbar() {
                 onClick={() => {
                   localStorage.clear();
                   sessionStorage.clear();
-                  window.location.href = '/api/auth/signout?callbackUrl=' + encodeURIComponent('/login');
+                  window.location.href = '/api/logout';
                 }}
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm text-error hover:bg-red-50 transition-colors"
               >
