@@ -30,7 +30,17 @@ interface DrawingActivity {
   activity_date: string;
 }
 
-
+interface UnifiedRecord {
+  id: string;
+  area: 'campo' | 'dibujo';
+  date: string;
+  project: string;
+  responsible: string;
+  detail: string;
+  statusOrType: string;
+  docxUrl?: string;
+  driveUrl?: string;
+}
 
 async function fetchDashboardClean() {
   const [reportsRes, projectsRes, usersRes, dibujoRes] = await Promise.all([
@@ -47,7 +57,7 @@ async function fetchDashboardClean() {
   return {
     reports: reportsData.data || [],
     projects: projectsData.data || [],
-    users: usersData.users || [],
+    users: usersData.data || [],
     dibujo: Array.isArray(dibujoData) ? dibujoData : [],
   };
 }
@@ -147,9 +157,42 @@ export default function AdminDashboard() {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
 
-  // ── Usuarios ────────────────────────────────────────────────────────────────
-  const activeProjects = projects.filter((p: { is_active: boolean }) => p.is_active);
+  // ── Usuarios & Proyectos ───────────────────────────────────────────────────
+  const activeProjects = projects.filter((p: { is_active?: boolean }) => p.is_active !== false);
   const pendingUsers = users.filter((u: { role: string }) => u.role === 'pending');
+
+  // ── Unificar todos los registros (Campo + Dibujo) ──────────────────────────
+  const campoRecords: UnifiedRecord[] = reports.map((r) => {
+    const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
+    const ml = rows.reduce((s, row) => s + (Number(row.ml) || 0), 0);
+    return {
+      id: `campo-${r.id}`,
+      area: 'campo',
+      date: r.report_date || '',
+      project: (r.projects as { name?: string } | null)?.name || '—',
+      responsible: r.operator_name || '—',
+      detail: `${ml.toFixed(1)} ml`,
+      statusOrType: r.status === 'submitted' ? 'Enviado' : r.status === 'reviewed' ? 'Revisado' : 'Borrador',
+      docxUrl: r.docx_drive_url,
+      driveUrl: r.drive_session_folder_url,
+    };
+  });
+
+  const dibujoRecords: UnifiedRecord[] = dibujo.map((a) => ({
+    id: `dibujo-${a.id}`,
+    area: 'dibujo',
+    date: a.activity_date || '',
+    project: a.project_name || '—',
+    responsible: a.responsible || '—',
+    detail: `${Number(a.hours_worked).toFixed(1)} h (${a.software})`,
+    statusOrType: a.is_rework ? 'Reproceso' : 'Normal',
+  }));
+
+  const allRecords = [...campoRecords, ...dibujoRecords].sort((a, b) => {
+    const dateA = a.date ? new Date(a.date).getTime() : 0;
+    const dateB = b.date ? new Date(b.date).getTime() : 0;
+    return dateB - dateA;
+  });
 
   return (
     <div className="min-h-screen bg-surface">
@@ -160,20 +203,20 @@ export default function AdminDashboard() {
         <div className="max-w-6xl mx-auto">
           <h1 className="text-2xl font-bold text-white mb-1">Dashboard de Administración</h1>
           <p className="text-white/70 text-sm">
-            Vista consolidada por área — {format(new Date(), "MMMM yyyy", { locale: es })}
+            Vista consolidada general — {format(new Date(), "MMMM yyyy", { locale: es })}
           </p>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 -mt-10 pb-20 space-y-6">
 
-        {/* ── KPI globales ──────────────────────────────────────────────────── */}
+        {/* ── KPI globales con datos reales ──────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Proyectos Activos', value: isLoading ? '—' : activeProjects.length, icon: '🏗️', color: 'bg-primary text-white' },
             { label: 'Usuarios Totales', value: isLoading ? '—' : users.length, icon: '👥', color: 'bg-primary-600 text-white' },
             { label: 'Aprobación Pendiente', value: isLoading ? '—' : pendingUsers.length, icon: '⏳', color: pendingUsers.length > 0 ? 'bg-warning text-white' : 'bg-success text-white' },
-            { label: 'Total Registros', value: isLoading ? '—' : reports.length + dibujo.length, icon: '📁', color: 'bg-accent text-white' },
+            { label: 'Total Registros', value: isLoading ? '—' : allRecords.length, icon: '📁', color: 'bg-accent text-white' },
           ].map((card) => (
             <div key={card.label} className={`${card.color} rounded-2xl p-5 shadow-card`}>
               <div className="text-2xl mb-2">{card.icon}</div>
@@ -200,7 +243,6 @@ export default function AdminDashboard() {
               { label: 'Proyectos Activos', value: activeProjects.length },
             ]}
           >
-            {/* Últimos 3 registros de campo */}
             {reports.slice(0, 3).length > 0 && (
               <div className="divide-y divide-border">
                 {reports.slice(0, 3).map((r: DashboardReport) => {
@@ -245,7 +287,6 @@ export default function AdminDashboard() {
               { label: 'H. Reproceso', value: `${horasReproceso.toFixed(1)} h`, sub: `${dibujantesUnicos} dibujantes` },
             ]}
           >
-            {/* Últimas 3 actividades de dibujo */}
             {dibujo.slice(0, 3).length > 0 && (
               <div className="divide-y divide-border">
                 {dibujo.slice(0, 3).map((a: DrawingActivity) => (
@@ -284,15 +325,19 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        {/* ── Tabla completa campo ─────────────────────────────────────────── */}
+        {/* ── Tabla unificada: Todos los Registros de Todas las Áreas ───────── */}
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="font-bold text-text-primary">Todos los Registros de Campo</h2>
-            <span className="badge badge-primary">{reports.length}</span>
+            <div>
+              <h2 className="font-bold text-text-primary text-base">Todos los Registros del Sistema</h2>
+              <p className="text-xs text-text-muted mt-0.5">Actividades consolidadas de Mapping Campo y Área de Dibujo</p>
+            </div>
+            <span className="badge badge-primary">{allRecords.length} en total</span>
           </div>
+
           {isLoading ? (
-            <div className="p-8 text-center text-text-muted">Cargando registros...</div>
-          ) : reports.length === 0 ? (
+            <div className="p-8 text-center text-text-muted">Cargando registros consolidados...</div>
+          ) : allRecords.length === 0 ? (
             <div className="p-8 text-center text-text-muted">Sin registros aún</div>
           ) : (
             <div className="overflow-x-auto">
@@ -300,63 +345,59 @@ export default function AdminDashboard() {
                 <thead>
                   <tr>
                     <th>Fecha</th>
+                    <th>Área</th>
                     <th>Proyecto</th>
-                    <th>Operador</th>
-                    <th className="text-right">ML</th>
-                    <th>Prioridad</th>
-                    <th>Estado</th>
+                    <th>Responsable</th>
+                    <th>Detalle</th>
+                    <th>Estado / Tipo</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reports.map((r: DashboardReport) => {
-                    const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
-                    const ml = rows.reduce((s, row) => s + (Number(row.ml) || 0), 0);
-                    return (
-                      <tr key={r.id}>
-                        <td className="whitespace-nowrap text-sm">
-                          {r.report_date ? format(new Date(r.report_date + 'T00:00:00'), 'dd/MM/yyyy') : '—'}
-                          {r.report_time && <span className="text-text-muted ml-1 text-xs">{r.report_time}</span>}
-                        </td>
-                        <td>
-                          <div>
-                            <p className="font-medium text-sm text-text-primary">{(r.projects as { name?: string } | null)?.name || '—'}</p>
-                            <p className="text-xs text-text-muted">{(r.projects as { code?: string } | null)?.code}</p>
-                          </div>
-                        </td>
-                        <td className="text-sm">{r.operator_name || '—'}</td>
-                        <td className="text-right font-semibold text-primary text-sm">{ml.toFixed(1)}</td>
-                        <td>
-                          {r.cad_priority ? (
-                            <span className={`badge text-xs ${
-                              r.cad_priority === 'Alta' ? 'badge-error' :
-                              r.cad_priority === 'Media' ? 'badge-warning' : 'badge-success'
-                            }`}>{r.cad_priority}</span>
-                          ) : <span className="text-text-muted text-xs">—</span>}
-                        </td>
-                        <td>
-                          <span className={`badge text-xs ${
-                            r.status === 'submitted' ? 'badge-success' :
-                            r.status === 'reviewed' ? 'badge-primary' : 'badge-warning'
-                          }`}>
-                            {r.status === 'submitted' ? 'Enviado' : r.status === 'reviewed' ? 'Revisado' : 'Borrador'}
-                          </span>
-                        </td>
-                        <td>
+                  {allRecords.map((r) => (
+                    <tr key={r.id}>
+                      <td className="whitespace-nowrap text-sm">
+                        {r.date ? format(new Date(r.date.includes('T') ? r.date : r.date + 'T00:00:00'), 'dd/MM/yyyy') : '—'}
+                      </td>
+                      <td>
+                        <span className={`badge text-xs ${r.area === 'campo' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+                          {r.area === 'campo' ? '📍 Campo' : '✏️ Dibujo'}
+                        </span>
+                      </td>
+                      <td className="font-medium text-sm text-text-primary">
+                        {r.project}
+                      </td>
+                      <td className="text-sm text-text-secondary">{r.responsible}</td>
+                      <td className="font-semibold text-primary text-sm">{r.detail}</td>
+                      <td>
+                        <span className={`badge text-xs ${
+                          r.statusOrType === 'Enviado' || r.statusOrType === 'Normal' ? 'badge-success' :
+                          r.statusOrType === 'Revisado' ? 'badge-primary' :
+                          r.statusOrType === 'Reproceso' ? 'badge-error' : 'badge-warning'
+                        }`}>
+                          {r.statusOrType}
+                        </span>
+                      </td>
+                      <td>
+                        {r.area === 'campo' ? (
                           <div className="flex items-center gap-1.5">
-                            {r.docx_drive_url && (
-                              <a href={r.docx_drive_url} target="_blank" rel="noopener noreferrer"
+                            {r.docxUrl && (
+                              <a href={r.docxUrl} target="_blank" rel="noopener noreferrer"
                                 className="btn-sm btn-primary py-1 text-xs">.docx</a>
                             )}
-                            {r.drive_session_folder_url && (
-                              <a href={r.drive_session_folder_url} target="_blank" rel="noopener noreferrer"
+                            {r.driveUrl && (
+                              <a href={r.driveUrl} target="_blank" rel="noopener noreferrer"
                                 className="btn-sm btn-ghost py-1 text-xs">Drive</a>
                             )}
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        ) : (
+                          <Link href="/dibujo/tablero" className="text-xs text-primary font-medium hover:underline">
+                            Ver tablero
+                          </Link>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

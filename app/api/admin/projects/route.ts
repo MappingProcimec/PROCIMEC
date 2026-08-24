@@ -5,6 +5,26 @@ import { createProjectFolder } from '@/lib/drive';
 import { createAdminClient } from '@/lib/supabase';
 import { createProjectSchema } from '@/lib/validations';
 
+const DEFAULT_PROJECTS = [
+  { code: 'TENARIS-01', name: 'TENARIS', client: 'TENARIS', location: 'Cartagena' },
+  { code: 'VOPAK-01', name: 'VOPAK COLOMBIA BAQ', client: 'VOPAK', location: 'Barranquilla' },
+  { code: 'CARNAVAL-01', name: 'CARNAVAL SA', client: 'CARNAVAL SA', location: 'Soledad' },
+  { code: 'EPM-01', name: 'EPM COPACABANA', client: 'EPM', location: 'Copacabana' },
+  { code: 'DIQUES-01', name: 'INSPECCION DIQUES', client: 'MAPPING', location: 'Varias' },
+  { code: 'CANAL-01', name: 'CANAL SANTA CECILIA', client: 'MAPPING', location: 'Barranquilla' },
+  { code: 'CONINSA-01', name: 'CONINSA RH VIA 40-72', client: 'CONINSA RH', location: 'Barranquilla' },
+  { code: 'AMARILO-01', name: 'LOTE FAN AMARILO', client: 'AMARILO', location: 'Barranquilla' },
+  { code: 'YDN-01', name: 'YDN POLICARPA', client: 'YDN', location: 'Bogotá' },
+  { code: 'YDN-02', name: 'YDN COLECTOR BOYACA', client: 'YDN', location: 'Bogotá' },
+  { code: 'PIMSA-01', name: 'PIMSA IEB', client: 'IEB', location: 'Malambo' },
+  { code: 'CARACOLI-01', name: 'CARACOLI IEB', client: 'IEB', location: 'Malambo' },
+  { code: 'TPF-01', name: 'CONSORCIO VIAL TPF-CB PUENTES', client: 'TPF-CB', location: 'Atlántico' },
+  { code: 'AMARILO-02', name: 'QUORA AMARILO', client: 'AMARILO', location: 'Barranquilla' },
+  { code: 'COLECTOR-01', name: 'COLECTOR SIMON BOLIVAR', client: 'TRIPLE A', location: 'Barranquilla' },
+  { code: 'COLPATRIA-01', name: 'CONSTRUTORA COLPATRIA', client: 'COLPATRIA', location: 'Barranquilla' },
+  { code: 'DESARROLLO-01', name: 'DESARROLLO', client: 'MAPPING', location: 'Interno' },
+];
+
 // GET /api/admin/projects
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -13,12 +33,31 @@ export async function GET() {
   }
 
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('projects')
     .select('*, field_reports(id, operational_summary)')
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Si hay pocos proyectos (ej. solo el de prueba), insertar los proyectos de dibujo predeterminados
+  if (!data || data.length <= 2) {
+    const existingNames = new Set((data || []).map((p: { name: string }) => p.name.toUpperCase()));
+    const toInsert = DEFAULT_PROJECTS.filter((p) => !existingNames.has(p.name.toUpperCase())).map((p) => ({
+      ...p,
+      is_active: true,
+      created_by: session.user.id,
+    }));
+
+    if (toInsert.length > 0) {
+      await supabase.from('projects').insert(toInsert);
+      const res = await supabase
+        .from('projects')
+        .select('*, field_reports(id, operational_summary)')
+        .order('created_at', { ascending: false });
+      data = res.data || data;
+    }
+  }
 
   // Compute stats
   const projects = (data || []).map((p: { field_reports?: { id: string; operational_summary: { ml?: number }[] }[]; [key: string]: unknown }) => {
@@ -62,7 +101,6 @@ export async function POST(request: NextRequest) {
     driveFolderUrl = folder.webViewLink;
   } catch (e) {
     console.error('Drive folder creation failed:', e);
-    // Continue without Drive folder if Drive not configured
   }
 
   const supabase = createAdminClient();
@@ -86,7 +124,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ data }, { status: 201 });
 }
 
-// PATCH /api/admin/projects  (update/toggle active)
+// PATCH /api/admin/projects
 export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== 'admin') {

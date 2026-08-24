@@ -30,7 +30,6 @@ export function Navbar() {
               { href: '/admin/dashboard', label: 'Dashboard' },
               { href: '/admin/projects', label: 'Proyectos' },
               { href: '/admin/users', label: 'Usuarios' },
-              { href: '/dibujo/tablero', label: 'Área Dibujo' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
@@ -84,12 +83,20 @@ export function Navbar() {
                 <p className="text-xs text-text-muted truncate">{session?.user?.email}</p>
               </div>
               {isAdmin && (
-                <Link href="/projects" className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
-                  </svg>
-                  Vista Operador
-                </Link>
+                <>
+                  <Link href="/projects" className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+                    </svg>
+                    Vista Operador
+                  </Link>
+                  <Link href="/dibujo/tablero" className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                    </svg>
+                    Vista Dibujante
+                  </Link>
+                </>
               )}
               <button
                 onClick={() => {
