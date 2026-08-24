@@ -22,22 +22,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Si está autenticado y entra a /login -> redirigir a su panel según rol
-  const role = token.role as string;
-  if (pathname === '/login') {
-    if (role === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-    if (role === 'operator') return NextResponse.redirect(new URL('/projects', request.url));
-    if (role === 'dibujo') return NextResponse.redirect(new URL('/dibujo', request.url));
-    return NextResponse.redirect(new URL('/pending', request.url));
-  }
-
-  // Si es ruta pública (ej: / o /privacy) estando logueado -> permitir ver la página
+  // Si está logueado y visita rutas públicas (/, /privacy, /terms), permitir sin atraparlo
   if (pathname === '/' || pathname === '/privacy' || pathname === '/terms') {
     return NextResponse.next();
   }
 
+  const role = token.role as string;
+
+  // Si está autenticado y entra a /login directamente (sin cerrar sesión):
+  // Redirigir a su panel correspondiente (excepto si el rol es pending, que puede ver la pantalla de login)
+  if (pathname === '/login' && role !== 'pending') {
+    if (role === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    if (role === 'operator') return NextResponse.redirect(new URL('/projects', request.url));
+    if (role === 'dibujo') return NextResponse.redirect(new URL('/dibujo', request.url));
+  }
+
   // Control de acceso por roles para rutas protegidas
-  if (role === 'pending' && pathname !== '/pending') {
+  if (role === 'pending' && pathname !== '/pending' && pathname !== '/login') {
     return NextResponse.redirect(new URL('/pending', request.url));
   }
 
