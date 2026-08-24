@@ -14,16 +14,15 @@ export default function DibujoLayout({ children }: { children: React.ReactNode }
   if (isAdmin) {
     return (
       <div className="min-h-screen bg-surface">
-        {/* Mantener la barra superior de Administrador (Dashboard, Proyectos, Usuarios) */}
+        {/* Navbar Administrador limpia e idéntica a Vista Operador */}
         <Navbar />
 
-        {/* Sub-barra de navegacion para el Área de Dibujo en Administrador */}
-        <div className="bg-white border-b border-border py-2.5 px-4 shadow-xs">
+        {/* Pestañas de navegación discretas de Dibujo */}
+        <div className="bg-white border-b border-border py-2 px-4 shadow-xs">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="badge badge-accent text-xs">Área de Dibujo</span>
-              <span className="text-xs text-text-muted hidden sm:inline font-medium">
-                Modo Administrador — Visualizando Área de Dibujo
+              <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">
+                Módulo Dibujo Técnico
               </span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -57,7 +56,7 @@ export default function DibujoLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen bg-surface">
-      {/* Header estándar dibujante */}
+      {/* Header limpio dibujante */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-border shadow-sm">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-6">
@@ -67,10 +66,7 @@ export default function DibujoLayout({ children }: { children: React.ReactNode }
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
                 </svg>
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-primary text-sm tracking-tight leading-none">Mapping Ingeniería</span>
-                <span className="text-[10px] text-text-muted font-medium mt-0.5">Área de Dibujo</span>
-              </div>
+              <span className="font-bold text-primary text-sm tracking-tight">PROCIMEC</span>
             </Link>
 
             <nav className="flex items-center gap-1">

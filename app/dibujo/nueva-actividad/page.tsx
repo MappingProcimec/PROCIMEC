@@ -163,9 +163,10 @@ export default function NuevaActividadPage() {
       {/* Hero section */}
       <div className="page-hero">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="badge badge-accent">Área de Dibujo</span>
-            <span className="text-white/60 text-xs">Mapping Ingeniería</span>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+              ✏️ Área de Dibujo
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
             Registrar Actividad Diaria

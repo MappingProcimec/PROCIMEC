@@ -164,12 +164,17 @@ export default function TableroDibujoPage() {
       {/* Hero */}
       <div className="page-hero">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="badge badge-accent">Área de Dibujo</span>
-            <span className="text-white/60 text-xs">Mapping Ingeniería</span>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+              ⭐ Administrador
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-1">Tablero de Actividades</h1>
-          <p className="text-white/70 text-sm">Resumen y métricas de rendimiento en actividades de dibujo</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1">
+            Tablero de Actividades de Dibujo
+          </h1>
+          <p className="text-white/70 text-sm">
+            Métricas de rendimiento e historial consolidado de actividades técnicas de dibujo.
+          </p>
         </div>
       </div>
 
