@@ -48,16 +48,6 @@ export function Navbar() {
 
         {/* User menu */}
         <div className="flex items-center gap-2">
-          {isAdmin && (
-            <Link
-              href="/admin/dashboard"
-              className="bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1"
-            >
-              <span>←</span>
-              <span>Dashboard Admin</span>
-            </Link>
-          )}
-
           {/* Role badge */}
           <span className={`hidden sm:inline-flex badge text-xs ${isAdmin ? 'badge-primary' : 'badge-accent'}`}>
             {isAdmin ? 'Admin' : 'Operador'}
