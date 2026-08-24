@@ -30,21 +30,8 @@ interface DrawingActivity {
   activity_date: string;
 }
 
-async function fetchDashboard() {
-  const [reportsRes, projectsRes, usersRes, dibujoRes] = await Promise.all([
-    fetch('/api/reports'),
-    fetch('/api/admin/projects'),
-    fetch('/api/admin/users'),
-    fetch('/api/dibujo/actividades'),
-  ]);
-  const reports = (await reportsRes.json()).data || [];
-  const projects = (await projectsRes.json()).data || [];
-  const users = (await usersRes.json()).users || [];
-  const dibujo = Array.isArray(await dibujoRes.json()) ? await (await fetch('/api/dibujo/actividades')).json() : [];
-  return { reports, projects, users, dibujo };
-}
 
-// Fallback fetch sin re-fetch duplicado
+
 async function fetchDashboardClean() {
   const [reportsRes, projectsRes, usersRes, dibujoRes] = await Promise.all([
     fetch('/api/reports'),
