@@ -308,22 +308,6 @@ export default function AdminDashboard() {
           </AreaPanel>
         )}
 
-        {/* ── Accesos rápidos ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            { href: '/admin/projects', label: 'Gestión de Proyectos', icon: '🏗️', desc: 'Crear, editar y asignar proyectos' },
-            { href: '/admin/users', label: 'Gestión de Usuarios', icon: '👥', desc: 'Roles, permisos y aprobaciones' },
-            { href: '/projects', label: 'Vista Operador Campo', icon: '📱', desc: 'Ver como operador de campo' },
-          ].map((nav) => (
-            <Link key={nav.href} href={nav.href} className="card-hover p-5 flex items-center gap-4">
-              <span className="text-3xl">{nav.icon}</span>
-              <div>
-                <p className="font-semibold text-text-primary">{nav.label}</p>
-                <p className="text-xs text-text-muted">{nav.desc}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
 
         {/* ── Tabla unificada: Todos los Registros de Todas las Áreas ───────── */}
         <div className="card overflow-hidden">

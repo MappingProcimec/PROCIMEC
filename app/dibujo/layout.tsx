@@ -4,20 +4,64 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
+import { Navbar } from '@/components/layout/Navbar';
 
 export default function DibujoLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   const pathname = usePathname();
   const isAdmin = session?.user?.role === 'admin';
 
+  if (isAdmin) {
+    return (
+      <div className="min-h-screen bg-surface">
+        {/* Mantener la barra superior de Administrador (Dashboard, Proyectos, Usuarios) */}
+        <Navbar />
+
+        {/* Sub-barra de navegacion para el Área de Dibujo en Administrador */}
+        <div className="bg-white border-b border-border py-2.5 px-4 shadow-xs">
+          <div className="max-w-6xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="badge badge-accent text-xs">Área de Dibujo</span>
+              <span className="text-xs text-text-muted hidden sm:inline font-medium">
+                Modo Administrador — Visualizando Área de Dibujo
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {[
+                { href: '/dibujo/nueva-actividad', label: 'Registrar Actividad' },
+                { href: '/dibujo/tablero', label: 'Tablero Dibujo' },
+              ].map(({ href, label }) => {
+                const isActive = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      isActive
+                        ? 'bg-primary text-white shadow-xs'
+                        : 'text-text-secondary hover:bg-gray-100 hover:text-primary'
+                    }`}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <main>{children}</main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surface">
-      {/* Sticky Navbar */}
+      {/* Header estándar dibujante */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-border shadow-sm">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          {/* Logo & Brand */}
           <div className="flex items-center gap-6">
-            <Link href={isAdmin ? '/admin/dashboard' : '/dibujo/nueva-actividad'} className="flex items-center gap-2.5 group">
+            <Link href="/dibujo/nueva-actividad" className="flex items-center gap-2.5 group">
               <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
                 <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
@@ -29,7 +73,6 @@ export default function DibujoLayout({ children }: { children: React.ReactNode }
               </div>
             </Link>
 
-            {/* Navigation links */}
             <nav className="flex items-center gap-1">
               {[
                 { href: '/dibujo/nueva-actividad', label: 'Registrar Actividad' },
@@ -53,22 +96,11 @@ export default function DibujoLayout({ children }: { children: React.ReactNode }
             </nav>
           </div>
 
-          {/* User info & Sign out */}
           <div className="flex items-center gap-3">
-            {isAdmin && (
-              <Link
-                href="/admin/dashboard"
-                className="bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold px-3 py-1.5 rounded-xl transition-all flex items-center gap-1"
-              >
-                <span>←</span>
-                <span>Dashboard Admin</span>
-              </Link>
-            )}
             <span className="badge badge-success text-xs hidden sm:inline-flex">
               Dibujo
             </span>
 
-            {/* User Dropdown / Sign out */}
             <div className="relative group">
               <button className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 transition-colors">
                 {session?.user?.image ? (
@@ -94,23 +126,11 @@ export default function DibujoLayout({ children }: { children: React.ReactNode }
                 </svg>
               </button>
 
-              {/* Dropdown Menu */}
               <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-2xl shadow-soft border border-border py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50">
                 <div className="px-3 py-2 border-b border-border mb-1">
                   <p className="text-sm font-semibold text-text-primary truncate">{session?.user?.name || 'Dibujante'}</p>
                   <p className="text-xs text-text-muted truncate">{session?.user?.email}</p>
                 </div>
-                {isAdmin && (
-                  <Link
-                    href="/admin/dashboard"
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-primary-50 font-semibold transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 016 6v3" />
-                    </svg>
-                    Volver a Admin
-                  </Link>
-                )}
                 <button
                   onClick={() => {
                     localStorage.clear();
