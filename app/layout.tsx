@@ -26,6 +26,9 @@ export const metadata: Metadata = {
     description: 'Sistema de registro digital de levantamientos GPR',
     type: 'website',
   },
+  verification: {
+    google: 'OXOT9JTd9TfbeI4v-5h5ArEs08-w4i2pHx6pvlVr9kg',
+  },
 };
 
 export const viewport: Viewport = {
@@ -40,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className={inter.variable}>
       <head>
+        <meta name="google-site-verification" content="OXOT9JTd9TfbeI4v-5h5ArEs08-w4i2pHx6pvlVr9kg" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
       </head>
