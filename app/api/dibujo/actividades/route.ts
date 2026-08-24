@@ -103,13 +103,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
   }
 
+  const email = token.email as string | undefined;
+
   let query = supabase
     .from('drawing_activities')
     .select('*')
-    .order('activity_date', { ascending: false });
+    .order('activity_date', { ascending: false })
+    .range(0, 49999);
 
-  if (role === 'dibujo' && userId) {
-    query = query.eq('user_id', userId);
+  if (role === 'dibujo') {
+    if (userId && email) {
+      query = query.or(`user_id.eq.${userId},responsible.ilike.${email}`);
+      // Vincular en segundo plano los registros importados sin user_id que le pertenecen a este correo
+      supabase
+        .from('drawing_activities')
+        .update({ user_id: userId })
+        .is('user_id', null)
+        .ilike('responsible', email)
+        .then(({ error: syncErr }) => {
+          if (syncErr) console.error('Error auto-syncing drawing user_id:', syncErr);
+        });
+    } else if (userId) {
+      query = query.eq('user_id', userId);
+    } else if (email) {
+      query = query.ilike('responsible', email);
+    }
   }
 
   const { data, error } = await query;
