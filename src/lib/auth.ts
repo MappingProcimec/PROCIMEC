@@ -90,14 +90,16 @@ export const authOptions: NextAuthOptions = {
         return { ...token, ...session.user };
       }
 
-      if (user?.email) {
+      const email = user?.email || (token?.email as string | undefined);
+
+      if (email) {
         const supabase = createAdminClient();
-        const isAdmin = isKnownAdmin(user.email);
+        const isAdmin = isKnownAdmin(email);
 
         const { data } = await supabase
           .from('users')
           .select('id, role, is_active, full_name, avatar_url')
-          .eq('email', user.email)
+          .eq('email', email)
           .single();
 
         if (data) {
