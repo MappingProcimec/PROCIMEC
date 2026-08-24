@@ -87,13 +87,22 @@ export default function NuevaActividadPage() {
     loadProjects();
   }, []);
 
-  // Fecha de hoy en formato YYYY-MM-DD
-  const today = new Date().toISOString().split('T')[0];
+  // Fecha de hoy local en formato YYYY-MM-DD
+  const getTodayLocalDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const today = getTodayLocalDate();
 
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     reset,
     formState: { errors },
   } = useForm<FormData>({
@@ -398,40 +407,31 @@ export default function NuevaActividadPage() {
                   ¿Esta actividad es de reproceso de información?
                 </label>
                 <div className="grid grid-cols-2 gap-3">
-                  <label
-                    className={`flex items-center justify-center gap-2 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                  <button
+                    type="button"
+                    onClick={() => setValue('is_rework', false)}
+                    className={`flex items-center justify-center gap-2 p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
                       !isRework
                         ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-bold shadow-sm'
                         : 'border-border bg-white text-text-secondary hover:border-gray-300'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      value="false"
-                      {...register('is_rework', { setValueAs: (v) => v === 'true' })}
-                      defaultChecked
-                      className="sr-only"
-                    />
                     <span className="text-base">✓</span>
                     <span className="text-sm font-semibold">No (Trabajo regular)</span>
-                  </label>
+                  </button>
 
-                  <label
-                    className={`flex items-center justify-center gap-2 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                  <button
+                    type="button"
+                    onClick={() => setValue('is_rework', true)}
+                    className={`flex items-center justify-center gap-2 p-3.5 rounded-2xl border-2 transition-all cursor-pointer ${
                       isRework
                         ? 'border-red-500 bg-red-50 text-red-800 font-bold shadow-sm'
                         : 'border-border bg-white text-text-secondary hover:border-gray-300'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      value="true"
-                      {...register('is_rework', { setValueAs: (v) => v === 'true' })}
-                      className="sr-only"
-                    />
                     <span className="text-base">⚠️</span>
                     <span className="text-sm font-semibold">Sí (Es reproceso)</span>
-                  </label>
+                  </button>
                 </div>
               </div>
 
