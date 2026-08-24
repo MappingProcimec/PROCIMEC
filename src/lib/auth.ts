@@ -21,17 +21,22 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          prompt: 'consent',
+          prompt: 'select_account',
           access_type: 'offline',
           response_type: 'code',
-          // Solicitar permisos de Drive al admin
-          scope: 'openid email profile https://www.googleapis.com/auth/drive',
+          scope: 'openid email profile',
         },
       },
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
-  session: { strategy: 'jwt' },
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 dias de sesion continua sin expirar al cerrar el navegador
+  },
+  jwt: {
+    maxAge: 30 * 24 * 60 * 60,
+  },
   callbacks: {
     async signIn({ user, account, profile }) {
       if (!user.email) return false;
@@ -69,7 +74,7 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // ── Si es el admin y viene con refresh_token, guardarlo en Supabase ──
+      // Si es el admin y viene con refresh_token, guardarlo en Supabase
       if (
         account?.refresh_token &&
         isKnownAdmin(user.email)
