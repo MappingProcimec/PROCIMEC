@@ -6,26 +6,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSession } from 'next-auth/react';
 
-// ─── Proyectos disponibles ─────────────────────────────────────────────────────
-const PROYECTOS = [
-  'TENARIS',
-  'VOPAK COLOMBIA BAQ',
-  'CARNAVAL SA',
-  'EPM COPACABANA',
-  'INSPECCION DIQUES',
-  'CANAL SANTA CECILIA',
-  'CONINSA RH VIA 40-72',
-  'LOTE FAN AMARILO',
-  'YDN POLICARPA',
-  'YDN COLECTOR BOYACA',
-  'PIMSA IEB',
-  'CARACOLI IEB',
-  'CONSORCIO VIAL TPF-CB PUENTES',
-  'QUORA AMARILO',
-  'COLECTOR SIMON BOLIVAR',
-  'CONSTRUTORA COLPATRIA',
-  'DESARROLLO',
-] as const;
+// ─── Tipo de Proyecto ─────────────────────────────────────────────────────────
+interface Project {
+  id: string;
+  code: string;
+  name: string;
+  client?: string;
+}
 
 // ─── Schema de validación ──────────────────────────────────────────────────────
 const schema = z
@@ -79,6 +66,26 @@ export default function NuevaActividadPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [lastSuccess, setLastSuccess] = useState<{ project: string; software: string } | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+
+  // ── Cargar proyectos asignados al usuario ──────────────────────────────────
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/dibujo/proyectos');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al cargar proyectos');
+        setProjects(data.projects || []);
+      } catch (e) {
+        setProjectsError(e instanceof Error ? e.message : 'Error al cargar proyectos');
+      } finally {
+        setProjectsLoading(false);
+      }
+    }
+    loadProjects();
+  }, []);
 
   // Fecha de hoy en formato YYYY-MM-DD
   const today = new Date().toISOString().split('T')[0];
@@ -233,17 +240,29 @@ export default function NuevaActividadPage() {
                 {/* Proyecto */}
                 <div className="form-group sm:col-span-2">
                   <label className="label label-required">Proyecto</label>
-                  <select
-                    {...register('project_name')}
-                    className={`select ${errors.project_name ? 'input-error' : ''}`}
-                  >
-                    <option value="">— Selecciona un proyecto —</option>
-                    {PROYECTOS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
+                  {projectsLoading ? (
+                    <div className="select animate-pulse bg-gray-100 text-text-muted">Cargando proyectos...</div>
+                  ) : projectsError ? (
+                    <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+                      ⚠️ {projectsError}
+                    </div>
+                  ) : projects.length === 0 ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-800 text-sm">
+                      ℹ️ No tienes proyectos asignados. Contacta al administrador para que te vincule a un proyecto.
+                    </div>
+                  ) : (
+                    <select
+                      {...register('project_name')}
+                      className={`select ${errors.project_name ? 'input-error' : ''}`}
+                    >
+                      <option value="">— Selecciona un proyecto —</option>
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.name}>
+                          {p.code ? `[${p.code}] ` : ''}{p.name}{p.client ? ` — ${p.client}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {errors.project_name && (
                     <p className="error-msg">⚠️ {errors.project_name.message}</p>
                   )}
