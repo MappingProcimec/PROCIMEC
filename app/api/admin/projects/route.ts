@@ -5,6 +5,43 @@ import { createProjectFolder } from '@/lib/drive';
 import { createAdminClient } from '@/lib/supabase';
 import { createProjectSchema } from '@/lib/validations';
 
+interface OperationalSummaryRow {
+  ml?: number;
+}
+
+interface FieldReport {
+  id: string;
+  operational_summary: OperationalSummaryRow[];
+  report_date?: string;
+  operator_name?: string;
+  cad_priority?: string;
+  status?: string;
+  docx_drive_url?: string;
+  drive_session_folder_url?: string;
+}
+
+interface DrawingActivity {
+  id: string;
+  project_name: string;
+  hours_worked: number;
+  responsible: string;
+  activity_date: string;
+  software: string;
+  is_rework: boolean;
+}
+
+interface DbProject {
+  id: string;
+  code: string;
+  name: string;
+  client: string;
+  location: string;
+  is_active: boolean;
+  created_at: string;
+  drive_folder_url?: string;
+  field_reports: FieldReport[];
+}
+
 // GET /api/admin/projects
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -28,10 +65,10 @@ export async function GET() {
     .select('id, project_name, hours_worked, responsible, activity_date, software, is_rework')
     .range(0, 49999);
 
-  const activities = drawingActivities || [];
+  const activities: DrawingActivity[] = drawingActivities || [];
 
-  // 3. Agrupar actividades por project_name exacto (coincide con projects.name normalizado)
-  const drawingByProject = new Map<string, any[]>();
+  // 3. Agrupar actividades por project_name exacto
+  const drawingByProject = new Map<string, DrawingActivity[]>();
   activities.forEach((a) => {
     const list = drawingByProject.get(a.project_name) || [];
     list.push(a);
@@ -39,17 +76,17 @@ export async function GET() {
   });
 
   // 4. Construir respuesta
-  const resultProjects = (dbProjects || []).map((p) => {
-    const fieldReports = p.field_reports || [];
-    const projectDibujo = drawingByProject.get(p.name) || [];
+  const resultProjects = (dbProjects as DbProject[] || []).map((p) => {
+    const fieldReports: FieldReport[] = p.field_reports || [];
+    const projectDibujo: DrawingActivity[] = drawingByProject.get(p.name) || [];
 
-    const totalML = fieldReports.reduce((sum: number, r: any) => {
+    const totalML = fieldReports.reduce((sum, r) => {
       const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
-      return sum + rows.reduce((s: number, row: any) => s + (Number(row.ml) || 0), 0);
+      return sum + rows.reduce((s, row) => s + (Number(row.ml) || 0), 0);
     }, 0);
 
     const totalDrawingHours = projectDibujo.reduce(
-      (sum: number, d: any) => sum + (Number(d.hours_worked) || 0),
+      (sum, d) => sum + (Number(d.hours_worked) || 0),
       0
     );
 
