@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { createClient } from '@supabase/supabase-js';
 
 // Correos que siempre tienen acceso de administrador, independientemente del rol guardado en el token
 const ADMIN_EMAILS = [
@@ -39,14 +40,38 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Determinar el rol efectivo: si el correo es admin conocido, ignorar el token y tratar como admin
   const email = token.email as string | undefined;
-  const tokenRole = token.role as string;
-  const effectiveRole = isKnownAdmin(email) ? 'admin' : tokenRole;
+  let effectiveRole = token.role as string;
 
-  // Si el email es admin conocido y está en /login o /pending → redirigir a dashboard
-  if (isKnownAdmin(email) && (pathname === '/login' || pathname === '/pending')) {
-    return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+  if (isKnownAdmin(email)) {
+    effectiveRole = 'admin';
+  } else if (effectiveRole === 'pending' && email) {
+    // Si la cookie dice 'pending', consultar en Supabase por si el administrador ya aprobo el rol
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (supabaseUrl && serviceRoleKey) {
+        const supabase = createClient(supabaseUrl, serviceRoleKey);
+        const { data } = await supabase
+          .from('users')
+          .select('role')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (data?.role) {
+          effectiveRole = data.role;
+        }
+      }
+    } catch (e) {
+      console.error('Error en middleware al verificar rol en Supabase:', e);
+    }
+  }
+
+  // Si la cuenta ya fue aprobada pero esta intentando acceder a /pending -> redirigir a su modulo
+  if (pathname === '/pending' && effectiveRole !== 'pending') {
+    if (effectiveRole === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    if (effectiveRole === 'dibujo') return NextResponse.redirect(new URL('/dibujo', request.url));
+    if (effectiveRole === 'operator') return NextResponse.redirect(new URL('/projects', request.url));
   }
 
   // Si está autenticado y entra a /login → redirigir a su panel
