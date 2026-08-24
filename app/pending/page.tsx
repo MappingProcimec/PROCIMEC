@@ -25,6 +25,7 @@ export default function PendingPage() {
     if (status === 'authenticated') {
       update();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   const handleRefresh = async () => {
@@ -35,11 +36,18 @@ export default function PendingPage() {
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
-    if (typeof window !== 'undefined') {
-      localStorage.clear();
-      sessionStorage.clear();
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+        // Navegar directamente al endpoint de signout de NextAuth
+        // Esto evita el error de CSRF que ocurre con signOut() en fetch
+        window.location.href = '/api/auth/signout?callbackUrl=' + encodeURIComponent('/login');
+      }
+    } catch {
+      // Fallback: usar signOut normal
+      await signOut({ callbackUrl: '/login', redirect: true });
     }
-    await signOut({ callbackUrl: '/login', redirect: true });
   };
 
   return (

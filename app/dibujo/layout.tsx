@@ -91,7 +91,11 @@ export default function DibujoLayout({ children }: { children: React.ReactNode }
                   <p className="text-xs text-text-muted truncate">{session?.user?.email}</p>
                 </div>
                 <button
-                  onClick={() => signOut({ callbackUrl: '/' })}
+                  onClick={() => {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    window.location.href = '/api/auth/signout?callbackUrl=' + encodeURIComponent('/login');
+                  }}
                   className="flex items-center gap-2 w-full px-3 py-2 text-sm text-error hover:bg-red-50 transition-colors font-medium"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
