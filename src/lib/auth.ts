@@ -86,10 +86,6 @@ export const authOptions: NextAuthOptions = {
     },
 
     async jwt({ token, user, trigger, session }) {
-      if (trigger === 'update' && session) {
-        return { ...token, ...session.user };
-      }
-
       const email = user?.email || (token?.email as string | undefined);
 
       if (email) {
@@ -100,7 +96,7 @@ export const authOptions: NextAuthOptions = {
           .from('users')
           .select('id, role, is_active, full_name, avatar_url')
           .eq('email', email)
-          .single();
+          .maybeSingle();
 
         if (data) {
           const effectiveRole = isAdmin ? 'admin' : data.role;
@@ -109,7 +105,14 @@ export const authOptions: NextAuthOptions = {
           token.isActive = data.is_active;
           token.fullName = data.full_name;
           token.avatarUrl = data.avatar_url;
+        } else if (isAdmin) {
+          token.role = 'admin';
+          token.isActive = true;
         }
+      }
+
+      if (trigger === 'update' && session?.user) {
+        return { ...token, ...session.user };
       }
 
       return token;
