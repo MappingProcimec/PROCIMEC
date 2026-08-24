@@ -25,6 +25,19 @@ const DEFAULT_PROJECTS = [
   { code: 'DESARROLLO-01', name: 'DESARROLLO', client: 'MAPPING', location: 'Interno' },
 ];
 
+function matchesProject(activityProjectName: string, projectName: string): boolean {
+  if (!activityProjectName || !projectName) return false;
+  const a = activityProjectName.toUpperCase().trim().replace(/CONSTRUCTORA/g, 'CONSTRUTORA');
+  const p = projectName.toUpperCase().trim().replace(/CONSTRUCTORA/g, 'CONSTRUTORA');
+
+  if (a === p) return true;
+  if (a.length >= 3 && p.length >= 3) {
+    if (a.startsWith(p) || p.startsWith(a)) return true;
+    if (a.includes(p) || p.includes(a)) return true;
+  }
+  return false;
+}
+
 // GET /api/admin/projects
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -33,6 +46,8 @@ export async function GET() {
   }
 
   const supabase = createAdminClient();
+
+  // 1. Consultar proyectos de la tabla projects
   const { data: initialData, error } = await supabase
     .from('projects')
     .select('*, field_reports(id, operational_summary)')
@@ -40,11 +55,11 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  let data = initialData;
+  let data = initialData || [];
 
-  // Si hay pocos proyectos (ej. solo el de prueba), insertar los proyectos de dibujo predeterminados
-  if (!data || data.length <= 2) {
-    const existingNames = new Set((data || []).map((p: { name: string }) => p.name.toUpperCase()));
+  // Si hay pocos proyectos, sembrar los predeterminados
+  if (data.length <= 2) {
+    const existingNames = new Set(data.map((p: { name: string }) => p.name.toUpperCase()));
     const toInsert = DEFAULT_PROJECTS.filter((p) => !existingNames.has(p.name.toUpperCase())).map((p) => ({
       ...p,
       is_active: true,
@@ -61,18 +76,63 @@ export async function GET() {
     }
   }
 
-  // Compute stats
-  const projects = (data || []).map((p: { field_reports?: { id: string; operational_summary: { ml?: number }[] }[]; [key: string]: unknown }) => {
-    const reports = p.field_reports || [];
-    const totalML = reports.reduce((sum: number, r: { operational_summary?: { ml?: number }[] }) => {
+  // 2. Consultar actividades de dibujo con rango amplio
+  const { data: drawingActivities } = await supabase
+    .from('drawing_activities')
+    .select('id, project_name, hours_worked, responsible, activity_date, software, is_rework')
+    .range(0, 49999);
+
+  const activities = drawingActivities || [];
+
+  // 3. Extraer proyectos únicos presentes en drawing_activities y auto-crear los que falten en `projects`
+  const uniqueDrawingProjects = Array.from(
+    new Set(activities.map((a) => (a.project_name || '').trim()).filter(Boolean))
+  );
+
+  const currentNames = data.map((p: { name: string }) => (p.name || '').toUpperCase().trim());
+
+  const missingDrawingProjects = uniqueDrawingProjects.filter(
+    (dName) => !currentNames.some((cName) => matchesProject(dName, cName))
+  );
+
+  if (missingDrawingProjects.length > 0) {
+    const newProjectsToInsert = missingDrawingProjects.map((dName, idx) => ({
+      code: `DIB-${String(idx + 1).padStart(3, '0')}`,
+      name: dName,
+      client: dName,
+      location: 'Varias',
+      is_active: true,
+      created_by: session.user.id,
+    }));
+
+    await supabase.from('projects').insert(newProjectsToInsert);
+    const refreshed = await supabase
+      .from('projects')
+      .select('*, field_reports(id, operational_summary)')
+      .order('created_at', { ascending: false });
+    data = refreshed.data || data;
+  }
+
+  // 4. Calcular metricas exactas por proyecto (Campo + Dibujo)
+  const projects = data.map((p: { name: string; field_reports?: { id: string; operational_summary: { ml?: number }[] }[]; [key: string]: unknown }) => {
+    const fieldReports = p.field_reports || [];
+    const totalML = fieldReports.reduce((sum: number, r: { operational_summary?: { ml?: number }[] }) => {
       const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
       return sum + rows.reduce((s: number, row: { ml?: number }) => s + (Number(row.ml) || 0), 0);
     }, 0);
+
+    const projectDibujo = activities.filter((a) => matchesProject(a.project_name, p.name));
+    const totalDrawingHours = projectDibujo.reduce((sum, d) => sum + (Number(d.hours_worked) || 0), 0);
+
     return {
       ...p,
-      report_count: reports.length,
+      report_count: fieldReports.length + projectDibujo.length,
+      field_reports_count: fieldReports.length,
+      drawing_count: projectDibujo.length,
       total_ml: totalML,
-      field_reports: undefined,
+      total_drawing_hours: totalDrawingHours,
+      field_reports: fieldReports,
+      drawing_activities: projectDibujo,
     };
   });
 
