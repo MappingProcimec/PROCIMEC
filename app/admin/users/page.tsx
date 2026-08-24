@@ -150,7 +150,7 @@ export default function AdminUsersPage() {
                           )}
                         </div>
                         <p className="text-xs text-text-muted">{user.email}</p>
-                        {user.role === 'operator' && (
+                        {user.role !== 'pending' && user.role !== 'admin' && (
                           <p className="text-xs text-text-muted mt-1">
                             {user.user_projects?.length || 0} proyecto{user.user_projects?.length !== 1 ? 's' : ''} asignado{user.user_projects?.length !== 1 ? 's' : ''}
                           </p>
@@ -225,15 +225,15 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              {/* Projects (only for operator) */}
-              {editRole === 'operator' && (
+              {/* Projects (for operator and dibujo) */}
+              {editRole !== 'pending' && editRole !== 'admin' && (
                 <div className="form-group">
-                  <label className="label">Proyectos asignados</label>
-                  <div className="max-h-48 overflow-y-auto space-y-1.5 border border-border rounded-xl p-2">
-                    {projects.filter((p: Project) => (p as Project & { is_active: boolean }).is_active !== false).map((p: Project) => (
-                      <label key={p.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <label className="label font-semibold">Proyectos Asignados ({editProjects.length})</label>
+                  <div className="max-h-56 overflow-y-auto space-y-1.5 border border-border rounded-xl p-2 bg-gray-50/50">
+                    {projects.filter((p: Project) => (p as Project & { is_active?: boolean }).is_active !== false).map((p: Project) => (
+                      <label key={p.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-white bg-white/70 border border-transparent hover:border-border cursor-pointer transition-colors">
                         <input type="checkbox"
-                          className="w-4 h-4 accent-primary"
+                          className="w-4 h-4 accent-primary rounded"
                           checked={editProjects.includes(p.id)}
                           onChange={e => {
                             if (e.target.checked) {
@@ -242,8 +242,8 @@ export default function AdminUsersPage() {
                               setEditProjects(editProjects.filter(id => id !== p.id));
                             }
                           }} />
-                        <div>
-                          <p className="text-sm font-medium text-text-primary">{p.name}</p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-text-primary truncate">{p.name}</p>
                           <p className="text-xs text-text-muted">{p.code}</p>
                         </div>
                       </label>
@@ -253,7 +253,7 @@ export default function AdminUsersPage() {
                     )}
                   </div>
                   <p className="text-xs text-text-muted mt-1">
-                    {editProjects.length} proyecto{editProjects.length !== 1 ? 's' : ''} seleccionado{editProjects.length !== 1 ? 's' : ''}
+                    {editProjects.length} proyecto{editProjects.length !== 1 ? 's' : ''} seleccionado{editProjects.length !== 1 ? 's' : ''} para este usuario
                   </p>
                 </div>
               )}
