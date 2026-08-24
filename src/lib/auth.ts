@@ -2,6 +2,18 @@ import { type NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { createAdminClient } from './supabase';
 
+const ADMIN_EMAILS = [
+  'mapping.procimec2024@gmail.com',
+  'marcelobarrazasantiago@gmail.com',
+];
+
+function isKnownAdmin(email: string): boolean {
+  if (!email) return false;
+  const envAdmin = process.env.GOOGLE_DRIVE_ADMIN_EMAIL;
+  if (envAdmin && email.toLowerCase() === envAdmin.toLowerCase()) return true;
+  return ADMIN_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase());
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -25,6 +37,7 @@ export const authOptions: NextAuthOptions = {
       if (!user.email) return false;
 
       const supabase = createAdminClient();
+      const isAdmin = isKnownAdmin(user.email);
 
       // Check if user exists
       const { data: existingUser } = await supabase
@@ -34,26 +47,32 @@ export const authOptions: NextAuthOptions = {
         .single();
 
       if (!existingUser) {
-        // Create new user with 'pending' role
+        // Create new user with 'admin' if in admin list, otherwise 'pending'
         const { error } = await supabase.from('users').insert({
           email: user.email,
           full_name: user.name || profile?.name || 'Usuario',
           avatar_url: user.image || null,
-          role: 'pending',
+          role: isAdmin ? 'admin' : 'pending',
           is_active: true,
         });
         if (error) {
           console.error('Error creating user:', error);
           return false;
         }
-      } else if (!existingUser.is_active) {
-        return '/pending?reason=inactive';
+      } else {
+        if (!existingUser.is_active) {
+          return '/pending?reason=inactive';
+        }
+        // Si es correo admin pero en la BD aun figura como pending, actualizarlo a admin automaticamente
+        if (isAdmin && existingUser.role !== 'admin') {
+          await supabase.from('users').update({ role: 'admin' }).eq('email', user.email);
+        }
       }
 
       // ── Si es el admin y viene con refresh_token, guardarlo en Supabase ──
       if (
         account?.refresh_token &&
-        user.email === process.env.GOOGLE_DRIVE_ADMIN_EMAIL
+        isKnownAdmin(user.email)
       ) {
         await supabase
           .from('users')
@@ -73,6 +92,8 @@ export const authOptions: NextAuthOptions = {
 
       if (user?.email) {
         const supabase = createAdminClient();
+        const isAdmin = isKnownAdmin(user.email);
+
         const { data } = await supabase
           .from('users')
           .select('id, role, is_active, full_name, avatar_url')
@@ -80,8 +101,9 @@ export const authOptions: NextAuthOptions = {
           .single();
 
         if (data) {
+          const effectiveRole = isAdmin ? 'admin' : data.role;
           token.userId = data.id;
-          token.role = data.role;
+          token.role = effectiveRole;
           token.isActive = data.is_active;
           token.fullName = data.full_name;
           token.avatarUrl = data.avatar_url;
@@ -103,7 +125,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   pages: {
-    signIn: '/',
-    error: '/',
+    signIn: '/login',
+    error: '/login',
   },
 };
