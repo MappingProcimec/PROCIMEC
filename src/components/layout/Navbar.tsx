@@ -30,6 +30,7 @@ export function Navbar() {
               { href: '/admin/dashboard', label: 'Dashboard' },
               { href: '/admin/projects', label: 'Proyectos' },
               { href: '/admin/users', label: 'Usuarios' },
+              { href: '/dibujo/tablero', label: 'Área Dibujo' },
             ].map(({ href, label }) => (
               <Link
                 key={href}

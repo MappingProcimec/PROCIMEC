@@ -99,7 +99,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/projects', request.url));
   }
 
-  if (effectiveRole === 'admin' && (pathname === '/pending' || pathname.startsWith('/dibujo'))) {
+  if (effectiveRole === 'admin' && pathname === '/pending') {
     return NextResponse.redirect(new URL('/admin/dashboard', request.url));
   }
 
