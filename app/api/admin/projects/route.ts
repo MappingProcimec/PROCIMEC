@@ -33,12 +33,14 @@ export async function GET() {
   }
 
   const supabase = createAdminClient();
-  let { data, error } = await supabase
+  const { data: initialData, error } = await supabase
     .from('projects')
     .select('*, field_reports(id, operational_summary)')
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  let data = initialData;
 
   // Si hay pocos proyectos (ej. solo el de prueba), insertar los proyectos de dibujo predeterminados
   if (!data || data.length <= 2) {
