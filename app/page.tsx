@@ -1,3 +1,4 @@
+// app/page.tsx
 'use client';
 
 import { useSession } from 'next-auth/react';
@@ -26,8 +27,8 @@ export default function LandingPage() {
               </svg>
             </div>
             <div>
-              <span className="font-bold text-primary text-base tracking-tight leading-none block">PROCIMEC</span>
-              <span className="text-[10px] text-accent-700 font-semibold tracking-wider uppercase">Mapping Ingeniería</span>
+              <span className="font-bold text-primary text-base tracking-tight leading-none block">Mapping Ingeniería</span>
+              <span className="text-[10px] text-accent-700 font-semibold tracking-wider uppercase">Plataforma de Gestión Empresarial</span>
             </div>
           </div>
 
@@ -55,16 +56,16 @@ export default function LandingPage() {
       <section className="bg-procimec-gradient text-white pt-16 pb-24 px-4 relative overflow-hidden">
         <div className="max-w-4xl mx-auto text-center relative z-10 space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-accent font-semibold text-xs tracking-wide">
-            <span>📡</span>
-            <span>Sistema Digital de Levantamientos y Gestión Técnica</span>
+            <span>🏢</span>
+            <span>Sistema Integrado de Gestión Empresarial (SIG)</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight">
-            PROCIMEC — Mapping Ingeniería
+            Mapping Ingeniería
           </h1>
 
           <p className="text-white/80 text-base sm:text-lg max-w-2xl mx-auto font-normal leading-relaxed">
-            Plataforma web integrada para la captura digital de levantamientos de campo con Radar de Penetración Terrestre (GPR), registro de actividades de dibujo CAD/BIM y generación automatizada de reportes técnicos.
+            Plataforma web integrada para la administración de operaciones, control de calidad ISO, procesos transversales y gestión documental centralizada de toda la organización.
           </p>
 
           <div className="pt-4 flex flex-wrap items-center justify-center gap-4">
@@ -93,33 +94,33 @@ export default function LandingPage() {
           {/* Card 1 */}
           <div className="card p-6 shadow-xl border border-border hover:shadow-2xl transition-all">
             <div className="w-12 h-12 rounded-2xl bg-primary-100 text-primary flex items-center justify-center text-2xl font-bold mb-4">
-              📡
+              📊
             </div>
-            <h3 className="font-bold text-text-primary text-lg mb-2">Levantamientos GPR</h3>
+            <h3 className="font-bold text-text-primary text-lg mb-2">Áreas Operativas</h3>
             <p className="text-text-secondary text-sm leading-relaxed">
-              Captura estructurada de datos en campo con georreferenciación GPS, carga directa de archivos RAW a Google Drive y respaldo continuo.
+              Módulos especializados para captura de datos en campo (GPR), registro de actividades CAD/BIM y ejecución técnica de proyectos.
             </p>
           </div>
 
           {/* Card 2 */}
           <div className="card p-6 shadow-xl border border-border hover:shadow-2xl transition-all">
             <div className="w-12 h-12 rounded-2xl bg-accent-100 text-accent-700 flex items-center justify-center text-2xl font-bold mb-4">
-              📄
+              🛡️
             </div>
-            <h3 className="font-bold text-text-primary text-lg mb-2">Reportes Word (.docx)</h3>
+            <h3 className="font-bold text-text-primary text-lg mb-2">Gestión ISO / HSEQ</h3>
             <p className="text-text-secondary text-sm leading-relaxed">
-              Generación automática de entregables formales en formato Word con tablas operativas de facturación (ML/M²), fotografías y firmas.
+              Centralización de responsabilidades por cargo, control documental y cumplimiento de las normas ISO 9001, 14001 y 45001.
             </p>
           </div>
 
           {/* Card 3 */}
           <div className="card p-6 shadow-xl border border-border hover:shadow-2xl transition-all">
             <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl font-bold mb-4">
-              📐
+              ⚙️
             </div>
-            <h3 className="font-bold text-text-primary text-lg mb-2">Gestión de Dibujo CAD</h3>
+            <h3 className="font-bold text-text-primary text-lg mb-2">Procesos Transversales</h3>
             <p className="text-text-secondary text-sm leading-relaxed">
-              Módulo especializado para dibujantes con control de horas, etiquetado de software (Civil 3D, Revit) y monitoreo de tiempos de reproceso.
+              Administración unificada para comercial, gestión contable, recursos humanos y repositorio institucional articulado con Google Drive.
             </p>
           </div>
         </div>
@@ -129,9 +130,9 @@ export default function LandingPage() {
       <section className="max-w-4xl mx-auto px-4 mb-16 text-center">
         <div className="bg-white rounded-3xl p-8 sm:p-10 border border-border shadow-card space-y-4">
           <span className="badge badge-primary text-xs">Acceso Institucional</span>
-          <h2 className="text-2xl font-bold text-primary">Plataforma Exclusiva para Mapping Ingeniería</h2>
+          <h2 className="text-2xl font-bold text-primary">Portal Corporativo Integral</h2>
           <p className="text-text-secondary text-sm leading-relaxed max-w-2xl mx-auto">
-            Este sistema requiere inicio de sesión con cuentas corporativas verificadas de Google. Cada usuario cuenta con permisos específicos asignados por el administrador para garantizar la confidencialidad de la información técnica.
+            Este sistema requiere inicio de sesión con cuentas corporativas verificadas de Google. Cada usuario cuenta con permisos específicos asignados según su área y perfil en la organización.
           </p>
           <div className="pt-2">
             <Link href="/login" className="btn-primary px-7 py-3 text-sm font-semibold rounded-xl inline-flex items-center gap-2">
@@ -147,11 +148,11 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
           <div>
             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
-              <span className="font-bold text-white text-base tracking-tight">PROCIMEC</span>
-              <span className="text-accent text-xs font-semibold">· Mapping Ingeniería</span>
+              <span className="font-bold text-white text-base tracking-tight">Mapping Ingeniería</span>
+              <span className="text-accent text-xs font-semibold">· Gestión Integral</span>
             </div>
             <p className="text-white/60 text-xs">
-              Sistema de Registro Digital de Campo & Entregables Técnicos
+              Plataforma Corporativa de Operaciones y Procesos Transversales
             </p>
           </div>
 
