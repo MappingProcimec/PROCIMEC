@@ -27,7 +27,7 @@ export default function LandingPage() {
               </svg>
             </div>
             <div>
-              <span className="font-bold text-primary text-base tracking-tight leading-none block">Mapping Ingeniería</span>
+              <span className="font-bold text-primary text-base tracking-tight leading-none block">PROCIMEC</span>
               <span className="text-[10px] text-accent-700 font-semibold tracking-wider uppercase">Plataforma de Gestión Empresarial</span>
             </div>
           </div>
@@ -61,7 +61,7 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight">
-            Mapping Ingeniería
+            PROCIMEC — Portal Corporativo
           </h1>
 
           <p className="text-white/80 text-base sm:text-lg max-w-2xl mx-auto font-normal leading-relaxed">
@@ -130,7 +130,7 @@ export default function LandingPage() {
       <section className="max-w-4xl mx-auto px-4 mb-16 text-center">
         <div className="bg-white rounded-3xl p-8 sm:p-10 border border-border shadow-card space-y-4">
           <span className="badge badge-primary text-xs">Acceso Institucional</span>
-          <h2 className="text-2xl font-bold text-primary">Portal Corporativo Integral</h2>
+          <h2 className="text-2xl font-bold text-primary">Portal Corporativo PROCIMEC</h2>
           <p className="text-text-secondary text-sm leading-relaxed max-w-2xl mx-auto">
             Este sistema requiere inicio de sesión con cuentas corporativas verificadas de Google. Cada usuario cuenta con permisos específicos asignados según su área y perfil en la organización.
           </p>
@@ -148,7 +148,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
           <div>
             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
-              <span className="font-bold text-white text-base tracking-tight">Mapping Ingeniería</span>
+              <span className="font-bold text-white text-base tracking-tight">PROCIMEC</span>
               <span className="text-accent text-xs font-semibold">· Gestión Integral</span>
             </div>
             <p className="text-white/60 text-xs">
@@ -172,7 +172,7 @@ export default function LandingPage() {
           </div>
 
           <div className="text-white/40 text-xs">
-            © {new Date().getFullYear()} Mapping Ingeniería. Todos los derechos reservados.
+            © {new Date().getFullYear()} PROCIMEC. Todos los derechos reservados.
           </div>
         </div>
       </footer>
