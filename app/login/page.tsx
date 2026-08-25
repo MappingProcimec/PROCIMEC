@@ -1,3 +1,4 @@
+// app/login/page.tsx
 'use client';
 
 import { signIn, useSession } from 'next-auth/react';
@@ -67,10 +68,10 @@ export default function LoginPage() {
             PROCIMEC
           </h1>
           <p className="text-white/70 text-sm mt-2">
-            Sistema de registro digital de campo
+            Plataforma de gestión empresarial
           </p>
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-accent/20 border border-accent/30 rounded-full">
-            <span className="text-accent font-semibold text-xs tracking-wider">Mapping Ingeniería</span>
+            <span className="text-accent font-semibold text-xs tracking-wider">Portal Corporativo</span>
           </div>
         </div>
 
@@ -102,7 +103,7 @@ export default function LoginPage() {
           </button>
 
           <p className="text-white/40 text-xs text-center mt-5">
-            Solo para personal autorizado de Mapping Ingeniería.
+            Solo para personal autorizado de la organización.
             <br />El acceso es aprobado por el administrador.
           </p>
         </div>
@@ -118,7 +119,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-white/30 text-xs text-center mt-4">
-          PROCIMEC v1.0 · Mapping Ingeniería © {new Date().getFullYear()}
+          PROCIMEC v1.0 · Portal Corporativo © {new Date().getFullYear()}
         </p>
       </div>
     </main>
