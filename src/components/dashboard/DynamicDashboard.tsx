@@ -68,6 +68,8 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
             <div className="flex flex-wrap gap-2 mt-2">
               {role ? (
                 <span className="badge badge-primary text-xs">{role.name}</span>
+              ) : legacyRole ? (
+                <span className="badge badge-accent text-xs capitalize">{legacyRole}</span>
               ) : (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
                   Sin rol asignado
