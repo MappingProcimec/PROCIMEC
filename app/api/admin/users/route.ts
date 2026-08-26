@@ -13,7 +13,7 @@ export async function GET() {
   const supabase = createAdminClient();
   const { data: users, error } = await supabase
     .from('users')
-    .select('*, user_projects(project_id)')
+    .select('*, role_id, roles(id, name), user_projects(project_id)')
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -35,9 +35,11 @@ export async function PATCH(request: NextRequest) {
   const supabase = createAdminClient();
 
   // Update user fields
+  const { role_id } = body;
   const updates: Record<string, unknown> = {};
   if (role !== undefined) updates.role = role;
   if (is_active !== undefined) updates.is_active = is_active;
+  if (role_id !== undefined) updates.role_id = role_id || null;
 
   if (Object.keys(updates).length > 0) {
     const { error } = await supabase.from('users').update(updates).eq('id', id);
