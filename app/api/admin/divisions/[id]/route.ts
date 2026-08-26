@@ -34,8 +34,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     projects = (rp ?? [])
       .flatMap((r) => (r.projects ? [r.projects] : []))
       .filter((p) => {
-        if (seen.has((p as { id: string }).id)) return false;
-        seen.add((p as { id: string }).id);
+        if (seen.has((p as unknown as { id: string }).id)) return false;
+        seen.add((p as unknown as { id: string }).id);
         return true;
       });
   }

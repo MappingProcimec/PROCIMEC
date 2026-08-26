@@ -99,8 +99,8 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
         body: JSON.stringify({
           name: name.trim(),
           division_id: divisionId || null,
-          tool_ids: [...selectedTools],
-          form_ids: [...selectedForms],
+          tool_ids: Array.from(selectedTools),
+          form_ids: Array.from(selectedForms),
         }),
       });
       const json = await res.json();
