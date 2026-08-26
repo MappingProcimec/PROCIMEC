@@ -94,17 +94,6 @@ export function HamburgerMenu({ isOpen, onClose, tools, forms, legacyRole }: Ham
               <span className="text-base">🏠</span>
               Mi Panel
             </Link>
-            <Link
-              href="/projects"
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                pathname.startsWith('/projects')
-                  ? 'bg-primary-50 text-primary'
-                  : 'text-text-secondary hover:bg-gray-100'
-              }`}
-            >
-              <span className="text-base">📁</span>
-              Mis Proyectos
-            </Link>
           </section>
 
           {/* Módulo Dibujante (legacy) */}

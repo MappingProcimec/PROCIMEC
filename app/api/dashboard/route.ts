@@ -41,12 +41,27 @@ export async function GET() {
     division = data as { id: string; name: string } | null;
   }
 
-  if (dbUser.role_id) {
+  // Resolve the effective role_id: either the user's assigned role_id,
+  // or a role found by matching the legacy role string (e.g. 'dibujo').
+  let effectiveRoleId: string | null = dbUser.role_id ?? null;
+
+  if (!effectiveRoleId && dbUser.role) {
+    const { data: matchedRole } = await supabase
+      .from('roles')
+      .select('id, name')
+      .ilike('name', dbUser.role as string)
+      .maybeSingle();
+    if (matchedRole) {
+      effectiveRoleId = matchedRole.id as string;
+    }
+  }
+
+  if (effectiveRoleId) {
     const [roleResult, toolsResult, formsResult, projectsResult] = await Promise.all([
-      supabase.from('roles').select('id, name').eq('id', dbUser.role_id).single(),
-      supabase.from('role_tools').select('tools(id, slug, name, category)').eq('role_id', dbUser.role_id),
-      supabase.from('role_forms').select('forms(id, slug, name)').eq('role_id', dbUser.role_id),
-      supabase.from('role_projects').select('projects(id, code, name, client)').eq('role_id', dbUser.role_id),
+      supabase.from('roles').select('id, name').eq('id', effectiveRoleId).single(),
+      supabase.from('role_tools').select('tools(id, slug, name, category)').eq('role_id', effectiveRoleId),
+      supabase.from('role_forms').select('forms(id, slug, name)').eq('role_id', effectiveRoleId),
+      supabase.from('role_projects').select('projects(id, code, name, client)').eq('role_id', effectiveRoleId),
     ]);
 
     role = roleResult.data as { id: string; name: string } | null;
