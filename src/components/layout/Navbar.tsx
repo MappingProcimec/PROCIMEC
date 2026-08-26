@@ -88,6 +88,8 @@ export function Navbar() {
               { href: '/admin/dashboard', label: 'Dashboard' },
               { href: '/admin/projects', label: 'Proyectos' },
               { href: '/admin/users', label: 'Usuarios' },
+              { href: '/admin/divisions', label: 'Divisiones' },
+              { href: '/admin/roles', label: 'Roles' },
             ].map(({ href, label }) => (
               <Link
                 key={href}

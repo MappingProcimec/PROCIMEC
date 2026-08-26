@@ -20,6 +20,19 @@ interface DashboardReport {
   users?: { full_name: string };
 }
 
+interface Division {
+  id: string;
+  name: string;
+  description?: string;
+  role_count: number;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  divisions?: { id: string; name: string } | null;
+}
+
 interface DrawingActivity {
   id: string;
   project_name: string;
@@ -43,22 +56,28 @@ interface UnifiedRecord {
 }
 
 async function fetchDashboardClean() {
-  const [reportsRes, projectsRes, usersRes, dibujoRes] = await Promise.all([
+  const [reportsRes, projectsRes, usersRes, dibujoRes, divisionsRes, rolesRes] = await Promise.all([
     fetch('/api/reports'),
     fetch('/api/admin/projects'),
     fetch('/api/admin/users'),
     fetch('/api/dibujo/actividades'),
+    fetch('/api/admin/divisions'),
+    fetch('/api/admin/roles'),
   ]);
   const reportsData = await reportsRes.json();
   const projectsData = await projectsRes.json();
   const usersData = await usersRes.json();
   const dibujoData = await dibujoRes.json();
+  const divisionsData = await divisionsRes.json();
+  const rolesData = await rolesRes.json();
 
   return {
     reports: reportsData.data || [],
     projects: projectsData.data || [],
     users: usersData.data || [],
     dibujo: Array.isArray(dibujoData) ? dibujoData : [],
+    divisions: divisionsData.data || [],
+    roles: rolesData.data || [],
   };
 }
 
@@ -131,6 +150,8 @@ export default function AdminDashboard() {
   const projects = data?.projects || [];
   const users = data?.users || [];
   const dibujo: DrawingActivity[] = data?.dibujo || [];
+  const divisions: Division[] = data?.divisions || [];
+  const roles: Role[] = data?.roles || [];
 
   // ── Campo KPIs ──────────────────────────────────────────────────────────────
   const totalML = reports.reduce((sum, r) => {
@@ -215,8 +236,8 @@ export default function AdminDashboard() {
           {[
             { label: 'Proyectos Activos', value: isLoading ? '—' : activeProjects.length, icon: '🏗️', color: 'bg-primary text-white' },
             { label: 'Usuarios Totales', value: isLoading ? '—' : users.length, icon: '👥', color: 'bg-primary-600 text-white' },
+            { label: 'Divisiones', value: isLoading ? '—' : divisions.length, icon: '🏢', color: 'bg-accent text-white' },
             { label: 'Aprobación Pendiente', value: isLoading ? '—' : pendingUsers.length, icon: '⏳', color: pendingUsers.length > 0 ? 'bg-warning text-white' : 'bg-success text-white' },
-            { label: 'Total Registros', value: isLoading ? '—' : allRecords.length, icon: '📁', color: 'bg-accent text-white' },
           ].map((card) => (
             <div key={card.label} className={`${card.color} rounded-2xl p-5 shadow-card`}>
               <div className="text-2xl mb-2">{card.icon}</div>
@@ -224,6 +245,97 @@ export default function AdminDashboard() {
               <div className="text-sm font-medium opacity-90">{card.label}</div>
             </div>
           ))}
+        </div>
+
+        {/* ── Gestión Organizacional: Divisiones & Roles ────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Divisiones */}
+          <div className="card overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🏢</span>
+                <h2 className="font-bold text-text-primary text-base">Divisiones</h2>
+              </div>
+              <Link href="/admin/divisions" className="text-xs text-primary font-semibold hover:underline">
+                Gestionar →
+              </Link>
+            </div>
+            {isLoading ? (
+              <div className="p-6 text-center text-text-muted animate-pulse text-sm">Cargando...</div>
+            ) : divisions.length === 0 ? (
+              <div className="p-6 text-center">
+                <p className="text-text-muted text-sm">No hay divisiones creadas.</p>
+                <Link href="/admin/divisions" className="mt-2 inline-block text-primary text-xs font-medium hover:underline">
+                  Crear primera división →
+                </Link>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {divisions.map((d) => (
+                  <li key={d.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{d.name}</p>
+                      {d.description && (
+                        <p className="text-xs text-text-muted truncate max-w-[200px]">{d.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="badge badge-primary text-xs">{d.role_count} roles</span>
+                      <Link href={`/admin/divisions/${d.id}`} className="text-xs text-primary font-semibold hover:underline">
+                        Ver →
+                      </Link>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Roles */}
+          <div className="card overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🎭</span>
+                <h2 className="font-bold text-text-primary text-base">Roles</h2>
+              </div>
+              <Link href="/admin/roles" className="text-xs text-primary font-semibold hover:underline">
+                Gestionar →
+              </Link>
+            </div>
+            {isLoading ? (
+              <div className="p-6 text-center text-text-muted animate-pulse text-sm">Cargando...</div>
+            ) : roles.length === 0 ? (
+              <div className="p-6 text-center">
+                <p className="text-text-muted text-sm">No hay roles creados.</p>
+                <Link href="/admin/roles" className="mt-2 inline-block text-primary text-xs font-medium hover:underline">
+                  Crear primer rol →
+                </Link>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {roles.slice(0, 6).map((r) => (
+                  <li key={r.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
+                    <div>
+                      <p className="text-sm font-semibold text-text-primary">{r.name}</p>
+                      {r.divisions && (
+                        <p className="text-xs text-text-muted">{r.divisions.name}</p>
+                      )}
+                    </div>
+                    <Link href={`/admin/roles/${r.id}`} className="text-xs text-primary font-semibold hover:underline">
+                      Ver →
+                    </Link>
+                  </li>
+                ))}
+                {roles.length > 6 && (
+                  <li className="px-5 py-3 text-center">
+                    <Link href="/admin/roles" className="text-xs text-primary font-semibold hover:underline">
+                      Ver todos ({roles.length}) →
+                    </Link>
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
         </div>
 
         {/* ── Panel: Mapping Campo ─────────────────────────────────────────── */}
