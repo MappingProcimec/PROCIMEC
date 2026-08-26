@@ -18,7 +18,7 @@ export async function GET() {
 
   const { data: dbUser, error: userError } = await supabase
     .from('users')
-    .select('id, email, full_name, role_id, division_id')
+    .select('id, email, full_name, role, role_id, division_id')
     .eq('email', email)
     .single();
 
@@ -88,6 +88,7 @@ export async function GET() {
   return NextResponse.json({
     data: {
       user: { id: dbUser.id, email: dbUser.email, full_name: dbUser.full_name },
+      legacyRole: (dbUser.role as string) ?? null,
       division,
       role,
       projects,

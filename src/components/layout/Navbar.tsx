@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
@@ -9,18 +10,40 @@ import { HamburgerMenu } from '@/components/layout/HamburgerMenu';
 import { DivisionBadge } from '@/components/DivisionBadge';
 import type { Tool, Form } from '@/types';
 
+interface DashboardData {
+  user: { full_name: string };
+  division: { name: string } | null;
+  role: { name: string } | null;
+  legacyRole?: string | null;
+  tools: Tool[];
+  forms: Form[];
+}
+
+async function fetchDashboardNav(): Promise<DashboardData | null> {
+  const res = await fetch('/api/dashboard');
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json.data as DashboardData;
+}
+
 export function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const isAdmin = session?.user?.role === 'admin';
+  const isPending = session?.user?.role === 'pending';
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Datos del menú lateral — se poblará cuando exista el endpoint de tools/forms por rol
-  const assignedTools: Tool[] = [];
-  const assignedForms: Form[] = [];
+  const { data: dashData } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: fetchDashboardNav,
+    enabled: !!session && !isAdmin && !isPending,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  // División del usuario (disponible cuando se complete la migración a role_id)
-  const divisionName = (session?.user as { divisionName?: string })?.divisionName;
+  const assignedTools: Tool[] = dashData?.tools ?? [];
+  const assignedForms: Form[] = dashData?.forms ?? [];
+  const legacyRole = dashData?.legacyRole ?? null;
+  const divisionName = dashData?.division?.name ?? (session?.user as { divisionName?: string })?.divisionName;
 
   return (
     <>
@@ -29,6 +52,7 @@ export function Navbar() {
         onClose={() => setMenuOpen(false)}
         tools={assignedTools}
         forms={assignedForms}
+        legacyRole={legacyRole}
       />
 
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-border shadow-sm">
@@ -48,7 +72,7 @@ export function Navbar() {
           )}
 
           {/* Logo */}
-          <Link href={isAdmin ? '/admin/dashboard' : '/projects'} className="flex items-center gap-2.5">
+          <Link href={isAdmin ? '/admin/dashboard' : '/dashboard'} className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
             <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
@@ -87,7 +111,7 @@ export function Navbar() {
 
             {/* Role badge */}
             <span className={`hidden sm:inline-flex badge text-xs ${isAdmin ? 'badge-primary' : 'badge-accent'}`}>
-              {isAdmin ? 'Admin' : 'Operador'}
+              {isAdmin ? 'Admin' : (dashData?.role?.name ?? legacyRole ?? 'Operador')}
             </span>
 
           {/* Avatar */}
