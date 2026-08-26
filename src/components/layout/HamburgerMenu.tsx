@@ -10,6 +10,7 @@ interface HamburgerMenuProps {
   onClose: () => void;
   tools: Tool[];
   forms: Form[];
+  legacyRole?: string | null;
 }
 
 const TOOL_CATEGORY_ICON: Record<string, string> = {
@@ -19,7 +20,7 @@ const TOOL_CATEGORY_ICON: Record<string, string> = {
   universal: '🌐',
 };
 
-export function HamburgerMenu({ isOpen, onClose, tools, forms }: HamburgerMenuProps) {
+export function HamburgerMenu({ isOpen, onClose, tools, forms, legacyRole }: HamburgerMenuProps) {
   const pathname = usePathname();
 
   // Cerrar al navegar
@@ -77,11 +78,22 @@ export function HamburgerMenu({ isOpen, onClose, tools, forms }: HamburgerMenuPr
         {/* Scroll area */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
 
-          {/* Proyectos */}
+          {/* Panel principal */}
           <section>
             <p className="text-xs font-semibold text-text-muted uppercase tracking-wider px-2 mb-2">
-              Proyectos
+              Panel
             </p>
+            <Link
+              href="/dashboard"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                pathname === '/dashboard'
+                  ? 'bg-primary-50 text-primary'
+                  : 'text-text-secondary hover:bg-gray-100'
+              }`}
+            >
+              <span className="text-base">🏠</span>
+              Mi Panel
+            </Link>
             <Link
               href="/projects"
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
@@ -94,6 +106,37 @@ export function HamburgerMenu({ isOpen, onClose, tools, forms }: HamburgerMenuPr
               Mis Proyectos
             </Link>
           </section>
+
+          {/* Módulo Dibujante (legacy) */}
+          {legacyRole === 'dibujo' && (
+            <section>
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider px-2 mb-2">
+                Módulo Dibujante
+              </p>
+              <Link
+                href="/dibujo/nueva-actividad"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  pathname === '/dibujo/nueva-actividad'
+                    ? 'bg-amber-50 text-amber-700'
+                    : 'text-text-secondary hover:bg-gray-100'
+                }`}
+              >
+                <span className="text-base">✏️</span>
+                Nueva Actividad CAD
+              </Link>
+              <Link
+                href="/dibujo/tablero"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  pathname === '/dibujo/tablero'
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-text-secondary hover:bg-gray-100'
+                }`}
+              >
+                <span className="text-base">📊</span>
+                Tablero de Actividades
+              </Link>
+            </section>
+          )}
 
           {/* Mis Herramientas */}
           {tools.length > 0 && (

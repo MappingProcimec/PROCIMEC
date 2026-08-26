@@ -17,6 +17,7 @@ interface ActivityRecord {
 
 export interface DashboardData {
   user: { id: string; email: string; full_name: string };
+  legacyRole?: string | null;
   division: { id: string; name: string } | null;
   role: { id: string; name: string } | null;
   projects: Project[];
@@ -40,7 +41,8 @@ const CATEGORY_CHIP: Record<string, string> = {
 };
 
 export function DynamicDashboard({ data }: { data: DashboardData }) {
-  const { user, division, role, projects, tools, forms, recentActivity } = data;
+  const { user, division, role, projects, tools, forms, recentActivity, legacyRole } = data;
+  const isLegacyDibujo = legacyRole === 'dibujo' && !role;
 
   const toolsByCategory = tools.reduce<Record<string, Tool[]>>((acc, t) => {
     if (!acc[t.category]) acc[t.category] = [];
@@ -196,8 +198,45 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
         </section>
       )}
 
-      {/* Empty state when no role is configured */}
-      {projects.length === 0 && tools.length === 0 && forms.length === 0 && (
+      {/* Módulo legacy Dibujante (usuarios con role='dibujo' sin role_id asignado) */}
+      {isLegacyDibujo && (
+        <section>
+          <h2 className="font-bold text-text-primary mb-3">Módulo Dibujante</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Link
+              href="/dibujo/nueva-actividad"
+              className="card border border-amber-200 bg-amber-50 p-5 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">✏️</span>
+                <div>
+                  <p className="text-sm font-bold text-amber-900 group-hover:text-amber-700 transition-colors">
+                    Nueva Actividad CAD
+                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5">Registrar horas y software utilizado</p>
+                </div>
+              </div>
+            </Link>
+            <Link
+              href="/dibujo/tablero"
+              className="card border border-blue-200 bg-blue-50 p-5 hover:shadow-md transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📊</span>
+                <div>
+                  <p className="text-sm font-bold text-blue-900 group-hover:text-blue-700 transition-colors">
+                    Tablero de Actividades
+                  </p>
+                  <p className="text-xs text-blue-700 mt-0.5">Métricas e historial de registros</p>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* Empty state: no legacy role ni role_id */}
+      {projects.length === 0 && tools.length === 0 && forms.length === 0 && !isLegacyDibujo && (
         <div className="card border border-border p-10 text-center space-y-2">
           <p className="text-2xl">⚙️</p>
           <p className="text-sm font-medium text-text-primary">Panel sin configurar</p>
