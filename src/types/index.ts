@@ -232,6 +232,59 @@ export interface DashboardStats {
   activeProjects: number;
 }
 
+// ─── Multi-división: Tools, Forms, Roles, Divisions ──────────────────────────
+
+export type ToolCategory = 'gpr' | 'cad' | 'admin' | 'universal';
+
+export type ToolSlug =
+  | 'gsf-processor'
+  | 'txt-dwg-viewer'
+  | 'docx-generator'
+  | 'backup-script-gen'
+  | 'gpr-field-form'
+  | 'cad-register-form'
+  | 'cad-productivity-board'
+  | 'gis-viewer'
+  | 'internal-chat'
+  | 'meeting-transcriber'
+  | 'org-chart-ai'
+  | 'dynamic-dashboard'
+  | 'projects-area'
+  | 'forms-area';
+
+export interface Tool {
+  id: string;
+  slug: ToolSlug;
+  name: string;
+  description: string;
+  category: ToolCategory;
+  is_universal: boolean;
+}
+
+export interface Division {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface Form {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  steps_count: number;
+  has_attachments: boolean;
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  division_id: string;
+  is_system_role: boolean;
+  tools?: Tool[];
+  forms?: Form[];
+}
+
 // ─── Drawing Activities (rol dibujo) ──────────────────────────────────────────────
 
 export type DrawingActivity = {

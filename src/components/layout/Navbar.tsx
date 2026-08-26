@@ -1,20 +1,54 @@
 'use client';
 
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
+import { HamburgerMenu } from '@/components/layout/HamburgerMenu';
+import { DivisionBadge } from '@/components/DivisionBadge';
+import type { Tool, Form } from '@/types';
 
 export function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const isAdmin = session?.user?.role === 'admin';
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Datos del menú lateral — se poblará cuando exista el endpoint de tools/forms por rol
+  const assignedTools: Tool[] = [];
+  const assignedForms: Form[] = [];
+
+  // División del usuario (disponible cuando se complete la migración a role_id)
+  const divisionName = (session?.user as { divisionName?: string })?.divisionName;
 
   return (
-    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-border shadow-sm">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-        {/* Logo */}
-        <Link href={isAdmin ? '/admin/dashboard' : '/projects'} className="flex items-center gap-2.5">
+    <>
+      <HamburgerMenu
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        tools={assignedTools}
+        forms={assignedForms}
+      />
+
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-border shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+          {/* Hamburguesa (solo roles no-admin) */}
+          {!isAdmin && (
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-text-secondary"
+              aria-label="Abrir menú"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            </button>
+          )}
+
+          {/* Logo */}
+          <Link href={isAdmin ? '/admin/dashboard' : '/projects'} className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
             <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
@@ -46,12 +80,15 @@ export function Navbar() {
           </nav>
         )}
 
-        {/* User menu */}
-        <div className="flex items-center gap-2">
-          {/* Role badge */}
-          <span className={`hidden sm:inline-flex badge text-xs ${isAdmin ? 'badge-primary' : 'badge-accent'}`}>
-            {isAdmin ? 'Admin' : 'Operador'}
-          </span>
+          {/* User menu */}
+          <div className="flex items-center gap-2">
+            {/* Division badge */}
+            {divisionName && <DivisionBadge divisionName={divisionName} />}
+
+            {/* Role badge */}
+            <span className={`hidden sm:inline-flex badge text-xs ${isAdmin ? 'badge-primary' : 'badge-accent'}`}>
+              {isAdmin ? 'Admin' : 'Operador'}
+            </span>
 
           {/* Avatar */}
           <div className="relative group">
@@ -116,5 +153,6 @@ export function Navbar() {
         </div>
       </div>
     </header>
+    </>
   );
 }
