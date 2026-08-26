@@ -123,7 +123,7 @@ export default function NuevaActividadPage() {
       const payload = {
         ...data,
         responsible: session?.user?.email || session?.user?.name || '',
-        hours_worked: 9,
+        hours_worked: 8.5,
       };
 
       const res = await fetch('/api/dibujo/actividades', {
@@ -189,7 +189,7 @@ export default function NuevaActividadPage() {
               <div>
                 <p className="font-bold text-emerald-900 text-base">¡Actividad registrada con éxito!</p>
                 <p className="text-emerald-700 text-xs mt-0.5">
-                  Proyecto: <span className="font-semibold">{lastSuccess.project}</span> · Software: <span className="font-semibold">{lastSuccess.software}</span> · <span className="font-bold">9 Horas</span>
+                  Proyecto: <span className="font-semibold">{lastSuccess.project}</span> · Software: <span className="font-semibold">{lastSuccess.software}</span> · <span className="font-bold">8.5 Horas</span>
                 </p>
               </div>
             </div>
@@ -227,7 +227,7 @@ export default function NuevaActividadPage() {
               <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-xs font-bold text-primary">Jornada: 9 Horas</span>
+              <span className="text-xs font-bold text-primary">Jornada: 8.5 Horas</span>
             </div>
           </div>
 
