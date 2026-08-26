@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { createClient } from '@supabase/supabase-js';
+import { isKnownAdmin } from '@/lib/admin-emails';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,18 +9,6 @@ const supabase = createClient(
 );
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const ADMIN_EMAILS = [
-  'mapping.procimec2024@gmail.com',
-  'marcelobarrazasantiago@gmail.com',
-];
-
-function isKnownAdmin(email?: string | null): boolean {
-  if (!email) return false;
-  const envAdmin = process.env.GOOGLE_DRIVE_ADMIN_EMAIL;
-  if (envAdmin && email.toLowerCase() === envAdmin.toLowerCase()) return true;
-  return ADMIN_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase());
-}
 
 async function getUserInfo(token: { userId?: string; email?: string | null; role?: string }) {
   let role = token.role;

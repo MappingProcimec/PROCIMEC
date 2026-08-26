@@ -1,19 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { createClient } from '@supabase/supabase-js';
-
-// Correos que siempre tienen acceso de administrador, independientemente del rol guardado en el token
-const ADMIN_EMAILS = [
-  'mapping.procimec2024@gmail.com',
-  'marcelobarrazasantiago@gmail.com',
-];
-
-function isKnownAdmin(email?: string | null): boolean {
-  if (!email) return false;
-  const envAdmin = process.env.GOOGLE_DRIVE_ADMIN_EMAIL;
-  if (envAdmin && email.toLowerCase() === envAdmin.toLowerCase()) return true;
-  return ADMIN_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase());
-}
+import { isKnownAdmin } from '@/lib/admin-emails';
 
 export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });

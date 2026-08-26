@@ -1,18 +1,7 @@
 import { type NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import { createAdminClient } from './supabase';
-
-const ADMIN_EMAILS = [
-  'mapping.procimec2024@gmail.com',
-  'marcelobarrazasantiago@gmail.com',
-];
-
-function isKnownAdmin(email: string): boolean {
-  if (!email) return false;
-  const envAdmin = process.env.GOOGLE_DRIVE_ADMIN_EMAIL;
-  if (envAdmin && email.toLowerCase() === envAdmin.toLowerCase()) return true;
-  return ADMIN_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase());
-}
+import { isKnownAdmin } from './admin-emails';
 
 export const authOptions: NextAuthOptions = {
   providers: [
