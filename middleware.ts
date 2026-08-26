@@ -28,8 +28,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Rutas públicas → permitir siempre estando logueado
-  if (pathname === '/' || pathname === '/privacy' || pathname === '/terms') {
+  // Privacy / terms: siempre accesibles
+  if (pathname === '/privacy' || pathname === '/terms') {
     return NextResponse.next();
   }
 
@@ -60,18 +60,23 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Landing ('/') → redirigir a su panel según rol efectivo
+  if (pathname === '/') {
+    if (effectiveRole === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    if (effectiveRole === 'pending') return NextResponse.redirect(new URL('/pending', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   // Si la cuenta ya fue aprobada pero esta intentando acceder a /pending -> redirigir a su modulo
   if (pathname === '/pending' && effectiveRole !== 'pending') {
     if (effectiveRole === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-    if (effectiveRole === 'dibujo') return NextResponse.redirect(new URL('/dibujo', request.url));
-    if (effectiveRole === 'operator') return NextResponse.redirect(new URL('/projects', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   // Si está autenticado y entra a /login → redirigir a su panel
   if (pathname === '/login' && effectiveRole !== 'pending') {
     if (effectiveRole === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-    if (effectiveRole === 'operator') return NextResponse.redirect(new URL('/projects', request.url));
-    if (effectiveRole === 'dibujo') return NextResponse.redirect(new URL('/dibujo', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   // Control de acceso por rol efectivo
@@ -79,16 +84,32 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/pending', request.url));
   }
 
-  if (effectiveRole === 'dibujo' && !pathname.startsWith('/dibujo') && !pathname.startsWith('/api/dibujo')) {
-    return NextResponse.redirect(new URL('/dibujo', request.url));
+  // dibujo: acceso a su módulo + dashboard + formularios + herramientas
+  if (
+    effectiveRole === 'dibujo' &&
+    !pathname.startsWith('/dibujo') &&
+    !pathname.startsWith('/api/dibujo') &&
+    !pathname.startsWith('/dashboard') &&
+    !pathname.startsWith('/api/dashboard') &&
+    !pathname.startsWith('/forms') &&
+    !pathname.startsWith('/api/forms') &&
+    !pathname.startsWith('/tools')
+  ) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  if (effectiveRole === 'operator' && (pathname.startsWith('/admin') || pathname.startsWith('/dibujo'))) {
-    return NextResponse.redirect(new URL('/projects', request.url));
+  // Solo admin puede acceder a rutas de administración
+  if (effectiveRole !== 'admin' && pathname.startsWith('/admin')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  if (effectiveRole === 'admin' && pathname === '/pending') {
-    return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+  // Solo dibujo/admin pueden acceder al módulo de dibujo
+  if (
+    effectiveRole !== 'dibujo' &&
+    effectiveRole !== 'admin' &&
+    (pathname.startsWith('/dibujo') || pathname.startsWith('/api/dibujo'))
+  ) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();

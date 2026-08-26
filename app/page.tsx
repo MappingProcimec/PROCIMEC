@@ -11,9 +11,8 @@ export default function LandingPage() {
 
   let dashboardUrl = '/login';
   if (role === 'admin') dashboardUrl = '/admin/dashboard';
-  else if (role === 'operator') dashboardUrl = '/projects';
-  else if (role === 'dibujo') dashboardUrl = '/dibujo';
   else if (role === 'pending') dashboardUrl = '/pending';
+  else if (role) dashboardUrl = '/dashboard';
 
   return (
     <div className="min-h-screen bg-surface flex flex-col justify-between">
