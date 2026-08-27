@@ -11,18 +11,74 @@ export async function GET() {
 
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
+  // 1. Roles básicos
+  const { data: rolesRaw, error } = await supabase
     .from('roles')
-    .select(`
-      id, name, division_id, is_system_role, created_at,
-      divisions(id, name),
-      role_tools(tools(id, slug, name, category, is_universal)),
-      role_forms(forms(id, slug, name))
-    `)
+    .select('id, name, division_id, is_system_role, created_at, divisions(id, name)')
     .order('name', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: data ?? [] });
+  const roles = rolesRaw ?? [];
+  const roleIds = roles.map((r) => r.id);
+
+  if (roleIds.length === 0) return NextResponse.json({ data: [] });
+
+  // 2. Herramientas por rol (separado, sin join anidado)
+  const { data: roleToolsRaw } = await supabase
+    .from('role_tools')
+    .select('role_id, tool_id')
+    .in('role_id', roleIds);
+
+  const toolIds = [...new Set((roleToolsRaw ?? []).map((rt: { tool_id: string }) => rt.tool_id))];
+  let toolsMap: Record<string, { id: string; slug: string; name: string; category: string; is_universal: boolean }> = {};
+  if (toolIds.length > 0) {
+    const { data: toolsData } = await supabase
+      .from('tools')
+      .select('id, slug, name, category, is_universal')
+      .in('id', toolIds);
+    (toolsData ?? []).forEach((t: typeof toolsMap[string]) => { toolsMap[t.id] = t; });
+  }
+
+  // Agrupar herramientas por role_id
+  const toolsByRole: Record<string, { tools: { id: string; slug: string; name: string; category: string; is_universal: boolean } }[]> = {};
+  (roleToolsRaw ?? []).forEach((rt: { role_id: string; tool_id: string }) => {
+    if (!toolsByRole[rt.role_id]) toolsByRole[rt.role_id] = [];
+    const tool = toolsMap[rt.tool_id];
+    if (tool) toolsByRole[rt.role_id].push({ tools: tool });
+  });
+
+  // 3. Formularios por rol (separado, sin join anidado)
+  const { data: roleFormsRaw } = await supabase
+    .from('role_forms')
+    .select('role_id, form_id')
+    .in('role_id', roleIds);
+
+  const formIds = [...new Set((roleFormsRaw ?? []).map((rf: { form_id: string }) => rf.form_id))];
+  let formsMap: Record<string, { id: string; slug: string; name: string }> = {};
+  if (formIds.length > 0) {
+    const { data: formsData } = await supabase
+      .from('forms')
+      .select('id, slug, name')
+      .in('id', formIds);
+    (formsData ?? []).forEach((f: typeof formsMap[string]) => { formsMap[f.id] = f; });
+  }
+
+  // Agrupar formularios por role_id
+  const formsByRole: Record<string, { forms: { id: string; slug: string; name: string } }[]> = {};
+  (roleFormsRaw ?? []).forEach((rf: { role_id: string; form_id: string }) => {
+    if (!formsByRole[rf.role_id]) formsByRole[rf.role_id] = [];
+    const form = formsMap[rf.form_id];
+    if (form) formsByRole[rf.role_id].push({ forms: form });
+  });
+
+  // 4. Combinar todo
+  const data = roles.map((r) => ({
+    ...r,
+    role_tools: toolsByRole[r.id] ?? [],
+    role_forms: formsByRole[r.id] ?? [],
+  }));
+
+  return NextResponse.json({ data });
 }
 
 export async function POST(req: NextRequest) {
