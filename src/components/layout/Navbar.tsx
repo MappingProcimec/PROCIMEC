@@ -278,10 +278,10 @@ export function Navbar() {
                         {expanded.has('dibujo') && (
                           <>
                             <Link href="/dibujo/nueva-actividad" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                              <span>✏️</span> Nueva Actividad CAD
+                              <span>✏️</span> Formulario de Registro CAD/BIM
                             </Link>
-                            <Link href="/dibujo/tablero" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                              <span>📊</span> Tablero de Actividades
+                            <Link href="/tools/cad-productivity-board" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                              <span>📊</span> Tablero de Productividad CAD
                             </Link>
                           </>
                         )}
