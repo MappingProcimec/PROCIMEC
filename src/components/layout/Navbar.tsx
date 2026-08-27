@@ -25,6 +25,12 @@ async function fetchDashboardNav(): Promise<DashboardData | null> {
   return json.data as DashboardData;
 }
 
+async function fetchAdminTools(): Promise<Tool[]> {
+  const res = await fetch('/api/admin/tools');
+  if (!res.ok) return [];
+  return (await res.json()).data ?? [];
+}
+
 const TOOL_CATEGORY_ICON: Record<string, string> = {
   gpr: '📡',
   cad: '✏️',
@@ -48,6 +54,13 @@ export function Navbar() {
     queryFn: fetchDashboardNav,
     enabled: !!session && !isPending,
     staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: adminTools = [] } = useQuery({
+    queryKey: ['admin-tools-nav'],
+    queryFn: fetchAdminTools,
+    enabled: !!session && isAdmin,
+    staleTime: 10 * 60 * 1000,
   });
 
   const assignedTools: Tool[] = dashData?.tools ?? [];
@@ -276,6 +289,22 @@ export function Navbar() {
                 {/* Admin extras */}
                 {isAdmin && (
                   <>
+                    {/* Herramientas del sistema */}
+                    {adminTools.length > 0 && (
+                      <>
+                        <div className="px-3 pt-3 pb-1">
+                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Herramientas</p>
+                        </div>
+                        {adminTools.map((tool: Tool) => (
+                          <Link key={tool.id} href={`/tools/${tool.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                            <span>{TOOL_CATEGORY_ICON[tool.category] ?? '🔧'}</span>
+                            <span className="truncate">{tool.name}</span>
+                          </Link>
+                        ))}
+                        <div className="border-t border-border my-1" />
+                      </>
+                    )}
+
                     <Link href="/projects" className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />

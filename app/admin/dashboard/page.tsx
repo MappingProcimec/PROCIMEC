@@ -19,19 +19,51 @@ interface Role {
   division_id: string | null;
 }
 
+interface Report {
+  operational_summary: { ml?: number }[];
+}
+
+interface DrawingActivity {
+  hours_worked: number;
+}
+
 async function fetchDashboardData() {
-  const [projectsRes, usersRes, divisionsRes, rolesRes] = await Promise.all([
+  const [projectsRes, usersRes, divisionsRes, rolesRes, reportsRes, dibujoRes] = await Promise.all([
     fetch('/api/admin/projects'),
     fetch('/api/admin/users'),
     fetch('/api/admin/divisions'),
     fetch('/api/admin/roles'),
+    fetch('/api/reports'),
+    fetch('/api/dibujo/actividades'),
   ]);
   return {
     projects: (await projectsRes.json()).data || [],
     users: (await usersRes.json()).data || [],
     divisions: (await divisionsRes.json()).data || [],
     roles: (await rolesRes.json()).data || [],
+    reports: (await reportsRes.json()).data || [],
+    dibujo: await dibujoRes.json().then((d) => (Array.isArray(d) ? d : [])),
   };
+}
+
+interface KpiCardProps {
+  icon: string;
+  value: string | number;
+  label: string;
+  color: string;
+  href?: string;
+}
+
+function KpiCard({ icon, value, label, color, href }: KpiCardProps) {
+  const inner = (
+    <div className={`${color} rounded-2xl p-5 shadow-card h-full ${href ? 'hover:opacity-90 transition-opacity cursor-pointer' : ''}`}>
+      <div className="text-2xl mb-2">{icon}</div>
+      <div className="text-2xl font-bold mb-0.5">{value}</div>
+      <div className="text-sm font-medium opacity-90">{label}</div>
+      {href && <div className="text-xs opacity-70 mt-1">Ver detalle →</div>}
+    </div>
+  );
+  return href ? <Link href={href}>{inner}</Link> : <div>{inner}</div>;
 }
 
 export default function AdminDashboard() {
@@ -44,17 +76,24 @@ export default function AdminDashboard() {
   const users = data?.users || [];
   const divisions: Division[] = data?.divisions || [];
   const roles: Role[] = data?.roles || [];
+  const reports: Report[] = data?.reports || [];
+  const dibujo: DrawingActivity[] = data?.dibujo || [];
 
   const activeProjects = projects.filter((p: { is_active?: boolean }) => p.is_active !== false);
   const pendingUsers = users.filter((u: { role: string }) => u.role === 'pending');
 
-  // Build role count per division from roles list (as fallback if division.role_count missing)
+  const totalML = reports.reduce((sum, r) => {
+    const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
+    return sum + rows.reduce((s, row) => s + (Number(row.ml) || 0), 0);
+  }, 0);
+
+  const totalHoras = dibujo.reduce((s, a) => s + (Number(a.hours_worked) || 0), 0);
+
   const rolesByDivision = roles.reduce<Record<string, number>>((acc, r) => {
     if (r.division_id) acc[r.division_id] = (acc[r.division_id] ?? 0) + 1;
     return acc;
   }, {});
 
-  // Build user count per division
   interface UserWithRole { role_id?: string | null; roles?: { id: string } | null }
   const usersByDivision = (users as UserWithRole[]).reduce((acc: Record<string, number>, u) => {
     const roleId = u.role_id ?? u.roles?.id;
@@ -63,6 +102,35 @@ export default function AdminDashboard() {
     if (role?.division_id) acc[role.division_id] = (acc[role.division_id] ?? 0) + 1;
     return acc;
   }, {});
+
+  const kpis: KpiCardProps[] = [
+    {
+      label: 'Proyectos Activos',
+      value: isLoading ? '—' : activeProjects.length,
+      icon: '🏗️',
+      color: 'bg-primary text-white',
+      href: '/admin/projects',
+    },
+    {
+      label: 'ML Ejecutados',
+      value: isLoading ? '—' : `${totalML.toFixed(0)} ml`,
+      icon: '📏',
+      color: 'bg-primary-600 text-white',
+    },
+    {
+      label: 'Horas CAD',
+      value: isLoading ? '—' : `${totalHoras.toFixed(1)} h`,
+      icon: '✏️',
+      color: 'bg-accent text-white',
+    },
+    {
+      label: 'Aprobación Pendiente',
+      value: isLoading ? '—' : pendingUsers.length,
+      icon: '⏳',
+      color: pendingUsers.length > 0 ? 'bg-warning text-white' : 'bg-success text-white',
+      href: '/admin/users',
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-surface">
@@ -81,17 +149,8 @@ export default function AdminDashboard() {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: 'Proyectos Activos', value: isLoading ? '—' : activeProjects.length, icon: '🏗️', color: 'bg-primary text-white' },
-            { label: 'Usuarios Totales', value: isLoading ? '—' : users.length, icon: '👥', color: 'bg-primary-600 text-white' },
-            { label: 'Divisiones', value: isLoading ? '—' : divisions.length, icon: '🏢', color: 'bg-accent text-white' },
-            { label: 'Pendientes', value: isLoading ? '—' : pendingUsers.length, icon: '⏳', color: pendingUsers.length > 0 ? 'bg-warning text-white' : 'bg-success text-white' },
-          ].map((card) => (
-            <div key={card.label} className={`${card.color} rounded-2xl p-5 shadow-card`}>
-              <div className="text-2xl mb-2">{card.icon}</div>
-              <div className="text-2xl font-bold mb-0.5">{card.value}</div>
-              <div className="text-sm font-medium opacity-90">{card.label}</div>
-            </div>
+          {kpis.map((kpi) => (
+            <KpiCard key={kpi.label} {...kpi} />
           ))}
         </div>
 
@@ -125,7 +184,6 @@ export default function AdminDashboard() {
                 const divRoles = roles.filter((r: Role) => r.division_id === div.id);
                 return (
                   <div key={div.id} className="bg-white rounded-2xl border border-border shadow-card overflow-hidden">
-                    {/* Header */}
                     <div className="bg-gradient-to-r from-primary to-primary-600 px-5 py-4 flex items-center justify-between">
                       <div>
                         <h3 className="font-bold text-white text-base">{div.name}</h3>
@@ -141,7 +199,6 @@ export default function AdminDashboard() {
                       </Link>
                     </div>
 
-                    {/* Stats */}
                     <div className="grid grid-cols-2 divide-x divide-border">
                       <div className="px-5 py-4 text-center">
                         <div className="text-2xl font-bold text-text-primary">{roleCount}</div>
@@ -153,7 +210,6 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Roles list */}
                     {divRoles.length > 0 && (
                       <div className="border-t border-border px-5 py-3 flex flex-wrap gap-1.5">
                         {divRoles.map((r: Role) => (
