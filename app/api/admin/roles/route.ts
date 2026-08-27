@@ -29,7 +29,7 @@ export async function GET() {
     .select('role_id, tool_id')
     .in('role_id', roleIds);
 
-  const toolIds = [...new Set((roleToolsRaw ?? []).map((rt: { tool_id: string }) => rt.tool_id))];
+  const toolIds = Array.from(new Set((roleToolsRaw ?? []).map((rt: { tool_id: string }) => rt.tool_id)));
   const toolsMap: Record<string, { id: string; slug: string; name: string; category: string; is_universal: boolean }> = {};
   if (toolIds.length > 0) {
     const { data: toolsData } = await supabase
@@ -53,7 +53,7 @@ export async function GET() {
     .select('role_id, form_id')
     .in('role_id', roleIds);
 
-  const formIds = [...new Set((roleFormsRaw ?? []).map((rf: { form_id: string }) => rf.form_id))];
+  const formIds = Array.from(new Set((roleFormsRaw ?? []).map((rf: { form_id: string }) => rf.form_id)));
   const formsMap: Record<string, { id: string; slug: string; name: string }> = {};
   if (formIds.length > 0) {
     const { data: formsData } = await supabase
