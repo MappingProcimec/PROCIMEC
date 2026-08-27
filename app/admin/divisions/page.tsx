@@ -322,11 +322,15 @@ export default function AdminDivisionsPage() {
 
   // project toggles
   const toggleProject = (id: string) =>
-    setSelectedProjects(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelectedProjects(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
 
   const toggleEditProject = (id: string) => {
     const base = editProjects.size === 0 && detailProjectIds.length > 0 ? new Set(detailProjectIds) : new Set(editProjects);
-    base.has(id) ? base.delete(id) : base.add(id);
+    if (base.has(id)) base.delete(id); else base.add(id);
     setEditProjects(base);
   };
 
