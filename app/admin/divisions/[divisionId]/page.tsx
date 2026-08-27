@@ -14,13 +14,15 @@ interface User { id: string; full_name: string; email: string; role_name: string
 
 interface Project {
   id: string; code: string; name: string; client: string; is_active: boolean;
-  total_ml: number; total_drawing_hours: number; report_count: number;
+  total_ml: number; total_drawing_hours: number;
+  report_count: number; field_report_count: number; drawing_count: number;
 }
 
 interface Stats {
   role_count: number; user_count: number;
   project_total: number; project_active: number;
-  total_ml: number; total_drawing_hours: number; total_reports: number;
+  total_ml: number; total_drawing_hours: number;
+  total_reports: number; total_field_reports: number; total_drawing_records: number;
 }
 
 interface DivisionDetail {
@@ -98,9 +100,10 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
               />
               <StatCard icon="📏" value={`${(stats?.total_ml ?? 0).toFixed(0)} ml`} label="ML ejecutados" />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <StatCard icon="✏️" value={`${(stats?.total_drawing_hours ?? 0).toFixed(1)} h`} label="Horas CAD" />
-              <StatCard icon="📋" value={stats?.total_reports ?? 0} label="Reportes de campo" />
+              <StatCard icon="📍" value={stats?.total_field_reports ?? 0} label="Reportes de campo" />
+              <StatCard icon="🖊️" value={stats?.total_drawing_records ?? 0} label="Registros de dibujo" />
             </div>
 
             {/* Proyectos */}
@@ -151,7 +154,17 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                             {p.total_drawing_hours > 0 ? `${p.total_drawing_hours.toFixed(1)} h` : '—'}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <span className="badge badge-primary text-xs">{p.report_count}</span>
+                            <div className="flex flex-col items-end gap-0.5">
+                              {p.field_report_count > 0 && (
+                                <span className="badge bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5">📍 {p.field_report_count}</span>
+                              )}
+                              {p.drawing_count > 0 && (
+                                <span className="badge bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5">✏️ {p.drawing_count}</span>
+                              )}
+                              {p.report_count === 0 && (
+                                <span className="text-xs text-text-muted">—</span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}

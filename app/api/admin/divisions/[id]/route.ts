@@ -76,7 +76,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   type ProjectRow = { id: string; code: string; name: string; client: string; is_active: boolean };
   type FieldReportRow = { id: string; project_id: string; operational_summary: { ml?: number }[] };
 
-  let projects: (ProjectRow & { total_ml: number; total_drawing_hours: number; report_count: number })[] = [];
+  let projects: (ProjectRow & { total_ml: number; total_drawing_hours: number; field_report_count: number; drawing_count: number; report_count: number })[] = [];
 
   const { data: dpData } = await supabase
     .from('division_projects')
@@ -107,6 +107,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     });
 
     const drawingHoursByName: Record<string, number> = {};
+    const drawingCountByName: Record<string, number> = {};
     if (projectNames.length > 0) {
       const { data: drawings } = await supabase
         .from('drawing_activities')
@@ -114,6 +115,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         .in('project_name', projectNames);
       (drawings ?? []).forEach((d: { project_name: string; hours_worked: number }) => {
         drawingHoursByName[d.project_name] = (drawingHoursByName[d.project_name] ?? 0) + (Number(d.hours_worked) || 0);
+        drawingCountByName[d.project_name] = (drawingCountByName[d.project_name] ?? 0) + 1;
       });
     }
 
@@ -123,11 +125,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
         const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
         return sum + rows.reduce((s: number, row: { ml?: number }) => s + (Number(row.ml) || 0), 0);
       }, 0);
+      const drawingCount = drawingCountByName[p.name] ?? 0;
       return {
         ...p,
         total_ml: Math.round(totalML),
         total_drawing_hours: parseFloat((drawingHoursByName[p.name] ?? 0).toFixed(1)),
-        report_count: reports.length,
+        field_report_count: reports.length,
+        drawing_count: drawingCount,
+        report_count: reports.length + drawingCount,
       };
     });
   }
@@ -139,6 +144,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     project_active: projects.filter((p) => p.is_active).length,
     total_ml: projects.reduce((s, p) => s + p.total_ml, 0),
     total_drawing_hours: parseFloat(projects.reduce((s, p) => s + p.total_drawing_hours, 0).toFixed(1)),
+    total_field_reports: projects.reduce((s, p) => s + p.field_report_count, 0),
+    total_drawing_records: projects.reduce((s, p) => s + p.drawing_count, 0),
     total_reports: projects.reduce((s, p) => s + p.report_count, 0),
   };
 
