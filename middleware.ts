@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
   if (isKnownAdmin(email)) {
     effectiveRole = 'admin';
   } else if (effectiveRole === 'pending' && email) {
-    // Si la cookie dice 'pending', consultar en Supabase por si el administrador ya aprobo el rol
+    // Si la cookie dice 'pending', consultar en Supabase por si el administrador ya aprobó el rol
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -67,7 +67,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // Si la cuenta ya fue aprobada pero esta intentando acceder a /pending -> redirigir a su modulo
+  // Si la cuenta ya fue aprobada pero está intentando acceder a /pending -> redirigir a su módulo
   if (pathname === '/pending' && effectiveRole !== 'pending') {
     if (effectiveRole === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
     return NextResponse.redirect(new URL('/dashboard', request.url));
@@ -79,37 +79,22 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // Control de acceso por rol efectivo
+  // Control para usuarios pendientes
   if (effectiveRole === 'pending' && pathname !== '/pending' && pathname !== '/login') {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
+    }
     return NextResponse.redirect(new URL('/pending', request.url));
   }
 
-  // dibujo: acceso a su módulo + dashboard + formularios + herramientas
-  if (
-    effectiveRole === 'dibujo' &&
-    !pathname.startsWith('/dibujo') &&
-    !pathname.startsWith('/api/dibujo') &&
-    !pathname.startsWith('/dashboard') &&
-    !pathname.startsWith('/api/dashboard') &&
-    !pathname.startsWith('/forms') &&
-    !pathname.startsWith('/api/forms') &&
-    !pathname.startsWith('/tools')
-  ) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
-
-  // Solo admin puede acceder a rutas de administración
-  if (effectiveRole !== 'admin' && pathname.startsWith('/admin')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
-
-  // Solo dibujo/admin pueden acceder al módulo de dibujo
-  if (
-    effectiveRole !== 'dibujo' &&
-    effectiveRole !== 'admin' &&
-    (pathname.startsWith('/dibujo') || pathname.startsWith('/api/dibujo'))
-  ) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  // Solo admin puede acceder a rutas y APIs de administración
+  if (effectiveRole !== 'admin') {
+    if (pathname.startsWith('/admin')) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+    if (pathname.startsWith('/api/admin')) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
   }
 
   return NextResponse.next();
