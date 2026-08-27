@@ -14,73 +14,105 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const supabase = createAdminClient();
 
+  // 1. Division básica
   const { data: division, error: divErr } = await supabase
     .from('divisions')
     .select('id, name, description, created_at')
     .eq('id', id)
     .single();
 
-  if (divErr) return NextResponse.json({ error: divErr.message }, { status: 404 });
+  if (divErr || !division) {
+    return NextResponse.json({ error: divErr?.message ?? 'Not found' }, { status: 404 });
+  }
 
-  // Roles with tool/form counts
+  // 2. Roles con conteo de tools y forms
   const { data: rolesRaw } = await supabase
     .from('roles')
     .select('id, name, is_system_role, role_tools(tool_id), role_forms(form_id)')
     .eq('division_id', id)
     .order('name', { ascending: true });
 
-  type RawRole = { id: string; name: string; is_system_role: boolean; role_tools: { tool_id: string }[]; role_forms: { form_id: string }[] };
-  const roles = ((rolesRaw as unknown as RawRole[]) ?? []).map((r) => ({
+  type RawRoleFull = {
+    id: string; name: string; is_system_role: boolean;
+    role_tools: { tool_id: string }[]; role_forms: { form_id: string }[];
+  };
+  const rolesRawTyped = (rolesRaw as unknown as RawRoleFull[]) ?? [];
+  const roleIds = rolesRawTyped.map((r) => r.id);
+
+  // 3. Usuarios asignados a los roles de esta división
+  type UserRow = { id: string; full_name: string; email: string; role_id: string; roles: { name: string } | null };
+  let usersRaw: UserRow[] = [];
+  if (roleIds.length > 0) {
+    const { data } = await supabase
+      .from('users')
+      .select('id, full_name, email, role_id, roles(name)')
+      .in('role_id', roleIds)
+      .order('full_name', { ascending: true });
+    usersRaw = (data as unknown as UserRow[]) ?? [];
+  }
+
+  // Conteo de usuarios por role_id
+  const userCountByRole: Record<string, number> = {};
+  usersRaw.forEach((u) => {
+    if (u.role_id) userCountByRole[u.role_id] = (userCountByRole[u.role_id] ?? 0) + 1;
+  });
+
+  const roles = rolesRawTyped.map((r) => ({
     id: r.id,
     name: r.name,
     is_system_role: r.is_system_role,
     tool_count: r.role_tools?.length ?? 0,
     form_count: r.role_forms?.length ?? 0,
+    user_count: userCountByRole[r.id] ?? 0,
   }));
-  const roleIds = roles.map((r) => r.id);
 
-  // Users assigned to this division's roles
-  let users: { id: string; full_name: string; email: string; role_name: string }[] = [];
+  const users = usersRaw.map((u) => ({
+    id: u.id,
+    full_name: u.full_name,
+    email: u.email,
+    role_name: u.roles?.name ?? '—',
+  }));
+
+  // 4. Proyectos via role_projects (sin joins profundos)
+  let projectIds: string[] = [];
   if (roleIds.length > 0) {
-    const { data: usersRaw } = await supabase
-      .from('users')
-      .select('id, full_name, email, role_id, roles(name)')
-      .in('role_id', roleIds)
-      .order('full_name', { ascending: true });
-
-    type RawUser = { id: string; full_name: string; email: string; role_id: string; roles: { name: string } | null };
-    users = ((usersRaw as unknown as RawUser[]) ?? []).map((u) => ({
-      id: u.id,
-      full_name: u.full_name,
-      email: u.email,
-      role_name: u.roles?.name ?? '—',
-    }));
+    const { data: rpData } = await supabase
+      .from('role_projects')
+      .select('project_id')
+      .in('role_id', roleIds);
+    const seen = new Set<string>();
+    (rpData ?? []).forEach((rp: { project_id: string }) => seen.add(rp.project_id));
+    projectIds = Array.from(seen);
   }
 
-  // Projects via role_projects
-  let projects: {
-    id: string; code: string; name: string; client: string; is_active: boolean;
-    total_ml: number; total_drawing_hours: number; report_count: number;
-  }[] = [];
+  type ProjectRow = { id: string; code: string; name: string; client: string; is_active: boolean };
+  type FieldReportRow = { id: string; project_id: string; operational_summary: { ml?: number }[] };
 
-  if (roleIds.length > 0) {
-    const { data: rpRaw } = await supabase
-      .from('role_projects')
-      .select('project_id, projects(id, code, name, client, is_active, field_reports(id, operational_summary))')
-      .in('role_id', roleIds);
+  let projects: (ProjectRow & { total_ml: number; total_drawing_hours: number; report_count: number })[] = [];
 
-    type FieldReport = { id: string; operational_summary: { ml?: number }[] };
-    type RawProject = { id: string; code: string; name: string; client: string; is_active: boolean; field_reports: FieldReport[] };
-    type RawRP = { project_id: string; projects: RawProject | null };
+  if (projectIds.length > 0) {
+    const { data: projectsData } = await supabase
+      .from('projects')
+      .select('id, code, name, client, is_active')
+      .in('id', projectIds)
+      .order('name', { ascending: true });
 
-    const projectMap = new Map<string, { proj: RawProject }>();
-    ((rpRaw as unknown as RawRP[]) ?? []).forEach((rp) => {
-      if (rp.projects && !projectMap.has(rp.projects.id)) {
-        projectMap.set(rp.projects.id, { proj: rp.projects });
-      }
+    const projectsTyped = (projectsData as unknown as ProjectRow[]) ?? [];
+    const projectNames = projectsTyped.map((p) => p.name);
+
+    // Field reports por proyecto
+    const { data: reportsData } = await supabase
+      .from('field_reports')
+      .select('id, project_id, operational_summary')
+      .in('project_id', projectIds);
+
+    const reportsByProject: Record<string, FieldReportRow[]> = {};
+    ((reportsData as unknown as FieldReportRow[]) ?? []).forEach((r) => {
+      if (!reportsByProject[r.project_id]) reportsByProject[r.project_id] = [];
+      reportsByProject[r.project_id].push(r);
     });
 
-    const projectNames = Array.from(projectMap.values()).map((v) => v.proj.name);
+    // Drawing activities por nombre de proyecto
     const drawingHoursByName: Record<string, number> = {};
     if (projectNames.length > 0) {
       const { data: drawings } = await supabase
@@ -92,50 +124,32 @@ export async function GET(_req: NextRequest, { params }: Params) {
       });
     }
 
-    projects = Array.from(projectMap.values()).map(({ proj }) => {
-      const totalML = (proj.field_reports ?? []).reduce((sum: number, r: FieldReport) => {
+    projects = projectsTyped.map((p) => {
+      const reports = reportsByProject[p.id] ?? [];
+      const totalML = reports.reduce((sum: number, r: FieldReportRow) => {
         const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
         return sum + rows.reduce((s: number, row: { ml?: number }) => s + (Number(row.ml) || 0), 0);
       }, 0);
       return {
-        id: proj.id,
-        code: proj.code,
-        name: proj.name,
-        client: proj.client,
-        is_active: proj.is_active,
+        ...p,
         total_ml: Math.round(totalML),
-        total_drawing_hours: drawingHoursByName[proj.name] ?? 0,
-        report_count: proj.field_reports?.length ?? 0,
+        total_drawing_hours: parseFloat((drawingHoursByName[p.name] ?? 0).toFixed(1)),
+        report_count: reports.length,
       };
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    });
   }
 
-  // Update role user_count
-  const userCountByRole: Record<string, number> = {};
-  users.forEach((u) => {
-    const roleId = (u as unknown as { role_id?: string }).role_id ?? '';
-    userCountByRole[roleId] = (userCountByRole[roleId] ?? 0) + 1;
-  });
+  const stats = {
+    role_count: roles.length,
+    user_count: users.length,
+    project_total: projects.length,
+    project_active: projects.filter((p) => p.is_active).length,
+    total_ml: projects.reduce((s, p) => s + p.total_ml, 0),
+    total_drawing_hours: parseFloat(projects.reduce((s, p) => s + p.total_drawing_hours, 0).toFixed(1)),
+    total_reports: projects.reduce((s, p) => s + p.report_count, 0),
+  };
 
-  const rolesWithUsers = roles.map((r) => ({ ...r, user_count: userCountByRole[r.id] ?? 0 }));
-
-  return NextResponse.json({
-    data: {
-      ...division,
-      roles: rolesWithUsers,
-      users,
-      projects,
-      stats: {
-        role_count: roles.length,
-        user_count: users.length,
-        project_total: projects.length,
-        project_active: projects.filter((p) => p.is_active).length,
-        total_ml: projects.reduce((s, p) => s + p.total_ml, 0),
-        total_drawing_hours: projects.reduce((s, p) => s + p.total_drawing_hours, 0),
-        total_reports: projects.reduce((s, p) => s + p.report_count, 0),
-      },
-    },
-  });
+  return NextResponse.json({ data: { ...division, roles, users, projects, stats } });
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
