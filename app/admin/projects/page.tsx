@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+interface DivisionOption { id: string; name: string }
+
 interface FieldReport {
   id: string;
   report_date: string;
@@ -45,12 +47,19 @@ interface Project {
   total_drawing_hours?: number;
   field_reports?: FieldReport[];
   drawing_activities?: DrawingActivity[];
+  divisions?: DivisionOption[];
 }
 
 async function fetchProjects(): Promise<Project[]> {
   const res = await fetch('/api/admin/projects');
   const data = await res.json();
   return data.data || [];
+}
+
+async function fetchDivisionOptions(): Promise<DivisionOption[]> {
+  const res = await fetch('/api/admin/divisions');
+  const json = await res.json();
+  return (json.data ?? []).map((d: DivisionOption) => ({ id: d.id, name: d.name }));
 }
 
 export default function AdminProjectsPage() {
@@ -68,10 +77,17 @@ export default function AdminProjectsPage() {
     description: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [selectedDivisions, setSelectedDivisions] = useState<Set<string>>(new Set());
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['admin-projects'],
     queryFn: fetchProjects,
+  });
+
+  const { data: divisionOptions = [] } = useQuery({
+    queryKey: ['division-options'],
+    queryFn: fetchDivisionOptions,
+    enabled: showModal,
   });
 
   const createMutation = useMutation({
@@ -79,17 +95,26 @@ export default function AdminProjectsPage() {
       const res = await fetch('/api/admin/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, division_ids: Array.from(selectedDivisions) }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Error al crear proyecto');
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-divisions'] });
       setShowModal(false);
       setForm({ code: '', name: '', client: '', location: '', contract_number: '', description: '' });
+      setSelectedDivisions(new Set());
     },
   });
+
+  const toggleDivision = (id: string) =>
+    setSelectedDivisions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
@@ -153,7 +178,7 @@ export default function AdminProjectsPage() {
                     <th>Código</th>
                     <th>Proyecto</th>
                     <th>Cliente</th>
-                    <th>Ubicación</th>
+                    <th className="hidden lg:table-cell">Divisiones</th>
                     <th className="text-center">Registros Totales</th>
                     <th className="text-right">Métricas</th>
                     <th>Estado</th>
@@ -192,7 +217,16 @@ export default function AdminProjectsPage() {
                           </div>
                         </td>
                         <td className="text-sm font-medium">{p.client}</td>
-                        <td className="text-sm text-text-muted max-w-[150px] truncate">{p.location}</td>
+                        <td className="hidden lg:table-cell">
+                          <div className="flex flex-wrap gap-1">
+                            {(p.divisions ?? []).length === 0
+                              ? <span className="text-xs text-text-muted italic">—</span>
+                              : (p.divisions ?? []).map((d) => (
+                                  <span key={d.id} className="badge badge-accent text-xs">{d.name}</span>
+                                ))
+                            }
+                          </div>
+                        </td>
                         <td className="text-center">
                           <div className="flex flex-col items-center gap-1">
                             <span className="font-bold text-sm text-text-primary">{totalRecords}</span>
@@ -441,7 +475,7 @@ export default function AdminProjectsPage() {
           <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
             <div className="sticky top-0 bg-white px-5 py-4 border-b border-border flex items-center justify-between">
               <h3 className="font-bold text-text-primary">Nuevo Proyecto</h3>
-              <button onClick={() => setShowModal(false)} className="btn-icon btn-ghost">
+              <button onClick={() => { setShowModal(false); setSelectedDivisions(new Set()); }} className="btn-icon btn-ghost">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -521,6 +555,30 @@ export default function AdminProjectsPage() {
                 />
               </div>
 
+              {divisionOptions.length > 0 && (
+                <div className="form-group">
+                  <label className="label">Divisiones</label>
+                  <div className="border border-border rounded-xl max-h-36 overflow-y-auto divide-y divide-border">
+                    {divisionOptions.map((d) => (
+                      <label key={d.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedDivisions.has(d.id)}
+                          onChange={() => toggleDivision(d.id)}
+                          className="rounded text-primary"
+                        />
+                        <span className="text-sm text-text-primary">{d.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedDivisions.size > 0 && (
+                    <p className="text-xs text-text-muted mt-1">
+                      {selectedDivisions.size} división{selectedDivisions.size !== 1 ? 'es' : ''} seleccionada{selectedDivisions.size !== 1 ? 's' : ''}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {createMutation.isError && (
                 <p className="error-msg text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">
                   ⚠️ {createMutation.error instanceof Error ? createMutation.error.message : 'Error al crear proyecto'}
@@ -528,7 +586,7 @@ export default function AdminProjectsPage() {
               )}
 
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowModal(false)} className="btn-ghost flex-1">Cancelar</button>
+                <button onClick={() => { setShowModal(false); setSelectedDivisions(new Set()); }} className="btn-ghost flex-1">Cancelar</button>
                 <button onClick={handleSubmit} disabled={createMutation.isPending} className="btn-primary flex-1">
                   {createMutation.isPending ? 'Creando...' : 'Crear Proyecto'}
                 </button>

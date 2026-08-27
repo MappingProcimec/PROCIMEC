@@ -75,7 +75,19 @@ export async function GET() {
     drawingByProject.set(a.project_name, list);
   });
 
-  // 4. Construir respuesta
+  // 4. Divisiones por proyecto
+  type DivisionRow = { project_id: string; divisions: { id: string; name: string } | null };
+  const { data: dpData } = await supabase
+    .from('division_projects')
+    .select('project_id, divisions(id, name)');
+  const divisionsByProject: Record<string, { id: string; name: string }[]> = {};
+  ((dpData as unknown as DivisionRow[]) ?? []).forEach((row) => {
+    if (!row.divisions) return;
+    if (!divisionsByProject[row.project_id]) divisionsByProject[row.project_id] = [];
+    divisionsByProject[row.project_id].push(row.divisions);
+  });
+
+  // 5. Construir respuesta
   const resultProjects = (dbProjects as DbProject[] || []).map((p) => {
     const fieldReports: FieldReport[] = p.field_reports || [];
     const projectDibujo: DrawingActivity[] = drawingByProject.get(p.name) || [];
@@ -106,6 +118,7 @@ export async function GET() {
       total_drawing_hours: totalDrawingHours,
       field_reports: fieldReports,
       drawing_activities: projectDibujo,
+      divisions: divisionsByProject[p.id] ?? [],
     };
   });
 
@@ -138,6 +151,8 @@ export async function POST(request: NextRequest) {
     console.error('Drive folder creation failed:', e);
   }
 
+  const divisionIds: string[] = body.division_ids ?? [];
+
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('projects')
@@ -156,6 +171,13 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (divisionIds.length > 0) {
+    await supabase
+      .from('division_projects')
+      .insert(divisionIds.map((did) => ({ division_id: did, project_id: data.id })));
+  }
+
   return NextResponse.json({ data }, { status: 201 });
 }
 
