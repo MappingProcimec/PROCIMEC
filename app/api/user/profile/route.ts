@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase';
 export async function PATCH(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const userEmail = session?.user?.email;
+    const userEmail = session?.user?.email?.trim();
     const userId = session?.user?.id;
 
     if (!userEmail && !userId) {
@@ -20,14 +20,14 @@ export async function PATCH(req: NextRequest) {
     }
 
     const supabase = createAdminClient();
-
     let updated = false;
 
-    if (userEmail) {
+    // 1. Intentar actualizar por ID de usuario si existe
+    if (userId) {
       const { data, error } = await supabase
         .from('users')
         .update({ full_name })
-        .eq('email', userEmail)
+        .eq('id', userId)
         .select('id');
 
       if (!error && data && data.length > 0) {
@@ -35,23 +35,34 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    if (!updated && userId) {
+    // 2. Intentar actualizar por Email (búsqueda insensible a mayúsculas/minúsculas)
+    if (!updated && userEmail) {
       const { data, error } = await supabase
         .from('users')
         .update({ full_name })
-        .eq('id', userId)
+        .ilike('email', userEmail)
         .select('id');
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      if (!error && data && data.length > 0) {
+        updated = true;
       }
-      if (data && data.length > 0) {
+    }
+
+    // 3. Fallback: buscar por email en minúsculas exactas
+    if (!updated && userEmail) {
+      const { data, error } = await supabase
+        .from('users')
+        .update({ full_name })
+        .eq('email', userEmail.toLowerCase())
+        .select('id');
+
+      if (!error && data && data.length > 0) {
         updated = true;
       }
     }
 
     if (!updated) {
-      return NextResponse.json({ error: 'Usuario no encontrado en la base de datos' }, { status: 444 });
+      return NextResponse.json({ error: 'Usuario no encontrado en la base de datos' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true, full_name });
