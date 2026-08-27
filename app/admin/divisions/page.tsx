@@ -11,8 +11,12 @@ interface Division {
   name: string;
   description?: string;
   role_count: number;
+  project_total: number;
+  project_active: number;
   created_at: string;
 }
+
+interface ProjectOption { id: string; code: string; name: string; is_active: boolean }
 
 async function fetchDivisions(): Promise<Division[]> {
   const res = await fetch('/api/admin/divisions');
@@ -20,10 +24,20 @@ async function fetchDivisions(): Promise<Division[]> {
   return json.data ?? [];
 }
 
+async function fetchProjectOptions(): Promise<ProjectOption[]> {
+  const res = await fetch('/api/admin/projects');
+  const json = await res.json();
+  return (json.data ?? []).map((p: ProjectOption) => ({
+    id: p.id, code: p.code, name: p.name, is_active: p.is_active,
+  }));
+}
+
 export default function AdminDivisionsPage() {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', description: '' });
+  const [roleNames, setRoleNames] = useState<string[]>(['']);
+  const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
 
   const { data: divisions = [], isLoading } = useQuery({
@@ -31,12 +45,23 @@ export default function AdminDivisionsPage() {
     queryFn: fetchDivisions,
   });
 
+  const { data: projectOptions = [] } = useQuery({
+    queryKey: ['project-options'],
+    queryFn: fetchProjectOptions,
+    enabled: showModal,
+  });
+
   const createMutation = useMutation({
-    mutationFn: async (body: typeof form) => {
+    mutationFn: async () => {
       const res = await fetch('/api/admin/divisions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          name: form.name,
+          description: form.description,
+          role_names: roleNames.filter(Boolean),
+          project_ids: Array.from(selectedProjects),
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Error al crear división');
@@ -44,19 +69,38 @@ export default function AdminDivisionsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-divisions'] });
-      setShowModal(false);
-      setForm({ name: '', description: '' });
-      setError('');
+      closeModal();
     },
     onError: (e: Error) => setError(e.message),
   });
+
+  const closeModal = () => {
+    setShowModal(false);
+    setForm({ name: '', description: '' });
+    setRoleNames(['']);
+    setSelectedProjects(new Set());
+    setError('');
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { setError('El nombre es obligatorio'); return; }
     setError('');
-    createMutation.mutate(form);
+    createMutation.mutate();
   };
+
+  const addRoleInput = () => setRoleNames((prev) => [...prev, '']);
+  const removeRoleInput = (i: number) => setRoleNames((prev) => prev.filter((_, idx) => idx !== i));
+  const updateRoleName = (i: number, val: string) =>
+    setRoleNames((prev) => prev.map((n, idx) => (idx === i ? val : n)));
+
+  const toggleProject = (id: string) =>
+    setSelectedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <div className="min-h-screen bg-surface">
@@ -101,6 +145,7 @@ export default function AdminDivisionsPage() {
                   <tr>
                     <th className="text-left px-5 py-3 font-semibold text-text-secondary">División</th>
                     <th className="text-left px-5 py-3 font-semibold text-text-secondary hidden sm:table-cell">Descripción</th>
+                    <th className="text-center px-5 py-3 font-semibold text-text-secondary">Proyectos</th>
                     <th className="text-center px-5 py-3 font-semibold text-text-secondary">Roles</th>
                     <th className="px-5 py-3" />
                   </tr>
@@ -111,6 +156,12 @@ export default function AdminDivisionsPage() {
                       <td className="px-5 py-4 font-semibold text-text-primary">{d.name}</td>
                       <td className="px-5 py-4 text-text-muted hidden sm:table-cell">
                         {d.description || <span className="italic text-gray-300">—</span>}
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-text-primary">
+                          <span className="text-success font-bold">{d.project_active}</span>
+                          <span className="text-text-muted">/ {d.project_total}</span>
+                        </span>
                       </td>
                       <td className="px-5 py-4 text-center">
                         <span className="badge badge-primary text-xs">{d.role_count}</span>
@@ -134,41 +185,103 @@ export default function AdminDivisionsPage() {
 
       {/* Modal Nueva División */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-10 bg-black/40 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-fade-in mb-10">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-text-primary">Nueva División</h2>
-              <button onClick={() => { setShowModal(false); setError(''); }} className="p-1.5 rounded-lg hover:bg-gray-100 text-text-muted">
+              <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100 text-text-muted">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="form-group">
-                <label className="label label-required">Nombre</label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Ej: Área GPR"
-                  className="input"
-                  autoFocus
-                />
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Nombre y descripción */}
+              <div className="space-y-4">
+                <div className="form-group">
+                  <label className="label label-required">Nombre</label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Ej: Área GPR"
+                    className="input"
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label">Descripción</label>
+                  <textarea
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    placeholder="Descripción opcional..."
+                    rows={2}
+                    className="textarea"
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label className="label">Descripción</label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Descripción opcional..."
-                  rows={3}
-                  className="textarea"
-                />
+
+              {/* Roles */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="label">Roles de la División</label>
+                  <button type="button" onClick={addRoleInput} className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Agregar rol
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {roleNames.map((name, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => updateRoleName(i, e.target.value)}
+                        placeholder={`Nombre del rol ${i + 1}`}
+                        className="input flex-1 text-sm"
+                      />
+                      {roleNames.length > 1 && (
+                        <button type="button" onClick={() => removeRoleInput(i)} className="p-2 text-text-muted hover:text-error transition-colors">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Proyectos */}
+              {projectOptions.length > 0 && (
+                <div>
+                  <label className="label mb-2 block">Proyectos vinculados</label>
+                  <div className="border border-border rounded-xl max-h-40 overflow-y-auto divide-y divide-border">
+                    {projectOptions.map((p) => (
+                      <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedProjects.has(p.id)}
+                          onChange={() => toggleProject(p.id)}
+                          className="rounded text-primary"
+                        />
+                        <span className="text-xs font-bold text-text-muted w-14 flex-shrink-0">{p.code}</span>
+                        <span className="text-sm text-text-primary flex-1 truncate">{p.name}</span>
+                        {p.is_active && <span className="text-xs text-success font-medium">Activo</span>}
+                      </label>
+                    ))}
+                  </div>
+                  {selectedProjects.size > 0 && (
+                    <p className="text-xs text-text-muted mt-1">{selectedProjects.size} proyecto{selectedProjects.size !== 1 ? 's' : ''} seleccionado{selectedProjects.size !== 1 ? 's' : ''}</p>
+                  )}
+                </div>
+              )}
+
               {error && <p className="error-msg">⚠️ {error}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => { setShowModal(false); setError(''); }} className="btn-ghost flex-1 py-2 text-sm rounded-xl">
+                <button type="button" onClick={closeModal} className="btn-ghost flex-1 py-2 text-sm rounded-xl">
                   Cancelar
                 </button>
                 <button type="submit" disabled={createMutation.isPending} className="btn-primary flex-1 py-2 text-sm rounded-xl font-semibold">
