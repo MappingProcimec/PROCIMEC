@@ -119,13 +119,21 @@ export function Navbar() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ full_name: name }),
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: { error?: string; success?: boolean } = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(`Error en el servidor (${res.status})`);
+      }
       if (!res.ok) throw new Error(json.error || 'Error al actualizar');
       return json;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
       setEditingName(false);
+      window.location.reload();
     },
   });
 
