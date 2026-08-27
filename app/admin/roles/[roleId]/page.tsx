@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -61,8 +61,8 @@ async function fetchForms(): Promise<Form[]> {
   return json.data ?? [];
 }
 
-export default function EditRolePage({ params }: { params: Promise<{ roleId: string }> }) {
-  const { roleId } = use(params);
+export default function EditRolePage({ params }: { params: { roleId: string } }) {
+  const { roleId } = params;
   const router = useRouter();
   const queryClient = useQueryClient();
 

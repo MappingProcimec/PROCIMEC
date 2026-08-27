@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, use } from 'react';
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -80,8 +80,8 @@ async function fetchProjects(): Promise<Project[]> {
 }
 
 // --- Inner component (uses useSearchParams, must be inside Suspense) ---
-function FormPageInner({ params }: { params: Promise<{ formSlug: string }> }) {
-  const { formSlug } = use(params);
+function FormPageInner({ params }: { params: { formSlug: string } }) {
+  const { formSlug } = params;
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') ?? undefined;
   const router = useRouter();
@@ -146,7 +146,7 @@ function FormPageInner({ params }: { params: Promise<{ formSlug: string }> }) {
 }
 
 // --- Page (wraps in Suspense for useSearchParams) ---
-export default function FormPage({ params }: { params: Promise<{ formSlug: string }> }) {
+export default function FormPage({ params }: { params: { formSlug: string } }) {
   return (
     <Suspense fallback={null}>
       <FormPageInner params={params} />
