@@ -79,6 +79,10 @@ export default function AdminProjectsPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [selectedDivisions, setSelectedDivisions] = useState<Set<string>>(new Set());
 
+  const [editProject, setEditProject] = useState<Project | null>(null);
+  const [editForm, setEditForm] = useState({ code: '', name: '', client: '', location: '', contract_number: '', description: '' });
+  const [editDivisions, setEditDivisions] = useState<Set<string>>(new Set());
+
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['admin-projects'],
     queryFn: fetchProjects,
@@ -87,7 +91,7 @@ export default function AdminProjectsPage() {
   const { data: divisionOptions = [] } = useQuery({
     queryKey: ['division-options'],
     queryFn: fetchDivisionOptions,
-    enabled: showModal,
+    enabled: showModal || !!editProject,
   });
 
   const createMutation = useMutation({
@@ -115,6 +119,46 @@ export default function AdminProjectsPage() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+
+  const toggleEditDivision = (id: string) =>
+    setEditDivisions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
+  const openEdit = (p: Project) => {
+    setEditProject(p);
+    setEditForm({ code: p.code, name: p.name, client: p.client, location: p.location, contract_number: p.contract_number ?? '', description: p.description ?? '' });
+    setEditDivisions(new Set((p.divisions ?? []).map((d) => d.id)));
+  };
+
+  const editMutation = useMutation({
+    mutationFn: async () => {
+      if (!editProject) return;
+      const res = await fetch('/api/admin/projects', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editProject.id,
+          code: editForm.code.trim().toUpperCase(),
+          name: editForm.name.trim(),
+          client: editForm.client.trim(),
+          location: editForm.location.trim(),
+          contract_number: editForm.contract_number.trim() || null,
+          description: editForm.description.trim() || null,
+          division_ids: Array.from(editDivisions),
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Error al actualizar');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-divisions'] });
+      setEditProject(null);
+    },
+  });
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
@@ -267,7 +311,13 @@ export default function AdminProjectsPage() {
                               }}
                               className="btn-sm btn-outline text-xs flex items-center gap-1"
                             >
-                              🔍 Ver registros
+                              🔍 Ver
+                            </button>
+                            <button
+                              onClick={() => openEdit(p)}
+                              className="btn-sm btn-outline text-xs"
+                            >
+                              ✏️ Editar
                             </button>
                             {p.drive_folder_url && (
                               <a
@@ -464,6 +514,76 @@ export default function AdminProjectsPage() {
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Proyecto */}
+      {editProject && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
+            <div className="sticky top-0 bg-white px-5 py-4 border-b border-border flex items-center justify-between">
+              <h3 className="font-bold text-text-primary">Editar Proyecto</h3>
+              <button onClick={() => setEditProject(null)} className="btn-icon btn-ghost">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-group">
+                  <label className="label label-required">Código</label>
+                  <input type="text" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })} className="input" />
+                </div>
+                <div className="form-group">
+                  <label className="label label-required">Nombre</label>
+                  <input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="input" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-group">
+                  <label className="label label-required">Cliente</label>
+                  <input type="text" value={editForm.client} onChange={(e) => setEditForm({ ...editForm, client: e.target.value })} className="input" />
+                </div>
+                <div className="form-group">
+                  <label className="label label-required">Ubicación</label>
+                  <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="input" />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="label">Número de contrato</label>
+                <input type="text" value={editForm.contract_number} onChange={(e) => setEditForm({ ...editForm, contract_number: e.target.value })} className="input" placeholder="CTO-2024-001" />
+              </div>
+              <div className="form-group">
+                <label className="label">Descripción / Objeto</label>
+                <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={2} className="input" />
+              </div>
+              {divisionOptions.length > 0 && (
+                <div className="form-group">
+                  <label className="label">Divisiones</label>
+                  <div className="border border-border rounded-xl max-h-36 overflow-y-auto divide-y divide-border">
+                    {divisionOptions.map((d) => (
+                      <label key={d.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                        <input type="checkbox" checked={editDivisions.has(d.id)} onChange={() => toggleEditDivision(d.id)} className="rounded text-primary" />
+                        <span className="text-sm text-text-primary">{d.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {editMutation.isError && (
+                <p className="error-msg text-xs text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200">
+                  ⚠️ {editMutation.error instanceof Error ? editMutation.error.message : 'Error al actualizar'}
+                </p>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setEditProject(null)} className="btn-ghost flex-1">Cancelar</button>
+                <button onClick={() => editMutation.mutate()} disabled={editMutation.isPending} className="btn-primary flex-1">
+                  {editMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

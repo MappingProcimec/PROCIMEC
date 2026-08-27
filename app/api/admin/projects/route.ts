@@ -189,7 +189,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { id, ...updates } = body;
+  const { id, division_ids, ...updates } = body;
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
 
   if (updates.name) {
@@ -197,13 +197,31 @@ export async function PATCH(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from('projects')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data });
+  if (Object.keys(updates).length > 0) {
+    const { data, error } = await supabase
+      .from('projects')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (Array.isArray(division_ids)) {
+    await supabase.from('division_projects').delete().eq('project_id', id);
+    if (division_ids.length > 0) {
+      await supabase
+        .from('division_projects')
+        .insert(division_ids.map((did: string) => ({ division_id: did, project_id: id })));
+    }
+  }
+
+  const { data: updated, error: fetchErr } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+  return NextResponse.json({ data: updated });
 }
