@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSession } from 'next-auth/react';
+import { Navbar } from '@/components/layout/Navbar';
 
 // ─── Tipo de Proyecto ─────────────────────────────────────────────────────────
 interface Project {
@@ -154,6 +155,7 @@ export default function CadRegisterFormPage() {
 
   return (
     <div className="min-h-screen bg-surface pb-20">
+      <Navbar />
       {/* Toast notification */}
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />

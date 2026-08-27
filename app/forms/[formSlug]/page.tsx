@@ -6,6 +6,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { useQuery } from '@tanstack/react-query';
 import TwoStepForm, { FormConfig, Project } from '@/components/forms/TwoStepForm';
+import CadRegisterFormPage from '@/app/tools/cad-register-form/page';
 
 // --- Form catalog ---
 const FORM_CONFIGS: Record<string, FormConfig> = {
@@ -85,6 +86,10 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') ?? undefined;
   const router = useRouter();
+
+  if (formSlug === 'cad-register-form') {
+    return <CadRegisterFormPage />;
+  }
 
   const config = FORM_CONFIGS[formSlug];
 
