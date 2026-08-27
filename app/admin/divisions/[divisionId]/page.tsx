@@ -1,6 +1,5 @@
 'use client';
 
-import { use } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -48,8 +47,8 @@ function StatCard({ icon, value, label, sub }: { icon: string; value: string | n
   );
 }
 
-export default function DivisionDetailPage({ params }: { params: Promise<{ divisionId: string }> }) {
-  const { divisionId } = use(params);
+export default function DivisionDetailPage({ params }: { params: { divisionId: string } }) {
+  const { divisionId } = params;
 
   const { data: division, isLoading } = useQuery({
     queryKey: ['admin-division', divisionId],
