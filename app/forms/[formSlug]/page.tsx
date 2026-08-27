@@ -87,10 +87,6 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
   const projectId = searchParams.get('projectId') ?? undefined;
   const router = useRouter();
 
-  if (formSlug === 'cad-register-form') {
-    return <CadRegisterFormPage />;
-  }
-
   const config = FORM_CONFIGS[formSlug];
 
   const { data: projects = [] } = useQuery({
@@ -152,6 +148,10 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
 
 // --- Page (wraps in Suspense for useSearchParams) ---
 export default function FormPage({ params }: { params: { formSlug: string } }) {
+  if (params.formSlug === 'cad-register-form') {
+    return <CadRegisterFormPage />;
+  }
+
   return (
     <Suspense fallback={null}>
       <FormPageInner params={params} />
