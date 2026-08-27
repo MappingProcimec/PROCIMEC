@@ -32,18 +32,31 @@ async function fetchUsersAndProjects() {
   return { users, projects, roles };
 }
 
-const ROLE_LABELS: Record<string, { label: string; badge: string }> = {
-  admin: { label: 'Administrador', badge: 'badge-primary' },
-  operator: { label: 'Operador', badge: 'badge-accent' },
-  pending: { label: 'Pendiente', badge: 'badge-warning' },
-  dibujo: { label: 'Dibujo', badge: 'badge-success' },
+function deriveSystemRole(roleName: string): 'operator' | 'dibujo' {
+  const n = roleName.toLowerCase();
+  if (n.includes('dibujo') || n.includes('cad')) return 'dibujo';
+  return 'operator';
+}
+
+const SYSTEM_BADGE: Record<string, string> = {
+  admin: 'badge-primary',
+  pending: 'badge-warning',
+  operator: 'badge-accent',
+  dibujo: 'badge-success',
 };
+
+function userDisplayBadge(user: User) {
+  if (user.role === 'admin') return { label: 'Administrador', badge: 'badge-primary' };
+  if (user.role === 'pending') return { label: 'Pendiente', badge: 'badge-warning' };
+  if (user.roles) return { label: user.roles.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+  return { label: user.role === 'dibujo' ? 'Dibujo' : 'Operador', badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+}
 
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editRole, setEditRole] = useState<string>('');
-  const [editRoleId, setEditRoleId] = useState<string>('');
+  // unified selection: 'admin' | 'pending' | <role_id UUID>
+  const [editRoleSel, setEditRoleSel] = useState<string>('');
   const [editProjects, setEditProjects] = useState<string[]>([]);
 
   const { data, isLoading } = useQuery({
@@ -74,19 +87,24 @@ export default function AdminUsersPage() {
 
   const openEdit = (user: User) => {
     setEditingUser(user);
-    setEditRole(user.role);
-    setEditRoleId(user.role_id ?? '');
+    // Pre-select: admin/pending use the role string, others use role_id
+    if (user.role === 'admin') setEditRoleSel('admin');
+    else if (user.role === 'pending') setEditRoleSel('pending');
+    else setEditRoleSel(user.role_id ?? '');
     setEditProjects(user.user_projects?.map(up => up.project_id) || []);
   };
 
   const handleSave = () => {
     if (!editingUser) return;
-    updateMutation.mutate({
-      id: editingUser.id,
-      role: editRole,
-      role_id: editRoleId || undefined,
-      project_ids: editProjects,
-    });
+    if (editRoleSel === 'admin') {
+      updateMutation.mutate({ id: editingUser.id, role: 'admin', role_id: undefined, project_ids: [] });
+    } else if (editRoleSel === 'pending') {
+      updateMutation.mutate({ id: editingUser.id, role: 'pending', role_id: undefined, project_ids: [] });
+    } else {
+      const dynRole = dynamicRoles.find(r => r.id === editRoleSel);
+      const sysRole = dynRole ? deriveSystemRole(dynRole.name) : 'operator';
+      updateMutation.mutate({ id: editingUser.id, role: sysRole, role_id: editRoleSel || undefined, project_ids: editProjects });
+    }
   };
 
   const toggleActive = (user: User) => {
@@ -126,7 +144,7 @@ export default function AdminUsersPage() {
                   return 0;
                 })
                 .map(user => {
-                  const roleInfo = ROLE_LABELS[user.role] || ROLE_LABELS.pending;
+                  const badge = userDisplayBadge(user);
                   return (
                     <div key={user.id} className={`p-4 sm:p-5 flex items-start gap-4 transition-colors ${
                       user.role === 'pending' ? 'bg-amber-50' : !user.is_active ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'
@@ -143,10 +161,7 @@ export default function AdminUsersPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
                           <p className="font-semibold text-text-primary text-sm">{user.full_name}</p>
-                          <span className={`badge ${roleInfo.badge} text-xs`}>{roleInfo.label}</span>
-                          {user.roles && (
-                            <span className="badge badge-primary text-xs">🎭 {user.roles.name}</span>
-                          )}
+                          <span className={`badge ${badge.badge} text-xs`}>{badge.label}</span>
                           {!user.is_active && <span className="badge badge-gray text-xs">Inactivo</span>}
                           {user.role === 'pending' && (
                             <span className="badge bg-amber-400 text-white text-xs animate-pulse-soft">⏳ Aprobación pendiente</span>
@@ -209,47 +224,29 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              {/* Acceso al sistema (role string) */}
+              {/* Rol unificado */}
               <div className="form-group">
-                <label className="label font-semibold">Acceso al sistema</label>
-                <p className="text-xs text-text-muted mb-2">Controla qué módulos puede ver el usuario.</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['admin', 'operator', 'pending', 'dibujo'] as const).map(role => (
-                    <button key={role} type="button"
-                      onClick={() => setEditRole(role)}
-                      className={`py-2.5 px-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                        editRole === role
-                          ? 'border-primary bg-primary text-white'
-                          : 'border-border text-text-secondary hover:border-primary-200'
-                      }`}>
-                      {ROLE_LABELS[role].label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Rol dinámico (role_id) */}
-              {editRole !== 'pending' && editRole !== 'admin' && (
-                <div className="form-group">
-                  <label className="label font-semibold">Rol dinámico</label>
-                  <p className="text-xs text-text-muted mb-2">Determina las herramientas, formularios y proyectos visibles.</p>
-                  <select
-                    value={editRoleId}
-                    onChange={e => setEditRoleId(e.target.value)}
-                    className="select"
-                  >
-                    <option value="">— Sin rol dinámico —</option>
+                <label className="label font-semibold">Rol</label>
+                <p className="text-xs text-text-muted mb-2">Define el acceso al sistema y las herramientas disponibles.</p>
+                <select
+                  value={editRoleSel}
+                  onChange={e => setEditRoleSel(e.target.value)}
+                  className="select"
+                >
+                  <option value="pending">⏳ Pendiente de aprobación</option>
+                  <option value="admin">🔑 Administrador</option>
+                  <optgroup label="── Roles de división ──">
                     {dynamicRoles.map(r => (
                       <option key={r.id} value={r.id}>
                         {r.name}{r.divisions ? ` (${r.divisions.name})` : ''}
                       </option>
                     ))}
-                  </select>
-                </div>
-              )}
+                  </optgroup>
+                </select>
+              </div>
 
               {/* Proyectos */}
-              {editRole !== 'pending' && editRole !== 'admin' && (
+              {editRoleSel !== 'pending' && editRoleSel !== 'admin' && (
                 <div className="form-group">
                   <label className="label font-semibold">Proyectos Asignados ({editProjects.length})</label>
                   <div className="max-h-48 overflow-y-auto space-y-1.5 border border-border rounded-xl p-2 bg-gray-50/50">
