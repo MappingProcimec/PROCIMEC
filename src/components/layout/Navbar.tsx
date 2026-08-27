@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
-import { HamburgerMenu } from '@/components/layout/HamburgerMenu';
 import { DivisionBadge } from '@/components/DivisionBadge';
 import type { Tool, Form } from '@/types';
 
@@ -26,17 +25,28 @@ async function fetchDashboardNav(): Promise<DashboardData | null> {
   return json.data as DashboardData;
 }
 
+const TOOL_CATEGORY_ICON: Record<string, string> = {
+  gpr: '📡',
+  cad: '✏️',
+  admin: '⚙️',
+  universal: '🌐',
+};
+
 export function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const isAdmin = session?.user?.role === 'admin';
   const isPending = session?.user?.role === 'pending';
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data: dashData } = useQuery({
     queryKey: ['dashboard'],
     queryFn: fetchDashboardNav,
-    enabled: !!session && !isAdmin && !isPending,
+    enabled: !!session && !isPending,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -44,35 +54,51 @@ export function Navbar() {
   const assignedForms: Form[] = dashData?.forms ?? [];
   const legacyRole = dashData?.legacyRole ?? null;
   const divisionName = dashData?.division?.name ?? (session?.user as { divisionName?: string })?.divisionName;
+  const displayName = dashData?.user?.full_name ?? session?.user?.name ?? '';
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+        setEditingName(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  useEffect(() => {
+    setDropdownOpen(false);
+    setEditingName(false);
+  }, [pathname]);
+
+  const updateNameMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await fetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: name }),
+      });
+      if (!res.ok) throw new Error('Error al actualizar');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setEditingName(false);
+    },
+  });
+
+  const openEditName = () => {
+    setNameValue(displayName);
+    setEditingName(true);
+  };
 
   return (
-    <>
-      <HamburgerMenu
-        isOpen={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        tools={assignedTools}
-        forms={assignedForms}
-        legacyRole={legacyRole}
-      />
+    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-border shadow-sm">
+      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
 
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-border shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          {/* Hamburguesa (solo roles no-admin) */}
-          {!isAdmin && (
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-text-secondary"
-              aria-label="Abrir menú"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-              </svg>
-            </button>
-          )}
-
-          {/* Logo */}
-          <Link href={isAdmin ? '/admin/dashboard' : '/dashboard'} className="flex items-center gap-2.5">
+        {/* Logo */}
+        <Link href={isAdmin ? '/admin/dashboard' : '/dashboard'} className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
             <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
@@ -81,15 +107,15 @@ export function Navbar() {
           <span className="font-bold text-primary text-sm hidden sm:block">PROCIMEC</span>
         </Link>
 
-        {/* Nav links (admin) */}
+        {/* Admin nav links */}
         {isAdmin && (
           <nav className="hidden md:flex items-center gap-1">
             {[
               { href: '/admin/dashboard', label: 'Dashboard' },
-              { href: '/admin/projects', label: 'Proyectos' },
-              { href: '/admin/users', label: 'Usuarios' },
               { href: '/admin/divisions', label: 'Divisiones' },
+              { href: '/admin/projects', label: 'Proyectos' },
               { href: '/admin/roles', label: 'Roles' },
+              { href: '/admin/users', label: 'Usuarios' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
@@ -106,32 +132,26 @@ export function Navbar() {
           </nav>
         )}
 
-          {/* User menu */}
-          <div className="flex items-center gap-2">
-            {/* Division badge */}
-            {divisionName && <DivisionBadge divisionName={divisionName} />}
+        {/* Right: badge + avatar */}
+        <div className="flex items-center gap-2">
+          {divisionName && <DivisionBadge divisionName={divisionName} />}
+          <span className={`hidden sm:inline-flex badge text-xs ${isAdmin ? 'badge-primary' : 'badge-accent'}`}>
+            {isAdmin ? 'Admin' : (dashData?.role?.name ?? legacyRole ?? 'Operador')}
+          </span>
 
-            {/* Role badge */}
-            <span className={`hidden sm:inline-flex badge text-xs ${isAdmin ? 'badge-primary' : 'badge-accent'}`}>
-              {isAdmin ? 'Admin' : (dashData?.role?.name ?? legacyRole ?? 'Operador')}
-            </span>
-
-          {/* Avatar */}
-          <div className="relative group">
-            <button className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 transition-colors">
+          {/* Avatar dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setDropdownOpen(v => !v)}
+              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 transition-colors"
+              aria-label="Menú de usuario"
+            >
               {session?.user?.image ? (
-                <Image
-                  src={session.user.image}
-                  alt={session.user.name || ''}
-                  width={32}
-                  height={32}
-                  className="rounded-full"
-                />
+                <Image src={session.user.image} alt={displayName} width={32} height={32} className="rounded-full" />
               ) : (
                 <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
-                  <span className="text-primary text-sm font-bold">
-                    {(session?.user?.name || 'U').charAt(0)}
-                  </span>
+                  <span className="text-primary text-sm font-bold">{(displayName || 'U').charAt(0)}</span>
                 </div>
               )}
               <svg className="w-4 h-4 text-text-muted hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -139,46 +159,158 @@ export function Navbar() {
               </svg>
             </button>
 
-            {/* Dropdown */}
-            <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-2xl shadow-soft border border-border py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50">
-              <div className="px-3 py-2 border-b border-border mb-1">
-                <p className="text-sm font-semibold text-text-primary truncate">{session?.user?.name}</p>
-                <p className="text-xs text-text-muted truncate">{session?.user?.email}</p>
+            {dropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-2xl shadow-soft border border-border py-2 z-50 max-h-[80vh] overflow-y-auto">
+
+                {/* User info */}
+                <div className="px-3 py-2.5 border-b border-border">
+                  <p className="text-sm font-semibold text-text-primary truncate">{displayName}</p>
+                  <p className="text-xs text-text-muted truncate">{session?.user?.email}</p>
+                </div>
+
+                {/* Editar usuario */}
+                <div className="px-3 py-1 border-b border-border">
+                  {!editingName ? (
+                    <button
+                      onClick={openEditName}
+                      className="flex items-center gap-2 w-full py-2 text-sm text-text-secondary hover:text-primary transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                      </svg>
+                      Editar usuario
+                    </button>
+                  ) : (
+                    <div className="py-2 space-y-2">
+                      <p className="text-xs font-semibold text-text-secondary">Nombre completo</p>
+                      <input
+                        type="text"
+                        value={nameValue}
+                        onChange={e => setNameValue(e.target.value)}
+                        className="w-full text-sm px-3 py-2 border border-border rounded-xl focus:outline-none focus:border-primary"
+                        placeholder="Tu nombre completo"
+                        autoFocus
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && nameValue.trim()) updateNameMutation.mutate(nameValue.trim());
+                          if (e.key === 'Escape') setEditingName(false);
+                        }}
+                      />
+                      {updateNameMutation.isError && (
+                        <p className="text-xs text-red-600">Error al guardar</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setEditingName(false)}
+                          className="flex-1 text-xs py-1.5 rounded-lg border border-border text-text-secondary hover:bg-gray-50 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => updateNameMutation.mutate(nameValue.trim())}
+                          disabled={updateNameMutation.isPending || !nameValue.trim()}
+                          className="flex-1 text-xs py-1.5 rounded-lg bg-primary text-white hover:bg-primary-600 transition-colors disabled:opacity-50"
+                        >
+                          {updateNameMutation.isPending ? 'Guardando...' : 'Guardar'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Non-admin navigation */}
+                {!isAdmin && !isPending && (
+                  <>
+                    <Link
+                      href="/dashboard"
+                      className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors"
+                    >
+                      <span>🏠</span> Mi Panel
+                    </Link>
+
+                    {legacyRole === 'dibujo' && (
+                      <>
+                        <div className="px-3 pt-3 pb-1">
+                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Módulo Dibujante</p>
+                        </div>
+                        <Link href="/dibujo/nueva-actividad" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                          <span>✏️</span> Nueva Actividad CAD
+                        </Link>
+                        <Link href="/dibujo/tablero" className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                          <span>📊</span> Tablero de Actividades
+                        </Link>
+                      </>
+                    )}
+
+                    {assignedTools.length > 0 && (
+                      <>
+                        <div className="px-3 pt-3 pb-1">
+                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Mis Herramientas</p>
+                        </div>
+                        {assignedTools.map(tool => (
+                          <Link key={tool.id} href={`/tools/${tool.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                            <span>{TOOL_CATEGORY_ICON[tool.category] ?? '🔧'}</span>
+                            <span className="truncate">{tool.name}</span>
+                          </Link>
+                        ))}
+                      </>
+                    )}
+
+                    {assignedForms.length > 0 && (
+                      <>
+                        <div className="px-3 pt-3 pb-1">
+                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Mis Formularios</p>
+                        </div>
+                        {assignedForms.map(form => (
+                          <Link key={form.id} href={`/forms/${form.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                            <span>📋</span>
+                            <span className="truncate">{form.name}</span>
+                          </Link>
+                        ))}
+                      </>
+                    )}
+
+                    <div className="border-t border-border my-1" />
+                  </>
+                )}
+
+                {/* Admin extras */}
+                {isAdmin && (
+                  <>
+                    <Link href="/projects" className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+                      </svg>
+                      Vista Operador
+                    </Link>
+                    <Link href="/dibujo/tablero" className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
+                      </svg>
+                      Vista Dibujante
+                    </Link>
+                    <div className="border-t border-border my-1" />
+                  </>
+                )}
+
+                {/* Sign out */}
+                <button
+                  onClick={() => {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    window.location.href = '/api/logout';
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-error hover:bg-red-50 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                  </svg>
+                  Cerrar sesión
+                </button>
               </div>
-              {isAdmin && (
-                <>
-                  <Link href="/projects" className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
-                    </svg>
-                    Vista Operador
-                  </Link>
-                  <Link href="/dibujo/tablero" className="flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125" />
-                    </svg>
-                    Vista Dibujante
-                  </Link>
-                </>
-              )}
-              <button
-                onClick={() => {
-                  localStorage.clear();
-                  sessionStorage.clear();
-                  window.location.href = '/api/logout';
-                }}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-error hover:bg-red-50 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                </svg>
-                Cerrar sesión
-              </button>
-            </div>
+            )}
           </div>
         </div>
       </div>
     </header>
-    </>
   );
 }
