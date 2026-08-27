@@ -30,7 +30,7 @@ export async function GET() {
     .in('role_id', roleIds);
 
   const toolIds = [...new Set((roleToolsRaw ?? []).map((rt: { tool_id: string }) => rt.tool_id))];
-  let toolsMap: Record<string, { id: string; slug: string; name: string; category: string; is_universal: boolean }> = {};
+  const toolsMap: Record<string, { id: string; slug: string; name: string; category: string; is_universal: boolean }> = {};
   if (toolIds.length > 0) {
     const { data: toolsData } = await supabase
       .from('tools')
@@ -54,7 +54,7 @@ export async function GET() {
     .in('role_id', roleIds);
 
   const formIds = [...new Set((roleFormsRaw ?? []).map((rf: { form_id: string }) => rf.form_id))];
-  let formsMap: Record<string, { id: string; slug: string; name: string }> = {};
+  const formsMap: Record<string, { id: string; slug: string; name: string }> = {};
   if (formIds.length > 0) {
     const { data: formsData } = await supabase
       .from('forms')
