@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -54,6 +54,15 @@ export default function NewRolePage() {
   const { data: divisions = [] } = useQuery({ queryKey: ['admin-divisions'], queryFn: fetchDivisions });
   const { data: tools = [] } = useQuery({ queryKey: ['admin-tools'], queryFn: fetchTools });
   const { data: forms = [] } = useQuery({ queryKey: ['admin-forms'], queryFn: fetchForms });
+
+  // Pre-seleccionar herramientas de administración por defecto en roles nuevos
+  useEffect(() => {
+    if (tools.length > 0 && selectedTools.size === 0) {
+      const adminToolIds = tools.filter((t) => t.category === 'admin').map((t) => t.id);
+      setSelectedTools(new Set(adminToolIds));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tools]);
 
   const createMutation = useMutation({
     mutationFn: async () => {
