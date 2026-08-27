@@ -174,6 +174,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (Array.isArray(body.project_ids)) {
+    await supabase.from('division_projects').delete().eq('division_id', id);
+    if (body.project_ids.length > 0) {
+      await supabase.from('division_projects').insert(
+        body.project_ids.map((pid: string) => ({ division_id: id, project_id: pid }))
+      );
+    }
+  }
+
   return NextResponse.json({ data });
 }
 
