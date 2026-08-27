@@ -20,19 +20,33 @@ export async function GET(_req: NextRequest, { params }: Params) {
       id, name, division_id, is_system_role, created_at,
       divisions(id, name),
       role_tools(tools(id, slug, name, category, is_universal)),
-      role_forms(forms(id, slug, name))
+      role_forms(form_id)
     `)
     .eq('id', id)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
 
+  // Obtener los formularios asignados por separado para evitar problemas con joins anidados
+  const formIds = ((role as unknown as { role_forms: { form_id: string }[] }).role_forms ?? []).map((rf) => rf.form_id);
+  let assignedForms: { id: string; slug: string; name: string }[] = [];
+  if (formIds.length > 0) {
+    const { data: formsData } = await supabase
+      .from('forms')
+      .select('id, slug, name')
+      .in('id', formIds);
+    assignedForms = (formsData ?? []) as { id: string; slug: string; name: string }[];
+  }
+
+  // Normalizar role_forms al formato esperado por el frontend
+  const roleForms = assignedForms.map((f) => ({ forms: f }));
+
   const { data: users } = await supabase
     .from('users')
     .select('id, email, full_name, role')
     .eq('role_id', id);
 
-  return NextResponse.json({ data: { ...role, users: users ?? [] } });
+  return NextResponse.json({ data: { ...role, role_forms: roleForms, users: users ?? [] } });
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {

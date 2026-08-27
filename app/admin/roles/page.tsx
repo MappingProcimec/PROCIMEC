@@ -121,9 +121,9 @@ export default function AdminRolesPage() {
                 )}
 
                 {/* Forms chips */}
-                {role.role_forms.length > 0 && (
+                {role.role_forms.filter((rf) => rf.forms != null).length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {role.role_forms.map(({ forms: f }) => (
+                    {role.role_forms.filter((rf) => rf.forms != null).map(({ forms: f }) => (
                       <span key={f.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                         📋 {f.name}
                       </span>

@@ -85,8 +85,12 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
     if (role && !initialized) {
       setName(role.name);
       setDivisionId(role.division_id ?? '');
-      setSelectedTools(new Set(role.role_tools.map((rt) => rt.tools.id)));
-      setSelectedForms(new Set(role.role_forms.map((rf) => rf.forms.id)));
+      setSelectedTools(new Set(
+        role.role_tools.filter((rt) => rt.tools != null).map((rt) => rt.tools.id)
+      ));
+      setSelectedForms(new Set(
+        role.role_forms.filter((rf) => rf.forms != null).map((rf) => rf.forms.id)
+      ));
       setInitialized(true);
     }
   }, [role, initialized]);
