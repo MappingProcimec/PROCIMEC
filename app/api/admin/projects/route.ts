@@ -199,12 +199,10 @@ export async function PATCH(request: NextRequest) {
   const supabase = createAdminClient();
 
   if (Object.keys(updates).length > 0) {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('projects')
       .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
