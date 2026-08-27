@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const supabase = createAdminClient();
 
-  // 1. Division básica
+  // 1. División básica
   const { data: division, error: divErr } = await supabase
     .from('divisions')
     .select('id, name, description, created_at')
@@ -36,8 +36,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     id: string; name: string; is_system_role: boolean;
     role_tools: { tool_id: string }[]; role_forms: { form_id: string }[];
   };
-  const rolesRawTyped = (rolesRaw as unknown as RawRoleFull[]) ?? [];
-  const roleIds = rolesRawTyped.map((r) => r.id);
+  const rolesTyped = (rolesRaw as unknown as RawRoleFull[]) ?? [];
+  const roleIds = rolesTyped.map((r) => r.id);
 
   // 3. Usuarios asignados a los roles de esta división
   type UserRow = { id: string; full_name: string; email: string; role_id: string; roles: { name: string } | null };
@@ -51,13 +51,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
     usersRaw = (data as unknown as UserRow[]) ?? [];
   }
 
-  // Conteo de usuarios por role_id
   const userCountByRole: Record<string, number> = {};
   usersRaw.forEach((u) => {
     if (u.role_id) userCountByRole[u.role_id] = (userCountByRole[u.role_id] ?? 0) + 1;
   });
 
-  const roles = rolesRawTyped.map((r) => ({
+  const roles = rolesTyped.map((r) => ({
     id: r.id,
     name: r.name,
     is_system_role: r.is_system_role,
@@ -73,22 +72,18 @@ export async function GET(_req: NextRequest, { params }: Params) {
     role_name: u.roles?.name ?? '—',
   }));
 
-  // 4. Proyectos via role_projects (sin joins profundos)
-  let projectIds: string[] = [];
-  if (roleIds.length > 0) {
-    const { data: rpData } = await supabase
-      .from('role_projects')
-      .select('project_id')
-      .in('role_id', roleIds);
-    const seen = new Set<string>();
-    (rpData ?? []).forEach((rp: { project_id: string }) => seen.add(rp.project_id));
-    projectIds = Array.from(seen);
-  }
-
+  // 4. Proyectos desde division_projects (relación directa)
   type ProjectRow = { id: string; code: string; name: string; client: string; is_active: boolean };
   type FieldReportRow = { id: string; project_id: string; operational_summary: { ml?: number }[] };
 
   let projects: (ProjectRow & { total_ml: number; total_drawing_hours: number; report_count: number })[] = [];
+
+  const { data: dpData } = await supabase
+    .from('division_projects')
+    .select('project_id')
+    .eq('division_id', id);
+
+  const projectIds = ((dpData ?? []) as { project_id: string }[]).map((r) => r.project_id);
 
   if (projectIds.length > 0) {
     const { data: projectsData } = await supabase
@@ -100,7 +95,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const projectsTyped = (projectsData as unknown as ProjectRow[]) ?? [];
     const projectNames = projectsTyped.map((p) => p.name);
 
-    // Field reports por proyecto
     const { data: reportsData } = await supabase
       .from('field_reports')
       .select('id, project_id, operational_summary')
@@ -112,7 +106,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
       reportsByProject[r.project_id].push(r);
     });
 
-    // Drawing activities por nombre de proyecto
     const drawingHoursByName: Record<string, number> = {};
     if (projectNames.length > 0) {
       const { data: drawings } = await supabase

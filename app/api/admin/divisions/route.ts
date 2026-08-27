@@ -11,48 +11,39 @@ export async function GET() {
 
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
+  // Divisiones con sus roles
+  const { data: divData, error } = await supabase
     .from('divisions')
-    .select(`
-      id, name, description, created_at,
-      roles(
-        id,
-        role_projects(
-          project_id,
-          projects(id, is_active)
-        )
-      )
-    `)
+    .select('id, name, description, created_at, roles(id)')
     .order('name', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  type RawProject = { id: string; is_active: boolean };
-  type RawRoleProject = { project_id: string; projects: RawProject | null };
-  type RawRole = { id: string; role_projects: RawRoleProject[] };
-  type RawDivision = {
-    id: string; name: string; description: string | null; created_at: string;
-    roles: RawRole[];
-  };
+  // Proyectos por división desde division_projects
+  const { data: dpData } = await supabase
+    .from('division_projects')
+    .select('division_id, project_id, projects(id, is_active)');
 
-  const divisions = (data as unknown as RawDivision[] ?? []).map((d) => {
-    const roles = d.roles ?? [];
-    const projectMap = new Map<string, boolean>();
-    roles.forEach((r) =>
-      (r.role_projects ?? []).forEach((rp) => {
-        if (rp.projects) projectMap.set(rp.projects.id, rp.projects.is_active);
-      })
-    );
-    return {
-      id: d.id,
-      name: d.name,
-      description: d.description,
-      created_at: d.created_at,
-      role_count: roles.length,
-      project_total: projectMap.size,
-      project_active: Array.from(projectMap.values()).filter(Boolean).length,
-    };
+  type DPRow = { division_id: string; project_id: string; projects: { id: string; is_active: boolean } | null };
+  const dpRows: DPRow[] = (dpData as unknown as DPRow[]) ?? [];
+
+  const projectsByDiv: Record<string, { active: number; total: number }> = {};
+  dpRows.forEach((row) => {
+    if (!projectsByDiv[row.division_id]) projectsByDiv[row.division_id] = { active: 0, total: 0 };
+    projectsByDiv[row.division_id].total++;
+    if (row.projects?.is_active) projectsByDiv[row.division_id].active++;
   });
+
+  type RawDiv = { id: string; name: string; description: string | null; created_at: string; roles: { id: string }[] };
+  const divisions = ((divData as unknown as RawDiv[]) ?? []).map((d) => ({
+    id: d.id,
+    name: d.name,
+    description: d.description,
+    created_at: d.created_at,
+    role_count: d.roles?.length ?? 0,
+    project_total: projectsByDiv[d.id]?.total ?? 0,
+    project_active: projectsByDiv[d.id]?.active ?? 0,
+  }));
 
   return NextResponse.json({ data: divisions });
 }
@@ -80,20 +71,16 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  let createdRoles: { id: string }[] = [];
   if (roleNames.length > 0) {
-    const { data: roles } = await supabase
+    await supabase
       .from('roles')
-      .insert(roleNames.map((n) => ({ name: n, division_id: division.id })))
-      .select('id');
-    createdRoles = roles ?? [];
+      .insert(roleNames.map((n) => ({ name: n, division_id: division.id })));
   }
 
-  if (createdRoles.length > 0 && projectIds.length > 0) {
-    const entries = createdRoles.flatMap((r) =>
-      projectIds.map((p) => ({ role_id: r.id, project_id: p }))
-    );
-    await supabase.from('role_projects').insert(entries);
+  if (projectIds.length > 0) {
+    await supabase
+      .from('division_projects')
+      .insert(projectIds.map((p) => ({ division_id: division.id, project_id: p })));
   }
 
   return NextResponse.json({ data: division }, { status: 201 });

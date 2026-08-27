@@ -26,7 +26,7 @@ interface Stats {
 
 interface DivisionDetail {
   id: string; name: string; description?: string; created_at: string;
-  roles: Role[]; users: User[]; projects: Project[]; stats: Stats;
+  roles?: Role[]; users?: User[]; projects?: Project[]; stats?: Stats;
 }
 
 async function fetchDivision(id: string): Promise<DivisionDetail> {
@@ -57,6 +57,9 @@ export default function DivisionDetailPage({ params }: { params: Promise<{ divis
   });
 
   const stats = division?.stats;
+  const projects = division?.projects ?? [];
+  const roles = division?.roles ?? [];
+  const users = division?.users ?? [];
 
   return (
     <div className="min-h-screen bg-surface">
@@ -111,7 +114,7 @@ export default function DivisionDetailPage({ params }: { params: Promise<{ divis
                   </span>
                 </div>
               </div>
-              {division.projects.length === 0 ? (
+              {projects.length === 0 ? (
                 <p className="px-5 py-6 text-text-muted text-sm">No hay proyectos vinculados a esta división.</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -128,7 +131,7 @@ export default function DivisionDetailPage({ params }: { params: Promise<{ divis
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {division.projects.map((p) => (
+                      {projects.map((p) => (
                         <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3">
                             <Link href={`/admin/projects`} className="text-xs font-bold text-text-muted hover:text-primary transition-colors">
@@ -164,11 +167,11 @@ export default function DivisionDetailPage({ params }: { params: Promise<{ divis
               <div className="px-5 py-4 border-b border-border bg-gray-50 flex items-center justify-between">
                 <h2 className="font-bold text-text-primary">Roles</h2>
                 <div className="flex items-center gap-2">
-                  <span className="badge badge-primary text-xs">{division.roles.length}</span>
+                  <span className="badge badge-primary text-xs">{roles.length}</span>
                   <Link href="/admin/roles" className="text-xs text-primary font-semibold hover:underline">Gestionar →</Link>
                 </div>
               </div>
-              {division.roles.length === 0 ? (
+              {roles.length === 0 ? (
                 <p className="px-5 py-6 text-text-muted text-sm">No hay roles asignados a esta división.</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -183,7 +186,7 @@ export default function DivisionDetailPage({ params }: { params: Promise<{ divis
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {division.roles.map((r) => (
+                      {roles.map((r) => (
                         <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -218,11 +221,11 @@ export default function DivisionDetailPage({ params }: { params: Promise<{ divis
               <div className="px-5 py-4 border-b border-border bg-gray-50 flex items-center justify-between">
                 <h2 className="font-bold text-text-primary">Usuarios</h2>
                 <div className="flex items-center gap-2">
-                  <span className="badge badge-primary text-xs">{division.users.length}</span>
+                  <span className="badge badge-primary text-xs">{users.length}</span>
                   <Link href="/admin/users" className="text-xs text-primary font-semibold hover:underline">Gestionar →</Link>
                 </div>
               </div>
-              {division.users.length === 0 ? (
+              {users.length === 0 ? (
                 <p className="px-5 py-6 text-text-muted text-sm">No hay usuarios asignados a esta división.</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -235,7 +238,7 @@ export default function DivisionDetailPage({ params }: { params: Promise<{ divis
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {division.users.map((u) => (
+                      {users.map((u) => (
                         <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3 font-medium text-text-primary">{u.full_name || '—'}</td>
                           <td className="px-4 py-3 text-text-muted hidden sm:table-cell text-xs">{u.email}</td>
