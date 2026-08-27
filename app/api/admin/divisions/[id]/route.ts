@@ -184,6 +184,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
   }
 
+  if (Array.isArray(body.role_ids)) {
+    const newIds: string[] = body.role_ids.filter(Boolean);
+    const { data: currentRoles } = await supabase.from('roles').select('id').eq('division_id', id);
+    const currentIds = ((currentRoles ?? []) as { id: string }[]).map((r) => r.id);
+    const toRemove = currentIds.filter((rid) => !newIds.includes(rid));
+    const toAdd = newIds.filter((rid) => !currentIds.includes(rid));
+    if (toRemove.length > 0) await supabase.from('roles').update({ division_id: null }).in('id', toRemove);
+    if (toAdd.length > 0) await supabase.from('roles').update({ division_id: id }).in('id', toAdd);
+  }
+
   return NextResponse.json({ data });
 }
 

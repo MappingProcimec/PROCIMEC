@@ -7,71 +7,206 @@ import { BackButton } from '@/components/BackButton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Division {
-  id: string;
-  name: string;
-  description?: string;
-  role_count: number;
-  project_total: number;
-  project_active: number;
-  created_at: string;
+  id: string; name: string; description?: string;
+  role_count: number; project_total: number; project_active: number; created_at: string;
 }
-
 interface ProjectOption { id: string; code: string; name: string; is_active: boolean }
-interface RoleOption { id: string; name: string; is_system_role: boolean; user_count: number }
-
+interface RoleOption { id: string; name: string; divisions?: { name: string } | null }
 interface DivisionDetail {
   id: string; name: string; description?: string;
   projects?: { id: string }[];
-  roles?: RoleOption[];
+  roles?: { id: string; name: string; is_system_role: boolean; user_count: number }[];
 }
 
 async function fetchDivisions(): Promise<Division[]> {
   const res = await fetch('/api/admin/divisions');
-  const json = await res.json();
-  return json.data ?? [];
+  return (await res.json()).data ?? [];
 }
-
 async function fetchProjectOptions(): Promise<ProjectOption[]> {
   const res = await fetch('/api/admin/projects');
-  const json = await res.json();
-  return (json.data ?? []).map((p: ProjectOption) => ({
+  return ((await res.json()).data ?? []).map((p: ProjectOption) => ({
     id: p.id, code: p.code, name: p.name, is_active: p.is_active,
   }));
 }
-
+async function fetchRoleOptions(): Promise<RoleOption[]> {
+  const res = await fetch('/api/admin/roles');
+  return ((await res.json()).data ?? []).map((r: RoleOption) => ({
+    id: r.id, name: r.name, divisions: r.divisions,
+  }));
+}
 async function fetchDivisionDetail(id: string): Promise<DivisionDetail> {
   const res = await fetch(`/api/admin/divisions/${id}`);
-  const json = await res.json();
-  return json.data;
+  return (await res.json()).data;
 }
 
+// ── helpers ──────────────────────────────────────────────────────────────────
+function CloseIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+function PlusIcon({ sm }: { sm?: boolean }) {
+  return (
+    <svg className={sm ? 'w-3.5 h-3.5' : 'w-4 h-4'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+    </svg>
+  );
+}
+
+// Role row selector shared between create and edit
+function RoleRows({
+  rows,
+  roleOptions,
+  onAdd,
+  onRemove,
+  onChange,
+}: {
+  rows: string[];
+  roleOptions: RoleOption[];
+  onAdd: () => void;
+  onRemove: (i: number) => void;
+  onChange: (i: number, val: string) => void;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="label">Roles de la División</label>
+        <button type="button" onClick={onAdd} className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+          <PlusIcon sm /> Nuevo rol
+        </button>
+      </div>
+      <div className="space-y-2">
+        {rows.map((rid, i) => (
+          <div key={i} className="flex gap-2">
+            <select
+              value={rid}
+              onChange={e => onChange(i, e.target.value)}
+              className="select flex-1 text-sm"
+            >
+              <option value="">— Seleccionar rol —</option>
+              {roleOptions
+                .filter(r => r.id === rid || !rows.some((s, si) => si !== i && s === r.id))
+                .map(r => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}{r.divisions?.name ? ` (${r.divisions.name})` : ''}
+                  </option>
+                ))}
+            </select>
+            {rows.length > 1 && (
+              <button
+                type="button"
+                onClick={() => onRemove(i)}
+                className="p-2 text-text-muted hover:text-error transition-colors flex-shrink-0"
+              >
+                <CloseIcon />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Project list with search
+function ProjectChecklist({
+  projectOptions,
+  selected,
+  onToggle,
+}: {
+  projectOptions: ProjectOption[];
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const filtered = search
+    ? projectOptions.filter(p =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.code.toLowerCase().includes(search.toLowerCase())
+      )
+    : projectOptions;
+
+  return (
+    <div>
+      <label className="label mb-2 block">Proyectos vinculados</label>
+      <div className="relative mb-2">
+        <svg className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar proyecto..."
+          className="input pl-8 text-sm py-1.5"
+        />
+      </div>
+      {projectOptions.length === 0 ? (
+        <p className="text-xs text-text-muted">No hay proyectos disponibles.</p>
+      ) : (
+        <>
+          <div className="border border-border rounded-xl max-h-48 overflow-y-auto divide-y divide-border">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-4 text-xs text-text-muted text-center">Sin resultados</p>
+            ) : filtered.map((p) => (
+              <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.has(p.id)}
+                  onChange={() => onToggle(p.id)}
+                  className="rounded text-primary"
+                />
+                <span className="text-xs font-bold text-text-muted w-14 flex-shrink-0">{p.code}</span>
+                <span className="text-sm text-text-primary flex-1 truncate">{p.name}</span>
+                {p.is_active && <span className="text-xs text-success font-medium flex-shrink-0">Activo</span>}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-text-muted mt-1">
+            {selected.size} proyecto{selected.size !== 1 ? 's' : ''} seleccionado{selected.size !== 1 ? 's' : ''}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── page ─────────────────────────────────────────────────────────────────────
 export default function AdminDivisionsPage() {
   const queryClient = useQueryClient();
 
-  // Create modal state
+  // Create modal
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', description: '' });
-  const [roleNames, setRoleNames] = useState<string[]>(['']);
+  const [createRoleIds, setCreateRoleIds] = useState<string[]>(['']);
   const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
 
-  // Edit modal state
+  // Edit modal
   const [editDivision, setEditDivision] = useState<Division | null>(null);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
+  const [editRoleIds, setEditRoleIds] = useState<string[]>([]);
   const [editProjects, setEditProjects] = useState<Set<string>>(new Set());
   const [editError, setEditError] = useState('');
 
+  // ── queries ──
   const { data: divisions = [], isLoading } = useQuery({
     queryKey: ['admin-divisions'],
     queryFn: fetchDivisions,
   });
-
+  const modalOpen = showModal || !!editDivision;
   const { data: projectOptions = [] } = useQuery({
     queryKey: ['project-options'],
     queryFn: fetchProjectOptions,
-    enabled: showModal || !!editDivision,
+    enabled: modalOpen,
   });
-
+  const { data: roleOptions = [] } = useQuery({
+    queryKey: ['role-options'],
+    queryFn: fetchRoleOptions,
+    enabled: modalOpen,
+  });
   const { data: editDetail, isLoading: loadingDetail } = useQuery({
     queryKey: ['admin-division', editDivision?.id],
     queryFn: () => fetchDivisionDetail(editDivision!.id),
@@ -79,6 +214,15 @@ export default function AdminDivisionsPage() {
     staleTime: 0,
   });
 
+  // Effective edit state (lazy-init from detail)
+  const detailProjectIds = editDetail?.projects?.map(p => p.id) ?? [];
+  const detailRoleIds    = editDetail?.roles?.map(r => r.id) ?? [];
+  const effectiveEditProjects = editProjects.size === 0 && detailProjectIds.length > 0
+    ? new Set(detailProjectIds) : editProjects;
+  const effectiveEditRoleIds = editRoleIds.length === 0 && detailRoleIds.length > 0
+    ? detailRoleIds : editRoleIds.length === 0 ? [''] : editRoleIds;
+
+  // ── mutations ──
   const createMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch('/api/admin/divisions', {
@@ -87,7 +231,7 @@ export default function AdminDivisionsPage() {
         body: JSON.stringify({
           name: form.name,
           description: form.description,
-          role_names: roleNames.filter(Boolean),
+          role_ids: createRoleIds.filter(Boolean),
           project_ids: Array.from(selectedProjects),
         }),
       });
@@ -97,6 +241,7 @@ export default function AdminDivisionsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-divisions'] });
+      queryClient.invalidateQueries({ queryKey: ['role-options'] });
       closeModal();
     },
     onError: (e: Error) => setError(e.message),
@@ -110,6 +255,7 @@ export default function AdminDivisionsPage() {
         body: JSON.stringify({
           name: editForm.name,
           description: editForm.description,
+          role_ids: effectiveEditRoleIds.filter(Boolean),
           project_ids: Array.from(effectiveEditProjects),
         }),
       });
@@ -120,15 +266,17 @@ export default function AdminDivisionsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-divisions'] });
       queryClient.invalidateQueries({ queryKey: ['admin-division', editDivision?.id] });
+      queryClient.invalidateQueries({ queryKey: ['role-options'] });
       closeEdit();
     },
     onError: (e: Error) => setEditError(e.message),
   });
 
+  // ── handlers ──
   const closeModal = () => {
     setShowModal(false);
     setForm({ name: '', description: '' });
-    setRoleNames(['']);
+    setCreateRoleIds(['']);
     setSelectedProjects(new Set());
     setError('');
   };
@@ -136,18 +284,14 @@ export default function AdminDivisionsPage() {
   const openEdit = (d: Division) => {
     setEditDivision(d);
     setEditForm({ name: d.name, description: d.description ?? '' });
+    setEditRoleIds([]);
     setEditProjects(new Set());
     setEditError('');
   };
 
-  // When detail loads, pre-check current projects
-  const detailProjectIds = editDetail?.projects?.map((p) => p.id) ?? [];
-  const effectiveEditProjects = editDetail && editProjects.size === 0 && detailProjectIds.length > 0
-    ? new Set(detailProjectIds)
-    : editProjects;
-
   const closeEdit = () => {
     setEditDivision(null);
+    setEditRoleIds([]);
     setEditProjects(new Set());
     setEditError('');
   };
@@ -163,30 +307,26 @@ export default function AdminDivisionsPage() {
     e.preventDefault();
     if (!editForm.name.trim()) { setEditError('El nombre es obligatorio'); return; }
     setEditError('');
-    // use effectiveEditProjects for submission
     editMutation.mutate();
   };
 
-  const addRoleInput = () => setRoleNames((prev) => [...prev, '']);
-  const removeRoleInput = (i: number) => setRoleNames((prev) => prev.filter((_, idx) => idx !== i));
-  const updateRoleName = (i: number, val: string) =>
-    setRoleNames((prev) => prev.map((n, idx) => (idx === i ? val : n)));
+  // create role rows
+  const addCreateRole    = () => setCreateRoleIds(p => [...p, '']);
+  const removeCreateRole = (i: number) => setCreateRoleIds(p => p.filter((_, idx) => idx !== i));
+  const updateCreateRole = (i: number, v: string) => setCreateRoleIds(p => p.map((r, idx) => idx === i ? v : r));
 
+  // edit role rows (always start from effectiveEditRoleIds)
+  const addEditRole    = () => setEditRoleIds([...effectiveEditRoleIds, '']);
+  const removeEditRole = (i: number) => setEditRoleIds(effectiveEditRoleIds.filter((_, idx) => idx !== i));
+  const updateEditRole = (i: number, v: string) => setEditRoleIds(effectiveEditRoleIds.map((r, idx) => idx === i ? v : r));
+
+  // project toggles
   const toggleProject = (id: string) =>
-    setSelectedProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelectedProjects(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const toggleEditProject = (id: string) => {
-    // Initialize from detail on first interaction
-    const base = editProjects.size === 0 && detailProjectIds.length > 0
-      ? new Set(detailProjectIds)
-      : new Set(editProjects);
-    if (base.has(id)) base.delete(id);
-    else base.add(id);
+    const base = editProjects.size === 0 && detailProjectIds.length > 0 ? new Set(detailProjectIds) : new Set(editProjects);
+    base.has(id) ? base.delete(id) : base.add(id);
     setEditProjects(base);
   };
 
@@ -206,10 +346,7 @@ export default function AdminDivisionsPage() {
               onClick={() => setShowModal(true)}
               className="btn-primary px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Nueva División
+              <PlusIcon /> Nueva División
             </button>
           </div>
         </div>
@@ -262,10 +399,7 @@ export default function AdminDivisionsPage() {
                           >
                             ✏️ Editar
                           </button>
-                          <Link
-                            href={`/admin/divisions/${d.id}`}
-                            className="text-primary text-xs font-semibold hover:underline"
-                          >
+                          <Link href={`/admin/divisions/${d.id}`} className="text-primary text-xs font-semibold hover:underline">
                             Gestionar →
                           </Link>
                         </div>
@@ -279,16 +413,14 @@ export default function AdminDivisionsPage() {
         </div>
       </div>
 
-      {/* Modal Nueva División */}
+      {/* ── Modal Nueva División ───────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-10 bg-black/40 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-fade-in mb-10">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-text-primary">Nueva División</h2>
               <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100 text-text-muted">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <CloseIcon />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -298,7 +430,7 @@ export default function AdminDivisionsPage() {
                   <input
                     type="text"
                     value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    onChange={e => setForm({ ...form, name: e.target.value })}
                     placeholder="Ej: Área GPR"
                     className="input"
                     autoFocus
@@ -308,7 +440,7 @@ export default function AdminDivisionsPage() {
                   <label className="label">Descripción</label>
                   <textarea
                     value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    onChange={e => setForm({ ...form, description: e.target.value })}
                     placeholder="Descripción opcional..."
                     rows={2}
                     className="textarea"
@@ -316,61 +448,19 @@ export default function AdminDivisionsPage() {
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="label">Roles de la División</label>
-                  <button type="button" onClick={addRoleInput} className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Agregar rol
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {roleNames.map((name, i) => (
-                    <div key={i} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => updateRoleName(i, e.target.value)}
-                        placeholder={`Nombre del rol ${i + 1}`}
-                        className="input flex-1 text-sm"
-                      />
-                      {roleNames.length > 1 && (
-                        <button type="button" onClick={() => removeRoleInput(i)} className="p-2 text-text-muted hover:text-error transition-colors">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <RoleRows
+                rows={createRoleIds}
+                roleOptions={roleOptions}
+                onAdd={addCreateRole}
+                onRemove={removeCreateRole}
+                onChange={updateCreateRole}
+              />
 
-              {projectOptions.length > 0 && (
-                <div>
-                  <label className="label mb-2 block">Proyectos vinculados</label>
-                  <div className="border border-border rounded-xl max-h-40 overflow-y-auto divide-y divide-border">
-                    {projectOptions.map((p) => (
-                      <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedProjects.has(p.id)}
-                          onChange={() => toggleProject(p.id)}
-                          className="rounded text-primary"
-                        />
-                        <span className="text-xs font-bold text-text-muted w-14 flex-shrink-0">{p.code}</span>
-                        <span className="text-sm text-text-primary flex-1 truncate">{p.name}</span>
-                        {p.is_active && <span className="text-xs text-success font-medium">Activo</span>}
-                      </label>
-                    ))}
-                  </div>
-                  {selectedProjects.size > 0 && (
-                    <p className="text-xs text-text-muted mt-1">{selectedProjects.size} proyecto{selectedProjects.size !== 1 ? 's' : ''} seleccionado{selectedProjects.size !== 1 ? 's' : ''}</p>
-                  )}
-                </div>
-              )}
+              <ProjectChecklist
+                projectOptions={projectOptions}
+                selected={selectedProjects}
+                onToggle={toggleProject}
+              />
 
               {error && <p className="error-msg">⚠️ {error}</p>}
               <div className="flex gap-3 pt-2">
@@ -386,117 +476,68 @@ export default function AdminDivisionsPage() {
         </div>
       )}
 
-      {/* Modal Editar División */}
+      {/* ── Modal Editar División ──────────────────────────────────────────── */}
       {editDivision && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-10 bg-black/40 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-fade-in mb-10">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-text-primary">Editar División</h2>
               <button onClick={closeEdit} className="p-1.5 rounded-lg hover:bg-gray-100 text-text-muted">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <CloseIcon />
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="space-y-5">
-              {/* Nombre y descripción */}
-              <div className="space-y-4">
-                <div className="form-group">
-                  <label className="label label-required">Nombre</label>
-                  <input
-                    type="text"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    className="input"
-                    autoFocus
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="label">Descripción</label>
-                  <textarea
-                    value={editForm.description}
-                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    rows={2}
-                    className="textarea"
-                  />
-                </div>
-              </div>
-
-              {/* Roles (read-only, informativo) */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="label">Roles de la División</label>
-                  <Link
-                    href="/admin/roles"
-                    className="text-xs text-primary font-medium hover:underline"
-                    onClick={closeEdit}
-                  >
-                    Gestionar roles →
-                  </Link>
-                </div>
-                {loadingDetail ? (
-                  <div className="text-xs text-text-muted animate-pulse">Cargando...</div>
-                ) : (editDetail?.roles ?? []).length === 0 ? (
-                  <p className="text-xs text-text-muted">No hay roles asignados.</p>
-                ) : (
-                  <div className="border border-border rounded-xl divide-y divide-border">
-                    {(editDetail?.roles ?? []).map((r) => (
-                      <div key={r.id} className="flex items-center gap-3 px-3 py-2">
-                        <span className="text-sm text-text-primary flex-1">{r.name}</span>
-                        {r.is_system_role && <span className="badge badge-accent text-xs">Sistema</span>}
-                        <span className="text-xs text-text-muted">{r.user_count} usuario{r.user_count !== 1 ? 's' : ''}</span>
-                      </div>
-                    ))}
+            {loadingDetail ? (
+              <div className="py-10 text-center text-text-muted animate-pulse">Cargando...</div>
+            ) : (
+              <form onSubmit={handleEditSubmit} className="space-y-5">
+                <div className="space-y-4">
+                  <div className="form-group">
+                    <label className="label label-required">Nombre</label>
+                    <input
+                      type="text"
+                      value={editForm.name}
+                      onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                      className="input"
+                      autoFocus
+                    />
                   </div>
-                )}
-              </div>
+                  <div className="form-group">
+                    <label className="label">Descripción</label>
+                    <textarea
+                      value={editForm.description}
+                      onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                      rows={2}
+                      className="textarea"
+                    />
+                  </div>
+                </div>
 
-              {/* Proyectos */}
-              <div>
-                <label className="label mb-2 block">Proyectos vinculados</label>
-                {loadingDetail ? (
-                  <div className="text-xs text-text-muted animate-pulse">Cargando proyectos...</div>
-                ) : projectOptions.length === 0 ? (
-                  <p className="text-xs text-text-muted">No hay proyectos disponibles.</p>
-                ) : (
-                  <>
-                    <div className="border border-border rounded-xl max-h-48 overflow-y-auto divide-y divide-border">
-                      {projectOptions.map((p) => (
-                        <label key={p.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={effectiveEditProjects.has(p.id)}
-                            onChange={() => toggleEditProject(p.id)}
-                            className="rounded text-primary"
-                          />
-                          <span className="text-xs font-bold text-text-muted w-14 flex-shrink-0">{p.code}</span>
-                          <span className="text-sm text-text-primary flex-1 truncate">{p.name}</span>
-                          {p.is_active && <span className="text-xs text-success font-medium flex-shrink-0">Activo</span>}
-                        </label>
-                      ))}
-                    </div>
-                    <p className="text-xs text-text-muted mt-1">
-                      {effectiveEditProjects.size} proyecto{effectiveEditProjects.size !== 1 ? 's' : ''} seleccionado{effectiveEditProjects.size !== 1 ? 's' : ''}
-                    </p>
-                  </>
-                )}
-              </div>
+                <RoleRows
+                  rows={effectiveEditRoleIds}
+                  roleOptions={roleOptions}
+                  onAdd={addEditRole}
+                  onRemove={removeEditRole}
+                  onChange={updateEditRole}
+                />
 
-              {editError && <p className="error-msg">⚠️ {editError}</p>}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={closeEdit} className="btn-ghost flex-1 py-2 text-sm rounded-xl">
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={editMutation.isPending || loadingDetail}
-                  className="btn-primary flex-1 py-2 text-sm rounded-xl font-semibold"
-                >
-                  {editMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
-                </button>
-              </div>
-            </form>
+                <ProjectChecklist
+                  projectOptions={projectOptions}
+                  selected={effectiveEditProjects}
+                  onToggle={toggleEditProject}
+                />
+
+                {editError && <p className="error-msg">⚠️ {editError}</p>}
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={closeEdit} className="btn-ghost flex-1 py-2 text-sm rounded-xl">
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={editMutation.isPending} className="btn-primary flex-1 py-2 text-sm rounded-xl font-semibold">
+                    {editMutation.isPending ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

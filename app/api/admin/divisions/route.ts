@@ -77,6 +77,11 @@ export async function POST(req: NextRequest) {
       .insert(roleNames.map((n) => ({ name: n, division_id: division.id })));
   }
 
+  const roleIds: string[] = (body.role_ids ?? []).filter(Boolean);
+  if (roleIds.length > 0) {
+    await supabase.from('roles').update({ division_id: division.id }).in('id', roleIds);
+  }
+
   if (projectIds.length > 0) {
     await supabase
       .from('division_projects')
