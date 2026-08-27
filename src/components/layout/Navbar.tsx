@@ -25,11 +25,21 @@ async function fetchDashboardNav(): Promise<DashboardData | null> {
   return json.data as DashboardData;
 }
 
+interface AdminRole { id: string; name: string }
+
 async function fetchAdminTools(): Promise<Tool[]> {
   const res = await fetch('/api/admin/tools');
   if (!res.ok) return [];
   return (await res.json()).data ?? [];
 }
+
+async function fetchAdminRoles(): Promise<AdminRole[]> {
+  const res = await fetch('/api/admin/roles');
+  if (!res.ok) return [];
+  return ((await res.json()).data ?? []).map((r: AdminRole) => ({ id: r.id, name: r.name }));
+}
+
+const GENERAL_TOOL_SLUGS = ['dynamic-dashboard', 'internal-chat', 'meeting-transcriber', 'org-chart-ai'];
 
 const TOOL_CATEGORY_ICON: Record<string, string> = {
   gpr: '📡',
@@ -68,6 +78,13 @@ export function Navbar() {
   const { data: adminTools = [] } = useQuery({
     queryKey: ['admin-tools-nav'],
     queryFn: fetchAdminTools,
+    enabled: !!session && isAdmin,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: adminRoles = [] } = useQuery<AdminRole[]>({
+    queryKey: ['admin-roles-nav'],
+    queryFn: fetchAdminRoles,
     enabled: !!session && isAdmin,
     staleTime: 10 * 60 * 1000,
   });
@@ -313,7 +330,7 @@ export function Navbar() {
                 {isAdmin && (
                   <>
                     {/* Herramientas generales */}
-                    {adminTools.filter((t: Tool) => t.is_universal).length > 0 && (
+                    {adminTools.filter((t: Tool) => GENERAL_TOOL_SLUGS.includes(t.slug)).length > 0 && (
                       <>
                         <button onClick={() => toggleSection('admin-general')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
                           <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Herramientas generales</p>
@@ -321,7 +338,7 @@ export function Navbar() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                           </svg>
                         </button>
-                        {expanded.has('admin-general') && adminTools.filter((t: Tool) => t.is_universal).map((tool: Tool) => (
+                        {expanded.has('admin-general') && adminTools.filter((t: Tool) => GENERAL_TOOL_SLUGS.includes(t.slug)).map((tool: Tool) => (
                           <Link key={tool.id} href={`/tools/${tool.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
                             <span>{TOOL_CATEGORY_ICON[tool.category] ?? '🔧'}</span>
                             <span className="truncate">{tool.name}</span>
@@ -331,7 +348,7 @@ export function Navbar() {
                     )}
 
                     {/* Herramientas de rol */}
-                    {adminTools.filter((t: Tool) => !t.is_universal).length > 0 && (
+                    {adminTools.filter((t: Tool) => !GENERAL_TOOL_SLUGS.includes(t.slug)).length > 0 && (
                       <>
                         <button onClick={() => toggleSection('admin-rol')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
                           <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Herramientas de rol</p>
@@ -339,7 +356,7 @@ export function Navbar() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                           </svg>
                         </button>
-                        {expanded.has('admin-rol') && adminTools.filter((t: Tool) => !t.is_universal).map((tool: Tool) => (
+                        {expanded.has('admin-rol') && adminTools.filter((t: Tool) => !GENERAL_TOOL_SLUGS.includes(t.slug)).map((tool: Tool) => (
                           <Link key={tool.id} href={`/tools/${tool.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
                             <span>{TOOL_CATEGORY_ICON[tool.category] ?? '🔧'}</span>
                             <span className="truncate">{tool.name}</span>
@@ -348,21 +365,21 @@ export function Navbar() {
                       </>
                     )}
 
-                    {/* Vistas de roles */}
-                    <button onClick={() => toggleSection('vistas')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
-                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Vistas de roles</p>
-                      <svg className={`w-3.5 h-3.5 text-text-muted transition-transform ${expanded.has('vistas') ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                      </svg>
-                    </button>
-                    {expanded.has('vistas') && (
+                    {/* Vistas de roles — dynamic per role in DB */}
+                    {adminRoles.length > 0 && (
                       <>
-                        <Link href="/projects" className="flex items-center gap-2.5 pl-5 pr-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                          <span>📋</span> Vista Operador
-                        </Link>
-                        <Link href="/dibujo/tablero" className="flex items-center gap-2.5 pl-5 pr-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                          <span>✏️</span> Vista Dibujante
-                        </Link>
+                        <button onClick={() => toggleSection('vistas')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
+                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Vistas de roles</p>
+                          <svg className={`w-3.5 h-3.5 text-text-muted transition-transform ${expanded.has('vistas') ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                          </svg>
+                        </button>
+                        {expanded.has('vistas') && adminRoles.map((role: AdminRole) => (
+                          <Link key={role.id} href={`/admin/roles/${role.id}`} className="flex items-center gap-2.5 pl-5 pr-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                            <span>👤</span>
+                            <span className="truncate">Vista {role.name}</span>
+                          </Link>
+                        ))}
                       </>
                     )}
                     <div className="border-t border-border my-1" />
