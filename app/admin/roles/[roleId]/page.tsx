@@ -16,8 +16,8 @@ interface RoleDetail {
   division_id: string | null;
   is_system_role: boolean;
   divisions: { id: string; name: string } | null;
-  role_tools: { tools: Tool }[];
-  role_forms: { forms: Form }[];
+  role_tools: { tools: Tool | null }[];
+  role_forms: { forms: Form | null }[];
   users: User[];
 }
 
@@ -37,7 +37,9 @@ const CATEGORY_COLOR: Record<string, string> = {
 
 async function fetchRole(id: string): Promise<RoleDetail> {
   const res = await fetch(`/api/admin/roles/${id}`);
+  if (!res.ok) throw new Error('Error al cargar el rol');
   const json = await res.json();
+  if (!json.data) throw new Error('Rol no encontrado');
   return json.data;
 }
 
@@ -69,12 +71,13 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
   const [divisionId, setDivisionId] = useState('');
   const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
   const [selectedForms, setSelectedForms] = useState<Set<string>>(new Set());
-  const [error, setError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [initialized, setInitialized] = useState(false);
 
-  const { data: role, isLoading: roleLoading } = useQuery({
+  const { data: role, isLoading: roleLoading, error: roleError } = useQuery({
     queryKey: ['admin-role', roleId],
     queryFn: () => fetchRole(roleId),
+    retry: 1,
   });
 
   const { data: divisions = [] } = useQuery({ queryKey: ['admin-divisions'], queryFn: fetchDivisions });
@@ -83,14 +86,17 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
 
   useEffect(() => {
     if (role && !initialized) {
-      setName(role.name);
+      setName(role.name ?? '');
       setDivisionId(role.division_id ?? '');
-      setSelectedTools(new Set(
-        role.role_tools.filter((rt) => rt.tools != null).map((rt) => rt.tools.id)
-      ));
-      setSelectedForms(new Set(
-        role.role_forms.filter((rf) => rf.forms != null).map((rf) => rf.forms.id)
-      ));
+      // Filtrar nulos defensivamente antes de mapear
+      const toolIds = (role.role_tools ?? [])
+        .filter((rt) => rt?.tools?.id)
+        .map((rt) => rt.tools!.id);
+      const formIds = (role.role_forms ?? [])
+        .filter((rf) => rf?.forms?.id)
+        .map((rf) => rf.forms!.id);
+      setSelectedTools(new Set(toolIds));
+      setSelectedForms(new Set(formIds));
       setInitialized(true);
     }
   }, [role, initialized]);
@@ -115,7 +121,7 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
       queryClient.invalidateQueries({ queryKey: ['admin-roles'] });
       router.push('/admin/roles');
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => setSubmitError(e.message),
   });
 
   const toolsByCategory = tools.reduce<Record<string, Tool[]>>((acc, t) => {
@@ -142,11 +148,12 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
 
   const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { setError('El nombre del rol es obligatorio'); return; }
-    setError('');
+    if (!name.trim()) { setSubmitError('El nombre del rol es obligatorio'); return; }
+    setSubmitError('');
     setStep(2);
   };
 
+  // ── Estados de carga / error ───────────────────────────────────────────────
   if (roleLoading) {
     return (
       <div className="min-h-screen bg-surface">
@@ -159,13 +166,15 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
     );
   }
 
-  if (!role) {
+  if (roleError || !role) {
     return (
       <div className="min-h-screen bg-surface">
         <Navbar />
         <div className="page-hero"><div className="max-w-3xl mx-auto"><BackButton href="/admin/roles" label="Roles" /></div></div>
         <div className="max-w-3xl mx-auto px-4 -mt-6">
-          <div className="card p-10 text-center text-text-muted">Rol no encontrado.</div>
+          <div className="card p-10 text-center text-error">
+            ⚠️ {(roleError as Error)?.message ?? 'Rol no encontrado.'}
+          </div>
         </div>
       </div>
     );
@@ -237,7 +246,7 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
                 </select>
               </div>
 
-              {error && <p className="error-msg">⚠️ {error}</p>}
+              {submitError && <p className="error-msg">⚠️ {submitError}</p>}
 
               <div className="flex gap-3 pt-2">
                 <button
@@ -254,9 +263,10 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
             </form>
           ) : (
             <div className="space-y-6">
+              {/* Herramientas */}
               <div>
                 <h2 className="font-bold text-text-primary mb-1">Herramientas Asignadas</h2>
-                <p className="text-xs text-text-muted mb-4">Marca las herramientas que tendrá acceso este rol.</p>
+                <p className="text-xs text-text-muted mb-4">Marca las herramientas a las que tendrá acceso este rol.</p>
                 <div className="space-y-4">
                   {Object.entries(toolsByCategory).map(([cat, catTools]) => (
                     <div key={cat} className={`rounded-xl border p-4 ${CATEGORY_COLOR[cat] ?? 'border-gray-200 bg-gray-50'}`}>
@@ -286,12 +296,13 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
                 </div>
               </div>
 
+              {/* Formularios */}
               <div>
                 <h2 className="font-bold text-text-primary mb-1">Formularios Asignados</h2>
                 <p className="text-xs text-text-muted mb-4">Marca los formularios disponibles para este rol.</p>
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
                   {forms.length === 0 ? (
-                    <p className="text-text-muted text-sm italic">No hay formularios disponibles.</p>
+                    <p className="text-text-muted text-sm italic">No hay formularios en el catálogo.</p>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {forms.map((f) => (
@@ -310,14 +321,17 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
                     </div>
                   )}
                 </div>
+                <p className="text-xs text-text-muted mt-2">
+                  {selectedForms.size} de {forms.length} formularios seleccionados
+                </p>
               </div>
 
-              {error && <p className="error-msg">⚠️ {error}</p>}
+              {submitError && <p className="error-msg">⚠️ {submitError}</p>}
 
               <div className="flex gap-3 pt-2 border-t border-border">
                 <button
                   type="button"
-                  onClick={() => { setStep(1); setError(''); }}
+                  onClick={() => { setStep(1); setSubmitError(''); }}
                   className="btn-ghost flex-1 py-2 text-sm rounded-xl"
                 >
                   ← Atrás
@@ -335,7 +349,7 @@ export default function EditRolePage({ params }: { params: Promise<{ roleId: str
           )}
         </div>
 
-        {/* Users section */}
+        {/* Usuarios con este rol */}
         {role.users.length > 0 && (
           <div className="card border border-border shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-border bg-gray-50 flex items-center justify-between">

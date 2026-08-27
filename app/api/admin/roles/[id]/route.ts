@@ -14,39 +14,62 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const supabase = createAdminClient();
 
+  // 1. Datos básicos del rol
   const { data: role, error } = await supabase
     .from('roles')
-    .select(`
-      id, name, division_id, is_system_role, created_at,
-      divisions(id, name),
-      role_tools(tools(id, slug, name, category, is_universal)),
-      role_forms(form_id)
-    `)
+    .select('id, name, division_id, is_system_role, created_at, divisions(id, name)')
     .eq('id', id)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+  if (error || !role) {
+    return NextResponse.json({ error: error?.message ?? 'Rol no encontrado' }, { status: 404 });
+  }
 
-  // Obtener los formularios asignados por separado para evitar problemas con joins anidados
-  const formIds = ((role as unknown as { role_forms: { form_id: string }[] }).role_forms ?? []).map((rf) => rf.form_id);
+  // 2. Herramientas asignadas al rol (consulta separada, sin join anidado)
+  const { data: roleToolsRaw } = await supabase
+    .from('role_tools')
+    .select('tool_id')
+    .eq('role_id', id);
+
+  const toolIds = (roleToolsRaw ?? []).map((r: { tool_id: string }) => r.tool_id);
+  let assignedTools: { id: string; slug: string; name: string; category: string; is_universal: boolean }[] = [];
+  if (toolIds.length > 0) {
+    const { data: toolsData } = await supabase
+      .from('tools')
+      .select('id, slug, name, category, is_universal')
+      .in('id', toolIds);
+    assignedTools = (toolsData ?? []) as typeof assignedTools;
+  }
+
+  // 3. Formularios asignados al rol (consulta separada, sin join anidado)
+  const { data: roleFormsRaw } = await supabase
+    .from('role_forms')
+    .select('form_id')
+    .eq('role_id', id);
+
+  const formIds = (roleFormsRaw ?? []).map((r: { form_id: string }) => r.form_id);
   let assignedForms: { id: string; slug: string; name: string }[] = [];
   if (formIds.length > 0) {
     const { data: formsData } = await supabase
       .from('forms')
       .select('id, slug, name')
       .in('id', formIds);
-    assignedForms = (formsData ?? []) as { id: string; slug: string; name: string }[];
+    assignedForms = (formsData ?? []) as typeof assignedForms;
   }
 
-  // Normalizar role_forms al formato esperado por el frontend
-  const roleForms = assignedForms.map((f) => ({ forms: f }));
-
+  // 4. Usuarios con este rol
   const { data: users } = await supabase
     .from('users')
     .select('id, email, full_name, role')
     .eq('role_id', id);
 
-  return NextResponse.json({ data: { ...role, role_forms: roleForms, users: users ?? [] } });
+  // Normalizar al formato esperado por el frontend
+  const role_tools = assignedTools.map((t) => ({ tools: t }));
+  const role_forms = assignedForms.map((f) => ({ forms: f }));
+
+  return NextResponse.json({
+    data: { ...role, role_tools, role_forms, users: users ?? [] },
+  });
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -88,7 +111,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { data, error } = await supabase
     .from('roles')
-    .select(`id, name, division_id, is_system_role, divisions(id, name)`)
+    .select('id, name, division_id, is_system_role, divisions(id, name)')
     .eq('id', id)
     .single();
 

@@ -12,7 +12,7 @@ export async function GET() {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from('forms')
-    .select('id, slug, name')
+    .select('id, slug, name, description, steps_count, has_attachments, created_at')
     .order('name', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
