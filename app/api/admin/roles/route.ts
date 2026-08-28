@@ -35,6 +35,7 @@ export async function GET() {
     const { data: toolsData } = await supabase
       .from('tools')
       .select('id, slug, name, category, is_universal')
+      .not('slug', 'in', '("forms-area","projects-area")')
       .in('id', toolIds);
     (toolsData ?? []).forEach((t: typeof toolsMap[string]) => { toolsMap[t.id] = t; });
   }

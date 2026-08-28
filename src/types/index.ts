@@ -249,9 +249,7 @@ export type ToolSlug =
   | 'internal-chat'
   | 'meeting-transcriber'
   | 'org-chart-ai'
-  | 'dynamic-dashboard'
-  | 'projects-area'
-  | 'forms-area';
+  | 'dynamic-dashboard';
 
 export interface Tool {
   id: string;

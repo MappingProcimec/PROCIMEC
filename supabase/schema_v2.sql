@@ -227,9 +227,7 @@ INSERT INTO tools (slug, name, category, is_universal) VALUES
   ('meeting-transcriber',    'Módulo de Reuniones y Transcripción',         'admin',     false),
   ('org-chart-ai',           'Organigrama Interactivo con IA',              'admin',     false),
   -- Universal ───────────────────────────────────────────────
-  ('dynamic-dashboard',      'Dashboard Dinámico',                          'universal', true),
-  ('projects-area',          'Área de Proyectos',                           'universal', true),
-  ('forms-area',             'Área de Formularios',                         'universal', true)
+  ('dynamic-dashboard',      'Dashboard Dinámico',                          'universal', true)
 ON CONFLICT (slug) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────

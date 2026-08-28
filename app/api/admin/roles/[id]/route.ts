@@ -37,6 +37,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const { data: toolsData } = await supabase
       .from('tools')
       .select('id, slug, name, category, is_universal')
+      .not('slug', 'in', '("forms-area","projects-area")')
       .in('id', toolIds);
     assignedTools = (toolsData ?? []) as typeof assignedTools;
   }

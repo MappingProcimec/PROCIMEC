@@ -10,9 +10,14 @@ export async function GET() {
   }
 
   const supabase = createAdminClient();
+
+  // Limpiar herramientas obsoletas de la base de datos
+  await supabase.from('tools').delete().in('slug', ['forms-area', 'projects-area']);
+
   const { data, error } = await supabase
     .from('tools')
     .select('id, slug, name, category, is_universal')
+    .not('slug', 'in', '("forms-area","projects-area")')
     .order('category', { ascending: true })
     .order('name', { ascending: true });
 
