@@ -68,11 +68,13 @@ async function uploadFileDirectToDrive(
   });
 }
 
+import { BackButton } from '@/components/BackButton';
+
 export default function NewReportPage() {
   const { data: session } = useSession();
   const params = useParams();
   const router = useRouter();
-  const projectId = params.projectId as string;
+  const projectId = (params?.projectId as string) || '';
   const {
     currentStep, setCurrentStep, setProjectId, updateSection1, section1, resetForm, updateFileProgress
   } = useFormStore();
@@ -80,7 +82,9 @@ export default function NewReportPage() {
   const [uploadStatusMsg, setUploadStatusMsg] = useState('');
 
   useEffect(() => {
-    setProjectId(projectId);
+    if (projectId) {
+      setProjectId(projectId);
+    }
     if (session?.user?.fullName && !section1.operator_name) {
       updateSection1({ operator_name: session.user.fullName });
     }
@@ -92,6 +96,10 @@ export default function NewReportPage() {
 
   const handleSubmit = async () => {
     const store = useFormStore.getState();
+    if (!store.projectId) {
+      alert('Por favor selecciona un proyecto en la Sección 1 antes de enviar.');
+      return;
+    }
     setIsSubmitting(true);
     setUploadStatusMsg('Guardando datos del reporte...');
 
@@ -216,6 +224,19 @@ export default function NewReportPage() {
   return (
     <div className="min-h-screen bg-surface">
       <Navbar />
+
+      <div className="page-hero">
+        <div className="max-w-3xl mx-auto">
+          <BackButton href={projectId ? `/projects/${projectId}` : '/admin/forms'} label={projectId ? 'Volver al proyecto' : 'Formularios'} />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-2">
+            📍 Formulario de Campo GPR
+          </h1>
+          <p className="text-white/70 text-sm mt-1">
+            Reporte operacional de exploración, volumetría por tramos y medición GPR en campo
+          </p>
+        </div>
+      </div>
+
       <Stepper currentStep={currentStep} />
 
       <div className="max-w-3xl mx-auto px-4 py-6 pb-24">

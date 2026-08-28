@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { OperationalRow } from '@/types';
+import { useQuery } from '@tanstack/react-query';
 
 const EQUIPMENT_OPTIONS = [
   { id: 'GPR', label: 'GPR' },
@@ -27,7 +28,16 @@ interface Step1Props {
 }
 
 export function Step1({ onNext }: Step1Props) {
-  const { section1, updateSection1 } = useFormStore();
+  const { section1, updateSection1, projectId: storeProjectId, setProjectId } = useFormStore();
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const res = await fetch('/api/projects');
+      const json = await res.json();
+      return json.data ?? [];
+    },
+  });
 
   const [selectedEquipments, setSelectedEquipments] = useState<string[]>(
     section1.equipments_used && section1.equipments_used.length > 0
@@ -125,6 +135,26 @@ export function Step1({ onNext }: Step1Props) {
           <h2 className="text-lg font-bold text-text-primary">Sección 1 — Datos del Operativo y Volumetría</h2>
           <p className="text-sm text-text-muted">Información general del levantamiento, equipos y metraje ejecutado</p>
         </div>
+      </div>
+
+      {/* Project Selector */}
+      <div className="form-group">
+        <label className="label label-required">Proyecto del Levantamiento</label>
+        <select
+          className="select"
+          value={storeProjectId || ''}
+          onChange={(e) => setProjectId(e.target.value)}
+        >
+          <option value="">— Seleccionar proyecto... —</option>
+          {projects.map((p: { id: string; cost_center?: string; code?: string; name: string }) => (
+            <option key={p.id} value={p.id}>
+              {p.cost_center || p.code || ''} — {p.name}
+            </option>
+          ))}
+        </select>
+        {!storeProjectId && (
+          <p className="text-xs text-amber-600 mt-1 font-medium">⚠ Por favor selecciona el proyecto correspondiente a este reporte.</p>
+        )}
       </div>
 
       {/* Date + Times */}

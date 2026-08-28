@@ -16,5 +16,12 @@ export async function GET() {
     .order('name', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: data ?? [] });
+  const normalized = (data ?? []).map((f) => {
+    if (f.slug === 'gpr-field-form') {
+      return { ...f, steps_count: 3, has_attachments: true };
+    }
+    return f;
+  });
+
+  return NextResponse.json({ data: normalized });
 }

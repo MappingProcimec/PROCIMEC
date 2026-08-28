@@ -1,12 +1,13 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { useQuery } from '@tanstack/react-query';
 import TwoStepForm, { FormConfig, Project } from '@/components/forms/TwoStepForm';
 import CadRegisterFormPage from '@/app/tools/cad-register-form/page';
+import NewReportPage from '@/app/projects/[projectId]/new-report/page';
 
 // --- Form catalog configurations ---
 const FORM_CONFIGS: Record<string, FormConfig> = {
@@ -124,85 +125,6 @@ async function fetchProjects(): Promise<Project[]> {
   return json.data ?? [];
 }
 
-// --- GPR Campo Form Selector / Redirector ---
-function GprCampoFormWrapper() {
-  const searchParams = useSearchParams();
-  const projectId = searchParams.get('projectId') ?? undefined;
-  const router = useRouter();
-
-  const { data: projects = [], isLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: fetchProjects,
-  });
-
-  const [selectedProj, setSelectedProj] = useState(projectId || '');
-
-  useEffect(() => {
-    if (projectId) {
-      router.replace(`/projects/${projectId}/new-report`);
-    }
-  }, [projectId, router]);
-
-  const handleSelect = (pId: string) => {
-    setSelectedProj(pId);
-    if (pId) {
-      router.push(`/projects/${pId}/new-report`);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-surface">
-      <Navbar />
-
-      <div className="page-hero">
-        <div className="max-w-2xl mx-auto">
-          <BackButton href="/admin/forms" label="Formularios" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3">
-            📍 Formulario de Campo GPR
-          </h1>
-          <p className="text-white/70 text-sm mt-1">
-            Reporte operacional de exploración, volumetría por tramos y medición GPR en campo
-          </p>
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto px-4 -mt-6 pb-20">
-        <div className="card border border-border shadow-xl p-6 space-y-4 bg-white">
-          <h2 className="font-bold text-text-primary text-base">
-            Seleccionar Proyecto para el Reporte de Campo GPR
-          </h2>
-          <p className="text-xs text-text-muted leading-relaxed">
-            Selecciona el proyecto correspondiente para cargar el formulario completo de 3 pasos (Volumetría por Tramo/Sector, Hallazgos Técnicos y Subida de Archivos/Adjuntos):
-          </p>
-
-          {isLoading ? (
-            <div className="p-4 text-center text-text-muted animate-pulse">Cargando proyectos...</div>
-          ) : (
-            <div className="space-y-3">
-              <select
-                value={selectedProj}
-                onChange={(e) => handleSelect(e.target.value)}
-                className="select w-full text-sm py-2.5"
-              >
-                <option value="">— Seleccionar proyecto... —</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.cost_center || p.code || ''} — {p.name}
-                  </option>
-                ))}
-              </select>
-
-              {projects.length === 0 && (
-                <p className="text-xs text-text-muted">No hay proyectos registrados aún.</p>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // --- Inner component ---
 function FormPageInner({ params }: { params: { formSlug: string } }) {
   const { formSlug } = params;
@@ -281,7 +203,7 @@ export default function FormPage({ params }: { params: { formSlug: string } }) {
   if (params.formSlug === 'gpr-field-form' || params.formSlug === 'gpr-report') {
     return (
       <Suspense fallback={<div className="min-h-screen bg-surface flex items-center justify-center text-text-muted">Cargando formulario de campo...</div>}>
-        <GprCampoFormWrapper />
+        <NewReportPage />
       </Suspense>
     );
   }
