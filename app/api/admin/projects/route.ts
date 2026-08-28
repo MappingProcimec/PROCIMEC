@@ -103,8 +103,8 @@ export async function GET() {
       0
     );
 
-    const pAny = p as any;
-    const ccVal = pAny.cost_center || pAny.code || '';
+    const pRecord = p as unknown as Record<string, unknown>;
+    const ccVal = String(pRecord.cost_center || pRecord.code || '');
     return {
       id: p.id,
       code: ccVal,

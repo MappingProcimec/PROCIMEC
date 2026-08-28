@@ -33,8 +33,8 @@ export async function GET() {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   
-  const formatted = (data || []).map((p: any) => {
-    const ccVal = p.cost_center || p.code || '';
+  const formatted = (data || []).map((p: Record<string, unknown>) => {
+    const ccVal = String(p.cost_center || p.code || '');
     return {
       ...p,
       cost_center: ccVal,
