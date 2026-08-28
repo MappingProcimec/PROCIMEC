@@ -101,10 +101,13 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  const isRolePreview = Boolean(dbUser.role === 'admin' && roleIdParam);
+
   return NextResponse.json({
     data: {
       user: { id: dbUser.id, email: dbUser.email, full_name: dbUser.full_name },
       legacyRole: (dbUser.role as string) ?? null,
+      isRolePreview,
       division,
       role,
       projects,

@@ -18,6 +18,7 @@ interface ActivityRecord {
 export interface DashboardData {
   user: { id: string; email: string; full_name: string };
   legacyRole?: string | null;
+  isRolePreview?: boolean;
   division: { id: string; name: string } | null;
   role: { id: string; name: string } | null;
   projects: Project[];
@@ -41,7 +42,7 @@ const CATEGORY_CHIP: Record<string, string> = {
 };
 
 export function DynamicDashboard({ data }: { data: DashboardData }) {
-  const { user, division, role, projects, tools, forms, recentActivity, legacyRole } = data;
+  const { user, division, role, projects, tools, forms, recentActivity, legacyRole, isRolePreview } = data;
   const isLegacyDibujo = legacyRole === 'dibujo' && !role;
 
   const toolsByCategory = tools.reduce<Record<string, Tool[]>>((acc, t) => {
@@ -54,8 +55,8 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
 
   return (
     <div className="space-y-6">
-      {/* Role Preview Banner */}
-      {role && (
+      {/* Role Preview Banner — ONLY shown when an Admin is explicitly previewing a role interface via ?roleId=... */}
+      {isRolePreview && role && (
         <div className="bg-primary-50 border border-primary-200 rounded-2xl p-4 flex items-center justify-between text-xs text-primary-900 shadow-sm">
           <div className="flex items-center gap-2.5">
             <span className="text-xl">👁️</span>
