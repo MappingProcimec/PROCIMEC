@@ -32,7 +32,8 @@ interface DrawingActivity {
 
 interface DbProject {
   id: string;
-  code: string;
+  code?: string;
+  cost_center?: string;
   name: string;
   client: string;
   location: string;
@@ -102,10 +103,12 @@ export async function GET() {
       0
     );
 
+    const pAny = p as any;
+    const ccVal = pAny.cost_center || pAny.code || '';
     return {
       id: p.id,
-      code: p.code,
-      cost_center: p.code,
+      code: ccVal,
+      cost_center: ccVal,
       name: p.name,
       client: p.client,
       location: p.location,

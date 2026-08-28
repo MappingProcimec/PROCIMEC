@@ -32,5 +32,14 @@ export async function GET() {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data });
+  
+  const formatted = (data || []).map((p: any) => {
+    const ccVal = p.cost_center || p.code || '';
+    return {
+      ...p,
+      cost_center: ccVal,
+      code: ccVal,
+    };
+  });
+  return NextResponse.json({ data: formatted });
 }
