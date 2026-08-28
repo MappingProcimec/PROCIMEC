@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
@@ -13,7 +14,7 @@ async function fetchDashboard(roleId?: string | null): Promise<DashboardData> {
   return json.data as DashboardData;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const roleId = searchParams.get('roleId');
 
@@ -64,5 +65,13 @@ export default function DashboardPage() {
         {data && <DynamicDashboard data={data} />}
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-surface flex items-center justify-center text-text-muted">Cargando panel...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }
