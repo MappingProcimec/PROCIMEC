@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { useQuery } from '@tanstack/react-query';
@@ -31,10 +32,18 @@ const SLUG_ICON: Record<string, string> = {
 };
 
 export default function AdminFormsPage() {
+  const [search, setSearch] = useState('');
+
   const { data: forms = [], isLoading } = useQuery({
     queryKey: ['admin-forms'],
     queryFn: fetchForms,
   });
+
+  const filteredForms = forms.filter((f) =>
+    f.name.toLowerCase().includes(search.toLowerCase()) ||
+    f.slug.toLowerCase().includes(search.toLowerCase()) ||
+    (f.description ?? '').toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-surface">
@@ -53,55 +62,39 @@ export default function AdminFormsPage() {
 
       <div className="max-w-4xl mx-auto px-4 -mt-6 pb-20 space-y-6">
 
-        {/* KPI */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="card p-4 flex items-center gap-3">
-            <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">📋</div>
-            <div>
-              <div className="text-xl font-bold text-text-primary">{forms.length}</div>
-              <div className="text-xs text-text-muted">Formularios totales</div>
-            </div>
-          </div>
-          <div className="card p-4 flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">📍</div>
-            <div>
-              <div className="text-xl font-bold text-text-primary">
-                {forms.filter((f) => f.slug.startsWith('gpr')).length}
-              </div>
-              <div className="text-xs text-text-muted">Formularios GPR</div>
-            </div>
-          </div>
-          <div className="card p-4 flex items-center gap-3 col-span-2 sm:col-span-1">
-            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-xl flex-shrink-0">✏️</div>
-            <div>
-              <div className="text-xl font-bold text-text-primary">
-                {forms.filter((f) => f.slug.startsWith('cad')).length}
-              </div>
-              <div className="text-xs text-text-muted">Formularios CAD</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Lista de formularios */}
+        {/* Lista de formularios con buscador */}
         <div className="card border border-border shadow-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-border bg-gray-50 flex items-center justify-between">
+          <div className="px-5 py-4 border-b border-border bg-gray-50 flex items-center justify-between flex-wrap gap-3">
             <h2 className="font-bold text-text-primary">Catálogo de Formularios</h2>
-            <span className="badge badge-primary text-xs">{forms.length}</span>
+            <div className="flex items-center gap-3 flex-1 max-w-sm ml-auto">
+              <div className="relative w-full">
+                <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar formulario por nombre..."
+                  className="input pl-9 text-xs py-1.5"
+                />
+              </div>
+              <span className="badge badge-primary text-xs flex-shrink-0">
+                {filteredForms.length}
+              </span>
+            </div>
           </div>
 
           {isLoading ? (
             <div className="p-10 text-center text-text-muted animate-pulse">Cargando...</div>
-          ) : forms.length === 0 ? (
+          ) : filteredForms.length === 0 ? (
             <div className="p-10 text-center">
               <p className="text-4xl mb-3">📋</p>
-              <p className="text-text-muted text-sm">No hay formularios registrados en el catálogo.</p>
-              <p className="text-text-muted text-xs mt-1">
-                Los formularios se crean ejecutando el script SQL del schema.
-              </p>
+              <p className="text-text-muted text-sm">No se encontraron formularios con &quot;{search}&quot;.</p>
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {forms.map((f) => (
+              {filteredForms.map((f) => (
                 <Link
                   key={f.id}
                   href={`/forms/${f.slug}`}
