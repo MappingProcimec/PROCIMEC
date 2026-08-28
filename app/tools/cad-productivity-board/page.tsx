@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Navbar } from '@/components/layout/Navbar';
 import {
   BarChart,
   Bar,
@@ -92,12 +93,26 @@ export default function CadProductivityBoardPage() {
     loadData();
   }, []);
 
-  if (isLoading) return <DashboardSkeleton />;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-surface pb-20">
+        <Navbar />
+        <div className="max-w-6xl mx-auto px-4 pt-8">
+          <DashboardSkeleton />
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700 text-sm">
-        ⚠️ {error}
+      <div className="min-h-screen bg-surface pb-20">
+        <Navbar />
+        <div className="max-w-6xl mx-auto px-4 pt-8">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700 text-sm">
+            ⚠️ {error}
+          </div>
+        </div>
       </div>
     );
   }
@@ -157,6 +172,7 @@ export default function CadProductivityBoardPage() {
 
   return (
     <div className="min-h-screen bg-surface pb-20">
+      <Navbar />
       {/* Hero */}
       <div className="page-hero">
         <div className="max-w-6xl mx-auto">

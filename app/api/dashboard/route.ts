@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
       supabase.from('roles').select('id, name').eq('id', effectiveRoleId).single(),
       supabase.from('role_tools').select('tools(id, slug, name, category)').eq('role_id', effectiveRoleId),
       supabase.from('role_forms').select('forms(id, slug, name)').eq('role_id', effectiveRoleId),
-      supabase.from('role_projects').select('projects(id, code, name, client)').eq('role_id', effectiveRoleId),
+      supabase.from('role_projects').select('projects(id, cost_center, name, client)').eq('role_id', effectiveRoleId),
     ]);
 
     role = roleResult.data as { id: string; name: string } | null;
@@ -76,18 +76,23 @@ export async function GET(req: NextRequest) {
       .filter((f): f is Form => f !== null);
 
     projects = (projectsResult.data ?? [])
-      .map((rp) => (rp as unknown as { projects: Project | null }).projects)
-      .filter((p): p is Project => p !== null);
+      .map((rp) => (rp as unknown as { projects: (Project & { cost_center?: string }) | null }).projects)
+      .filter((p): p is Project => p !== null)
+      .map((p) => ({
+        ...p,
+        cost_center: (p as any).cost_center || p.code || '',
+        code: (p as any).cost_center || p.code || '',
+      }));
   }
 
   const { data: cadActivity } = await supabase
     .from('cad_activities')
-    .select('id, date, phase, projects(name, code)')
+    .select('id, date, phase, projects(name, cost_center)')
     .eq('user_id', dbUser.id)
     .order('created_at', { ascending: false })
     .limit(5);
 
-  type CadRow = { id: string; date: string; phase: string; projects: { name: string; code: string } | null };
+  type CadRow = { id: string; date: string; phase: string; projects: { name: string; cost_center?: string; code?: string } | null };
   const recentActivity = (cadActivity ?? []).map((a) => {
     const row = a as unknown as CadRow;
     return {
@@ -96,7 +101,7 @@ export async function GET(req: NextRequest) {
       type: 'CAD/BIM',
       formSlug: 'cad-register-form',
       projectName: row.projects?.name ?? '—',
-      projectCode: row.projects?.code ?? '—',
+      projectCode: row.projects?.cost_center ?? row.projects?.code ?? '—',
       detail: row.phase,
     };
   });

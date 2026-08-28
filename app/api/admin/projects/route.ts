@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from('projects')
     .insert({
-      code: cost_center,
+      cost_center: cost_center,
       name: name.toUpperCase().trim(),
       client,
       location,
@@ -196,10 +196,10 @@ export async function PATCH(request: NextRequest) {
   const { id, division_ids, ...updates } = body;
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
 
-  if (updates.cost_center) {
-    updates.code = updates.cost_center;
-    delete updates.cost_center;
+  if (updates.code && !updates.cost_center) {
+    updates.cost_center = updates.code;
   }
+  delete updates.code;
 
   if (updates.name) {
     updates.name = updates.name.toUpperCase().trim();

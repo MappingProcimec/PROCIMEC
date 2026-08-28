@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 
 interface DivisionOption { id: string; name: string }
 interface RoleOption { id: string; name: string; division_id: string | null; divisions?: { name: string } | null }
-interface ProjectOption { id: string; code: string; name: string; is_active?: boolean; divisions?: { id: string }[] }
+interface ProjectOption { id: string; code?: string; cost_center?: string; name: string; is_active?: boolean; divisions?: { id: string }[] }
 
 interface UserDivisionRole { division_id: string; role_id: string | null }
 interface User {
@@ -68,7 +68,7 @@ function DivisionBlockCard({
   const [search, setSearch] = useState('');
   const divProjects = allProjects.filter(p => (p.divisions ?? []).some(d => d.id === block.divisionId));
   const filtered = search
-    ? divProjects.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.code.toLowerCase().includes(search.toLowerCase()))
+    ? divProjects.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || ((p.cost_center || p.code || '').toLowerCase().includes(search.toLowerCase())))
     : divProjects;
   const divRoles = roleOptions.filter(r => r.division_id === block.divisionId);
 

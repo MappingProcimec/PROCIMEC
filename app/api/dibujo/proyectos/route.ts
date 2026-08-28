@@ -62,14 +62,15 @@ export async function GET(req: NextRequest) {
   if (role === 'admin') {
     const { data, error } = await supabase
       .from('projects')
-      .select('id, code, name, client, location')
+      .select('id, cost_center, name, client, location')
       .eq('is_active', true)
       .order('name');
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    const formatted = (data || []).map((p: { id: string; code: string; name: string; client: string; location: string }) => ({
+    const formatted = (data || []).map((p: { id: string; cost_center?: string; name: string; client: string; location: string }) => ({
       ...p,
-      cost_center: p.code,
+      cost_center: p.cost_center || '',
+      code: p.cost_center || '',
     }));
     return NextResponse.json({ projects: formatted });
   }
@@ -96,7 +97,7 @@ export async function GET(req: NextRequest) {
 
   const { data: projects, error: projectsError } = await supabase
     .from('projects')
-    .select('id, code, name, client, location')
+    .select('id, cost_center, name, client, location')
     .in('id', projectIds)
     .eq('is_active', true)
     .order('name');
@@ -105,9 +106,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: projectsError.message }, { status: 500 });
   }
 
-  const formattedAssigned = (projects || []).map((p: { id: string; code: string; name: string; client: string; location: string }) => ({
+  const formattedAssigned = (projects || []).map((p: { id: string; cost_center?: string; name: string; client: string; location: string }) => ({
     ...p,
-    cost_center: p.code,
+    cost_center: p.cost_center || '',
+    code: p.cost_center || '',
   }));
   return NextResponse.json({ projects: formattedAssigned });
 }

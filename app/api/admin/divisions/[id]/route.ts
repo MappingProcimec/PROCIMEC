@@ -201,7 +201,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (allProjectIds.length > 0) {
     const { data: frData } = await supabase
       .from('field_reports')
-      .select('id, report_date, operator_name, status, operational_summary, docx_drive_url, drive_session_folder_url, project_id, created_at, projects(name, code, cost_center)')
+      .select('id, report_date, operator_name, status, operational_summary, docx_drive_url, drive_session_folder_url, project_id, created_at, projects(name, cost_center)')
       .in('project_id', allProjectIds)
       .order('report_date', { ascending: false });
 

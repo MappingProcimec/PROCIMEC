@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     .from('field_reports')
     .select(`
       *,
-      projects(code, name, client),
+      projects(cost_center, name, client),
       users(full_name)
     `)
     .order('created_at', { ascending: false });
