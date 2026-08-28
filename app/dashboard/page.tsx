@@ -1,20 +1,25 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { DynamicDashboard, type DashboardData } from '@/components/dashboard/DynamicDashboard';
 
-async function fetchDashboard(): Promise<DashboardData> {
-  const res = await fetch('/api/dashboard');
+async function fetchDashboard(roleId?: string | null): Promise<DashboardData> {
+  const url = roleId ? `/api/dashboard?roleId=${encodeURIComponent(roleId)}` : '/api/dashboard';
+  const res = await fetch(url);
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || 'Error al cargar el panel');
   return json.data as DashboardData;
 }
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams();
+  const roleId = searchParams.get('roleId');
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: fetchDashboard,
+    queryKey: ['dashboard', roleId],
+    queryFn: () => fetchDashboard(roleId),
   });
 
   return (

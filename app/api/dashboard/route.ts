@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
@@ -7,11 +7,13 @@ type Tool = { id: string; slug: string; name: string; category: string };
 type Form = { id: string; slug: string; name: string };
 type Project = { id: string; code: string; name: string; client: string };
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
+
+  const roleIdParam = req.nextUrl.searchParams.get('roleId');
 
   const supabase = createAdminClient();
   const email = session.user.email;
@@ -41,9 +43,8 @@ export async function GET() {
     division = data as { id: string; name: string } | null;
   }
 
-  // Resolve the effective role_id: either the user's assigned role_id,
-  // or a role found by matching the legacy role string (e.g. 'dibujo').
-  let effectiveRoleId: string | null = dbUser.role_id ?? null;
+  // Resolve effective role_id
+  let effectiveRoleId: string | null = (dbUser.role === 'admin' && roleIdParam) ? roleIdParam : (dbUser.role_id ?? null);
 
   if (!effectiveRoleId && dbUser.role) {
     const { data: matchedRole } = await supabase

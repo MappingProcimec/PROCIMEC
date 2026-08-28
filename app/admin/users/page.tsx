@@ -107,15 +107,27 @@ function DivisionBlockCard({
                 </span>
               </label>
               {divProjects.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => divProjects.forEach(p => {
-                    if (!block.projectIds.has(p.id)) onToggleProject(blockIndex, p.id);
-                  })}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Todos
-                </button>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => divProjects.forEach(p => {
+                      if (!block.projectIds.has(p.id)) onToggleProject(blockIndex, p.id);
+                    })}
+                    className="text-primary hover:underline font-semibold"
+                  >
+                    Todos
+                  </button>
+                  <span className="text-gray-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => divProjects.forEach(p => {
+                      if (block.projectIds.has(p.id)) onToggleProject(blockIndex, p.id);
+                    })}
+                    className="text-text-muted hover:text-error hover:underline font-medium"
+                  >
+                    Ninguno
+                  </button>
+                </div>
               )}
             </div>
 

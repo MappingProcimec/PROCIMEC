@@ -365,7 +365,7 @@ export function Navbar() {
                           </svg>
                         </button>
                         {expanded.has('vistas') && adminRoles.map((role: AdminRole) => (
-                          <Link key={role.id} href={`/admin/roles/${role.id}`} className="flex items-center gap-2.5 pl-5 pr-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                          <Link key={role.id} href={`/dashboard?roleId=${role.id}`} className="flex items-center gap-2.5 pl-5 pr-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
                             <span>👤</span>
                             <span className="truncate">Vista {role.name}</span>
                           </Link>

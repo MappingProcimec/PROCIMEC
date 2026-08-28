@@ -54,6 +54,22 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
 
   return (
     <div className="space-y-6">
+      {/* Role Preview Banner */}
+      {role && (
+        <div className="bg-primary-50 border border-primary-200 rounded-2xl p-4 flex items-center justify-between text-xs text-primary-900 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">👁️</span>
+            <div>
+              <p className="font-bold text-sm">Vista de Interfaz de Rol: {role.name}</p>
+              <p className="text-primary-700">Visualizando herramientas, formularios y proyectos asignados a este rol.</p>
+            </div>
+          </div>
+          <Link href={`/admin/roles/${role.id}`} className="font-semibold underline text-primary hover:text-primary-800 ml-3 flex-shrink-0">
+            Editar Rol →
+          </Link>
+        </div>
+      )}
+
       {/* Header Card */}
       <div className="card border border-border shadow-sm p-6">
         <div className="flex items-start gap-4">
