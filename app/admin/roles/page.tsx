@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
-import { BackButton } from '@/components/BackButton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Tool { id: string; slug: string; name: string; category: string }
@@ -56,8 +55,7 @@ export default function AdminRolesPage() {
 
       <div className="page-hero">
         <div className="max-w-5xl mx-auto">
-          <BackButton href="/admin/dashboard" label="Dashboard" />
-          <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white">Roles</h1>
               <p className="text-white/70 text-sm mt-1">Roles del sistema y personalizados</p>

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
-import { BackButton } from '@/components/BackButton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Division {
@@ -340,8 +339,7 @@ export default function AdminDivisionsPage() {
 
       <div className="page-hero">
         <div className="max-w-5xl mx-auto">
-          <BackButton href="/admin/dashboard" label="Dashboard" />
-          <div className="flex items-center justify-between mt-3">
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white">Divisiones</h1>
               <p className="text-white/70 text-sm mt-1">Unidades organizativas de la empresa</p>

@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
-import { BackButton } from '@/components/BackButton';
 import { useQuery } from '@tanstack/react-query';
 
 interface Form {
@@ -43,11 +42,10 @@ export default function AdminFormsPage() {
 
       <div className="page-hero">
         <div className="max-w-4xl mx-auto">
-          <BackButton href="/admin/dashboard" label="Panel Admin" />
-          <div className="mt-3">
+          <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white">📋 Formularios</h1>
             <p className="text-white/70 text-sm mt-1">
-              Catálogo de formularios disponibles en la plataforma
+              Catálogo de formularios disponibles en la plataforma (haz clic en cualquier formulario para abrirlo)
             </p>
           </div>
         </div>
@@ -104,9 +102,10 @@ export default function AdminFormsPage() {
           ) : (
             <div className="divide-y divide-border">
               {forms.map((f) => (
-                <div
+                <Link
                   key={f.id}
-                  className="px-5 py-4 hover:bg-gray-50 transition-colors flex flex-col sm:flex-row sm:items-center gap-3"
+                  href={`/forms/${f.slug}`}
+                  className="px-5 py-4 hover:bg-gray-50 transition-colors flex flex-col sm:flex-row sm:items-center gap-3 group cursor-pointer"
                 >
                   {/* Ícono y nombre */}
                   <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -114,7 +113,7 @@ export default function AdminFormsPage() {
                       {SLUG_ICON[f.slug] ?? '📋'}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-text-primary">{f.name}</p>
+                      <p className="font-semibold text-text-primary group-hover:text-primary transition-colors">{f.name}</p>
                       <p className="text-xs text-text-muted font-mono mt-0.5">{f.slug}</p>
                       {f.description && (
                         <p className="text-xs text-text-secondary mt-1">{f.description}</p>
@@ -122,8 +121,8 @@ export default function AdminFormsPage() {
                     </div>
                   </div>
 
-                  {/* Metadatos */}
-                  <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
+                  {/* Metadatos y Botón de acción */}
+                  <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-between sm:justify-end w-full sm:w-auto mt-2 sm:mt-0">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
                       🪜 {f.steps_count} {f.steps_count === 1 ? 'paso' : 'pasos'}
                     </span>
@@ -132,11 +131,11 @@ export default function AdminFormsPage() {
                         📎 Adjuntos
                       </span>
                     )}
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700">
-                      📋 Formulario
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-semibold group-hover:bg-primary-600 transition-colors shadow-xs">
+                      👁️ Abrir →
                     </span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}
