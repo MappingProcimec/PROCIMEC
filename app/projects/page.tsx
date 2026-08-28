@@ -28,7 +28,7 @@ export default function ProjectsPage() {
   const filtered = projects.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.client.toLowerCase().includes(search.toLowerCase()) ||
-    p.code.toLowerCase().includes(search.toLowerCase())
+    (p.cost_center || p.code || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (

@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 interface Tool { id: string; slug: string; name: string; category: string }
 interface Form { id: string; slug: string; name: string }
-interface Project { id: string; code: string; name: string; client: string }
+interface Project { id: string; cost_center?: string; code?: string; name: string; client: string }
 interface ActivityRecord {
   id: string;
   date: string;
@@ -103,7 +103,7 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-primary uppercase tracking-wide">{p.code}</p>
+                    <p className="text-xs font-bold text-primary uppercase tracking-wide">{p.cost_center || p.code}</p>
                     <p className="text-sm font-semibold text-text-primary truncate mt-0.5 group-hover:text-primary transition-colors">
                       {p.name}
                     </p>

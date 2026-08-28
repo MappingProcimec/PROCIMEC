@@ -207,7 +207,7 @@ export async function generateFieldReportDocx({
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
-        twoColRow('Código del Proyecto', project.code),
+        twoColRow('Centro de Costo', project.cost_center || project.code || '—'),
         twoColRow('Proyecto', project.name),
         twoColRow('Cliente', project.client),
         twoColRow('Ubicación / Tramo', project.location),

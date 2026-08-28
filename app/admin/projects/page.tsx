@@ -2,7 +2,7 @@
 
 import { Navbar } from '@/components/layout/Navbar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -31,7 +31,8 @@ interface DrawingActivity {
 
 interface Project {
   id: string;
-  code: string;
+  cost_center: string;
+  code?: string;
   name: string;
   client: string;
   location: string;
@@ -53,7 +54,11 @@ interface Project {
 async function fetchProjects(): Promise<Project[]> {
   const res = await fetch('/api/admin/projects');
   const data = await res.json();
-  return data.data || [];
+  const rawList: (Project & { code?: string })[] = data.data || [];
+  return rawList.map((p) => ({
+    ...p,
+    cost_center: p.cost_center || p.code || '',
+  }));
 }
 
 async function fetchDivisionOptions(): Promise<DivisionOption[]> {
@@ -62,14 +67,26 @@ async function fetchDivisionOptions(): Promise<DivisionOption[]> {
   return (json.data ?? []).map((d: DivisionOption) => ({ id: d.id, name: d.name }));
 }
 
+type SortField = 'cost_center' | 'name' | 'client' | 'records' | 'metrics' | 'status' | 'date';
+
 export default function AdminProjectsPage() {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [detailFilter, setDetailFilter] = useState<'all' | 'campo' | 'dibujo'>('all');
 
+  // Filtros de encabezado
+  const [filterCostCenter, setFilterCostCenter] = useState('');
+  const [filterName, setFilterName] = useState('');
+  const [filterClient, setFilterClient] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+
+  // Ordenamiento
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
   const [form, setForm] = useState({
-    code: '',
+    cost_center: '',
     name: '',
     client: '',
     location: '',
@@ -80,7 +97,7 @@ export default function AdminProjectsPage() {
   const [selectedDivisions, setSelectedDivisions] = useState<Set<string>>(new Set());
 
   const [editProject, setEditProject] = useState<Project | null>(null);
-  const [editForm, setEditForm] = useState({ code: '', name: '', client: '', location: '', contract_number: '', description: '' });
+  const [editForm, setEditForm] = useState({ cost_center: '', name: '', client: '', location: '', contract_number: '', description: '' });
   const [editDivisions, setEditDivisions] = useState<Set<string>>(new Set());
 
   const { data: projects = [], isLoading } = useQuery({
@@ -99,7 +116,16 @@ export default function AdminProjectsPage() {
       const res = await fetch('/api/admin/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, division_ids: Array.from(selectedDivisions) }),
+        body: JSON.stringify({
+          cost_center: data.cost_center.trim().toUpperCase(),
+          code: data.cost_center.trim().toUpperCase(),
+          name: data.name,
+          client: data.client,
+          location: data.location,
+          contract_number: data.contract_number,
+          description: data.description,
+          division_ids: Array.from(selectedDivisions),
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Error al crear proyecto');
       return res.json();
@@ -108,7 +134,7 @@ export default function AdminProjectsPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-projects'] });
       queryClient.invalidateQueries({ queryKey: ['admin-divisions'] });
       setShowModal(false);
-      setForm({ code: '', name: '', client: '', location: '', contract_number: '', description: '' });
+      setForm({ cost_center: '', name: '', client: '', location: '', contract_number: '', description: '' });
       setSelectedDivisions(new Set());
     },
   });
@@ -129,7 +155,14 @@ export default function AdminProjectsPage() {
 
   const openEdit = (p: Project) => {
     setEditProject(p);
-    setEditForm({ code: p.code, name: p.name, client: p.client, location: p.location, contract_number: p.contract_number ?? '', description: p.description ?? '' });
+    setEditForm({
+      cost_center: p.cost_center || p.code || '',
+      name: p.name,
+      client: p.client,
+      location: p.location,
+      contract_number: p.contract_number ?? '',
+      description: p.description ?? '',
+    });
     setEditDivisions(new Set((p.divisions ?? []).map((d) => d.id)));
   };
 
@@ -141,7 +174,8 @@ export default function AdminProjectsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editProject.id,
-          code: editForm.code.trim().toUpperCase(),
+          cost_center: editForm.cost_center.trim().toUpperCase(),
+          code: editForm.cost_center.trim().toUpperCase(),
           name: editForm.name.trim(),
           client: editForm.client.trim(),
           location: editForm.location.trim(),
@@ -174,7 +208,7 @@ export default function AdminProjectsPage() {
 
   const handleSubmit = () => {
     const errors: Record<string, string> = {};
-    if (!form.code) errors.code = 'Requerido';
+    if (!form.cost_center) errors.cost_center = 'Requerido';
     if (!form.name) errors.name = 'Requerido';
     if (!form.client) errors.client = 'Requerido';
     if (!form.location) errors.location = 'Requerido';
@@ -187,6 +221,88 @@ export default function AdminProjectsPage() {
     createMutation.mutate(form);
   };
 
+  // Manejo de ordenamiento
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <span className="text-gray-400 opacity-40 ml-1 text-xs">↕</span>;
+    return <span className="text-primary font-bold ml-1 text-xs">{sortOrder === 'asc' ? '▲' : '▼'}</span>;
+  };
+
+  // Proyectos filtrados y ordenados
+  const filteredAndSortedProjects = useMemo(() => {
+    const filtered = projects.filter((p) => {
+      const cc = (p.cost_center || p.code || '').toLowerCase();
+      const name = (p.name || '').toLowerCase();
+      const client = (p.client || '').toLowerCase();
+
+      if (filterCostCenter && !cc.includes(filterCostCenter.toLowerCase())) return false;
+      if (filterName && !name.includes(filterName.toLowerCase())) return false;
+      if (filterClient && !client.includes(filterClient.toLowerCase())) return false;
+
+      if (filterStatus === 'active' && !p.is_active) return false;
+      if (filterStatus === 'inactive' && p.is_active) return false;
+
+      return true;
+    });
+
+    return [...filtered].sort((a, b) => {
+      let valA: string | number = '';
+      let valB: string | number = '';
+
+      switch (sortField) {
+        case 'cost_center':
+          valA = (a.cost_center || a.code || '').toLowerCase();
+          valB = (b.cost_center || b.code || '').toLowerCase();
+          break;
+        case 'name':
+          valA = a.name.toLowerCase();
+          valB = b.name.toLowerCase();
+          break;
+        case 'client':
+          valA = a.client.toLowerCase();
+          valB = b.client.toLowerCase();
+          break;
+        case 'records':
+          valA = a.report_count ?? 0;
+          valB = b.report_count ?? 0;
+          break;
+        case 'metrics':
+          valA = (a.total_ml ?? 0) + (a.total_drawing_hours ?? 0);
+          valB = (b.total_ml ?? 0) + (b.total_drawing_hours ?? 0);
+          break;
+        case 'status':
+          valA = a.is_active ? 1 : 0;
+          valB = b.is_active ? 1 : 0;
+          break;
+        case 'date':
+          valA = new Date(a.created_at).getTime();
+          valB = new Date(b.created_at).getTime();
+          break;
+      }
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [projects, filterCostCenter, filterName, filterClient, filterStatus, sortField, sortOrder]);
+
+  const hasActiveFilters = filterCostCenter || filterName || filterClient || filterStatus !== 'all';
+
+  const clearFilters = () => {
+    setFilterCostCenter('');
+    setFilterName('');
+    setFilterClient('');
+    setFilterStatus('all');
+  };
+
   return (
     <div className="min-h-screen bg-surface">
       <Navbar />
@@ -197,7 +313,7 @@ export default function AdminProjectsPage() {
             <h1 className="text-2xl font-bold text-white mb-1">Gestión de Proyectos</h1>
             <p className="text-white/70 text-sm">{projects.filter((p) => p.is_active).length} activos de {projects.length} totales</p>
           </div>
-          <button onClick={() => setShowModal(true)} className="btn-accent">
+          <button onClick={() => setShowModal(true)} className="btn-accent shadow-md">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
@@ -207,7 +323,24 @@ export default function AdminProjectsPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 -mt-10 pb-20">
-        <div className="card overflow-hidden">
+        <div className="card overflow-hidden shadow-lg border border-border">
+          
+          {/* Header Bar con Estado de Filtros */}
+          {hasActiveFilters && (
+            <div className="bg-primary-50 px-5 py-2.5 border-b border-primary-100 flex items-center justify-between text-xs text-primary-800">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">🔍 Filtros activos:</span>
+                <span>Mostrando {filteredAndSortedProjects.length} de {projects.length} proyectos</span>
+              </div>
+              <button
+                onClick={clearFilters}
+                className="font-medium text-primary hover:underline flex items-center gap-1"
+              >
+                ✕ Limpiar filtros
+              </button>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="p-8 text-center text-text-muted">Cargando proyectos...</div>
           ) : projects.length === 0 ? (
@@ -215,132 +348,251 @@ export default function AdminProjectsPage() {
               <p className="text-text-muted">Sin proyectos. Crea el primero.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="table-base">
+            <div className="w-full overflow-x-auto">
+              <div className="text-xs text-text-muted px-4 py-1.5 bg-gray-50/50 border-b border-border sm:hidden flex items-center justify-between">
+                <span>👈 Desliza horizontalmente para ver todas las columnas y acciones 👉</span>
+              </div>
+              <table className="table-base w-full min-w-[960px]">
                 <thead>
-                  <tr>
-                    <th>Código</th>
-                    <th>Proyecto</th>
-                    <th>Cliente</th>
-                    <th className="hidden lg:table-cell">Divisiones</th>
-                    <th className="text-center">Registros Totales</th>
-                    <th className="text-right">Métricas</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
+                  {/* Fila de Títulos con Ordenamiento */}
+                  <tr className="bg-gray-50 border-b border-border text-xs text-text-secondary select-none">
+                    <th
+                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-left transition-colors"
+                      onClick={() => handleSort('cost_center')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Centro de Costo</span>
+                        {getSortIcon('cost_center')}
+                      </div>
+                    </th>
+                    <th
+                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-left transition-colors"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Proyecto</span>
+                        {getSortIcon('name')}
+                      </div>
+                    </th>
+                    <th
+                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-left transition-colors"
+                      onClick={() => handleSort('client')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Cliente</span>
+                        {getSortIcon('client')}
+                      </div>
+                    </th>
+                    <th className="hidden lg:table-cell py-3 px-4 text-left">Divisiones</th>
+                    <th
+                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-center transition-colors"
+                      onClick={() => handleSort('records')}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>Registros Totales</span>
+                        {getSortIcon('records')}
+                      </div>
+                    </th>
+                    <th
+                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-right transition-colors"
+                      onClick={() => handleSort('metrics')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <span>Métricas</span>
+                        {getSortIcon('metrics')}
+                      </div>
+                    </th>
+                    <th
+                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-left transition-colors"
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Estado</span>
+                        {getSortIcon('status')}
+                      </div>
+                    </th>
+                    <th className="py-3 px-4 text-right">Acciones</th>
+                  </tr>
+
+                  {/* Fila de Filtros en Encabezado */}
+                  <tr className="bg-gray-50/70 border-b border-border">
+                    <td className="p-2">
+                      <input
+                        type="text"
+                        placeholder="Filtrar C.C..."
+                        value={filterCostCenter}
+                        onChange={(e) => setFilterCostCenter(e.target.value)}
+                        className="w-full text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:border-primary"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="text"
+                        placeholder="Buscar proyecto..."
+                        value={filterName}
+                        onChange={(e) => setFilterName(e.target.value)}
+                        className="w-full text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:border-primary"
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="text"
+                        placeholder="Buscar cliente..."
+                        value={filterClient}
+                        onChange={(e) => setFilterClient(e.target.value)}
+                        className="w-full text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:border-primary"
+                      />
+                    </td>
+                    <td className="hidden lg:table-cell p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2">
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value as 'all' | 'active' | 'inactive')}
+                        className="w-full text-xs px-2 py-1 border border-gray-300 rounded-md bg-white focus:outline-none focus:border-primary"
+                      >
+                        <option value="all">Todos</option>
+                        <option value="active">Activos</option>
+                        <option value="inactive">Inactivos</option>
+                      </select>
+                    </td>
+                    <td className="p-2 text-right">
+                      {hasActiveFilters && (
+                        <button
+                          onClick={clearFilters}
+                          className="text-[11px] font-semibold text-primary hover:underline px-1.5 py-0.5"
+                          title="Limpiar filtros"
+                        >
+                          Limpiar
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.map((p) => {
-                    const totalRecords = p.report_count ?? 0;
-                    const fieldCount = p.field_reports_count ?? 0;
-                    const drawingCount = p.drawing_count ?? 0;
-                    const ml = p.total_ml ?? 0;
-                    const drawingHours = p.total_drawing_hours ?? 0;
+                  {filteredAndSortedProjects.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-text-muted text-sm">
+                        No se encontraron proyectos con los filtros aplicados.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAndSortedProjects.map((p) => {
+                      const totalRecords = p.report_count ?? 0;
+                      const fieldCount = p.field_reports_count ?? 0;
+                      const drawingCount = p.drawing_count ?? 0;
+                      const ml = p.total_ml ?? 0;
+                      const drawingHours = p.total_drawing_hours ?? 0;
+                      const ccDisplay = p.cost_center || p.code || '—';
 
-                    return (
-                      <tr
-                        key={p.id}
-                        className="hover:bg-gray-50/80 cursor-pointer transition-colors"
-                        onClick={() => {
-                          setSelectedProject(p);
-                          setDetailFilter('all');
-                        }}
-                      >
-                        <td>
-                          <span className="badge badge-primary text-xs">{p.code}</span>
-                        </td>
-                        <td>
-                          <div>
-                            <p className="font-semibold text-sm text-text-primary hover:text-primary transition-colors flex items-center gap-1.5">
-                              {p.name}
-                              <span className="text-xs text-primary font-normal opacity-0 group-hover:opacity-100">🔍</span>
-                            </p>
-                            <p className="text-xs text-text-muted">
-                              {format(new Date(p.created_at), 'dd/MM/yyyy', { locale: es })}
-                            </p>
-                          </div>
-                        </td>
-                        <td className="text-sm font-medium">{p.client}</td>
-                        <td className="hidden lg:table-cell">
-                          <div className="flex flex-wrap gap-1">
-                            {(p.divisions ?? []).length === 0
-                              ? <span className="text-xs text-text-muted italic">—</span>
-                              : (p.divisions ?? []).map((d) => (
-                                  <span key={d.id} className="badge badge-accent text-xs">{d.name}</span>
-                                ))
-                            }
-                          </div>
-                        </td>
-                        <td className="text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="font-bold text-sm text-text-primary">{totalRecords}</span>
-                            <div className="flex items-center gap-1">
-                              {fieldCount > 0 && (
-                                <span className="badge bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5">
-                                  📍 {fieldCount}
-                                </span>
-                              )}
-                              {drawingCount > 0 && (
-                                <span className="badge bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5">
-                                  ✏️ {drawingCount}
-                                </span>
-                              )}
+                      return (
+                        <tr
+                          key={p.id}
+                          className="hover:bg-gray-50/80 cursor-pointer transition-colors"
+                          onClick={() => {
+                            setSelectedProject(p);
+                            setDetailFilter('all');
+                          }}
+                        >
+                          <td className="whitespace-nowrap">
+                            <span className="badge badge-primary text-xs font-mono font-bold px-2 py-1">
+                              {ccDisplay}
+                            </span>
+                          </td>
+                          <td>
+                            <div>
+                              <p className="font-semibold text-sm text-text-primary hover:text-primary transition-colors flex items-center gap-1.5">
+                                {p.name}
+                                <span className="text-xs text-primary font-normal opacity-0 group-hover:opacity-100">🔍</span>
+                              </p>
+                              <p className="text-xs text-text-muted">
+                                {format(new Date(p.created_at), 'dd/MM/yyyy', { locale: es })}
+                              </p>
                             </div>
-                          </div>
-                        </td>
-                        <td className="text-right text-xs">
-                          {ml > 0 && (
-                            <div className="font-semibold text-primary">{ml.toFixed(1)} ml</div>
-                          )}
-                          {drawingHours > 0 && (
-                            <div className="font-semibold text-amber-700">{drawingHours.toFixed(1)} h</div>
-                          )}
-                          {ml === 0 && drawingHours === 0 && <span className="text-text-muted">—</span>}
-                        </td>
-                        <td>
-                          <span className={`badge text-xs ${p.is_active ? 'badge-success' : 'badge-gray'}`}>
-                            {p.is_active ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </td>
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedProject(p);
-                                setDetailFilter('all');
-                              }}
-                              className="btn-sm btn-outline text-xs flex items-center gap-1"
-                            >
-                              🔍 Ver
-                            </button>
-                            <button
-                              onClick={() => openEdit(p)}
-                              className="btn-sm btn-outline text-xs"
-                            >
-                              ✏️ Editar
-                            </button>
-                            {p.drive_folder_url && (
-                              <a
-                                href={p.drive_folder_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn-sm btn-ghost text-xs"
-                                title="Abrir Drive"
-                              >
-                                Drive
-                              </a>
+                          </td>
+                          <td className="text-sm font-medium">{p.client}</td>
+                          <td className="hidden lg:table-cell">
+                            <div className="flex flex-wrap gap-1">
+                              {(p.divisions ?? []).length === 0
+                                ? <span className="text-xs text-text-muted italic">—</span>
+                                : (p.divisions ?? []).map((d) => (
+                                    <span key={d.id} className="badge badge-accent text-xs">{d.name}</span>
+                                  ))
+                              }
+                            </div>
+                          </td>
+                          <td className="text-center whitespace-nowrap">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="font-bold text-sm text-text-primary">{totalRecords}</span>
+                              <div className="flex items-center gap-1">
+                                {fieldCount > 0 && (
+                                  <span className="badge bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5">
+                                    📍 {fieldCount}
+                                  </span>
+                                )}
+                                {drawingCount > 0 && (
+                                  <span className="badge bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5">
+                                    ✏️ {drawingCount}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="text-right text-xs whitespace-nowrap">
+                            {ml > 0 && (
+                              <div className="font-semibold text-primary">{ml.toFixed(1)} ml</div>
                             )}
-                            <button
-                              onClick={() => toggleMutation.mutate({ id: p.id, is_active: !p.is_active })}
-                              className={`btn-sm text-xs ${p.is_active ? 'btn-ghost text-error' : 'btn-outline'}`}
-                            >
-                              {p.is_active ? 'Desactivar' : 'Activar'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                            {drawingHours > 0 && (
+                              <div className="font-semibold text-amber-700">{drawingHours.toFixed(1)} h</div>
+                            )}
+                            {ml === 0 && drawingHours === 0 && <span className="text-text-muted">—</span>}
+                          </td>
+                          <td className="whitespace-nowrap">
+                            <span className={`badge text-xs ${p.is_active ? 'badge-success' : 'badge-gray'}`}>
+                              {p.is_active ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setSelectedProject(p);
+                                  setDetailFilter('all');
+                                }}
+                                className="btn-sm btn-outline text-xs px-2.5 py-1 flex items-center gap-1"
+                              >
+                                🔍 Ver
+                              </button>
+                              <button
+                                onClick={() => openEdit(p)}
+                                className="btn-sm btn-outline text-xs px-2.5 py-1"
+                              >
+                                ✏️ Editar
+                              </button>
+                              {p.drive_folder_url && (
+                                <a
+                                  href={p.drive_folder_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn-sm btn-ghost text-xs px-2.5 py-1"
+                                  title="Abrir Drive"
+                                >
+                                  Drive
+                                </a>
+                              )}
+                              <button
+                                onClick={() => toggleMutation.mutate({ id: p.id, is_active: !p.is_active })}
+                                className={`btn-sm text-xs px-2.5 py-1 ${p.is_active ? 'btn-ghost text-error' : 'btn-outline'}`}
+                              >
+                                {p.is_active ? 'Desactivar' : 'Activar'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -351,12 +603,14 @@ export default function AdminProjectsPage() {
       {/* ── Modal de Detalle de Registros del Proyecto ─────────────────────── */}
       {selectedProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="card w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up">
+          <div className="card w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up shadow-2xl">
             {/* Modal Header */}
             <div className="bg-primary text-white px-6 py-5 flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="bg-white/20 text-white font-mono text-xs px-2 py-0.5 rounded-md">{selectedProject.code}</span>
+                  <span className="bg-white/20 text-white font-mono text-xs px-2 py-0.5 rounded-md font-bold">
+                    C.C.: {selectedProject.cost_center || selectedProject.code || '—'}
+                  </span>
                   <span className="text-xs text-white/80">{selectedProject.client} — {selectedProject.location}</span>
                 </div>
                 <h2 className="text-xl font-bold mt-1 text-white">{selectedProject.name}</h2>
@@ -456,7 +710,7 @@ export default function AdminProjectsPage() {
 
                 return (
                   <div className="overflow-x-auto border border-border rounded-xl">
-                    <table className="table-base">
+                    <table className="table-base w-full min-w-[600px]">
                       <thead>
                         <tr>
                           <th>Fecha</th>
@@ -522,8 +776,8 @@ export default function AdminProjectsPage() {
       {/* Modal Editar Proyecto */}
       {editProject && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
-            <div className="sticky top-0 bg-white px-5 py-4 border-b border-border flex items-center justify-between">
+          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
+            <div className="sticky top-0 bg-white px-5 py-4 border-b border-border flex items-center justify-between z-10">
               <h3 className="font-bold text-text-primary">Editar Proyecto</h3>
               <button onClick={() => setEditProject(null)} className="btn-icon btn-ghost">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -534,31 +788,63 @@ export default function AdminProjectsPage() {
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-group">
-                  <label className="label label-required">Código</label>
-                  <input type="text" value={editForm.code} onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })} className="input" />
+                  <label className="label label-required">Centro de Costo</label>
+                  <input
+                    type="text"
+                    value={editForm.cost_center}
+                    onChange={(e) => setEditForm({ ...editForm, cost_center: e.target.value.toUpperCase() })}
+                    className="input font-mono"
+                    placeholder="CC-001"
+                  />
                 </div>
                 <div className="form-group">
                   <label className="label label-required">Nombre</label>
-                  <input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="input" />
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="input"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-group">
                   <label className="label label-required">Cliente</label>
-                  <input type="text" value={editForm.client} onChange={(e) => setEditForm({ ...editForm, client: e.target.value })} className="input" />
+                  <input
+                    type="text"
+                    value={editForm.client}
+                    onChange={(e) => setEditForm({ ...editForm, client: e.target.value })}
+                    className="input"
+                  />
                 </div>
                 <div className="form-group">
                   <label className="label label-required">Ubicación</label>
-                  <input type="text" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="input" />
+                  <input
+                    type="text"
+                    value={editForm.location}
+                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                    className="input"
+                  />
                 </div>
               </div>
               <div className="form-group">
                 <label className="label">Número de contrato</label>
-                <input type="text" value={editForm.contract_number} onChange={(e) => setEditForm({ ...editForm, contract_number: e.target.value })} className="input" placeholder="CTO-2024-001" />
+                <input
+                  type="text"
+                  value={editForm.contract_number}
+                  onChange={(e) => setEditForm({ ...editForm, contract_number: e.target.value })}
+                  className="input"
+                  placeholder="CTO-2024-001"
+                />
               </div>
               <div className="form-group">
                 <label className="label">Descripción / Objeto</label>
-                <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={2} className="input" />
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  rows={2}
+                  className="input"
+                />
               </div>
               {divisionOptions.length > 0 && (
                 <div className="form-group">
@@ -566,7 +852,12 @@ export default function AdminProjectsPage() {
                   <div className="border border-border rounded-xl max-h-36 overflow-y-auto divide-y divide-border">
                     {divisionOptions.map((d) => (
                       <label key={d.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input type="checkbox" checked={editDivisions.has(d.id)} onChange={() => toggleEditDivision(d.id)} className="rounded text-primary" />
+                        <input
+                          type="checkbox"
+                          checked={editDivisions.has(d.id)}
+                          onChange={() => toggleEditDivision(d.id)}
+                          className="rounded text-primary"
+                        />
                         <span className="text-sm text-text-primary">{d.name}</span>
                       </label>
                     ))}
@@ -592,8 +883,8 @@ export default function AdminProjectsPage() {
       {/* Modal Crear Proyecto */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
-            <div className="sticky top-0 bg-white px-5 py-4 border-b border-border flex items-center justify-between">
+          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
+            <div className="sticky top-0 bg-white px-5 py-4 border-b border-border flex items-center justify-between z-10">
               <h3 className="font-bold text-text-primary">Nuevo Proyecto</h3>
               <button onClick={() => { setShowModal(false); setSelectedDivisions(new Set()); }} className="btn-icon btn-ghost">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -605,15 +896,15 @@ export default function AdminProjectsPage() {
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="form-group">
-                  <label className="label label-required">Código</label>
+                  <label className="label label-required">Centro de Costo</label>
                   <input
                     type="text"
-                    value={form.code}
-                    onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                    placeholder="PROC-2024-01"
-                    className={`input ${formErrors.code ? 'input-error' : ''}`}
+                    value={form.cost_center}
+                    onChange={(e) => setForm({ ...form, cost_center: e.target.value.toUpperCase() })}
+                    placeholder="CC-31002"
+                    className={`input font-mono ${formErrors.cost_center ? 'input-error' : ''}`}
                   />
-                  {formErrors.code && <p className="error-msg">⚠️ {formErrors.code}</p>}
+                  {formErrors.cost_center && <p className="error-msg">⚠️ {formErrors.cost_center}</p>}
                 </div>
                 <div className="form-group">
                   <label className="label label-required">Nombre</label>

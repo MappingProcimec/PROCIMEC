@@ -105,6 +105,7 @@ export async function GET() {
     return {
       id: p.id,
       code: p.code,
+      cost_center: p.code,
       name: p.name,
       client: p.client,
       location: p.location,
@@ -138,13 +139,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { code, name, client, location, contract_number, description } = parsed.data;
+  const { cost_center, name, client, location, contract_number, description } = parsed.data;
 
   // Crear carpeta en Drive
   let driveFolderId: string | undefined;
   let driveFolderUrl: string | undefined;
   try {
-    const folder = await createProjectFolder(code, name);
+    const folder = await createProjectFolder(cost_center, name);
     driveFolderId = folder.id;
     driveFolderUrl = folder.webViewLink;
   } catch (e) {
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from('projects')
     .insert({
-      code,
+      code: cost_center,
       name: name.toUpperCase().trim(),
       client,
       location,
@@ -191,6 +192,11 @@ export async function PATCH(request: NextRequest) {
   const body = await request.json();
   const { id, division_ids, ...updates } = body;
   if (!id) return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+
+  if (updates.cost_center) {
+    updates.code = updates.cost_center;
+    delete updates.cost_center;
+  }
 
   if (updates.name) {
     updates.name = updates.name.toUpperCase().trim();

@@ -42,7 +42,8 @@ export interface FormConfig {
 export interface Project {
   id: string;
   name: string;
-  code: string;
+  cost_center?: string;
+  code?: string;
 }
 
 interface TwoStepFormProps {
@@ -216,7 +217,7 @@ export default function TwoStepForm({
             const p = projects.find((pr) => pr.id === projectId);
             return (
               <div className="input bg-gray-50 text-text-secondary cursor-not-allowed select-none">
-                {p ? `${p.code} — ${p.name}` : projectId}
+                {p ? `${p.cost_center || p.code || ''} — ${p.name}` : projectId}
               </div>
             );
           }
@@ -224,7 +225,7 @@ export default function TwoStepForm({
             <select value={val as string} onChange={(e) => set(field.key, e.target.value)} className="input">
               <option value="">Seleccionar proyecto...</option>
               {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
+                <option key={p.id} value={p.id}>{p.cost_center || p.code || ''} — {p.name}</option>
               ))}
             </select>
           );

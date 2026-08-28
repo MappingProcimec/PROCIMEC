@@ -67,7 +67,11 @@ export async function GET(req: NextRequest) {
       .order('name');
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ projects: data || [] });
+    const formatted = (data || []).map((p: { id: string; code: string; name: string; client: string; location: string }) => ({
+      ...p,
+      cost_center: p.code,
+    }));
+    return NextResponse.json({ projects: formatted });
   }
 
   // Dibujantes: solo los proyectos asignados (activos)
@@ -101,5 +105,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: projectsError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ projects: projects || [] });
+  const formattedAssigned = (projects || []).map((p: { id: string; code: string; name: string; client: string; location: string }) => ({
+    ...p,
+    cost_center: p.code,
+  }));
+  return NextResponse.json({ projects: formattedAssigned });
 }

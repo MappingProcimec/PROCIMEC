@@ -16,7 +16,8 @@ export interface AppUser {
 
 export interface Project {
   id: string;
-  code: string;
+  code?: string;
+  cost_center: string;
   name: string;
   client: string;
   location: string;

@@ -44,12 +44,19 @@ export const section2Schema = z.object({
 });
 
 export const createProjectSchema = z.object({
-  code: z.string().min(1, 'El código del proyecto es requerido'),
+  cost_center: z.string().optional(),
+  code: z.string().optional(),
   name: z.string().min(1, 'El nombre del proyecto es requerido'),
   client: z.string().min(1, 'El cliente es requerido'),
   location: z.string().min(1, 'La ubicación es requerida'),
   contract_number: z.string().optional(),
   description: z.string().optional(),
+}).transform((data) => ({
+  ...data,
+  cost_center: (data.cost_center || data.code || '').trim(),
+})).refine((data) => data.cost_center.length > 0, {
+  message: 'El centro de costo es requerido',
+  path: ['cost_center'],
 });
 
 export type Section1Input = z.infer<typeof section1Schema>;

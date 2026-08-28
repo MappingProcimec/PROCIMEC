@@ -157,10 +157,10 @@ export default function AdminDashboard() {
         {/* Accesos rápidos */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { href: '/admin/users',     icon: '👥', label: 'Usuarios',    color: 'bg-blue-50 border-blue-200 text-blue-700' },
+            { href: '/admin/projects',  icon: '🏗️', label: 'Proyectos',   color: 'bg-amber-50 border-amber-200 text-amber-700' },
             { href: '/admin/roles',     icon: '🔑', label: 'Roles',       color: 'bg-violet-50 border-violet-200 text-violet-700' },
+            { href: '/admin/users',     icon: '👥', label: 'Usuarios',    color: 'bg-blue-50 border-blue-200 text-blue-700' },
             { href: '/admin/forms',     icon: '📋', label: 'Formularios', color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
-            { href: '/admin/divisions', icon: '🏢', label: 'Divisiones',  color: 'bg-amber-50 border-amber-200 text-amber-700' },
           ].map((item) => (
             <Link
               key={item.href}
