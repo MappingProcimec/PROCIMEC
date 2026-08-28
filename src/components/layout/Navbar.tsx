@@ -165,13 +165,14 @@ export function Navbar() {
               { href: '/admin/projects', label: 'Proyectos' },
               { href: '/admin/roles', label: 'Roles' },
               { href: '/admin/users', label: 'Usuarios' },
+              { href: '/admin/forms', label: 'Formularios' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   pathname.startsWith(href)
-                    ? 'bg-primary-50 text-primary'
+                    ? 'bg-primary-50 text-primary font-semibold'
                     : 'text-text-secondary hover:bg-gray-100'
                 }`}
               >
@@ -319,6 +320,33 @@ export function Navbar() {
                 {/* Admin extras */}
                 {isAdmin && (
                   <>
+                    {/* Navegación rápida en menú para móvil / dropdown */}
+                    <div className="px-3 pt-2 pb-1">
+                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Navegación Admin</p>
+                    </div>
+                    {[
+                      { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
+                      { href: '/admin/divisions', label: 'Divisiones', icon: '🏢' },
+                      { href: '/admin/projects',  label: 'Proyectos',  icon: '🏗️' },
+                      { href: '/admin/roles',     label: 'Roles',      icon: '🔑' },
+                      { href: '/admin/users',     label: 'Usuarios',   icon: '👥' },
+                      { href: '/admin/forms',     label: 'Formularios', icon: '📋' },
+                    ].map(({ href, label, icon }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                          pathname.startsWith(href)
+                            ? 'bg-primary-50 text-primary font-semibold'
+                            : 'text-text-secondary hover:bg-gray-50'
+                        }`}
+                      >
+                        <span>{icon}</span>
+                        <span>{label}</span>
+                      </Link>
+                    ))}
+                    <div className="border-t border-border my-1" />
+
                     {/* Herramientas generales */}
                     {adminTools.filter((t: Tool) => GENERAL_TOOL_SLUGS.includes(t.slug)).length > 0 && (
                       <>
@@ -395,6 +423,36 @@ export function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Mobile Sub-Header Navigation for Admin */}
+      {isAdmin && (
+        <div className="md:hidden border-t border-border bg-gray-50/95 px-3 py-2 overflow-x-auto flex items-center gap-1.5 whitespace-nowrap text-xs shadow-inner">
+          {[
+            { href: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
+            { href: '/admin/divisions', label: 'Divisiones', icon: '🏢' },
+            { href: '/admin/projects',  label: 'Proyectos',  icon: '🏗️' },
+            { href: '/admin/roles',     label: 'Roles',      icon: '🔑' },
+            { href: '/admin/users',     label: 'Usuarios',   icon: '👥' },
+            { href: '/admin/forms',     label: 'Formularios', icon: '📋' },
+          ].map(({ href, label, icon }) => {
+            const isActive = pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-1.2 px-3 py-1.5 rounded-full font-medium transition-all ${
+                  isActive
+                    ? 'bg-primary text-white shadow-xs font-semibold'
+                    : 'bg-white text-text-secondary border border-border hover:bg-gray-100'
+                }`}
+              >
+                <span>{icon}</span>
+                <span>{label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </header>
   );
 }
