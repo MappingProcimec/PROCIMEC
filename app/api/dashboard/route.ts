@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase';
 
 type Tool = { id: string; slug: string; name: string; category: string };
 type Form = { id: string; slug: string; name: string };
-type Project = { id: string; code: string; name: string; client: string };
+type Project = { id: string; cost_center?: string; code?: string; name: string; client: string };
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -76,13 +76,16 @@ export async function GET(req: NextRequest) {
       .filter((f): f is Form => f !== null);
 
     projects = (projectsResult.data ?? [])
-      .map((rp) => (rp as unknown as { projects: (Project & { cost_center?: string }) | null }).projects)
+      .map((rp) => (rp as unknown as { projects: Project | null }).projects)
       .filter((p): p is Project => p !== null)
-      .map((p) => ({
-        ...p,
-        cost_center: (p as any).cost_center || p.code || '',
-        code: (p as any).cost_center || p.code || '',
-      }));
+      .map((p) => {
+        const cc = p.cost_center || p.code || '';
+        return {
+          ...p,
+          cost_center: cc,
+          code: cc,
+        };
+      });
   }
 
   const { data: cadActivity } = await supabase
