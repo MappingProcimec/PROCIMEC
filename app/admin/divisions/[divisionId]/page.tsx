@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -13,7 +14,7 @@ interface Role {
 interface User { id: string; full_name: string; email: string; role_name: string }
 
 interface Project {
-  id: string; code: string; name: string; client: string; is_active: boolean;
+  id: string; code: string; cost_center?: string; name: string; client: string; is_active: boolean;
   total_ml: number; total_drawing_hours: number;
   report_count: number; field_report_count: number; drawing_count: number;
 }
@@ -25,9 +26,24 @@ interface Stats {
   total_reports: number; total_field_reports: number; total_drawing_records: number;
 }
 
+interface DivisionActivityLog {
+  id: string;
+  date: string;
+  type: string;
+  form_name: string;
+  project_name: string;
+  project_code: string;
+  operator_name: string;
+  detail: string;
+  status: string;
+  url: string | null;
+  created_at?: string;
+}
+
 interface DivisionDetail {
   id: string; name: string; description?: string; created_at: string;
   roles?: Role[]; users?: User[]; projects?: Project[]; stats?: Stats;
+  activity_logs?: DivisionActivityLog[];
 }
 
 async function fetchDivision(id: string): Promise<DivisionDetail> {
@@ -51,6 +67,8 @@ function StatCard({ icon, value, label, sub }: { icon: string; value: string | n
 
 export default function DivisionDetailPage({ params }: { params: { divisionId: string } }) {
   const { divisionId } = params;
+  const [logPage, setLogPage] = useState(1);
+  const LOGS_PER_PAGE = 10;
 
   const { data: division, isLoading } = useQuery({
     queryKey: ['admin-division', divisionId],
@@ -61,6 +79,10 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
   const projects = division?.projects ?? [];
   const roles = division?.roles ?? [];
   const users = division?.users ?? [];
+  const activityLogs = division?.activity_logs ?? [];
+
+  const totalLogPages = Math.ceil(activityLogs.length / LOGS_PER_PAGE) || 1;
+  const currentLogs = activityLogs.slice((logPage - 1) * LOGS_PER_PAGE, logPage * LOGS_PER_PAGE);
 
   return (
     <div className="min-h-screen bg-surface">
@@ -123,7 +145,7 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-border">
                       <tr>
-                        <th className="text-left px-4 py-3 font-semibold text-text-secondary">Código</th>
+                        <th className="text-left px-4 py-3 font-semibold text-text-secondary">Centro de Costo</th>
                         <th className="text-left px-4 py-3 font-semibold text-text-secondary">Nombre</th>
                         <th className="text-left px-4 py-3 font-semibold text-text-secondary hidden md:table-cell">Cliente</th>
                         <th className="text-center px-4 py-3 font-semibold text-text-secondary">Estado</th>
@@ -137,7 +159,7 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                         <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3">
                             <Link href={`/admin/projects`} className="text-xs font-bold text-text-muted hover:text-primary transition-colors">
-                              {p.code}
+                              {p.cost_center || p.code || '—'}
                             </Link>
                           </td>
                           <td className="px-4 py-3 font-medium text-text-primary">{p.name}</td>
@@ -262,6 +284,120 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+
+            {/* Logs de la División (Historial de Formularios y Registros) */}
+            <div className="card shadow-xl border border-border overflow-hidden">
+              <div className="px-5 py-4 border-b border-border bg-gray-50 flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h2 className="font-bold text-text-primary flex items-center gap-2">
+                    <span>📜</span> Logs de la División (Historial de Formularios)
+                  </h2>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Registros y envíos ordenados de más reciente a más antiguo (10 por página)
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="badge badge-primary text-xs">{activityLogs.length} registros</span>
+                </div>
+              </div>
+
+              {activityLogs.length === 0 ? (
+                <p className="px-5 py-6 text-text-muted text-sm">No hay registros ni formularios realizados en esta división aún.</p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-border">
+                        <tr>
+                          <th className="text-left px-4 py-3 font-semibold text-text-secondary">Fecha</th>
+                          <th className="text-left px-4 py-3 font-semibold text-text-secondary">Formulario</th>
+                          <th className="text-left px-4 py-3 font-semibold text-text-secondary">Proyecto</th>
+                          <th className="text-left px-4 py-3 font-semibold text-text-secondary hidden sm:table-cell">Responsable</th>
+                          <th className="text-left px-4 py-3 font-semibold text-text-secondary">Detalle</th>
+                          <th className="text-center px-4 py-3 font-semibold text-text-secondary">Estado</th>
+                          <th className="text-right px-4 py-3 font-semibold text-text-secondary">Documento</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {currentLogs.map((log) => (
+                          <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3 font-mono text-xs text-text-secondary whitespace-nowrap">
+                              {log.date ? new Date(log.date).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                log.type === 'Campo GPR' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {log.type === 'Campo GPR' ? '📍' : '✏️'} {log.form_name}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-text-primary text-xs">{log.project_name}</div>
+                              {log.project_code && log.project_code !== '—' && (
+                                <div className="text-[10px] text-text-muted font-bold">{log.project_code}</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-text-muted hidden sm:table-cell">
+                              {log.operator_name}
+                            </td>
+                            <td className="px-4 py-3 font-mono text-xs text-text-primary font-medium">
+                              {log.detail}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-text-secondary">
+                                {log.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {log.url ? (
+                                <a
+                                  href={log.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-semibold"
+                                >
+                                  📄 Ver doc
+                                </a>
+                              ) : (
+                                <span className="text-xs text-text-muted">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Footer */}
+                  {totalLogPages > 1 && (
+                    <div className="px-5 py-3 border-t border-border bg-gray-50 flex items-center justify-between">
+                      <span className="text-xs text-text-muted">
+                        Página <span className="font-bold text-text-primary">{logPage}</span> de{' '}
+                        <span className="font-bold text-text-primary">{totalLogPages}</span> ({activityLogs.length} total)
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setLogPage((p) => Math.max(1, p - 1))}
+                          disabled={logPage === 1}
+                          className="btn btn-secondary py-1 px-3 text-xs disabled:opacity-40"
+                        >
+                          ← Anterior
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLogPage((p) => Math.min(totalLogPages, p + 1))}
+                          disabled={logPage === totalLogPages}
+                          className="btn btn-secondary py-1 px-3 text-xs disabled:opacity-40"
+                        >
+                          Siguiente →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

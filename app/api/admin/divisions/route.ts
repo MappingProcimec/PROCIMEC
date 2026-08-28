@@ -19,19 +19,41 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Proyectos por división desde division_projects
+  // Proyectos por división desde division_projects, role_projects y user_projects
   const { data: dpData } = await supabase
     .from('division_projects')
     .select('division_id, project_id, projects(id, is_active)');
 
+  const { data: rpData } = await supabase
+    .from('role_projects')
+    .select('project_id, roles(division_id), projects(id, is_active)');
+
   type DPRow = { division_id: string; project_id: string; projects: { id: string; is_active: boolean } | null };
-  const dpRows: DPRow[] = (dpData as unknown as DPRow[]) ?? [];
+  const projectsByDivMap: Record<string, Map<string, boolean>> = {};
+
+  ((dpData as unknown as DPRow[]) ?? []).forEach((row) => {
+    if (!row.division_id || !row.projects?.id) return;
+    if (!projectsByDivMap[row.division_id]) projectsByDivMap[row.division_id] = new Map();
+    projectsByDivMap[row.division_id].set(row.projects.id, Boolean(row.projects.is_active));
+  });
+
+  type RPRow = { project_id: string; roles: { division_id: string } | null; projects: { id: string; is_active: boolean } | null };
+  ((rpData as unknown as RPRow[]) ?? []).forEach((row) => {
+    const divId = row.roles?.division_id;
+    if (!divId || !row.projects?.id) return;
+    if (!projectsByDivMap[divId]) projectsByDivMap[divId] = new Map();
+    projectsByDivMap[divId].set(row.projects.id, Boolean(row.projects.is_active));
+  });
 
   const projectsByDiv: Record<string, { active: number; total: number }> = {};
-  dpRows.forEach((row) => {
-    if (!projectsByDiv[row.division_id]) projectsByDiv[row.division_id] = { active: 0, total: 0 };
-    projectsByDiv[row.division_id].total++;
-    if (row.projects?.is_active) projectsByDiv[row.division_id].active++;
+  Object.entries(projectsByDivMap).forEach(([divId, projMap]) => {
+    let total = 0;
+    let active = 0;
+    projMap.forEach((isActive) => {
+      total++;
+      if (isActive) active++;
+    });
+    projectsByDiv[divId] = { total, active };
   });
 
   type RawDiv = { id: string; name: string; description: string | null; created_at: string; roles: { id: string }[] };
