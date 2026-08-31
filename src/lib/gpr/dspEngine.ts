@@ -49,11 +49,11 @@ export const DEFAULT_DSP_OPTIONS: DSPOptions = {
   filterType: 'none',
   lowCutMHz: 100,
   highCutMHz: 800,
-  gainType: 'none',
-  linearGain: 1.0,
+  gainType: 'agc', // Enabled by default to normalize GPR subsurface wave returns
+  linearGain: 2.0,
   expGainAlpha: 0.05,
   expGainPower: 1.0,
-  agcWindowSamples: 64,
+  agcWindowSamples: 48,
   customGainCurve: [1, 1, 1, 1, 1],
   hilbertEnvelope: false,
   zeroTimeShiftNs: 0,
@@ -137,7 +137,6 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
     const window = Math.min(numSamples, Math.max(4, options.dewowWindow));
     for (let t = 0; t < currentTraces; t++) {
       const trace = processed[t];
-      // Compute mean of early window or cumulative mean
       let sum = 0;
       for (let s = 0; s < window; s++) {
         sum += trace[s];
@@ -152,7 +151,6 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
   // 4. Background Removal (Spatial Clutter Reduction)
   if (options.backgroundRemoval) {
     if (options.backgroundWindow === 0) {
-      // Global average trace subtraction
       const avgTrace = new Float32Array(numSamples);
       for (let s = 0; s < numSamples; s++) {
         let sum = 0;
@@ -167,7 +165,6 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
         }
       }
     } else {
-      // Sliding window background removal
       const win = Math.max(2, options.backgroundWindow);
       const halfWin = Math.floor(win / 2);
       for (let t = 0; t < currentTraces; t++) {
@@ -281,7 +278,6 @@ function applyFrequencyFilter(trace: Float32Array, options: DSPOptions): Float32
   const n = trace.length;
   const filtered = new Float32Array(n);
 
-  // 5-tap moving average / highpass FIR implementation
   for (let i = 0; i < n; i++) {
     const prev2 = i > 1 ? trace[i - 2] : trace[i];
     const prev1 = i > 0 ? trace[i - 1] : trace[i];
@@ -313,7 +309,6 @@ export function computeHilbertEnvelope(trace: Float32Array): Float32Array {
   const n = trace.length;
   const envelope = new Float32Array(n);
 
-  // Quadrature phase shift via discrete Hilbert transform filter
   for (let i = 0; i < n; i++) {
     let q = 0;
     for (let k = 1; k <= 15; k++) {
@@ -342,7 +337,6 @@ export function computeFFT(trace: Float32Array): { frequencies: Float32Array; ma
     real[i] = trace[i];
   }
 
-  // Bit reversal permutation
   let j = 0;
   for (let i = 0; i < N - 1; i++) {
     if (i < j) {
@@ -357,7 +351,6 @@ export function computeFFT(trace: Float32Array): { frequencies: Float32Array; ma
     j += k;
   }
 
-  // FFT Computation
   for (let len = 2; len <= N; len <<= 1) {
     const halfLen = len >> 1;
     const angle = (-2 * Math.PI) / len;
@@ -392,7 +385,7 @@ export function computeFFT(trace: Float32Array): { frequencies: Float32Array; ma
 
   for (let i = 0; i < numFreqs; i++) {
     magnitudes[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
-    frequencies[i] = i; // Normalized bin frequency
+    frequencies[i] = i;
   }
 
   return { frequencies, magnitudes };
@@ -423,7 +416,7 @@ function performKirchhoffMigration(
     const endT = Math.min(numTraces - 1, t0 + apertureTraces);
 
     for (let s0 = 0; s0 < numSamples; s0++) {
-      const z0 = (s0 * dtNs * vMPerNs) / 2.0; // Depth in meters
+      const z0 = (s0 * dtNs * vMPerNs) / 2.0;
       if (z0 <= 0) continue;
 
       let sum = 0;
@@ -432,7 +425,6 @@ function performKirchhoffMigration(
       for (let t = startT; t <= endT; t++) {
         const x = t * dxM;
         const dx = x - x0;
-        // Hyperbolic travel time t = (2 / v) * sqrt(z0^2 + dx^2)
         const tTravelNs = (2.0 / vMPerNs) * Math.sqrt(z0 * z0 + dx * dx);
         const sIdx = Math.round(tTravelNs / dtNs);
 

@@ -58,10 +58,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'filters' | 'gain' | 'geometry' | 'migration' | 'display' | 'header'>('header');
 
-  // Custom Gain Curve Canvas Ref
   const gainCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Helper to update DSP options field
   const updateOption = <K extends keyof DSPOptions>(key: K, value: DSPOptions[K]) => {
     onChange({
       ...options,
@@ -69,7 +67,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     });
   };
 
-  // Helper to update GSF header override
   const updateHeader = <K extends keyof GSFHeader>(key: K, value: GSFHeader[K]) => {
     if (!header || !onHeaderChange) return;
     onHeaderChange({
@@ -95,7 +92,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, w, h);
 
-    // Draw Grid
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
@@ -106,7 +102,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
       ctx.stroke();
     }
 
-    // Draw Curve
     const pts = options.customGainCurve || [1, 1, 1, 1, 1];
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 2;
@@ -121,7 +116,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     }
     ctx.stroke();
 
-    // Draw control nodes
     for (let i = 0; i < pts.length; i++) {
       const x = (i / (pts.length - 1)) * w;
       const y = h - (pts[i] / 10) * h;
@@ -133,7 +127,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     }
   }, [activeTab, options.gainType, options.customGainCurve]);
 
-  // Handle custom gain curve canvas click to adjust node
   const handleGainCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = gainCanvasRef.current;
     if (!canvas) return;
@@ -289,7 +282,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               <div>
                 <span className="font-bold text-text-primary block text-xs">Muestras por Traza (Ns)</span>
                 <p className="text-[10px] text-text-muted mt-0.5">
-                  Cambia el valor para corregir el ancho de traza y las líneas diagonales:
+                  Selecciona la longitud de muestra estándar:
                 </p>
               </div>
 
@@ -310,59 +303,110 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 ))}
               </div>
 
-              {/* Header Offset / Data Start */}
-              <div>
-                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
-                  Offset de Inicio de Datos:
-                </label>
-                <div className="grid grid-cols-3 gap-1.5 mb-1.5">
-                  {[0, 512, 1024].map((off) => (
-                    <button
-                      key={off}
-                      onClick={() => updateHeader('byteOffsetData', off)}
-                      className={`py-1 rounded-lg text-[11px] font-mono border transition ${
-                        header.byteOffsetData === off
-                          ? 'bg-primary text-white border-primary font-bold'
-                          : 'bg-white text-text-secondary border-border hover:bg-gray-100'
-                      }`}
-                    >
-                      {off} B
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Trace Header size */}
+              {/* Bytes de Cabecera por Traza */}
               <div>
                 <label className="text-[11px] font-semibold text-text-secondary block mb-1">
                   Bytes de Cabecera por Traza:
                 </label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[0, 16, 24, 32].map((th) => (
+                <div className="grid grid-cols-5 gap-1">
+                  {[0, 16, 24, 32, 64].map((th) => (
                     <button
                       key={th}
                       onClick={() => updateHeader('traceHeaderBytes', th)}
-                      className={`py-1 rounded-lg text-[11px] font-mono border transition ${
+                      className={`py-1 rounded-lg text-[10px] font-mono border transition ${
                         header.traceHeaderBytes === th
                           ? 'bg-primary text-white border-primary font-bold'
                           : 'bg-white text-text-secondary border-border hover:bg-gray-100'
                       }`}
                     >
-                      {th} B
+                      {th}B
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Format & Traces */}
+              {/* Endianness & Format */}
+              <div>
+                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                  Orden de Bytes (Endianness):
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={() => updateHeader('littleEndian', true)}
+                    className={`py-1 rounded-lg text-[11px] border transition ${
+                      header.littleEndian !== false
+                        ? 'bg-primary text-white border-primary font-bold'
+                        : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                    }`}
+                  >
+                    Little Endian
+                  </button>
+                  <button
+                    onClick={() => updateHeader('littleEndian', false)}
+                    className={`py-1 rounded-lg text-[11px] border transition ${
+                      header.littleEndian === false
+                        ? 'bg-primary text-white border-primary font-bold'
+                        : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                    }`}
+                  >
+                    Big Endian
+                  </button>
+                </div>
+              </div>
+
+              {/* Data Type */}
+              <div>
+                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                  Tipo de Dato Muestral:
+                </label>
+                <div className="grid grid-cols-3 gap-1">
+                  {(['int16', 'uint16', 'float32'] as GSFHeader['dataType'][]).map((dt) => (
+                    <button
+                      key={dt}
+                      onClick={() => updateHeader('dataType', dt)}
+                      className={`py-1 rounded-lg text-[11px] uppercase font-mono border transition ${
+                        header.dataType === dt
+                          ? 'bg-primary text-white border-primary font-bold'
+                          : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                      }`}
+                    >
+                      {dt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Offset de Inicio de Datos */}
+              <div>
+                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                  Offset Inicio Datos:
+                </label>
+                <div className="grid grid-cols-4 gap-1">
+                  {[0, 512, 1024, 2048].map((off) => (
+                    <button
+                      key={off}
+                      onClick={() => updateHeader('byteOffsetData', off)}
+                      className={`py-1 rounded-lg text-[10px] font-mono border transition ${
+                        header.byteOffsetData === off
+                          ? 'bg-primary text-white border-primary font-bold'
+                          : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                      }`}
+                    >
+                      {off}B
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Summary */}
               <div className="p-2.5 bg-white rounded-xl border border-border text-[11px] font-mono space-y-1">
                 <div className="flex justify-between">
                   <span className="text-text-muted">Total Trazas:</span>
                   <span className="text-primary font-bold">{header.numTraces}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-text-muted">Formato Muestra:</span>
-                  <span className="text-text-primary uppercase font-bold">{header.dataType}</span>
+                  <span className="text-text-muted">Muestras/Traza:</span>
+                  <span className="text-amber-600 font-bold">{header.numSamples}</span>
                 </div>
               </div>
             </div>
@@ -372,7 +416,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         {/* TAB 2: FILTERS */}
         {activeTab === 'filters' && (
           <div className="space-y-3">
-            {/* Dewow */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-text-primary">Filtro Dewow (DC Offset)</span>
@@ -402,7 +445,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               )}
             </div>
 
-            {/* Background Removal */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-text-primary">Background Removal</span>
@@ -434,7 +476,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               )}
             </div>
 
-            {/* Digital Frequency Filters */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
               <span className="font-semibold text-text-primary block">Filtro Digital Frecuencial</span>
               <select
@@ -501,12 +542,30 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 onChange={(e) => updateOption('gainType', e.target.value as DSPOptions['gainType'])}
                 className="select w-full"
               >
-                <option value="none">Sin Ganancia Aplicada</option>
+                <option value="agc">AGC (Control Automático de Ganancia - Recomendado)</option>
                 <option value="linear">Ganancia Lineal</option>
                 <option value="exp">Ganancia Exponencial / Cuadrática</option>
-                <option value="agc">AGC (Control Automático de Ganancia)</option>
                 <option value="custom">Curva Dibujable por Usuario</option>
+                <option value="none">Sin Ganancia Aplicada</option>
               </select>
+
+              {options.gainType === 'agc' && (
+                <div>
+                  <div className="flex justify-between text-[11px] text-text-muted">
+                    <span>Ventana RMS AGC:</span>
+                    <span className="font-mono text-primary font-bold">{options.agcWindowSamples} muestras</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={8}
+                    max={256}
+                    step={8}
+                    value={options.agcWindowSamples}
+                    onChange={(e) => updateOption('agcWindowSamples', parseInt(e.target.value, 10))}
+                    className="w-full accent-primary bg-gray-200 rounded"
+                  />
+                </div>
+              )}
 
               {options.gainType === 'linear' && (
                 <div>
@@ -561,24 +620,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 </div>
               )}
 
-              {options.gainType === 'agc' && (
-                <div>
-                  <div className="flex justify-between text-[11px] text-text-muted">
-                    <span>Ventana RMS AGC:</span>
-                    <span className="font-mono text-primary font-bold">{options.agcWindowSamples} muestras</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={8}
-                    max={256}
-                    step={8}
-                    value={options.agcWindowSamples}
-                    onChange={(e) => updateOption('agcWindowSamples', parseInt(e.target.value, 10))}
-                    className="w-full accent-primary bg-gray-200 rounded"
-                  />
-                </div>
-              )}
-
               {options.gainType === 'custom' && (
                 <div className="space-y-2">
                   <span className="text-[11px] text-text-muted block">Haz clic para ajustar los nodos:</span>
@@ -593,7 +634,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               )}
             </div>
 
-            {/* Hilbert Envelope */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border flex items-center justify-between">
               <div>
                 <span className="font-semibold text-text-primary block">Transformada Hilbert</span>
@@ -612,7 +652,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         {/* TAB 4: GEOMETRY */}
         {activeTab === 'geometry' && (
           <div className="space-y-3">
-            {/* Zero-Time Shift */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <span className="font-semibold text-text-primary block">Ajuste Cero Temporal (Zero-Time)</span>
               <div className="flex justify-between text-[11px] text-text-muted">
@@ -630,7 +669,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               />
             </div>
 
-            {/* Trace Stacking */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <span className="font-semibold text-text-primary block">Promediado de Trazas (Stacking)</span>
               <div className="flex justify-between text-[11px] text-text-muted">
@@ -648,7 +686,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               />
             </div>
 
-            {/* Trace Skipping */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <span className="font-semibold text-text-primary block">Descarte de Trazas (Skipping)</span>
               <div className="flex justify-between text-[11px] text-text-muted">
@@ -689,13 +726,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 />
               </div>
 
-              {/* Calculated Velocity pill */}
               <div className="bg-white p-2.5 rounded-xl flex items-center justify-between font-mono text-xs border border-border">
                 <span className="text-text-muted font-sans">Velocidad propagación v:</span>
                 <span className="text-primary font-bold">{currentVelocity.toFixed(4)} m/ns</span>
               </div>
 
-              {/* Presets */}
               <div className="space-y-1">
                 <span className="text-[10px] text-text-muted font-medium">Presets típicos:</span>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -727,7 +762,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               </div>
             </div>
 
-            {/* Hyperbola Tool Button */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <span className="font-semibold text-text-primary block">Calibrador de Hipérbola</span>
               <button
@@ -741,7 +775,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               </button>
             </div>
 
-            {/* Kirchhoff Migration */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -780,7 +813,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         {/* TAB 6: DISPLAY / RENDER */}
         {activeTab === 'display' && (
           <div className="space-y-3">
-            {/* Color Palette Selection */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <span className="font-semibold text-text-primary block">Paleta de Colores</span>
               <div className="grid grid-cols-2 gap-2">
@@ -800,7 +832,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               </div>
             </div>
 
-            {/* Contrast Slider */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <div className="flex justify-between text-[11px]">
                 <span className="font-semibold text-text-primary">Contraste:</span>
@@ -817,7 +848,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               />
             </div>
 
-            {/* Brightness Slider */}
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <div className="flex justify-between text-[11px]">
                 <span className="font-semibold text-text-primary">Brillo:</span>

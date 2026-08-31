@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GPRDataset } from '@/lib/gpr/gsfParser';
 import { calculateVelocity } from '@/lib/gpr/dspEngine';
-import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 export type ColorPalette = 'grayscale' | 'sepia' | 'jet' | 'seismic' | 'bone';
 
@@ -32,7 +32,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Pan & Zoom state
-  const [zoom, setZoom] = useState<number>(1.0);
+  const [zoomX, setZoomX] = useState<number>(1.0);
+  const [zoomY, setZoomY] = useState<number>(1.0);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -56,14 +57,15 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
   // Reset view
   const handleResetView = () => {
-    setZoom(1.0);
+    setZoomX(1.0);
+    setZoomY(1.0);
     setPanOffset({ x: 0, y: 0 });
   };
 
   // Convert normalized amplitude to RGBA color based on selected palette
   const getPaletteColor = useCallback(
     (normVal: number): [number, number, number] => {
-      // normVal is [-1, 1]
+      // normVal is in range [-1, 1]
       const val = Math.max(-1, Math.min(1, normVal * contrast + brightness / 100));
 
       if (palette === 'grayscale') {
@@ -108,7 +110,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
         return [Math.min(255, r), Math.min(255, g), Math.min(255, b)];
       } else {
         // Jet / Rainbow
-        const v = (val + 1) / 2; // 0 to 1
+        const v = (val + 1) / 2;
         const r = Math.max(0, Math.min(255, Math.floor(255 * Math.sin(v * Math.PI))));
         const g = Math.max(0, Math.min(255, Math.floor(255 * Math.sin((v - 0.25) * Math.PI))));
         const b = Math.max(0, Math.min(255, Math.floor(255 * Math.cos(v * Math.PI * 0.5))));
@@ -134,7 +136,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     canvas.height = height;
 
     // Background
-    ctx.fillStyle = '#0b132b';
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, width, height);
 
     // Margins for rulers
@@ -144,29 +146,32 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
     if (plotWidth <= 0 || plotHeight <= 0) return;
 
+    // Robust amplitude threshold using sampled percentiles / standard deviation
+    let sumAbs = 0;
+    let count = 0;
+    const sampleStep = Math.max(1, Math.floor(numTraces / 200));
+
+    for (let t = 0; t < numTraces; t += sampleStep) {
+      const tr = processedMatrix[t];
+      for (let s = 0; s < numSamples; s += 2) {
+        sumAbs += Math.abs(tr[s]);
+        count++;
+      }
+    }
+
+    const meanAbs = count > 0 ? sumAbs / count : 1.0;
+    // Robust saturation limit (typically ~2.8x mean absolute deviation)
+    const normScale = Math.max(1e-4, meanAbs * 2.8);
+
     // Offscreen ImageData rendering
     const imgData = ctx.createImageData(numTraces, numSamples);
     const data = imgData.data;
 
-    // Find min & max amplitude for normalization
-    let minA = Infinity;
-    let maxA = -Infinity;
-    for (let t = 0; t < numTraces; t++) {
-      const tr = processedMatrix[t];
-      for (let s = 0; s < numSamples; s++) {
-        const v = tr[s];
-        if (v < minA) minA = v;
-        if (v > maxA) maxA = v;
-      }
-    }
-    const maxAbs = Math.max(Math.abs(minA), Math.abs(maxA)) || 1.0;
-
-    // Populate pixels
     let ptr = 0;
     for (let s = 0; s < numSamples; s++) {
       for (let t = 0; t < numTraces; t++) {
         const amp = processedMatrix[t][s];
-        const normVal = amp / maxAbs;
+        const normVal = Math.max(-1.0, Math.min(1.0, amp / normScale));
         const [r, g, b] = getPaletteColor(normVal);
 
         data[ptr] = r;
@@ -193,7 +198,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     ctx.clip();
 
     ctx.translate(margin.left + panOffset.x, margin.top + panOffset.y);
-    ctx.scale(zoom, zoom);
+    ctx.scale(zoomX, zoomY);
 
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(offCanvas, 0, 0, numTraces, numSamples, 0, 0, plotWidth, plotHeight);
@@ -206,7 +211,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       const vMPerNs = calculateVelocity(dielectricPermittivity);
 
       ctx.strokeStyle = '#f5a623';
-      ctx.lineWidth = 2.5 / zoom;
+      ctx.lineWidth = 2.5 / Math.min(zoomX, zoomY);
       ctx.beginPath();
 
       const t0Ns = apex.sample * dt;
@@ -236,17 +241,17 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
       ctx.fillStyle = '#f5a623';
       ctx.beginPath();
-      ctx.arc(apexCanvasX, apexCanvasY, 6 / zoom, 0, Math.PI * 2);
+      ctx.arc(apexCanvasX, apexCanvasY, 6 / Math.min(zoomX, zoomY), 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2 / zoom;
+      ctx.lineWidth = 2 / Math.min(zoomX, zoomY);
       ctx.stroke();
     }
 
     ctx.restore();
 
     // Draw Rulers & Grid Axes
-    ctx.strokeStyle = '#1e293b';
+    ctx.strokeStyle = '#334155';
     ctx.fillStyle = '#94a3b8';
     ctx.font = '11px sans-serif';
 
@@ -254,7 +259,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     ctx.strokeRect(margin.left, margin.top, plotWidth, plotHeight);
 
     // Top X-Axis: Distance (m) & Trace #
-    const numXTicks = 6;
+    const numXTicks = 8;
     for (let i = 0; i <= numXTicks; i++) {
       const frac = i / numXTicks;
       const xPos = margin.left + frac * plotWidth;
@@ -295,15 +300,15 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       ctx.fillStyle = '#94a3b8';
     }
 
-    // Labels
+    // Axis titles
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 11px sans-serif';
-    ctx.fillText('Distancia (m)', margin.left + plotWidth / 2, 14);
+    ctx.fillText('Distancia Perfil (m)', margin.left + plotWidth / 2, 14);
 
     ctx.save();
     ctx.translate(14, margin.top + plotHeight / 2);
     ctx.rotate(-Math.PI / 2);
-    ctx.fillText('Tiempo (ns) / Prof. (m)', 0, 0);
+    ctx.fillText('Tiempo (ns) / Profundidad (m)', 0, 0);
     ctx.restore();
   }, [
     processedMatrix,
@@ -312,7 +317,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     palette,
     contrast,
     brightness,
-    zoom,
+    zoomX,
+    zoomY,
     panOffset,
     showHyperbolaTool,
     hyperbolaApex,
@@ -334,7 +340,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const plotWidth = rect.width - margin.left - margin.right;
     const plotHeight = rect.height - margin.top - margin.bottom;
 
-    // Check if clicking inside plot area
     if (
       clickX >= margin.left &&
       clickX <= margin.left + plotWidth &&
@@ -342,9 +347,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       clickY <= margin.top + plotHeight
     ) {
       if (e.shiftKey || showHyperbolaTool) {
-        // Hyperbola apex movement or trace selection
-        const normX = (clickX - margin.left - panOffset.x) / (plotWidth * zoom);
-        const normY = (clickY - margin.top - panOffset.y) / (plotHeight * zoom);
+        const normX = (clickX - margin.left - panOffset.x) / (plotWidth * zoomX);
+        const normY = (clickY - margin.top - panOffset.y) / (plotHeight * zoomY);
 
         const traceIdx = Math.max(0, Math.min(numTraces - 1, Math.floor(normX * numTraces)));
         const sampleIdx = Math.max(0, Math.min(numSamples - 1, Math.floor(normY * numSamples)));
@@ -356,7 +360,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           onSelectTrace(traceIdx);
         }
       } else {
-        // Start Panning
         setIsPanning(true);
         setDragStart({ x: clickX - panOffset.x, y: clickY - panOffset.y });
       }
@@ -384,8 +387,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     }
 
     if (isDraggingApex && showHyperbolaTool) {
-      const normX = (mouseX - margin.left - panOffset.x) / (plotWidth * zoom);
-      const normY = (mouseY - margin.top - panOffset.y) / (plotHeight * zoom);
+      const normX = (mouseX - margin.left - panOffset.x) / (plotWidth * zoomX);
+      const normY = (mouseY - margin.top - panOffset.y) / (plotHeight * zoomY);
 
       const traceIdx = Math.max(0, Math.min(numTraces - 1, Math.floor(normX * numTraces)));
       const sampleIdx = Math.max(0, Math.min(numSamples - 1, Math.floor(normY * numSamples)));
@@ -394,15 +397,14 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       return;
     }
 
-    // Hover Info Calculation
     if (
       mouseX >= margin.left &&
       mouseX <= margin.left + plotWidth &&
       mouseY >= margin.top &&
       mouseY <= margin.top + plotHeight
     ) {
-      const normX = (mouseX - margin.left - panOffset.x) / (plotWidth * zoom);
-      const normY = (mouseY - margin.top - panOffset.y) / (plotHeight * zoom);
+      const normX = (mouseX - margin.left - panOffset.x) / (plotWidth * zoomX);
+      const normY = (mouseY - margin.top - panOffset.y) / (plotHeight * zoomY);
 
       if (normX >= 0 && normX <= 1 && normY >= 0 && normY <= 1) {
         const traceIdx = Math.floor(normX * numTraces);
@@ -432,8 +434,14 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
-    setZoom((prev) => Math.max(0.5, Math.min(10.0, prev * zoomFactor)));
+    const factor = e.deltaY < 0 ? 1.15 : 0.85;
+    if (e.shiftKey) {
+      // Horizontal stretch only
+      setZoomX((prev) => Math.max(0.2, Math.min(30.0, prev * factor)));
+    } else {
+      setZoomX((prev) => Math.max(0.2, Math.min(30.0, prev * factor)));
+      setZoomY((prev) => Math.max(0.2, Math.min(10.0, prev * factor)));
+    }
   };
 
   return (
@@ -444,7 +452,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           <span className="font-bold text-sky-400">Visualizador B-Scan</span>
           {dataset && (
             <span className="bg-slate-800 px-2.5 py-0.5 rounded-full text-slate-300 font-mono text-[11px] border border-slate-700">
-              {dataset.filename} • <span className="text-emerald-400 font-bold">{numTraces}</span> trazas • <span className="text-amber-400 font-bold">{numSamples}</span> muestras/traza
+              {dataset.filename} • <span className="text-emerald-400 font-bold">{numTraces}</span> trazas • <span className="text-amber-400 font-bold">{numSamples}</span> muestras
             </span>
           )}
         </div>
@@ -452,28 +460,41 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
         <div className="flex items-center gap-2">
           {/* Zoom Buttons */}
           <button
-            onClick={() => setZoom((z) => Math.min(10, z * 1.25))}
+            onClick={() => {
+              setZoomX((z) => Math.min(30, z * 1.25));
+              setZoomY((z) => Math.min(10, z * 1.25));
+            }}
             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
             title="Acercar Zoom"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setZoom((z) => Math.max(0.5, z * 0.8))}
+            onClick={() => {
+              setZoomX((z) => Math.max(0.2, z * 0.8));
+              setZoomY((z) => Math.max(0.2, z * 0.8));
+            }}
             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
             title="Alejar Zoom"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
           <button
+            onClick={() => setZoomX((z) => Math.min(30, z * 1.5))}
+            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition text-[10px] font-bold"
+            title="Expandir Horizontalmente (Estirar Ondas)"
+          >
+            ↔ Estirar
+          </button>
+          <button
             onClick={handleResetView}
             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
-            title="Restablecer Vista"
+            title="Restablecer Vista Completa"
           >
-            <RotateCcw className="w-4 h-4" />
+            <Maximize2 className="w-4 h-4" />
           </button>
 
-          <span className="text-xs text-slate-400 ml-1.5 font-mono">{Math.round(zoom * 100)}%</span>
+          <span className="text-xs text-slate-400 ml-1.5 font-mono">{Math.round(zoomX * 100)}%</span>
         </div>
       </div>
 
@@ -505,7 +526,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
               <span className="text-slate-400 font-sans">Profundidad:</span> <span className="text-purple-400 font-bold">{hoverInfo.depthM.toFixed(2)}m</span>
             </div>
             <div>
-              <span className="text-slate-400 font-sans">Amplitud:</span> <span className="text-rose-400 font-bold">{hoverInfo.amplitude.toFixed(1)}</span>
+              <span className="text-slate-400 font-sans">Amplitud:</span> <span className="text-rose-400 font-bold">{hoverInfo.amplitude.toFixed(2)}</span>
             </div>
           </div>
         )}

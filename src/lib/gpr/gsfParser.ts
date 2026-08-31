@@ -16,8 +16,9 @@ export interface GSFHeader {
   zeroOffsetNs: number;           // Time zero offset
   byteOffsetData: number;         // Byte offset where trace sample data starts (typically 1024)
   traceHeaderBytes: number;       // Bytes per trace header (0, 16, 24, 32, etc.)
-  bytesPerSample: number;         // 2 (int16) or 4 (float32)
-  dataType: 'int16' | 'uint16' | 'float32';
+  bytesPerSample: number;         // 2 (int16) or 4 (float32 / int32)
+  dataType: 'int16' | 'uint16' | 'int32' | 'float32';
+  littleEndian: boolean;          // Byte order (true = Little Endian, false = Big Endian)
   headerSize: number;
 }
 
@@ -56,8 +57,8 @@ export function extractGSFHeader(buffer: ArrayBuffer, filename: string): GSFHead
     version: 1.0,
     numTraces: 0,
     numSamples: 512,
-    sampleIntervalNs: 0.1, // 100 ps default
-    timeWindowNs: 51.2,
+    sampleIntervalNs: 0.097656, // ~100 ps default
+    timeWindowNs: 50.0,
     antennaFreqMHz: 450,
     dielectricPermittivity: 9.0,
     traceDistanceStepM: 0.05,
@@ -66,6 +67,7 @@ export function extractGSFHeader(buffer: ArrayBuffer, filename: string): GSFHead
     traceHeaderBytes: 0,
     bytesPerSample: 2,
     dataType: 'int16',
+    littleEndian: true,
     headerSize: 1024,
   };
 
@@ -73,11 +75,10 @@ export function extractGSFHeader(buffer: ArrayBuffer, filename: string): GSFHead
   const maxHeaderBytes = Math.min(totalBytes, 4096);
   const headerText = readAsciiString(dataView, 0, maxHeaderBytes);
 
-  // Check if text header contains ASCII key-values
   let foundAsciiSamples = false;
 
   // Regex patterns for ImpulseRadar / Geotech / GPR ASCII headers
-  const samplesMatch = headerText.match(/(?:SAMPLES|POINTS|NUM_SAMPLES|MUESTRAS|SAMP_PER_TRACE|NS|SAMPLES_PER_TRACE)[\s:=]+([0-9]+)/i);
+  const samplesMatch = headerText.match(/(?:SAMPLES|POINTS|NUM_SAMPLES|MUESTRAS|SAMP_PER_TRACE|NS|SAMPLES_PER_TRACE|SAMPS)[\s:=]+([0-9]+)/i);
   if (samplesMatch) {
     const s = parseInt(samplesMatch[1], 10);
     if (s >= 32 && s <= 8192) {
@@ -94,16 +95,15 @@ export function extractGSFHeader(buffer: ArrayBuffer, filename: string): GSFHead
     }
   }
 
-  const dtMatch = headerText.match(/(?:SAMPLEINTERVAL|SAMPLE_INTERVAL|TIME_INCREMENT|DT|SAMPLE_INT|TIME_STEP)[\s:=]+([0-9.]+)/i);
+  const dtMatch = headerText.match(/(?:SAMPLEINTERVAL|SAMPLE_INTERVAL|TIME_INCREMENT|DT|SAMPLE_INT|TIME_STEP|SAMPLE_RATE)[\s:=]+([0-9.]+)/i);
   if (dtMatch) {
     const dt = parseFloat(dtMatch[1]);
     if (dt > 0) {
-      // If dt > 5, it's likely in picoseconds -> convert to ns
       header.sampleIntervalNs = dt > 5 ? dt / 1000.0 : dt;
     }
   }
 
-  const timeWinMatch = headerText.match(/(?:TIMEWINDOW|TIME_WINDOW|RANGE|WINDOW_NS|TIME_RANGE)[\s:=]+([0-9.]+)/i);
+  const timeWinMatch = headerText.match(/(?:TIMEWINDOW|TIME_WINDOW|RANGE|WINDOW_NS|TIME_RANGE|WINDOW)[\s:=]+([0-9.]+)/i);
   if (timeWinMatch) {
     const win = parseFloat(timeWinMatch[1]);
     if (win > 0 && win < 10000) {
@@ -138,7 +138,6 @@ export function extractGSFHeader(buffer: ArrayBuffer, filename: string): GSFHead
       header.headerSize = off;
     }
   } else {
-    // Detect binary start: Look for null terminators or start at 1024 or 512
     if (totalBytes >= 1024) {
       header.byteOffsetData = 1024;
       header.headerSize = 1024;
@@ -151,20 +150,22 @@ export function extractGSFHeader(buffer: ArrayBuffer, filename: string): GSFHead
     }
   }
 
-  const traceHeadMatch = headerText.match(/(?:TRACE_HEADER_SIZE|TRACEHEADER|TRACE_HEADER)[\s:=]+([0-9]+)/i);
+  const traceHeadMatch = headerText.match(/(?:TRACE_HEADER_SIZE|TRACEHEADER|TRACE_HEADER|TRACE_HDR)[\s:=]+([0-9]+)/i);
   if (traceHeadMatch) {
     header.traceHeaderBytes = parseInt(traceHeadMatch[1], 10);
+  } else {
+    // Default to 0 bytes for standard raw ImpulseRadar / Geotech trace arrays
+    header.traceHeaderBytes = 0;
   }
 
   // 2. Fallback heuristic if no ASCII samples tag was found
   if (!foundAsciiSamples) {
-    // Check standard power-of-two samples: 512, 1024, 256, 2048, 4096
     const candidateSamples = [512, 1024, 256, 2048, 128, 4096];
     const dataLen = totalBytes - header.byteOffsetData;
 
     let bestSamples = 512;
     for (const cand of candidateSamples) {
-      const bytesPerTrace = cand * 2 + header.traceHeaderBytes;
+      const bytesPerTrace = cand * header.bytesPerSample + header.traceHeaderBytes;
       if (bytesPerTrace > 0 && dataLen % bytesPerTrace === 0) {
         bestSamples = cand;
         break;
@@ -207,9 +208,11 @@ export function buildDatasetFromHeader(
   let minAmp = Infinity;
   let maxAmp = -Infinity;
 
-  const bytesPerTrace = header.numSamples * header.bytesPerSample + header.traceHeaderBytes;
+  const bytesPerSample = header.dataType === 'int32' || header.dataType === 'float32' ? 4 : 2;
+  const bytesPerTrace = header.numSamples * bytesPerSample + header.traceHeaderBytes;
   const maxPossibleTraces = Math.floor(Math.max(0, totalBytes - header.byteOffsetData) / bytesPerTrace);
   const numTraces = Math.min(header.numTraces || maxPossibleTraces, maxPossibleTraces);
+  const isLE = header.littleEndian !== false; // Default true
 
   for (let t = 0; t < numTraces; t++) {
     const traceStartOffset = header.byteOffsetData + t * bytesPerTrace + header.traceHeaderBytes;
@@ -217,16 +220,18 @@ export function buildDatasetFromHeader(
     const processedSamples = new Float32Array(header.numSamples);
 
     for (let s = 0; s < header.numSamples; s++) {
-      const sampleOffset = traceStartOffset + s * header.bytesPerSample;
+      const sampleOffset = traceStartOffset + s * bytesPerSample;
       let value = 0;
 
-      if (sampleOffset + header.bytesPerSample <= totalBytes) {
+      if (sampleOffset + bytesPerSample <= totalBytes) {
         if (header.dataType === 'float32') {
-          value = dataView.getFloat32(sampleOffset, true);
+          value = dataView.getFloat32(sampleOffset, isLE);
+        } else if (header.dataType === 'int32') {
+          value = dataView.getInt32(sampleOffset, isLE);
         } else if (header.dataType === 'uint16') {
-          value = dataView.getUint16(sampleOffset, true) - 32768;
+          value = dataView.getUint16(sampleOffset, isLE) - 32768;
         } else {
-          value = dataView.getInt16(sampleOffset, true);
+          value = dataView.getInt16(sampleOffset, isLE);
         }
       }
 
@@ -257,7 +262,7 @@ export function buildDatasetFromHeader(
     id: `gpr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     filename,
     rawBuffer: buffer,
-    header: { ...header, numTraces },
+    header: { ...header, bytesPerSample, numTraces },
     traces,
     rawMatrix,
     processedMatrix,
@@ -283,7 +288,7 @@ function readAsciiString(dataView: DataView, offset: number, length: number): st
   for (let i = 0; i < length; i++) {
     if (offset + i < dataView.byteLength) {
       const charCode = dataView.getUint8(offset + i);
-      if (charCode === 0) continue; // Skip nulls in headers
+      if (charCode === 0) continue;
       str += String.fromCharCode(charCode);
     }
   }

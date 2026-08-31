@@ -244,6 +244,7 @@ export default function RadargramaWorkstationPage() {
       traceHeaderBytes: 0,
       bytesPerSample: 2,
       dataType: 'int16',
+      littleEndian: true,
       headerSize: 1024,
     };
 
