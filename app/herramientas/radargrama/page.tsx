@@ -23,12 +23,17 @@ import {
   Sparkles,
   X,
   FolderOpen,
+  Loader2,
 } from 'lucide-react';
 
 export default function RadargramaWorkstationPage() {
   // Datasets state
   const [datasets, setDatasets] = useState<GPRDataset[]>([]);
   const [activeDatasetId, setActiveDatasetId] = useState<string | null>(null);
+
+  // Map dataset ID -> Python-generated image Base64 (from visualizador_gpr_gsf.py)
+  const [pythonImagesMap, setPythonImagesMap] = useState<Record<string, string>>({});
+  const [isProcessingPython, setIsProcessingPython] = useState<boolean>(false);
 
   // DSP Options per dataset (map dataset ID -> options)
   const [dspOptionsMap, setDspOptionsMap] = useState<Record<string, DSPOptions>>({});
@@ -50,6 +55,7 @@ export default function RadargramaWorkstationPage() {
     ? dspOptionsMap[activeDatasetId]
     : DEFAULT_DSP_OPTIONS;
   const activeProcessedMatrix = activeDatasetId ? processedMatrices[activeDatasetId] || null : null;
+  const activePythonImage = activeDatasetId ? pythonImagesMap[activeDatasetId] || undefined : undefined;
 
   // Run DSP pipeline whenever active dataset or its DSP options change
   useEffect(() => {
@@ -61,6 +67,62 @@ export default function RadargramaWorkstationPage() {
       [activeDataset.id]: processed,
     }));
   }, [activeDataset, activeOptions]);
+
+  // Execute Python visualizer script via Next.js API
+  const runPythonProcessing = async (file: File, datasetId: string, currentOpts: DSPOptions) => {
+    try {
+      setIsProcessingPython(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('er', currentOpts.dielectricPermittivity.toString());
+      formData.append('ventanaNs', currentOpts.ventanaNs.toString());
+      formData.append('dx', currentOpts.traceDistanceStepM.toString());
+      formData.append('cmap', palette);
+      formData.append('conFiltros', (currentOpts.mode === 'procesado').toString());
+
+      const res = await fetch('/api/gpr/process-py', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const pyData = json.data;
+
+          if (pyData.imageBase64) {
+            setPythonImagesMap((prev) => ({
+              ...prev,
+              [datasetId]: pyData.imageBase64,
+            }));
+          }
+
+          // Update header with exact Python calculations
+          setDatasets((prev) =>
+            prev.map((ds) => {
+              if (ds.id === datasetId) {
+                const updatedHdr: GSFHeader = {
+                  ...ds.header,
+                  numTraces: pyData.numTraces || ds.header.numTraces,
+                  numSamples: pyData.numSamples || ds.header.numSamples,
+                  timeWindowNs: pyData.timeWindowNs || ds.header.timeWindowNs,
+                  dielectricPermittivity: pyData.er || ds.header.dielectricPermittivity,
+                  traceDistanceStepM: pyData.dxM || ds.header.traceDistanceStepM,
+                  tracesPerMeter: pyData.tracesPerMeter || ds.header.tracesPerMeter,
+                };
+                return buildDatasetFromHeader(ds.rawBuffer, ds.filename, updatedHdr);
+              }
+              return ds;
+            })
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('Error al procesar con Python API (usando motor nativo web):', err);
+    } finally {
+      setIsProcessingPython(false);
+    }
+  };
 
   // Handle Binary GSF File Upload (Single or Batch)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,6 +144,9 @@ export default function RadargramaWorkstationPage() {
           ventanaNs: ds.header.timeWindowNs || VENTANA_TIEMPO_NS_DEF,
           traceDistanceStepM: ds.header.traceDistanceStepM || DX_DEF,
         };
+
+        // Trigger Python processing in background
+        runPythonProcessing(file, ds.id, newOptionsMap[ds.id]);
       } catch (err) {
         console.error(`Error al parsear el archivo ${file.name}:`, err);
       }
@@ -118,7 +183,6 @@ export default function RadargramaWorkstationPage() {
     const processedMatrix: Float32Array[] = [];
     const traces: GPRTrace[] = [];
 
-    // Synthesize realistic radargram profile with direct ground wave and 2 geological reflector horizons
     for (let t = 0; t < numTraces; t++) {
       const trace = new Float32Array(numSamples);
       const xM = t * traceDistanceStepM;
@@ -127,21 +191,13 @@ export default function RadargramaWorkstationPage() {
         const tNs = s * sampleIntervalNs;
         let amp = 0;
 
-        // 1. Direct Air/Ground Wave (First Arrival at t ~ 4.5ns)
         amp += 6000 * Math.sin((tNs - 4.5) * 1.2) * Math.exp(-Math.pow((tNs - 4.5) / 1.6, 2));
-
-        // 2. Subsurface Stratum Horizon at t ~ 18.0ns
         amp += 2800 * Math.sin((tNs - 18.0) * 0.9) * Math.exp(-Math.pow((tNs - 18.0) / 2.0, 2));
-
-        // 3. Second Bedrock Horizon at t ~ 36.0ns
         amp += 2000 * Math.sin((tNs - 36.0) * 0.7) * Math.exp(-Math.pow((tNs - 36.0) / 2.5, 2));
 
-        // 4. Pipe / Utility Target Hyperbola (Apex at trace 180, t0 = 24.0ns)
         const dist1 = xM - (180 * traceDistanceStepM);
         const tHyp1 = Math.sqrt(24.0 * 24.0 + (4 * dist1 * dist1) / (0.122 * 0.122));
         amp += 4500 * Math.sin((tNs - tHyp1) * 1.1) * Math.exp(-Math.pow((tNs - tHyp1) / 1.8, 2));
-
-        // Soil background noise
         amp += (Math.random() - 0.5) * 150;
 
         trace[s] = amp;
@@ -293,6 +349,12 @@ export default function RadargramaWorkstationPage() {
                   Procesador Web de Radargramas (.gsf)
                 </h1>
                 <span className="badge-primary text-[10px] px-2 py-0.5">Akula9000C / Geoscanners</span>
+                {isProcessingPython && (
+                  <span className="badge-accent text-[10px] px-2 py-0.5 flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span>Ejecutando Python...</span>
+                  </span>
+                )}
               </div>
               <p className="text-xs text-text-muted">
                 Visualizador Geofísico GPR (Modo Crudo Original y Filtros DSP)
@@ -405,6 +467,7 @@ export default function RadargramaWorkstationPage() {
               <CanvasViewer
                 dataset={activeDataset}
                 processedMatrix={activeProcessedMatrix}
+                pythonImageBase64={activePythonImage}
                 palette={palette}
                 contrast={contrast}
                 brightness={brightness}

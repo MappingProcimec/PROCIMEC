@@ -10,6 +10,7 @@ export type ColorPalette = 'seismic' | 'grayscale' | 'bone' | 'sepia' | 'jet';
 interface CanvasViewerProps {
   dataset: GPRDataset | null;
   processedMatrix: Float32Array[] | null;
+  pythonImageBase64?: string;
   palette: ColorPalette;
   contrast: number; // 0.1 to 5.0
   brightness: number; // -100 to 100
@@ -21,6 +22,7 @@ interface CanvasViewerProps {
 export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   dataset,
   processedMatrix,
+  pythonImageBase64,
   palette = 'seismic',
   contrast = 1.0,
   brightness = 0,
@@ -197,8 +199,20 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     ctx.translate(margin.left + panOffset.x, margin.top + panOffset.y);
     ctx.scale(zoomX, zoomY);
 
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(offCanvas, 0, 0, numTraces, numSamples, 0, 0, plotWidth, plotHeight);
+    if (pythonImageBase64) {
+      const pyImg = new Image();
+      pyImg.src = pythonImageBase64;
+      if (pyImg.complete) {
+        ctx.drawImage(pyImg, 0, 0, plotWidth, plotHeight);
+      } else {
+        pyImg.onload = () => {
+          ctx.drawImage(pyImg, 0, 0, plotWidth, plotHeight);
+        };
+      }
+    } else {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(offCanvas, 0, 0, numTraces, numSamples, 0, 0, plotWidth, plotHeight);
+    }
 
     // Hyperbola Tool Overlay
     if (showHyperbolaTool && dataset) {
@@ -352,6 +366,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     dielectricPermittivity,
     getPaletteColor,
     dataset,
+    pythonImageBase64,
   ]);
 
   // Mouse handlers
