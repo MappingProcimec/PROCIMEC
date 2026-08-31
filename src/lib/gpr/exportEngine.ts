@@ -2,12 +2,11 @@
  * Export Engine for GPR Radargrams
  * Handles JPG image export, single-page PDF technical report generation,
  * modified GSF binary download, and batch PowerPoint (.pptx) deck generation.
+ * Uses dynamic client-side imports for jsPDF and pptxgenjs to prevent Webpack build errors.
  */
 
 import { GPRDataset, serializeGSF } from './gsfParser';
 import { DSPOptions, calculateVelocity } from './dspEngine';
-import jsPDF from 'jspdf';
-import pptxgen from 'pptxgenjs';
 
 /**
  * Downloads a Blob object as a file in browser
@@ -45,6 +44,9 @@ export async function exportTechnicalPDFReport(
   canvas: HTMLCanvasElement,
   options: DSPOptions
 ): Promise<void> {
+  // Dynamically import jsPDF to ensure client-only execution
+  const { default: jsPDF } = await import('jspdf');
+
   const pdf = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -167,13 +169,14 @@ export function exportModifiedGSF(dataset: GPRDataset): void {
 
 /**
  * Generates a batch PowerPoint (.pptx) presentation deck for multiple GPR datasets.
- * 1 slide per loaded radargram with processed screenshot, metadata, and DSP parameters.
+ * Dynamically imports pptxgenjs client-side.
  */
 export async function exportBatchPPTX(
   datasets: GPRDataset[],
   canvases: Map<string, HTMLCanvasElement>,
   optionsMap: Map<string, DSPOptions>
 ): Promise<void> {
+  const { default: pptxgen } = await import('pptxgenjs');
   const pptx = new pptxgen();
   pptx.layout = 'LAYOUT_16x9';
 
@@ -184,7 +187,7 @@ export async function exportBatchPPTX(
     const canvas = canvases.get(ds.id);
 
     // Slide Header
-    slide.addShape(pptx.ShapeType.rect, {
+    slide.addShape(pptx.ShapeType?.rect || 'rect', {
       x: 0,
       y: 0,
       w: '100%',
@@ -218,7 +221,7 @@ export async function exportBatchPPTX(
     const distM = (numTraces * ds.header.traceDistanceStepM).toFixed(1);
     const vel = calculateVelocity(opt.dielectricPermittivity || 9.0);
 
-    const rows: pptxgen.TableCell[][] = [
+    const rows = [
       [
         { text: 'Parámetro', options: { bold: true, fill: { color: '1E293B' }, color: 'FFFFFF' } },
         { text: 'Valor', options: { bold: true, fill: { color: '1E293B' }, color: 'FFFFFF' } },

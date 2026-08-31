@@ -2,8 +2,8 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GPRDataset } from '@/lib/gpr/gsfParser';
-import { calculateVelocity, calculateDielectric } from '@/lib/gpr/dspEngine';
-import { ZoomIn, ZoomOut, RotateCcw, Crosshair, Eye, Move } from 'lucide-react';
+import { calculateVelocity } from '@/lib/gpr/dspEngine';
+import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 export type ColorPalette = 'grayscale' | 'sepia' | 'jet' | 'seismic' | 'bone';
 
@@ -14,7 +14,6 @@ interface CanvasViewerProps {
   contrast: number; // 0.1 to 5.0
   brightness: number; // -100 to 100
   dielectricPermittivity: number;
-  onDielectricChange?: (newEpsilon: number) => void;
   onSelectTrace?: (traceIdx: number) => void;
   showHyperbolaTool: boolean;
 }
@@ -26,7 +25,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   contrast,
   brightness,
   dielectricPermittivity,
-  onDielectricChange,
   onSelectTrace,
   showHyperbolaTool,
 }) => {

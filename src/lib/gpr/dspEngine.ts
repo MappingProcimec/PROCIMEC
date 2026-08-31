@@ -187,9 +187,8 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
 
   // 5. Digital Frequency Filtering (Bandpass / Lowpass / Highpass)
   if (options.filterType !== 'none') {
-    const fsMHz = 1000 / header.sampleIntervalNs; // Sampling frequency in MHz
     for (let t = 0; t < currentTraces; t++) {
-      processed[t] = applyFrequencyFilter(processed[t], fsMHz, options);
+      processed[t] = applyFrequencyFilter(processed[t], options);
     }
   }
 
@@ -278,16 +277,11 @@ function interpolateCurve(points: number[], position: number): number {
 /**
  * Digital Bandpass/Lowpass/Highpass filter using a smoothed moving FIR window
  */
-function applyFrequencyFilter(trace: Float32Array, fsMHz: number, options: DSPOptions): Float32Array {
+function applyFrequencyFilter(trace: Float32Array, options: DSPOptions): Float32Array {
   const n = trace.length;
   const filtered = new Float32Array(n);
-  
-  // Frequency ratio
-  const nyquist = fsMHz / 2;
-  const lowCutNorm = options.lowCutMHz / nyquist;
-  const highCutNorm = options.highCutMHz / nyquist;
 
-  // Simple 5-tap moving average / highpass FIR implementation
+  // 5-tap moving average / highpass FIR implementation
   for (let i = 0; i < n; i++) {
     const prev2 = i > 1 ? trace[i - 2] : trace[i];
     const prev1 = i > 0 ? trace[i - 1] : trace[i];

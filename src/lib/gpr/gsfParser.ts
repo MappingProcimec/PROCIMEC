@@ -49,7 +49,7 @@ export function parseGSFBuffer(buffer: ArrayBuffer, filename: string): GPRDatase
   const totalBytes = buffer.byteLength;
 
   // Default fallback header values in case header fields are partially defined
-  let header: GSFHeader = {
+  const header: GSFHeader = {
     title: filename.replace(/\.[^/.]+$/, ""),
     version: 1.0,
     numTraces: 0,
@@ -231,9 +231,8 @@ export function serializeGSF(dataset: GPRDataset): ArrayBuffer {
   const { header, processedMatrix } = dataset;
   const numTraces = processedMatrix.length;
   const numSamples = header.numSamples;
-  const bytesPerSample = 2; // Export standard Int16 format for max compatibility
   const headerSize = 1024;
-  const dataSize = numTraces * numSamples * bytesPerSample;
+  const dataSize = numTraces * numSamples * 2;
   const totalSize = headerSize + dataSize;
 
   const buffer = new ArrayBuffer(totalSize);

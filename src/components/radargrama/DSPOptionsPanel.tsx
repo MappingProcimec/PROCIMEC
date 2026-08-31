@@ -11,7 +11,6 @@ import {
   Globe,
   Palette,
   Crosshair,
-  Sparkles,
   RefreshCw,
 } from 'lucide-react';
 
@@ -272,7 +271,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               <span className="font-semibold text-slate-200 block">Filtro Digital Frecuencial</span>
               <select
                 value={options.filterType}
-                onChange={(e) => updateOption('filterType', e.target.value as any)}
+                onChange={(e) => updateOption('filterType', e.target.value as DSPOptions['filterType'])}
                 className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded px-2 py-1 focus:outline-none"
               >
                 <option value="none">Sin Filtro Frecuencial</option>
@@ -331,7 +330,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               <span className="font-semibold text-slate-200 block">Función de Ganancia Temporal</span>
               <select
                 value={options.gainType}
-                onChange={(e) => updateOption('gainType', e.target.value as any)}
+                onChange={(e) => updateOption('gainType', e.target.value as DSPOptions['gainType'])}
                 className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded px-2 py-1"
               >
                 <option value="none">Sin Ganancia Aplicada</option>

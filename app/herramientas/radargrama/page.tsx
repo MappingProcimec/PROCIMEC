@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GPRDataset, parseGSFBuffer } from '@/lib/gpr/gsfParser';
+import React, { useState, useEffect, useRef } from 'react';
+import { GPRDataset, GPRTrace, parseGSFBuffer } from '@/lib/gpr/gsfParser';
 import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, computeFFT } from '@/lib/gpr/dspEngine';
 import { CanvasViewer, ColorPalette } from '@/components/radargrama/CanvasViewer';
 import { DSPOptionsPanel } from '@/components/radargrama/DSPOptionsPanel';
@@ -18,13 +18,9 @@ import {
   FileText,
   Presentation,
   Activity,
-  Layers,
   Sparkles,
   X,
-  Play,
-  CheckCircle2,
   FolderOpen,
-  Info,
 } from 'lucide-react';
 
 export default function RadargramaWorkstationPage() {
@@ -52,9 +48,6 @@ export default function RadargramaWorkstationPage() {
     ? dspOptionsMap[activeDatasetId]
     : DEFAULT_DSP_OPTIONS;
   const activeProcessedMatrix = activeDatasetId ? processedMatrices[activeDatasetId] || null : null;
-
-  // Ref to canvas container for capturing exports
-  const activeCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Run DSP pipeline whenever active dataset or its DSP options change
   useEffect(() => {
@@ -106,7 +99,7 @@ export default function RadargramaWorkstationPage() {
 
     const rawMatrix: Float32Array[] = [];
     const processedMatrix: Float32Array[] = [];
-    const traces: any[] = [];
+    const traces: GPRTrace[] = [];
 
     // Synthesize radargram with direct wave, soil layers, and diffraction hyperbolas
     for (let t = 0; t < numTraces; t++) {
@@ -380,9 +373,6 @@ export default function RadargramaWorkstationPage() {
                 contrast={contrast}
                 brightness={brightness}
                 dielectricPermittivity={activeOptions.dielectricPermittivity}
-                onDielectricChange={(eps) =>
-                  handleDSPOptionsChange({ ...activeOptions, dielectricPermittivity: eps })
-                }
                 onSelectTrace={(traceIdx) => setSelectedTraceIdx(traceIdx)}
                 showHyperbolaTool={showHyperbolaTool}
               />
@@ -450,7 +440,6 @@ export default function RadargramaWorkstationPage() {
           traceIdx={selectedTraceIdx}
           dataset={activeDataset}
           processedTrace={activeProcessedMatrix[selectedTraceIdx]}
-          options={activeOptions}
           onClose={() => setSelectedTraceIdx(null)}
         />
       )}
@@ -465,24 +454,21 @@ function AScanInspectionModal({
   traceIdx,
   dataset,
   processedTrace,
-  options,
   onClose,
 }: {
   traceIdx: number;
   dataset: GPRDataset;
   processedTrace: Float32Array;
-  options: DSPOptions;
   onClose: () => void;
 }) {
   const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fftCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const numSamples = processedTrace.length;
-  const dtNs = dataset.header.sampleIntervalNs;
   const distM = traceIdx * dataset.header.traceDistanceStepM;
 
   // Compute FFT Frequency Spectrum
-  const { frequencies, magnitudes } = computeFFT(processedTrace);
+  const { magnitudes } = computeFFT(processedTrace);
 
   // Render Waveform Canvas
   useEffect(() => {
