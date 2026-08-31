@@ -13,6 +13,8 @@ interface CanvasViewerProps {
   contrast: number; // 0.1 to 5.0
   brightness: number; // -100 to 100
   dielectricPermittivity: number;
+  ventanaNs: number;
+  traceDistanceStepM: number;
   onSelectTrace?: (traceIdx: number) => void;
   showHyperbolaTool: boolean;
 }
@@ -24,6 +26,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   contrast = 1.0,
   brightness = 0,
   dielectricPermittivity = 6.0,
+  ventanaNs = 90.0,
+  traceDistanceStepM = 1.0 / 112.0,
   onSelectTrace,
   showHyperbolaTool,
 }) => {
@@ -177,10 +181,10 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     ctx.drawImage(offCanvas, 0, 0, numTraces, numSamples, margin.left, margin.top, plotWidth, plotHeight);
 
     // Hyperbola Tool Overlay
-    if (showHyperbolaTool && dataset) {
+    if (showHyperbolaTool) {
       const apex = hyperbolaApex || { trace: Math.floor(numTraces / 2), sample: Math.floor(numSamples / 3) };
-      const dt = dataset.header.sampleIntervalNs;
-      const dx = dataset.header.traceDistanceStepM;
+      const dt = ventanaNs / numSamples;
+      const dx = traceDistanceStepM;
       const vMPerNs = calculateVelocity(dielectricPermittivity);
 
       ctx.save();
@@ -227,8 +231,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     ctx.lineWidth = 1;
     ctx.strokeRect(margin.left, margin.top, plotWidth, plotHeight);
 
-    const twNs = dataset ? dataset.header.timeWindowNs : 90.0;
-    const dxM = dataset ? dataset.header.traceDistanceStepM : 1.0 / 112.0;
+    const twNs = ventanaNs;
+    const dxM = traceDistanceStepM;
     const vMPerNs = calculateVelocity(dielectricPermittivity);
     const profMaxM = (vMPerNs * twNs) / 2.0;
     const distTotalM = numTraces * dxM;
@@ -327,6 +331,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     showHyperbolaTool,
     hyperbolaApex,
     dielectricPermittivity,
+    ventanaNs,
+    traceDistanceStepM,
     getPaletteColor,
     dataset,
   ]);
@@ -401,8 +407,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
         const traceIdx = Math.floor(normX * numTraces);
         const sampleIdx = Math.floor(normY * numSamples);
 
-        const dtNs = dataset ? dataset.header.sampleIntervalNs : 0.0976;
-        const dxM = dataset ? dataset.header.traceDistanceStepM : 1.0 / 112.0;
+        const dtNs = ventanaNs / (numSamples || 512);
+        const dxM = traceDistanceStepM;
         const timeNs = sampleIdx * dtNs;
         const vMPerNs = calculateVelocity(dielectricPermittivity);
         const depthM = (timeNs * vMPerNs) / 2;
@@ -422,8 +428,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     setIsDraggingApex(false);
   };
 
-  const twNs = dataset ? dataset.header.timeWindowNs : 90.0;
-  const dxM = dataset ? dataset.header.traceDistanceStepM : 1.0 / 112.0;
+  const twNs = ventanaNs;
+  const dxM = traceDistanceStepM;
   const vMPerNs = calculateVelocity(dielectricPermittivity);
   const profMaxM = (vMPerNs * twNs) / 2.0;
   const distTotalM = numTraces * dxM;

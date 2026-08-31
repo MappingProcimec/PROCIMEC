@@ -293,26 +293,6 @@ export default function RadargramaWorkstationPage() {
 
           {/* Action Toolbar */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Quick Sample/Trace Switcher */}
-            {activeDataset && (
-              <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-xl border border-border">
-                <span className="text-[10px] font-bold text-text-secondary mr-1">Muestras:</span>
-                {[256, 512, 1024, 2048].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => handleHeaderOverride({ ...activeDataset.header, numSamples: s })}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold transition ${
-                      activeDataset.header.numSamples === s
-                        ? 'bg-primary text-white shadow-xs'
-                        : 'bg-white text-text-secondary hover:bg-gray-200 border border-border'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-
             {/* File Upload Button */}
             <label className="btn-primary btn-sm cursor-pointer shadow-glow">
               <Upload className="w-3.5 h-3.5" />
@@ -420,6 +400,8 @@ export default function RadargramaWorkstationPage() {
                 contrast={contrast}
                 brightness={brightness}
                 dielectricPermittivity={activeOptions.dielectricPermittivity}
+                ventanaNs={activeOptions.ventanaNs}
+                traceDistanceStepM={activeOptions.traceDistanceStepM}
                 onSelectTrace={(traceIdx) => setSelectedTraceIdx(traceIdx)}
                 showHyperbolaTool={showHyperbolaTool}
               />

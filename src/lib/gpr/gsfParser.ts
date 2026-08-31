@@ -215,12 +215,9 @@ export function extractGSFHeader(
 
   const erFinal = erHdr && erHdr > 0 ? erHdr : DIELECTRICO_DEF;
   
-  let dxFinal = DX_DEF;
-  let tracesPerMeter = TRAZAS_POR_METRO_DEF;
-  if (stepHdr && stepHdr > 0) {
-    dxFinal = stepHdr;
-    tracesPerMeter = 1.0 / stepHdr;
-  }
+  // Standard Odometry: 112 traces/meter (dx = 1/112 m)
+  const dxFinal = DX_DEF;
+  const tracesPerMeter = TRAZAS_POR_METRO_DEF;
 
   const dtFinal = twFinal / muestrasPorTraza;
 

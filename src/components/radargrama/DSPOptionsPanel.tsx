@@ -63,10 +63,10 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   };
 
   const currentVelocity = calculateVelocity(options.dielectricPermittivity);
-  const currentTwNs = header ? header.timeWindowNs : options.ventanaNs;
+  const currentTwNs = options.ventanaNs || (header ? header.timeWindowNs : 90.0);
   const currentDepthM = (currentVelocity * currentTwNs) / 2.0;
   const numTraces = header ? header.numTraces : 1000;
-  const currentDxM = header ? header.traceDistanceStepM : options.traceDistanceStepM;
+  const currentDxM = options.traceDistanceStepM || (header ? header.traceDistanceStepM : 1.0 / 112.0);
   const currentTotalDistM = numTraces * currentDxM;
   const currentTracesPerMeter = currentDxM > 0 ? 1.0 / currentDxM : 112.0;
 
@@ -75,27 +75,19 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     if (trm <= 0) return;
     const dx = 1.0 / trm;
     updateOption('traceDistanceStepM', dx);
-    updateHeader('traceDistanceStepM', dx);
-    updateHeader('tracesPerMeter', trm);
   };
 
   // Handle setting total length in meters (e.g. 50m, 100m)
   const handleSetTotalDistanceM = (totalM: number) => {
     if (totalM <= 0 || numTraces <= 0) return;
     const dx = totalM / numTraces;
-    const trm = 1.0 / dx;
     updateOption('traceDistanceStepM', dx);
-    updateHeader('traceDistanceStepM', dx);
-    updateHeader('tracesPerMeter', trm);
   };
 
   // Handle setting explicit Time Window (ns)
   const handleSetTimeWindowNs = (tw: number) => {
     if (tw <= 0) return;
-    const dt = tw / (header ? header.numSamples : 512);
     updateOption('ventanaNs', tw);
-    updateHeader('timeWindowNs', tw);
-    updateHeader('sampleIntervalNs', dt);
   };
 
   // Handle setting target Depth (m) -> calculates TW ns
