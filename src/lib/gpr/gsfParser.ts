@@ -1,20 +1,21 @@
 /**
- * GSF Binary Parser & Serialization Engine for GPR Radargrams
- * Supports parsing Geotech / ImpulseRadar / standard GPR binary format (.gsf)
+ * Advanced GSF Binary Parser & Serialization Engine for GPR Radargrams
+ * Supports ImpulseRadar (CrossOver, Raptor, PinPoint), Geotech, and standard GPR binary formats.
  */
 
 export interface GSFHeader {
   title: string;
   version: number;
   numTraces: number;
-  numSamples: number;
-  sampleIntervalNs: number; // dt in nanoseconds
-  timeWindowNs: number;     // Total time window = numSamples * sampleIntervalNs
+  numSamples: number;             // Samples per trace (typically 256, 512, 1024, 2048)
+  sampleIntervalNs: number;       // dt in nanoseconds
+  timeWindowNs: number;           // Total time window = numSamples * sampleIntervalNs
   antennaFreqMHz: number;
   dielectricPermittivity: number; // Initial dielectric constant epsilon_r (e.g. 9 for soil)
-  traceDistanceStepM: number;     // Distance between traces in meters
+  traceDistanceStepM: number;     // Distance between traces in meters (dx)
   zeroOffsetNs: number;           // Time zero offset
-  byteOffsetData: number;         // Offset where trace sample data starts
+  byteOffsetData: number;         // Byte offset where trace sample data starts (typically 1024)
+  traceHeaderBytes: number;       // Bytes per trace header (0, 16, 24, 32, etc.)
   bytesPerSample: number;         // 2 (int16) or 4 (float32)
   dataType: 'int16' | 'uint16' | 'float32';
   headerSize: number;
@@ -22,155 +23,211 @@ export interface GSFHeader {
 
 export interface GPRTrace {
   id: number;
-  positionM: number;       // Distance coordinate along profile
-  timeZeroShiftNs: number; // Individual trace zero shift if available
-  elevationM: number;      // Topographic elevation if available
-  rawSamples: Float32Array; // Original sample data
-  processedSamples: Float32Array; // Currently active/processed sample data
+  positionM: number;              // Distance coordinate along profile
+  timeZeroShiftNs: number;
+  elevationM: number;
+  rawSamples: Float32Array;
+  processedSamples: Float32Array;
 }
 
 export interface GPRDataset {
   id: string;
   filename: string;
+  rawBuffer: ArrayBuffer;         // Keep raw buffer in memory for dynamic re-parsing/calibration
   header: GSFHeader;
   traces: GPRTrace[];
-  rawMatrix: Float32Array[];       // Array of Float32Array traces [numTraces][numSamples]
-  processedMatrix: Float32Array[]; // Array of Float32Array traces [numTraces][numSamples]
+  rawMatrix: Float32Array[];
+  processedMatrix: Float32Array[];
   minAmplitude: number;
   maxAmplitude: number;
   createdTime: number;
 }
 
 /**
- * Parses an ArrayBuffer containing a .gsf binary radargram file.
+ * Extracts and parses GSF header from an ArrayBuffer using ASCII metadata + binary fallback.
  */
-export function parseGSFBuffer(buffer: ArrayBuffer, filename: string): GPRDataset {
+export function extractGSFHeader(buffer: ArrayBuffer, filename: string): GSFHeader {
   const dataView = new DataView(buffer);
   const totalBytes = buffer.byteLength;
 
-  // Default fallback header values in case header fields are partially defined
+  // Defaults
   const header: GSFHeader = {
-    title: filename.replace(/\.[^/.]+$/, ""),
+    title: filename.replace(/\.[^/.]+$/, ''),
     version: 1.0,
     numTraces: 0,
     numSamples: 512,
     sampleIntervalNs: 0.1, // 100 ps default
     timeWindowNs: 51.2,
-    antennaFreqMHz: 500,
+    antennaFreqMHz: 450,
     dielectricPermittivity: 9.0,
     traceDistanceStepM: 0.05,
     zeroOffsetNs: 0,
-    byteOffsetData: 1024, // Standard GSF header offset
+    byteOffsetData: 1024,
+    traceHeaderBytes: 0,
     bytesPerSample: 2,
     dataType: 'int16',
     headerSize: 1024,
   };
 
-  // Check GSF header signature or read metadata if available
-  if (totalBytes >= 128) {
-    try {
-      // GSF format header decoding (supports standard ImpulseRadar/Geotech GSF headers)
-      // Check for magic string "GSF" or "GEOTECH" or standard byte header fields
-      const magicStr = readAsciiString(dataView, 0, 16).trim();
-      if (magicStr.includes("GSF") || magicStr.includes("Impulse") || magicStr.includes("Geotech")) {
-        header.title = magicStr || header.title;
-      }
+  // 1. Try reading first 4096 bytes as ASCII text metadata
+  const maxHeaderBytes = Math.min(totalBytes, 4096);
+  const headerText = readAsciiString(dataView, 0, maxHeaderBytes);
 
-      // Read common header uint16/uint32 offsets
-      // Byte 16: Version or Header Size
-      const headerSize = dataView.getUint16(16, true);
-      if (headerSize >= 128 && headerSize <= 4096) {
-        header.headerSize = headerSize;
-        header.byteOffsetData = headerSize;
-      }
+  // Check if text header contains ASCII key-values
+  let foundAsciiSamples = false;
 
-      // Byte 18: Samples per trace
-      const ns = dataView.getUint16(18, true);
-      if (ns > 32 && ns <= 16384) {
-        header.numSamples = ns;
-      }
-
-      // Byte 20: Number of traces (or auto-calculated below)
-      const nt = dataView.getUint32(20, true);
-      if (nt > 0 && nt < 100000) {
-        header.numTraces = nt;
-      }
-
-      // Byte 24: Sample interval in picoseconds (ps) -> convert to ns
-      const sampleIntPs = dataView.getFloat32(24, true);
-      if (sampleIntPs > 0 && sampleIntPs < 100000) {
-        header.sampleIntervalNs = sampleIntPs < 10 ? sampleIntPs : sampleIntPs / 1000.0;
-      }
-
-      // Byte 28: Antenna Frequency MHz
-      const freq = dataView.getFloat32(28, true);
-      if (freq > 10 && freq < 10000) {
-        header.antennaFreqMHz = freq;
-      }
-
-      // Byte 32: Trace distance step
-      const step = dataView.getFloat32(32, true);
-      if (step > 0 && step < 10) {
-        header.traceDistanceStepM = step;
-      }
-
-      // Byte 36: Data type code (0 = int16, 1 = float32, 2 = uint16)
-      const typeCode = dataView.getUint16(36, true);
-      if (typeCode === 1) {
-        header.dataType = 'float32';
-        header.bytesPerSample = 4;
-      } else if (typeCode === 2) {
-        header.dataType = 'uint16';
-        header.bytesPerSample = 2;
-      } else {
-        header.dataType = 'int16';
-        header.bytesPerSample = 2;
-      }
-    } catch (e) {
-      console.warn("GSF Header auto-detection warning, falling back to heuristic parsing:", e);
+  // Regex patterns for ImpulseRadar / Geotech / GPR ASCII headers
+  const samplesMatch = headerText.match(/(?:SAMPLES|POINTS|NUM_SAMPLES|MUESTRAS|SAMP_PER_TRACE|NS|SAMPLES_PER_TRACE)[\s:=]+([0-9]+)/i);
+  if (samplesMatch) {
+    const s = parseInt(samplesMatch[1], 10);
+    if (s >= 32 && s <= 8192) {
+      header.numSamples = s;
+      foundAsciiSamples = true;
     }
   }
 
-  // Calculate actual trace counts based on file size if header didn't specify or was corrupt
-  const bytesPerTrace = header.numSamples * header.bytesPerSample;
-  const availableDataBytes = Math.max(0, totalBytes - header.byteOffsetData);
-  const calculatedTraces = Math.floor(availableDataBytes / bytesPerTrace);
+  const tracesMatch = headerText.match(/(?:TRACES|NUM_TRACES|NUMBER_OF_TRACES|TOTAL_TRACES|NT)[\s:=]+([0-9]+)/i);
+  if (tracesMatch) {
+    const t = parseInt(tracesMatch[1], 10);
+    if (t > 0 && t < 200000) {
+      header.numTraces = t;
+    }
+  }
+
+  const dtMatch = headerText.match(/(?:SAMPLEINTERVAL|SAMPLE_INTERVAL|TIME_INCREMENT|DT|SAMPLE_INT|TIME_STEP)[\s:=]+([0-9.]+)/i);
+  if (dtMatch) {
+    const dt = parseFloat(dtMatch[1]);
+    if (dt > 0) {
+      // If dt > 5, it's likely in picoseconds -> convert to ns
+      header.sampleIntervalNs = dt > 5 ? dt / 1000.0 : dt;
+    }
+  }
+
+  const timeWinMatch = headerText.match(/(?:TIMEWINDOW|TIME_WINDOW|RANGE|WINDOW_NS|TIME_RANGE)[\s:=]+([0-9.]+)/i);
+  if (timeWinMatch) {
+    const win = parseFloat(timeWinMatch[1]);
+    if (win > 0 && win < 10000) {
+      header.timeWindowNs = win;
+      if (header.numSamples > 0 && !dtMatch) {
+        header.sampleIntervalNs = win / header.numSamples;
+      }
+    }
+  }
+
+  const freqMatch = headerText.match(/(?:FREQUENCY|FREQ|ANTENNA_FREQ|ANTENNA_FREQUENCY|ANTENNA)[\s:=]+([0-9.]+)/i);
+  if (freqMatch) {
+    const f = parseFloat(freqMatch[1]);
+    if (f >= 10 && f <= 10000) {
+      header.antennaFreqMHz = f;
+    }
+  }
+
+  const dxMatch = headerText.match(/(?:TRACEINTERVAL|TRACE_INTERVAL|DX|STEP|DISTANCE_INCREMENT|DISTANCE_INTERVAL)[\s:=]+([0-9.]+)/i);
+  if (dxMatch) {
+    const dx = parseFloat(dxMatch[1]);
+    if (dx > 0 && dx < 50) {
+      header.traceDistanceStepM = dx;
+    }
+  }
+
+  const offsetMatch = headerText.match(/(?:HEADER_SIZE|HEADERSIZE|DATA_OFFSET|OFFSET_BYTES|OFFSET)[\s:=]+([0-9]+)/i);
+  if (offsetMatch) {
+    const off = parseInt(offsetMatch[1], 10);
+    if (off >= 0 && off < totalBytes) {
+      header.byteOffsetData = off;
+      header.headerSize = off;
+    }
+  } else {
+    // Detect binary start: Look for null terminators or start at 1024 or 512
+    if (totalBytes >= 1024) {
+      header.byteOffsetData = 1024;
+      header.headerSize = 1024;
+    } else if (totalBytes >= 512) {
+      header.byteOffsetData = 512;
+      header.headerSize = 512;
+    } else {
+      header.byteOffsetData = 0;
+      header.headerSize = 0;
+    }
+  }
+
+  const traceHeadMatch = headerText.match(/(?:TRACE_HEADER_SIZE|TRACEHEADER|TRACE_HEADER)[\s:=]+([0-9]+)/i);
+  if (traceHeadMatch) {
+    header.traceHeaderBytes = parseInt(traceHeadMatch[1], 10);
+  }
+
+  // 2. Fallback heuristic if no ASCII samples tag was found
+  if (!foundAsciiSamples) {
+    // Check standard power-of-two samples: 512, 1024, 256, 2048, 4096
+    const candidateSamples = [512, 1024, 256, 2048, 128, 4096];
+    const dataLen = totalBytes - header.byteOffsetData;
+
+    let bestSamples = 512;
+    for (const cand of candidateSamples) {
+      const bytesPerTrace = cand * 2 + header.traceHeaderBytes;
+      if (bytesPerTrace > 0 && dataLen % bytesPerTrace === 0) {
+        bestSamples = cand;
+        break;
+      }
+    }
+    header.numSamples = bestSamples;
+  }
+
+  // 3. Compute final trace counts
+  const bytesPerTrace = header.numSamples * header.bytesPerSample + header.traceHeaderBytes;
+  const availableBytes = Math.max(0, totalBytes - header.byteOffsetData);
+  const calculatedTraces = Math.floor(availableBytes / bytesPerTrace);
 
   if (calculatedTraces > 0) {
     header.numTraces = calculatedTraces;
   } else {
-    // Fallback: If header size offset is larger than file, start at byte 0 or 512
-    const altOffset = totalBytes > 512 ? 512 : 0;
-    header.byteOffsetData = altOffset;
-    header.numTraces = Math.floor((totalBytes - altOffset) / bytesPerTrace);
+    header.numTraces = Math.max(1, Math.floor(availableBytes / (header.numSamples * 2)));
   }
 
   header.timeWindowNs = header.numSamples * header.sampleIntervalNs;
 
-  // Extract Traces
+  return header;
+}
+
+/**
+ * Parses trace matrix from raw buffer according to specified or detected GSFHeader.
+ */
+export function buildDatasetFromHeader(
+  buffer: ArrayBuffer,
+  filename: string,
+  header: GSFHeader
+): GPRDataset {
+  const dataView = new DataView(buffer);
+  const totalBytes = buffer.byteLength;
+
   const rawMatrix: Float32Array[] = [];
   const processedMatrix: Float32Array[] = [];
   const traces: GPRTrace[] = [];
 
   let minAmp = Infinity;
   let maxAmp = -Infinity;
-  let currentByteOffset = header.byteOffsetData;
 
-  for (let t = 0; t < header.numTraces; t++) {
+  const bytesPerTrace = header.numSamples * header.bytesPerSample + header.traceHeaderBytes;
+  const maxPossibleTraces = Math.floor(Math.max(0, totalBytes - header.byteOffsetData) / bytesPerTrace);
+  const numTraces = Math.min(header.numTraces || maxPossibleTraces, maxPossibleTraces);
+
+  for (let t = 0; t < numTraces; t++) {
+    const traceStartOffset = header.byteOffsetData + t * bytesPerTrace + header.traceHeaderBytes;
     const rawSamples = new Float32Array(header.numSamples);
     const processedSamples = new Float32Array(header.numSamples);
 
     for (let s = 0; s < header.numSamples; s++) {
+      const sampleOffset = traceStartOffset + s * header.bytesPerSample;
       let value = 0;
-      if (currentByteOffset + header.bytesPerSample <= totalBytes) {
+
+      if (sampleOffset + header.bytesPerSample <= totalBytes) {
         if (header.dataType === 'float32') {
-          value = dataView.getFloat32(currentByteOffset, true);
+          value = dataView.getFloat32(sampleOffset, true);
         } else if (header.dataType === 'uint16') {
-          value = dataView.getUint16(currentByteOffset, true) - 32768;
+          value = dataView.getUint16(sampleOffset, true) - 32768;
         } else {
-          value = dataView.getInt16(currentByteOffset, true);
+          value = dataView.getInt16(sampleOffset, true);
         }
-        currentByteOffset += header.bytesPerSample;
       }
 
       rawSamples[s] = value;
@@ -199,7 +256,8 @@ export function parseGSFBuffer(buffer: ArrayBuffer, filename: string): GPRDatase
   return {
     id: `gpr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     filename,
-    header,
+    rawBuffer: buffer,
+    header: { ...header, numTraces },
     traces,
     rawMatrix,
     processedMatrix,
@@ -210,14 +268,22 @@ export function parseGSFBuffer(buffer: ArrayBuffer, filename: string): GPRDatase
 }
 
 /**
+ * Top-level function to parse ArrayBuffer into GPRDataset.
+ */
+export function parseGSFBuffer(buffer: ArrayBuffer, filename: string): GPRDataset {
+  const header = extractGSFHeader(buffer, filename);
+  return buildDatasetFromHeader(buffer, filename, header);
+}
+
+/**
  * Helper to read ASCII string from DataView
  */
 function readAsciiString(dataView: DataView, offset: number, length: number): string {
-  let str = "";
+  let str = '';
   for (let i = 0; i < length; i++) {
     if (offset + i < dataView.byteLength) {
       const charCode = dataView.getUint8(offset + i);
-      if (charCode === 0) break;
+      if (charCode === 0) continue; // Skip nulls in headers
       str += String.fromCharCode(charCode);
     }
   }
@@ -238,20 +304,23 @@ export function serializeGSF(dataset: GPRDataset): ArrayBuffer {
   const buffer = new ArrayBuffer(totalSize);
   const dataView = new DataView(buffer);
 
-  // Write Magic Signature
-  const magic = "GSF IMPULSERADAR";
-  for (let i = 0; i < magic.length; i++) {
-    dataView.setUint8(i, magic.charCodeAt(i));
-  }
+  // Write ASCII / GSF Header Block
+  const headerLines = [
+    '// ImpulseRadar GSF File Export',
+    `TITLE=${header.title}`,
+    `SAMPLES=${numSamples}`,
+    `TRACES=${numTraces}`,
+    `SAMPLEINTERVAL=${(header.sampleIntervalNs).toFixed(6)}`,
+    `TIMEWINDOW=${(header.timeWindowNs).toFixed(2)}`,
+    `FREQUENCY=${header.antennaFreqMHz}`,
+    `TRACEINTERVAL=${header.traceDistanceStepM}`,
+    `DATA_TYPE=16`,
+    `HEADER_SIZE=${headerSize}`,
+  ].join('\r\n');
 
-  // Header fields
-  dataView.setUint16(16, headerSize, true);
-  dataView.setUint16(18, numSamples, true);
-  dataView.setUint32(20, numTraces, true);
-  dataView.setFloat32(24, header.sampleIntervalNs * 1000.0, true); // Save as ps
-  dataView.setFloat32(28, header.antennaFreqMHz, true);
-  dataView.setFloat32(32, header.traceDistanceStepM, true);
-  dataView.setUint16(36, 0, true); // 0 = int16 format
+  for (let i = 0; i < headerLines.length && i < headerSize; i++) {
+    dataView.setUint8(i, headerLines.charCodeAt(i));
+  }
 
   // Write Trace Binary Data
   let offset = headerSize;
@@ -259,7 +328,6 @@ export function serializeGSF(dataset: GPRDataset): ArrayBuffer {
     const trace = processedMatrix[t];
     for (let s = 0; s < numSamples; s++) {
       const rawVal = trace[s];
-      // Clamp values to Int16 bounds [-32768, 32767]
       const clampedVal = Math.max(-32768, Math.min(32767, Math.round(rawVal)));
       dataView.setInt16(offset, clampedVal, true);
       offset += 2;

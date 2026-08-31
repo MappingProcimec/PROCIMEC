@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { DSPOptions, calculateVelocity } from '@/lib/gpr/dspEngine';
+import { GSFHeader } from '@/lib/gpr/gsfParser';
 import { ColorPalette } from './CanvasViewer';
 import {
   Sliders,
@@ -12,11 +13,14 @@ import {
   Palette,
   Crosshair,
   RefreshCw,
+  FileCog,
 } from 'lucide-react';
 
 interface DSPOptionsPanelProps {
   options: DSPOptions;
+  header: GSFHeader | null;
   onChange: (updatedOptions: DSPOptions) => void;
+  onHeaderChange?: (updatedHeader: GSFHeader) => void;
   palette: ColorPalette;
   onPaletteChange: (p: ColorPalette) => void;
   contrast: number;
@@ -30,7 +34,9 @@ interface DSPOptionsPanelProps {
 
 export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   options,
+  header,
   onChange,
+  onHeaderChange,
   palette,
   onPaletteChange,
   contrast,
@@ -41,7 +47,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   onToggleHyperbolaTool,
   onResetDSP,
 }) => {
-  const [activeTab, setActiveTab] = useState<'filters' | 'gain' | 'geometry' | 'migration' | 'display'>('filters');
+  const [activeTab, setActiveTab] = useState<'filters' | 'gain' | 'geometry' | 'migration' | 'display' | 'header'>('filters');
 
   // Custom Gain Curve Canvas Ref
   const gainCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -50,6 +56,15 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   const updateOption = <K extends keyof DSPOptions>(key: K, value: DSPOptions[K]) => {
     onChange({
       ...options,
+      [key]: value,
+    });
+  };
+
+  // Helper to update GSF header override
+  const updateHeader = <K extends keyof GSFHeader>(key: K, value: GSFHeader[K]) => {
+    if (!header || !onHeaderChange) return;
+    onHeaderChange({
+      ...header,
       [key]: value,
     });
   };
@@ -90,7 +105,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
     for (let i = 0; i < pts.length; i++) {
       const x = (i / (pts.length - 1)) * w;
-      // Gain 0 to 10 mapped to y=h to y=0
       const y = h - (pts[i] / 10) * h;
 
       if (i === 0) ctx.moveTo(x, y);
@@ -103,7 +117,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
       const x = (i / (pts.length - 1)) * w;
       const y = h - (pts[i] / 10) * h;
 
-      ctx.fillStyle = '#f59e0b';
+      ctx.fillStyle = '#f5a623';
       ctx.beginPath();
       ctx.arc(x, y, 4, 0, Math.PI * 2);
       ctx.fill();
@@ -129,16 +143,16 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   };
 
   return (
-    <div className="w-80 h-full bg-slate-900/95 border-l border-slate-800 flex flex-col backdrop-blur-xl shadow-2xl overflow-hidden">
+    <div className="w-80 h-full bg-white border-l border-border flex flex-col shadow-soft overflow-hidden select-none">
       {/* Panel Header */}
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-slate-100 font-semibold text-sm">
-          <Sliders className="w-4 h-4 text-sky-400" />
+      <div className="p-4 border-b border-border flex items-center justify-between bg-gray-50/50">
+        <div className="flex items-center gap-2 text-primary font-bold text-sm">
+          <Sliders className="w-4 h-4 text-primary" />
           <span>Panel de Procesamiento DSP</span>
         </div>
         <button
           onClick={onResetDSP}
-          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded transition"
+          className="p-1.5 hover:bg-gray-200 text-text-secondary hover:text-text-primary rounded-lg transition"
           title="Restablecer Filtros DSP"
         >
           <RefreshCw className="w-3.5 h-3.5" />
@@ -146,11 +160,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
       </div>
 
       {/* Tabs Bar */}
-      <div className="grid grid-cols-5 bg-slate-950 p-1 border-b border-slate-800 text-xs">
+      <div className="grid grid-cols-6 bg-gray-100 p-1 border-b border-border text-xs gap-0.5">
         <button
           onClick={() => setActiveTab('filters')}
-          className={`py-2 flex flex-col items-center gap-1 rounded font-medium transition ${
-            activeTab === 'filters' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+          className={`py-1.5 flex flex-col items-center gap-1 rounded-lg font-medium transition ${
+            activeTab === 'filters' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:bg-gray-200'
           }`}
           title="Filtros"
         >
@@ -159,8 +173,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         </button>
         <button
           onClick={() => setActiveTab('gain')}
-          className={`py-2 flex flex-col items-center gap-1 rounded font-medium transition ${
-            activeTab === 'gain' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+          className={`py-1.5 flex flex-col items-center gap-1 rounded-lg font-medium transition ${
+            activeTab === 'gain' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:bg-gray-200'
           }`}
           title="Ganancia"
         >
@@ -169,8 +183,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         </button>
         <button
           onClick={() => setActiveTab('geometry')}
-          className={`py-2 flex flex-col items-center gap-1 rounded font-medium transition ${
-            activeTab === 'geometry' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+          className={`py-1.5 flex flex-col items-center gap-1 rounded-lg font-medium transition ${
+            activeTab === 'geometry' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:bg-gray-200'
           }`}
           title="Geometría"
         >
@@ -179,8 +193,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         </button>
         <button
           onClick={() => setActiveTab('migration')}
-          className={`py-2 flex flex-col items-center gap-1 rounded font-medium transition ${
-            activeTab === 'migration' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+          className={`py-1.5 flex flex-col items-center gap-1 rounded-lg font-medium transition ${
+            activeTab === 'migration' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:bg-gray-200'
           }`}
           title="Migración"
         >
@@ -189,37 +203,47 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         </button>
         <button
           onClick={() => setActiveTab('display')}
-          className={`py-2 flex flex-col items-center gap-1 rounded font-medium transition ${
-            activeTab === 'display' ? 'bg-sky-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+          className={`py-1.5 flex flex-col items-center gap-1 rounded-lg font-medium transition ${
+            activeTab === 'display' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:bg-gray-200'
           }`}
-          title="Render"
+          title="Paleta"
         >
           <Palette className="w-3.5 h-3.5" />
-          <span className="text-[10px]">Render</span>
+          <span className="text-[10px]">Paleta</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('header')}
+          className={`py-1.5 flex flex-col items-center gap-1 rounded-lg font-medium transition ${
+            activeTab === 'header' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:bg-gray-200'
+          }`}
+          title="Calibración de Header"
+        >
+          <FileCog className="w-3.5 h-3.5" />
+          <span className="text-[10px]">Header</span>
         </button>
       </div>
 
       {/* Tab Contents */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 text-xs text-slate-300">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs text-text-secondary">
         {/* TAB 1: FILTERS */}
         {activeTab === 'filters' && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Dewow */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-200">Filtro Dewow (DC Offset)</span>
+                <span className="font-semibold text-text-primary">Filtro Dewow (DC Offset)</span>
                 <input
                   type="checkbox"
                   checked={options.dewow}
                   onChange={(e) => updateOption('dewow', e.target.checked)}
-                  className="rounded border-slate-700 text-sky-500 focus:ring-sky-500 accent-sky-500 w-4 h-4"
+                  className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4"
                 />
               </div>
               {options.dewow && (
                 <div className="space-y-1">
-                  <div className="flex justify-between text-[11px] text-slate-400">
+                  <div className="flex justify-between text-[11px] text-text-muted">
                     <span>Ventana Promedio:</span>
-                    <span className="font-mono text-sky-400">{options.dewowWindow} muestras</span>
+                    <span className="font-mono text-primary font-bold">{options.dewowWindow} muestras</span>
                   </div>
                   <input
                     type="range"
@@ -227,29 +251,29 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     max={128}
                     step={4}
                     value={options.dewowWindow}
-                    onChange={(e) => updateOption('dewowWindow', parseInt(e.target.value))}
-                    className="w-full accent-sky-500 bg-slate-800 rounded"
+                    onChange={(e) => updateOption('dewowWindow', parseInt(e.target.value, 10))}
+                    className="w-full accent-primary bg-gray-200 rounded"
                   />
                 </div>
               )}
             </div>
 
             {/* Background Removal */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-200">Background Removal</span>
+                <span className="font-semibold text-text-primary">Background Removal</span>
                 <input
                   type="checkbox"
                   checked={options.backgroundRemoval}
                   onChange={(e) => updateOption('backgroundRemoval', e.target.checked)}
-                  className="rounded border-slate-700 text-sky-500 focus:ring-sky-500 accent-sky-500 w-4 h-4"
+                  className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4"
                 />
               </div>
               {options.backgroundRemoval && (
                 <div className="space-y-1">
-                  <div className="flex justify-between text-[11px] text-slate-400">
+                  <div className="flex justify-between text-[11px] text-text-muted">
                     <span>Modo Ventana:</span>
-                    <span className="font-mono text-sky-400">
+                    <span className="font-mono text-primary font-bold">
                       {options.backgroundWindow === 0 ? 'Perfil Global Completo' : `${options.backgroundWindow} trazas`}
                     </span>
                   </div>
@@ -259,20 +283,20 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     max={50}
                     step={5}
                     value={options.backgroundWindow}
-                    onChange={(e) => updateOption('backgroundWindow', parseInt(e.target.value))}
-                    className="w-full accent-sky-500 bg-slate-800 rounded"
+                    onChange={(e) => updateOption('backgroundWindow', parseInt(e.target.value, 10))}
+                    className="w-full accent-primary bg-gray-200 rounded"
                   />
                 </div>
               )}
             </div>
 
             {/* Digital Frequency Filters */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3">
-              <span className="font-semibold text-slate-200 block">Filtro Digital Frecuencial</span>
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
+              <span className="font-semibold text-text-primary block">Filtro Digital Frecuencial</span>
               <select
                 value={options.filterType}
                 onChange={(e) => updateOption('filterType', e.target.value as DSPOptions['filterType'])}
-                className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded px-2 py-1 focus:outline-none"
+                className="select w-full"
               >
                 <option value="none">Sin Filtro Frecuencial</option>
                 <option value="lowpass">Pasa-Bajas (Lowpass)</option>
@@ -284,9 +308,9 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="space-y-2 pt-1">
                   {(options.filterType === 'highpass' || options.filterType === 'bandpass') && (
                     <div>
-                      <div className="flex justify-between text-[11px] text-slate-400">
-                        <span>Corte Inferior (Low Cut):</span>
-                        <span className="font-mono text-sky-400">{options.lowCutMHz} MHz</span>
+                      <div className="flex justify-between text-[11px] text-text-muted">
+                        <span>Corte Inferior:</span>
+                        <span className="font-mono text-primary font-bold">{options.lowCutMHz} MHz</span>
                       </div>
                       <input
                         type="range"
@@ -294,17 +318,17 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         max={1000}
                         step={10}
                         value={options.lowCutMHz}
-                        onChange={(e) => updateOption('lowCutMHz', parseInt(e.target.value))}
-                        className="w-full accent-sky-500 bg-slate-800 rounded"
+                        onChange={(e) => updateOption('lowCutMHz', parseInt(e.target.value, 10))}
+                        className="w-full accent-primary bg-gray-200 rounded"
                       />
                     </div>
                   )}
 
                   {(options.filterType === 'lowpass' || options.filterType === 'bandpass') && (
                     <div>
-                      <div className="flex justify-between text-[11px] text-slate-400">
-                        <span>Corte Superior (High Cut):</span>
-                        <span className="font-mono text-sky-400">{options.highCutMHz} MHz</span>
+                      <div className="flex justify-between text-[11px] text-text-muted">
+                        <span>Corte Superior:</span>
+                        <span className="font-mono text-primary font-bold">{options.highCutMHz} MHz</span>
                       </div>
                       <input
                         type="range"
@@ -312,8 +336,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         max={2000}
                         step={25}
                         value={options.highCutMHz}
-                        onChange={(e) => updateOption('highCutMHz', parseInt(e.target.value))}
-                        className="w-full accent-sky-500 bg-slate-800 rounded"
+                        onChange={(e) => updateOption('highCutMHz', parseInt(e.target.value, 10))}
+                        className="w-full accent-primary bg-gray-200 rounded"
                       />
                     </div>
                   )}
@@ -325,13 +349,13 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
         {/* TAB 2: GAIN */}
         {activeTab === 'gain' && (
-          <div className="space-y-4">
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3">
-              <span className="font-semibold text-slate-200 block">Función de Ganancia Temporal</span>
+          <div className="space-y-3">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
+              <span className="font-semibold text-text-primary block">Función de Ganancia Temporal</span>
               <select
                 value={options.gainType}
                 onChange={(e) => updateOption('gainType', e.target.value as DSPOptions['gainType'])}
-                className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded px-2 py-1"
+                className="select w-full"
               >
                 <option value="none">Sin Ganancia Aplicada</option>
                 <option value="linear">Ganancia Lineal</option>
@@ -342,9 +366,9 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
               {options.gainType === 'linear' && (
                 <div>
-                  <div className="flex justify-between text-[11px] text-slate-400">
+                  <div className="flex justify-between text-[11px] text-text-muted">
                     <span>Factor Lineal:</span>
-                    <span className="font-mono text-sky-400">{options.linearGain.toFixed(1)}x</span>
+                    <span className="font-mono text-primary font-bold">{options.linearGain.toFixed(1)}x</span>
                   </div>
                   <input
                     type="range"
@@ -353,7 +377,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     step={0.1}
                     value={options.linearGain}
                     onChange={(e) => updateOption('linearGain', parseFloat(e.target.value))}
-                    className="w-full accent-sky-500 bg-slate-800 rounded"
+                    className="w-full accent-primary bg-gray-200 rounded"
                   />
                 </div>
               )}
@@ -361,9 +385,9 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               {options.gainType === 'exp' && (
                 <div className="space-y-2">
                   <div>
-                    <div className="flex justify-between text-[11px] text-slate-400">
+                    <div className="flex justify-between text-[11px] text-text-muted">
                       <span>Tasa Alpha (e^αt):</span>
-                      <span className="font-mono text-sky-400">{options.expGainAlpha.toFixed(3)}</span>
+                      <span className="font-mono text-primary font-bold">{options.expGainAlpha.toFixed(3)}</span>
                     </div>
                     <input
                       type="range"
@@ -372,13 +396,13 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       step={0.005}
                       value={options.expGainAlpha}
                       onChange={(e) => updateOption('expGainAlpha', parseFloat(e.target.value))}
-                      className="w-full accent-sky-500 bg-slate-800 rounded"
+                      className="w-full accent-primary bg-gray-200 rounded"
                     />
                   </div>
                   <div>
-                    <div className="flex justify-between text-[11px] text-slate-400">
+                    <div className="flex justify-between text-[11px] text-text-muted">
                       <span>Potencia (t^p):</span>
-                      <span className="font-mono text-sky-400">{options.expGainPower.toFixed(1)}</span>
+                      <span className="font-mono text-primary font-bold">{options.expGainPower.toFixed(1)}</span>
                     </div>
                     <input
                       type="range"
@@ -387,7 +411,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       step={0.1}
                       value={options.expGainPower}
                       onChange={(e) => updateOption('expGainPower', parseFloat(e.target.value))}
-                      className="w-full accent-sky-500 bg-slate-800 rounded"
+                      className="w-full accent-primary bg-gray-200 rounded"
                     />
                   </div>
                 </div>
@@ -395,9 +419,9 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
               {options.gainType === 'agc' && (
                 <div>
-                  <div className="flex justify-between text-[11px] text-slate-400">
+                  <div className="flex justify-between text-[11px] text-text-muted">
                     <span>Ventana RMS AGC:</span>
-                    <span className="font-mono text-sky-400">{options.agcWindowSamples} muestras</span>
+                    <span className="font-mono text-primary font-bold">{options.agcWindowSamples} muestras</span>
                   </div>
                   <input
                     type="range"
@@ -405,37 +429,37 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     max={256}
                     step={8}
                     value={options.agcWindowSamples}
-                    onChange={(e) => updateOption('agcWindowSamples', parseInt(e.target.value))}
-                    className="w-full accent-sky-500 bg-slate-800 rounded"
+                    onChange={(e) => updateOption('agcWindowSamples', parseInt(e.target.value, 10))}
+                    className="w-full accent-primary bg-gray-200 rounded"
                   />
                 </div>
               )}
 
               {options.gainType === 'custom' && (
                 <div className="space-y-2">
-                  <span className="text-[11px] text-slate-400 block">Haz clic para ajustar la curva de ganancia:</span>
+                  <span className="text-[11px] text-text-muted block">Haz clic para ajustar los nodos:</span>
                   <canvas
                     ref={gainCanvasRef}
                     width={260}
                     height={100}
                     onClick={handleGainCanvasClick}
-                    className="w-full h-24 border border-slate-700 rounded cursor-pointer block"
+                    className="w-full h-24 border border-border rounded-xl cursor-pointer block bg-slate-950"
                   />
                 </div>
               )}
             </div>
 
             {/* Hilbert Envelope */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border flex items-center justify-between">
               <div>
-                <span className="font-semibold text-slate-200 block">Transformada Hilbert</span>
-                <span className="text-[10px] text-slate-400">Envolvente de Amplitud Instantánea</span>
+                <span className="font-semibold text-text-primary block">Transformada Hilbert</span>
+                <span className="text-[10px] text-text-muted">Envolvente de Amplitud Instantánea</span>
               </div>
               <input
                 type="checkbox"
                 checked={options.hilbertEnvelope}
                 onChange={(e) => updateOption('hilbertEnvelope', e.target.checked)}
-                className="rounded border-slate-700 text-sky-500 focus:ring-sky-500 accent-sky-500 w-4 h-4"
+                className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4"
               />
             </div>
           </div>
@@ -443,13 +467,13 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
         {/* TAB 3: GEOMETRY */}
         {activeTab === 'geometry' && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Zero-Time Shift */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-              <span className="font-semibold text-slate-200 block">Ajuste Cero Temporal (Zero-Time)</span>
-              <div className="flex justify-between text-[11px] text-slate-400">
-                <span>Desplazamiento Estático:</span>
-                <span className="font-mono text-sky-400">{options.zeroTimeShiftNs.toFixed(1)} ns</span>
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
+              <span className="font-semibold text-text-primary block">Ajuste Cero Temporal (Zero-Time)</span>
+              <div className="flex justify-between text-[11px] text-text-muted">
+                <span>Desplazamiento:</span>
+                <span className="font-mono text-primary font-bold">{options.zeroTimeShiftNs.toFixed(1)} ns</span>
               </div>
               <input
                 type="range"
@@ -458,16 +482,16 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 step={0.5}
                 value={options.zeroTimeShiftNs}
                 onChange={(e) => updateOption('zeroTimeShiftNs', parseFloat(e.target.value))}
-                className="w-full accent-sky-500 bg-slate-800 rounded"
+                className="w-full accent-primary bg-gray-200 rounded"
               />
             </div>
 
             {/* Trace Stacking */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-              <span className="font-semibold text-slate-200 block">Promediado de Trazas (Stacking)</span>
-              <div className="flex justify-between text-[11px] text-slate-400">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
+              <span className="font-semibold text-text-primary block">Promediado de Trazas (Stacking)</span>
+              <div className="flex justify-between text-[11px] text-text-muted">
                 <span>Factor Stacking:</span>
-                <span className="font-mono text-sky-400">{options.stackingFactor}x</span>
+                <span className="font-mono text-primary font-bold">{options.stackingFactor}x</span>
               </div>
               <input
                 type="range"
@@ -475,17 +499,17 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 max={16}
                 step={1}
                 value={options.stackingFactor}
-                onChange={(e) => updateOption('stackingFactor', parseInt(e.target.value))}
-                className="w-full accent-sky-500 bg-slate-800 rounded"
+                onChange={(e) => updateOption('stackingFactor', parseInt(e.target.value, 10))}
+                className="w-full accent-primary bg-gray-200 rounded"
               />
             </div>
 
             {/* Trace Skipping */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-              <span className="font-semibold text-slate-200 block">Descarte de Trazas (Skipping)</span>
-              <div className="flex justify-between text-[11px] text-slate-400">
-                <span>Pasar cada:</span>
-                <span className="font-mono text-sky-400">{options.skipFactor} traza(s)</span>
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
+              <span className="font-semibold text-text-primary block">Descarte de Trazas (Skipping)</span>
+              <div className="flex justify-between text-[11px] text-text-muted">
+                <span>Paso:</span>
+                <span className="font-mono text-primary font-bold">Cada {options.skipFactor} traza(s)</span>
               </div>
               <input
                 type="range"
@@ -493,8 +517,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 max={8}
                 step={1}
                 value={options.skipFactor}
-                onChange={(e) => updateOption('skipFactor', parseInt(e.target.value))}
-                className="w-full accent-sky-500 bg-slate-800 rounded"
+                onChange={(e) => updateOption('skipFactor', parseInt(e.target.value, 10))}
+                className="w-full accent-primary bg-gray-200 rounded"
               />
             </div>
           </div>
@@ -502,14 +526,13 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
         {/* TAB 4: MIGRATION & VELOCITY */}
         {activeTab === 'migration' && (
-          <div className="space-y-4">
-            {/* Permittivity & Velocity */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3">
-              <span className="font-semibold text-slate-200 block">Análisis de Velocidad & Permitividad</span>
+          <div className="space-y-3">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
+              <span className="font-semibold text-text-primary block">Velocidad & Permitividad</span>
               <div>
-                <div className="flex justify-between text-[11px] text-slate-400">
+                <div className="flex justify-between text-[11px] text-text-muted">
                   <span>Permitividad Dieléctrica (ε_r):</span>
-                  <span className="font-mono text-amber-400 font-bold">{options.dielectricPermittivity.toFixed(1)}</span>
+                  <span className="font-mono text-accent-700 font-bold">{options.dielectricPermittivity.toFixed(1)}</span>
                 </div>
                 <input
                   type="range"
@@ -518,82 +541,82 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   step={0.5}
                   value={options.dielectricPermittivity}
                   onChange={(e) => updateOption('dielectricPermittivity', parseFloat(e.target.value))}
-                  className="w-full accent-amber-500 bg-slate-800 rounded"
+                  className="w-full accent-accent bg-gray-200 rounded"
                 />
               </div>
 
               {/* Calculated Velocity pill */}
-              <div className="bg-slate-900 p-2 rounded flex items-center justify-between font-mono text-xs border border-slate-800">
-                <span className="text-slate-400">Velocidad v:</span>
-                <span className="text-emerald-400 font-bold">{currentVelocity.toFixed(4)} m/ns</span>
+              <div className="bg-white p-2.5 rounded-xl flex items-center justify-between font-mono text-xs border border-border">
+                <span className="text-text-muted font-sans">Velocidad propagación v:</span>
+                <span className="text-primary font-bold">{currentVelocity.toFixed(4)} m/ns</span>
               </div>
 
               {/* Presets */}
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-400">Presets de Medio:</span>
+                <span className="text-[10px] text-text-muted font-medium">Presets típicos:</span>
                 <div className="grid grid-cols-2 gap-1.5">
                   <button
                     onClick={() => updateOption('dielectricPermittivity', 4.0)}
-                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] text-slate-300 text-left"
+                    className="px-2 py-1 bg-white hover:bg-primary-50 rounded-lg text-[11px] text-text-secondary hover:text-primary border border-border text-left transition"
                   >
-                    Arena Seca (ε_r=4)
+                    Arena Seca (ε=4)
                   </button>
                   <button
                     onClick={() => updateOption('dielectricPermittivity', 6.0)}
-                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] text-slate-300 text-left"
+                    className="px-2 py-1 bg-white hover:bg-primary-50 rounded-lg text-[11px] text-text-secondary hover:text-primary border border-border text-left transition"
                   >
-                    Hormigón (ε_r=6)
+                    Hormigón (ε=6)
                   </button>
                   <button
                     onClick={() => updateOption('dielectricPermittivity', 9.0)}
-                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] text-slate-300 text-left"
+                    className="px-2 py-1 bg-white hover:bg-primary-50 rounded-lg text-[11px] text-text-secondary hover:text-primary border border-border text-left transition"
                   >
-                    Suelo Húmedo (ε_r=9)
+                    Suelo Húmedo (ε=9)
                   </button>
                   <button
                     onClick={() => updateOption('dielectricPermittivity', 16.0)}
-                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] text-slate-300 text-left"
+                    className="px-2 py-1 bg-white hover:bg-primary-50 rounded-lg text-[11px] text-text-secondary hover:text-primary border border-border text-left transition"
                   >
-                    Arcilla (ε_r=16)
+                    Arcilla (ε=16)
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Hyperbola Tool Button */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-              <span className="font-semibold text-slate-200 block">Ajuste de Hipérbolas Interactivo</span>
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
+              <span className="font-semibold text-text-primary block">Calibrador de Hipérbola</span>
               <button
                 onClick={() => onToggleHyperbolaTool(!showHyperbolaTool)}
-                className={`w-full py-2 px-3 rounded flex items-center justify-center gap-2 font-medium text-xs transition ${
-                  showHyperbolaTool ? 'bg-amber-500 hover:bg-amber-600 text-slate-950' : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                className={`w-full py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-semibold text-xs transition shadow-sm ${
+                  showHyperbolaTool ? 'bg-accent text-white shadow-glow-accent' : 'bg-white hover:bg-gray-100 text-text-primary border border-border'
                 }`}
               >
                 <Crosshair className="w-4 h-4" />
-                <span>{showHyperbolaTool ? 'Ocultar Calibrador Hipérbola' : 'Activar Calibrador Hipérbola'}</span>
+                <span>{showHyperbolaTool ? 'Desactivar Hipérbola' : 'Activar Hipérbola sobre Canvas'}</span>
               </button>
             </div>
 
             {/* Kirchhoff Migration */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="font-semibold text-slate-200 block">Migración Kirchhoff</span>
-                  <span className="text-[10px] text-slate-400">Colapso Estructural de Hipérbolas</span>
+                  <span className="font-semibold text-text-primary block">Migración Kirchhoff</span>
+                  <span className="text-[10px] text-text-muted">Colapso de Difracciones</span>
                 </div>
                 <input
                   type="checkbox"
                   checked={options.enableMigration}
                   onChange={(e) => updateOption('enableMigration', e.target.checked)}
-                  className="rounded border-slate-700 text-sky-500 focus:ring-sky-500 accent-sky-500 w-4 h-4"
+                  className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4"
                 />
               </div>
 
               {options.enableMigration && (
                 <div>
-                  <div className="flex justify-between text-[11px] text-slate-400">
+                  <div className="flex justify-between text-[11px] text-text-muted">
                     <span>Apertura de Migración:</span>
-                    <span className="font-mono text-sky-400">{options.migrationApertureTraces} trazas</span>
+                    <span className="font-mono text-primary font-bold">{options.migrationApertureTraces} trazas</span>
                   </div>
                   <input
                     type="range"
@@ -601,8 +624,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     max={30}
                     step={2}
                     value={options.migrationApertureTraces}
-                    onChange={(e) => updateOption('migrationApertureTraces', parseInt(e.target.value))}
-                    className="w-full accent-sky-500 bg-slate-800 rounded"
+                    onChange={(e) => updateOption('migrationApertureTraces', parseInt(e.target.value, 10))}
+                    className="w-full accent-primary bg-gray-200 rounded"
                   />
                 </div>
               )}
@@ -612,19 +635,19 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
         {/* TAB 5: DISPLAY / RENDER */}
         {activeTab === 'display' && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Color Palette Selection */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-              <span className="font-semibold text-slate-200 block">Paleta de Colores</span>
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
+              <span className="font-semibold text-text-primary block">Paleta de Colores</span>
               <div className="grid grid-cols-2 gap-2">
                 {(['grayscale', 'sepia', 'jet', 'seismic', 'bone'] as ColorPalette[]).map((p) => (
                   <button
                     key={p}
                     onClick={() => onPaletteChange(p)}
-                    className={`py-1.5 px-2 rounded border text-xs capitalize transition ${
+                    className={`py-1.5 px-2 rounded-xl border text-xs capitalize transition ${
                       palette === p
-                        ? 'border-sky-500 bg-sky-950/50 text-sky-300 font-semibold'
-                        : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700'
+                        ? 'border-primary bg-primary-50 text-primary font-bold shadow-xs'
+                        : 'border-border bg-white text-text-secondary hover:border-gray-300'
                     }`}
                   >
                     {p}
@@ -634,10 +657,10 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* Contrast Slider */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <div className="flex justify-between text-[11px]">
-                <span className="font-semibold text-slate-200">Contraste:</span>
-                <span className="font-mono text-sky-400">{contrast.toFixed(1)}x</span>
+                <span className="font-semibold text-text-primary">Contraste:</span>
+                <span className="font-mono text-primary font-bold">{contrast.toFixed(1)}x</span>
               </div>
               <input
                 type="range"
@@ -646,15 +669,15 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 step={0.1}
                 value={contrast}
                 onChange={(e) => onContrastChange(parseFloat(e.target.value))}
-                className="w-full accent-sky-500 bg-slate-800 rounded"
+                className="w-full accent-primary bg-gray-200 rounded"
               />
             </div>
 
             {/* Brightness Slider */}
-            <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-2">
               <div className="flex justify-between text-[11px]">
-                <span className="font-semibold text-slate-200">Brillo:</span>
-                <span className="font-mono text-sky-400">{brightness}</span>
+                <span className="font-semibold text-text-primary">Brillo:</span>
+                <span className="font-mono text-primary font-bold">{brightness}</span>
               </div>
               <input
                 type="range"
@@ -662,9 +685,127 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 max={80}
                 step={5}
                 value={brightness}
-                onChange={(e) => onBrightnessChange(parseInt(e.target.value))}
-                className="w-full accent-sky-500 bg-slate-800 rounded"
+                onChange={(e) => onBrightnessChange(parseInt(e.target.value, 10))}
+                className="w-full accent-primary bg-gray-200 rounded"
               />
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: HEADER & GEOMETRY CALIBRATION */}
+        {activeTab === 'header' && header && (
+          <div className="space-y-3">
+            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
+              <div>
+                <span className="font-semibold text-text-primary block">Calibración de Muestras / Traza</span>
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Ajusta las muestras por traza si el perfil se ve desfasado o con líneas diagonales.
+                </p>
+              </div>
+
+              {/* Quick sample count buttons */}
+              <div className="grid grid-cols-4 gap-1.5">
+                {[256, 512, 1024, 2048].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => updateHeader('numSamples', s)}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-mono font-semibold border transition ${
+                      header.numSamples === s
+                        ? 'bg-primary text-white border-primary shadow-xs'
+                        : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom sample count input */}
+              <div>
+                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                  Muestras por Traza (Personalizado):
+                </label>
+                <input
+                  type="number"
+                  value={header.numSamples}
+                  onChange={(e) => updateHeader('numSamples', Math.max(32, parseInt(e.target.value, 10) || 512))}
+                  className="input text-xs py-1.5"
+                />
+              </div>
+
+              {/* Header Offset / Data Start */}
+              <div>
+                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                  Offset de Inicio de Datos (bytes):
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                  {[0, 512, 1024].map((off) => (
+                    <button
+                      key={off}
+                      onClick={() => updateHeader('byteOffsetData', off)}
+                      className={`py-1 rounded-lg text-[11px] font-mono border transition ${
+                        header.byteOffsetData === off
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                      }`}
+                    >
+                      {off} B
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  value={header.byteOffsetData}
+                  onChange={(e) => updateHeader('byteOffsetData', Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  className="input text-xs py-1.5"
+                />
+              </div>
+
+              {/* Trace Header size */}
+              <div>
+                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                  Header por Traza (bytes):
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[0, 16, 24, 32].map((th) => (
+                    <button
+                      key={th}
+                      onClick={() => updateHeader('traceHeaderBytes', th)}
+                      className={`py-1 rounded-lg text-[11px] font-mono border transition ${
+                        header.traceHeaderBytes === th
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                      }`}
+                    >
+                      {th} B
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* dt & dx */}
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
+                <div>
+                  <label className="text-[10px] text-text-muted block">dt (ns):</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={header.sampleIntervalNs}
+                    onChange={(e) => updateHeader('sampleIntervalNs', parseFloat(e.target.value) || 0.1)}
+                    className="input text-xs py-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-text-muted block">dx (m):</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={header.traceDistanceStepM}
+                    onChange={(e) => updateHeader('traceDistanceStepM', parseFloat(e.target.value) || 0.05)}
+                    className="input text-xs py-1"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}

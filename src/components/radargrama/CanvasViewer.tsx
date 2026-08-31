@@ -126,7 +126,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // High resolution rendering
     const rect = canvas.getBoundingClientRect();
     const width = Math.floor(rect.width || 800);
     const height = Math.floor(rect.height || 500);
@@ -134,12 +133,12 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     canvas.width = width;
     canvas.height = height;
 
-    // Clear background
-    ctx.fillStyle = '#0f172a';
+    // Background
+    ctx.fillStyle = '#0b132b';
     ctx.fillRect(0, 0, width, height);
 
     // Margins for rulers
-    const margin = { top: 30, left: 65, right: 20, bottom: 45 };
+    const margin = { top: 30, left: 65, right: 20, bottom: 40 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
 
@@ -206,8 +205,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       const dx = dataset.header.traceDistanceStepM;
       const vMPerNs = calculateVelocity(dielectricPermittivity);
 
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 2 / zoom;
+      ctx.strokeStyle = '#f5a623';
+      ctx.lineWidth = 2.5 / zoom;
       ctx.beginPath();
 
       const t0Ns = apex.sample * dt;
@@ -235,18 +234,19 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       const apexCanvasX = (apex.trace / numTraces) * plotWidth;
       const apexCanvasY = (apex.sample / numSamples) * plotHeight;
 
-      ctx.fillStyle = '#f59e0b';
+      ctx.fillStyle = '#f5a623';
       ctx.beginPath();
       ctx.arc(apexCanvasX, apexCanvasY, 6 / zoom, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2 / zoom;
       ctx.stroke();
     }
 
     ctx.restore();
 
     // Draw Rulers & Grid Axes
-    ctx.strokeStyle = '#334155';
+    ctx.strokeStyle = '#1e293b';
     ctx.fillStyle = '#94a3b8';
     ctx.font = '11px sans-serif';
 
@@ -330,7 +330,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
-    const margin = { top: 30, left: 65, right: 20, bottom: 45 };
+    const margin = { top: 30, left: 65, right: 20, bottom: 40 };
     const plotWidth = rect.width - margin.left - margin.right;
     const plotHeight = rect.height - margin.top - margin.bottom;
 
@@ -371,7 +371,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const margin = { top: 30, left: 65, right: 20, bottom: 45 };
+    const margin = { top: 30, left: 65, right: 20, bottom: 40 };
     const plotWidth = rect.width - margin.left - margin.right;
     const plotHeight = rect.height - margin.top - margin.bottom;
 
@@ -437,14 +437,14 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   };
 
   return (
-    <div ref={containerRef} className="relative w-full h-full flex flex-col bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+    <div ref={containerRef} className="relative w-full h-full flex flex-col bg-slate-950 rounded-2xl border border-border overflow-hidden shadow-card">
       {/* Top Overlay Controls Bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-900/90 border-b border-slate-800 backdrop-blur-md z-10">
-        <div className="flex items-center gap-3 text-xs text-slate-300">
-          <span className="font-semibold text-sky-400">Visualizador B-Scan</span>
+      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 text-slate-200 z-10">
+        <div className="flex items-center gap-3 text-xs">
+          <span className="font-bold text-sky-400">Visualizador B-Scan</span>
           {dataset && (
-            <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono">
-              {dataset.filename} ({numTraces} trazas, {numSamples} muestras)
+            <span className="bg-slate-800 px-2.5 py-0.5 rounded-full text-slate-300 font-mono text-[11px] border border-slate-700">
+              {dataset.filename} • <span className="text-emerald-400 font-bold">{numTraces}</span> trazas • <span className="text-amber-400 font-bold">{numSamples}</span> muestras/traza
             </span>
           )}
         </div>
@@ -453,27 +453,27 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           {/* Zoom Buttons */}
           <button
             onClick={() => setZoom((z) => Math.min(10, z * 1.25))}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded transition"
+            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
             title="Acercar Zoom"
           >
             <ZoomIn className="w-4 h-4" />
           </button>
           <button
             onClick={() => setZoom((z) => Math.max(0.5, z * 0.8))}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded transition"
+            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
             title="Alejar Zoom"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
           <button
             onClick={handleResetView}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded transition"
+            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
             title="Restablecer Vista"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
 
-          <span className="text-xs text-slate-400 ml-2 font-mono">{Math.round(zoom * 100)}%</span>
+          <span className="text-xs text-slate-400 ml-1.5 font-mono">{Math.round(zoom * 100)}%</span>
         </div>
       </div>
 
@@ -491,21 +491,21 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
         {/* Hover Coordinate Info Pill */}
         {hoverInfo && (
-          <div className="absolute bottom-3 left-3 bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 shadow-xl backdrop-blur-md flex items-center gap-4">
+          <div className="absolute bottom-3 left-3 bg-slate-900/95 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200 shadow-xl backdrop-blur-md flex items-center gap-4 z-10">
             <div>
-              <span className="text-slate-400">Traza:</span> <span className="text-sky-400 font-bold">{hoverInfo.traceIdx}</span>
+              <span className="text-slate-400 font-sans">Traza:</span> <span className="text-sky-400 font-bold">{hoverInfo.traceIdx}</span>
             </div>
             <div>
-              <span className="text-slate-400">Dist:</span> <span className="text-emerald-400 font-bold">{hoverInfo.distM.toFixed(2)}m</span>
+              <span className="text-slate-400 font-sans">Distancia:</span> <span className="text-emerald-400 font-bold">{hoverInfo.distM.toFixed(2)}m</span>
             </div>
             <div>
-              <span className="text-slate-400">Tiempo:</span> <span className="text-amber-400 font-bold">{hoverInfo.timeNs.toFixed(1)}ns</span>
+              <span className="text-slate-400 font-sans">Tiempo:</span> <span className="text-amber-400 font-bold">{hoverInfo.timeNs.toFixed(1)}ns</span>
             </div>
             <div>
-              <span className="text-slate-400">Prof:</span> <span className="text-purple-400 font-bold">{hoverInfo.depthM.toFixed(2)}m</span>
+              <span className="text-slate-400 font-sans">Profundidad:</span> <span className="text-purple-400 font-bold">{hoverInfo.depthM.toFixed(2)}m</span>
             </div>
             <div>
-              <span className="text-slate-400">Amp:</span> <span className="text-rose-400 font-bold">{hoverInfo.amplitude.toFixed(1)}</span>
+              <span className="text-slate-400 font-sans">Amplitud:</span> <span className="text-rose-400 font-bold">{hoverInfo.amplitude.toFixed(1)}</span>
             </div>
           </div>
         )}

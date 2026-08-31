@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GPRDataset, GPRTrace, parseGSFBuffer } from '@/lib/gpr/gsfParser';
+import { Navbar } from '@/components/layout/Navbar';
+import { BackButton } from '@/components/BackButton';
+import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader } from '@/lib/gpr/gsfParser';
 import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, computeFFT } from '@/lib/gpr/dspEngine';
 import { CanvasViewer, ColorPalette } from '@/components/radargrama/CanvasViewer';
 import { DSPOptionsPanel } from '@/components/radargrama/DSPOptionsPanel';
@@ -90,18 +92,28 @@ export default function RadargramaWorkstationPage() {
     }
   };
 
+  // Handle Header Calibration Override (live re-parsing from raw buffer)
+  const handleHeaderOverride = (updatedHeader: GSFHeader) => {
+    if (!activeDataset) return;
+    const reBuiltDataset = buildDatasetFromHeader(activeDataset.rawBuffer, activeDataset.filename, updatedHeader);
+    
+    setDatasets((prev) =>
+      prev.map((d) => (d.id === activeDataset.id ? { ...reBuiltDataset, id: d.id } : d))
+    );
+  };
+
   // Generate Synthetic Demo GSF Radargram for testing if no file uploaded
   const handleLoadDemoDataset = () => {
-    const numTraces = 300;
+    const numTraces = 350;
     const numSamples = 512;
-    const sampleIntervalNs = 0.1; // 100ps -> 51.2ns time window
-    const traceDistanceStepM = 0.05; // 5cm between traces
+    const sampleIntervalNs = 0.097656; // ~10.24 GS/s
+    const traceDistanceStepM = 0.05;
 
     const rawMatrix: Float32Array[] = [];
     const processedMatrix: Float32Array[] = [];
     const traces: GPRTrace[] = [];
 
-    // Synthesize radargram with direct wave, soil layers, and diffraction hyperbolas
+    // Synthesize realistic radargram profile with direct ground coupling, 2 geological layers, and 2 diffraction hyperbolas
     for (let t = 0; t < numTraces; t++) {
       const trace = new Float32Array(numSamples);
       const xM = t * traceDistanceStepM;
@@ -110,24 +122,27 @@ export default function RadargramaWorkstationPage() {
         const tNs = s * sampleIntervalNs;
         let amp = 0;
 
-        // Direct ground wave at t ~ 4ns
-        amp += 3000 * Math.sin((tNs - 4) * 0.8) * Math.exp(-Math.pow((tNs - 4) / 1.5, 2));
+        // 1. Direct Air/Ground Wave (First Arrival at t ~ 4.5ns)
+        amp += 5000 * Math.sin((tNs - 4.5) * 1.2) * Math.exp(-Math.pow((tNs - 4.5) / 1.6, 2));
 
-        // Horizontal reflection layer 1 at t ~ 15ns
-        amp += 1800 * Math.sin((tNs - 15) * 0.6) * Math.exp(-Math.pow((tNs - 15) / 2.0, 2));
+        // 2. Continuous Subsurface Stratum Horizon at t ~ 14.5ns
+        amp += 2200 * Math.sin((tNs - 14.5) * 0.9) * Math.exp(-Math.pow((tNs - 14.5) / 2.0, 2));
 
-        // Hyperbola 1 apex at trace 100, t0 = 24ns
-        const dist1 = xM - (100 * traceDistanceStepM);
-        const tHyp1 = Math.sqrt(24 * 24 + (4 * dist1 * dist1) / (0.1 * 0.1));
-        amp += 2500 * Math.sin((tNs - tHyp1) * 0.7) * Math.exp(-Math.pow((tNs - tHyp1) / 1.8, 2));
+        // 3. Second Geological Bedrock Horizon at t ~ 28.0ns
+        amp += 1700 * Math.sin((tNs - 28.0) * 0.7) * Math.exp(-Math.pow((tNs - 28.0) / 2.5, 2));
 
-        // Hyperbola 2 apex at trace 210, t0 = 35ns
-        const dist2 = xM - (210 * traceDistanceStepM);
-        const tHyp2 = Math.sqrt(35 * 35 + (4 * dist2 * dist2) / (0.1 * 0.1));
-        amp += 3200 * Math.sin((tNs - tHyp2) * 0.7) * Math.exp(-Math.pow((tNs - tHyp2) / 2.0, 2));
+        // 4. Pipe / Utility Target Hyperbola #1 (Apex at trace 110, t0 = 19.5ns)
+        const dist1 = xM - (110 * traceDistanceStepM);
+        const tHyp1 = Math.sqrt(19.5 * 19.5 + (4 * dist1 * dist1) / (0.1 * 0.1));
+        amp += 3800 * Math.sin((tNs - tHyp1) * 1.1) * Math.exp(-Math.pow((tNs - tHyp1) / 1.8, 2));
 
-        // Noise
-        amp += (Math.random() - 0.5) * 150;
+        // 5. Buried Object Hyperbola #2 (Apex at trace 240, t0 = 23.0ns)
+        const dist2 = xM - (240 * traceDistanceStepM);
+        const tHyp2 = Math.sqrt(23.0 * 23.0 + (4 * dist2 * dist2) / (0.1 * 0.1));
+        amp += 3400 * Math.sin((tNs - tHyp2) * 1.1) * Math.exp(-Math.pow((tNs - tHyp2) / 1.8, 2));
+
+        // Background soil attenuation noise
+        amp += (Math.random() - 0.5) * 180;
 
         trace[s] = amp;
       }
@@ -145,30 +160,36 @@ export default function RadargramaWorkstationPage() {
       });
     }
 
+    const demoHeader: GSFHeader = {
+      title: 'Radargrama_Demostracion_PROCIMEC',
+      version: 1.0,
+      numTraces,
+      numSamples,
+      sampleIntervalNs,
+      timeWindowNs: numSamples * sampleIntervalNs,
+      antennaFreqMHz: 450,
+      dielectricPermittivity: 9.0,
+      traceDistanceStepM,
+      zeroOffsetNs: 0,
+      byteOffsetData: 1024,
+      traceHeaderBytes: 0,
+      bytesPerSample: 2,
+      dataType: 'int16',
+      headerSize: 1024,
+    };
+
+    const demoBuffer = new ArrayBuffer(1024 + numTraces * numSamples * 2);
+
     const demoDataset: GPRDataset = {
       id: `demo_${Date.now()}`,
-      filename: 'Radargrama_Demostracion_GSF.gsf',
-      header: {
-        title: 'Radargrama Demostración GPRSoft',
-        version: 1.0,
-        numTraces,
-        numSamples,
-        sampleIntervalNs,
-        timeWindowNs: numSamples * sampleIntervalNs,
-        antennaFreqMHz: 500,
-        dielectricPermittivity: 9.0,
-        traceDistanceStepM,
-        zeroOffsetNs: 0,
-        byteOffsetData: 1024,
-        bytesPerSample: 2,
-        dataType: 'int16',
-        headerSize: 1024,
-      },
+      filename: 'Perfil_Demo_GPR.gsf',
+      rawBuffer: demoBuffer,
+      header: demoHeader,
       traces,
       rawMatrix,
       processedMatrix,
-      minAmplitude: -3500,
-      maxAmplitude: 3500,
+      minAmplitude: -5500,
+      maxAmplitude: 5500,
       createdTime: Date.now(),
     };
 
@@ -248,110 +269,117 @@ export default function RadargramaWorkstationPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden select-none">
-      {/* Top Workstation Header */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-5 flex items-center justify-between z-20">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-tr from-sky-600 to-indigo-600 rounded-lg shadow-lg shadow-sky-500/20">
-            <Activity className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="font-bold text-base text-slate-100 flex items-center gap-2">
-              Procesador Web de Radargramas (.GSF)
-              <span className="bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[10px] px-2 py-0.5 rounded-full font-mono font-medium">
-                GPRSoft Engine v2.4
-              </span>
-            </h1>
-            <p className="text-[11px] text-slate-400">
-              Procesamiento Digital de Señales (DSP) en memoria de alto rendimiento
-            </p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-surface flex flex-col font-sans select-none">
+      {/* PROCIMEC Navigation Header */}
+      <Navbar />
 
-        {/* Header Action Toolbar */}
-        <div className="flex items-center gap-3">
-          {/* File Upload Button */}
-          <label className="cursor-pointer bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-2 transition shadow-md shadow-sky-600/30">
-            <Upload className="w-4 h-4" />
-            <span>Cargar Archivo .GSF</span>
-            <input
-              type="file"
-              accept=".gsf,.bin"
-              multiple
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </label>
-
-          {/* Load Demo Data Button */}
-          <button
-            onClick={handleLoadDemoDataset}
-            className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-2 transition border border-slate-700"
-          >
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>Cargar Ejemplo Demo</span>
-          </button>
-
-          {/* Export Dropdown Group */}
-          {activeDataset && (
-            <div className="flex items-center gap-1.5 bg-slate-800/80 p-1 rounded-lg border border-slate-700">
-              <button
-                onClick={handleExportJPG}
-                className="p-1.5 hover:bg-slate-700 rounded text-slate-300 hover:text-white transition text-xs flex items-center gap-1"
-                title="Exportar Imagen JPG"
-              >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                <span>JPG</span>
-              </button>
-              <button
-                onClick={handleExportPDF}
-                className="p-1.5 hover:bg-slate-700 rounded text-slate-300 hover:text-white transition text-xs flex items-center gap-1"
-                title="Exportar Reporte Técnico PDF"
-              >
-                <FileText className="w-4 h-4 text-rose-400" />
-                <span>Reporte PDF</span>
-              </button>
-              <button
-                onClick={handleExportGSF}
-                className="p-1.5 hover:bg-slate-700 rounded text-slate-300 hover:text-white transition text-xs flex items-center gap-1"
-                title="Descargar Binario GSF Modificado"
-              >
-                <FileDown className="w-4 h-4 text-sky-400" />
-                <span>Binario GSF</span>
-              </button>
-              {datasets.length > 1 && (
-                <button
-                  onClick={handleExportBatchPPTX}
-                  className="p-1.5 hover:bg-slate-700 rounded text-amber-300 hover:text-amber-200 transition text-xs flex items-center gap-1 font-semibold"
-                  title="Exportar Presentación PPTX en Lote"
-                >
-                  <Presentation className="w-4 h-4 text-amber-400" />
-                  <span>PPTX Lote ({datasets.length})</span>
-                </button>
-              )}
+      {/* Hero / Header Bar */}
+      <div className="bg-white border-b border-border shadow-xs px-4 sm:px-6 py-3">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <BackButton />
+            <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center text-primary flex-shrink-0">
+              <Activity className="w-5 h-5" />
             </div>
-          )}
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold text-text-primary">
+                  Procesador Web de Radargramas (.gsf)
+                </h1>
+                <span className="badge-primary text-[10px] px-2 py-0.5">GPR DSP</span>
+              </div>
+              <p className="text-xs text-text-muted">
+                Procesamiento digital de señales GPR en memoria temporal (Dewow, AGC, Hilbert, Migración)
+              </p>
+            </div>
+          </div>
+
+          {/* Action Toolbar */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* File Upload Button */}
+            <label className="btn-primary btn-sm cursor-pointer shadow-glow">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Cargar .GSF</span>
+              <input
+                type="file"
+                accept=".gsf,.bin"
+                multiple
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </label>
+
+            {/* Load Demo Data Button */}
+            <button
+              onClick={handleLoadDemoDataset}
+              className="btn-outline btn-sm"
+              title="Cargar radargrama sintético de prueba"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-accent-700" />
+              <span>Cargar Ejemplo</span>
+            </button>
+
+            {/* Export Toolbar */}
+            {activeDataset && (
+              <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-border">
+                <button
+                  onClick={handleExportJPG}
+                  className="px-2.5 py-1 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-white rounded-lg transition flex items-center gap-1.5 shadow-2xs"
+                  title="Exportar imagen JPG"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>JPG</span>
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  className="px-2.5 py-1 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-white rounded-lg transition flex items-center gap-1.5 shadow-2xs"
+                  title="Exportar reporte técnico PDF"
+                >
+                  <FileText className="w-3.5 h-3.5 text-red-600" />
+                  <span>PDF</span>
+                </button>
+                <button
+                  onClick={handleExportGSF}
+                  className="px-2.5 py-1 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-white rounded-lg transition flex items-center gap-1.5 shadow-2xs"
+                  title="Descargar binario GSF procesado"
+                >
+                  <FileDown className="w-3.5 h-3.5 text-primary" />
+                  <span>GSF</span>
+                </button>
+                {datasets.length > 1 && (
+                  <button
+                    onClick={handleExportBatchPPTX}
+                    className="px-2.5 py-1 text-xs font-semibold text-accent-700 hover:bg-amber-50 rounded-lg transition flex items-center gap-1.5 border border-amber-200"
+                    title="Exportar presentación en lote"
+                  >
+                    <Presentation className="w-3.5 h-3.5 text-accent" />
+                    <span>PPTX Lote ({datasets.length})</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </header>
+      </div>
 
       {/* Dataset Tab Bar (Multi-file batch manager) */}
       {datasets.length > 0 && (
-        <div className="h-10 bg-slate-900/60 border-b border-slate-800 px-4 flex items-center gap-2 overflow-x-auto">
+        <div className="bg-white border-b border-border px-4 sm:px-6 flex items-center gap-2 overflow-x-auto h-11">
           {datasets.map((ds) => (
             <div
               key={ds.id}
               onClick={() => setActiveDatasetId(ds.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-t-lg border-t border-x cursor-pointer text-xs transition ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition ${
                 activeDatasetId === ds.id
-                  ? 'bg-slate-950 border-slate-700 text-sky-400 font-semibold'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                  ? 'bg-primary-50 text-primary border-primary font-semibold shadow-xs'
+                  : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'
               }`}
             >
-              <FolderOpen className="w-3.5 h-3.5" />
-              <span className="max-w-[150px] truncate">{ds.filename}</span>
+              <FolderOpen className="w-3.5 h-3.5 text-primary" />
+              <span className="max-w-[160px] truncate">{ds.filename}</span>
               <button
                 onClick={(e) => handleRemoveDataset(ds.id, e)}
-                className="p-0.5 hover:bg-slate-800 rounded text-slate-500 hover:text-rose-400"
+                className="p-0.5 hover:bg-red-100 rounded text-text-muted hover:text-red-600 transition"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -361,11 +389,11 @@ export default function RadargramaWorkstationPage() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden p-4 gap-4 max-w-[1600px] w-full mx-auto">
         {activeDataset ? (
           <>
             {/* Center Canvas Viewport */}
-            <div className="flex-1 p-3 flex flex-col bg-slate-950 relative overflow-hidden">
+            <div className="flex-1 flex flex-col min-h-[600px] h-[calc(100vh-170px)]">
               <CanvasViewer
                 dataset={activeDataset}
                 processedMatrix={activeProcessedMatrix}
@@ -379,39 +407,43 @@ export default function RadargramaWorkstationPage() {
             </div>
 
             {/* Right DSP Options Panel */}
-            <DSPOptionsPanel
-              options={activeOptions}
-              onChange={handleDSPOptionsChange}
-              palette={palette}
-              onPaletteChange={setPalette}
-              contrast={contrast}
-              onContrastChange={setContrast}
-              brightness={brightness}
-              onBrightnessChange={setBrightness}
-              showHyperbolaTool={showHyperbolaTool}
-              onToggleHyperbolaTool={setShowHyperbolaTool}
-              onResetDSP={handleResetDSP}
-            />
+            <div className="h-[calc(100vh-170px)] rounded-2xl overflow-hidden border border-border">
+              <DSPOptionsPanel
+                options={activeOptions}
+                header={activeDataset.header}
+                onChange={handleDSPOptionsChange}
+                onHeaderChange={handleHeaderOverride}
+                palette={palette}
+                onPaletteChange={setPalette}
+                contrast={contrast}
+                onContrastChange={setContrast}
+                brightness={brightness}
+                onBrightnessChange={setBrightness}
+                showHyperbolaTool={showHyperbolaTool}
+                onToggleHyperbolaTool={setShowHyperbolaTool}
+                onResetDSP={handleResetDSP}
+              />
+            </div>
           </>
         ) : (
           /* Empty State Dropzone */
-          <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-950">
-            <div className="max-w-md w-full p-8 bg-slate-900/60 border border-dashed border-slate-700 rounded-2xl flex flex-col items-center text-center space-y-4 backdrop-blur-xl shadow-2xl">
-              <div className="p-4 bg-sky-500/10 text-sky-400 rounded-full border border-sky-500/20">
-                <Upload className="w-10 h-10" />
+          <div className="flex-1 flex flex-col items-center justify-center p-8">
+            <div className="max-w-md w-full p-8 bg-white border-2 border-dashed border-border rounded-3xl flex flex-col items-center text-center space-y-4 shadow-card">
+              <div className="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center text-primary">
+                <Upload className="w-8 h-8" />
               </div>
 
               <div>
-                <h2 className="text-lg font-bold text-slate-100">Sin Radargrama Cargado</h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Arrastra y suelta tus archivos binarios <code>.gsf</code> aquí o carga el conjunto de demostración para iniciar el análisis DSP en vivo.
+                <h2 className="text-xl font-bold text-text-primary">Sin Radargrama Cargado</h2>
+                <p className="text-xs text-text-muted mt-1 leading-relaxed">
+                  Carga tus archivos de radargrama <code>.gsf</code> (ImpulseRadar / Geotech) para iniciar la visualización B-Scan y el procesamiento DSP en vivo.
                 </p>
               </div>
 
               <div className="flex items-center gap-3 pt-2">
-                <label className="cursor-pointer bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 transition shadow-lg shadow-sky-600/30">
+                <label className="btn-primary btn-sm cursor-pointer shadow-glow">
                   <Upload className="w-4 h-4" />
-                  <span>Seleccionar Archivo GSF</span>
+                  <span>Seleccionar Archivo .GSF</span>
                   <input
                     type="file"
                     accept=".gsf,.bin"
@@ -423,9 +455,9 @@ export default function RadargramaWorkstationPage() {
 
                 <button
                   onClick={handleLoadDemoDataset}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 transition border border-slate-700"
+                  className="btn-outline btn-sm"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <Sparkles className="w-4 h-4 text-accent-700" />
                   <span>Probar Demo</span>
                 </button>
               </div>
@@ -534,8 +566,8 @@ function AScanInspectionModal({
     }
     if (maxMag === 0) maxMag = 1;
 
-    ctx.strokeStyle = '#f59e0b';
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+    ctx.strokeStyle = '#f5a623';
+    ctx.fillStyle = 'rgba(245, 166, 35, 0.2)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(0, h);
@@ -553,20 +585,20 @@ function AScanInspectionModal({
   }, [magnitudes]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white border border-border rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
         {/* Modal Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-slate-100 font-semibold text-sm">
-            <Activity className="w-4 h-4 text-sky-400" />
+        <div className="p-4 border-b border-border flex items-center justify-between bg-gray-50">
+          <div className="flex items-center gap-2 text-text-primary font-bold text-sm">
+            <Activity className="w-4 h-4 text-primary" />
             <span>Inspección de Traza A-Scan #{traceIdx}</span>
-            <span className="text-xs font-mono text-slate-400">({distM.toFixed(2)}m)</span>
+            <span className="text-xs font-mono text-text-muted">({distM.toFixed(2)}m)</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"
+            className="p-1.5 hover:bg-gray-200 rounded-full text-text-secondary hover:text-text-primary transition"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -574,38 +606,38 @@ function AScanInspectionModal({
         <div className="p-5 space-y-4">
           {/* Waveform Plot */}
           <div>
-            <div className="flex justify-between text-xs text-slate-300 mb-1">
-              <span className="font-semibold">Señal Temporal A-Scan (Amplitud vs Tiempo/Muestras)</span>
-              <span className="font-mono text-slate-400">{numSamples} muestras</span>
+            <div className="flex justify-between text-xs text-text-secondary mb-1.5 font-medium">
+              <span>Señal Temporal A-Scan (Amplitud vs Tiempo/Muestras)</span>
+              <span className="font-mono text-text-muted">{numSamples} muestras</span>
             </div>
             <canvas
               ref={waveformCanvasRef}
               width={600}
               height={140}
-              className="w-full h-36 border border-slate-800 rounded-lg block"
+              className="w-full h-36 border border-border rounded-2xl block bg-slate-950"
             />
           </div>
 
           {/* FFT Spectrum Plot */}
           <div>
-            <div className="flex justify-between text-xs text-slate-300 mb-1">
-              <span className="font-semibold">Espectro de Frecuencias (Transformada FFT)</span>
-              <span className="font-mono text-amber-400">Dominio de Frecuencia</span>
+            <div className="flex justify-between text-xs text-text-secondary mb-1.5 font-medium">
+              <span>Espectro de Frecuencias (Transformada FFT)</span>
+              <span className="font-mono text-accent-700 font-bold">Dominio de Frecuencia</span>
             </div>
             <canvas
               ref={fftCanvasRef}
               width={600}
               height={140}
-              className="w-full h-36 border border-slate-800 rounded-lg block"
+              className="w-full h-36 border border-border rounded-2xl block bg-slate-950"
             />
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-end">
+        <div className="p-4 bg-gray-50 border-t border-border flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg"
+            className="btn-outline btn-sm"
           >
             Cerrar Inspección
           </button>
