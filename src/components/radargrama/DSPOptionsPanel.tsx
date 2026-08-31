@@ -13,7 +13,8 @@ import {
   Palette,
   Crosshair,
   RefreshCw,
-  FileCog,
+  Sparkles,
+  Wand2,
 } from 'lucide-react';
 
 interface DSPOptionsPanelProps {
@@ -21,6 +22,10 @@ interface DSPOptionsPanelProps {
   header: GSFHeader | null;
   onChange: (updatedOptions: DSPOptions) => void;
   onHeaderChange?: (updatedHeader: GSFHeader) => void;
+  onAnalyzeWithAI?: () => Promise<void>;
+  onAutoAlignCorrelation?: () => void;
+  isAiLoading?: boolean;
+  aiExplanation?: string | null;
   palette: ColorPalette;
   onPaletteChange: (p: ColorPalette) => void;
   contrast: number;
@@ -37,6 +42,10 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   header,
   onChange,
   onHeaderChange,
+  onAnalyzeWithAI,
+  onAutoAlignCorrelation,
+  isAiLoading,
+  aiExplanation,
   palette,
   onPaletteChange,
   contrast,
@@ -47,7 +56,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   onToggleHyperbolaTool,
   onResetDSP,
 }) => {
-  const [activeTab, setActiveTab] = useState<'filters' | 'gain' | 'geometry' | 'migration' | 'display' | 'header'>('filters');
+  const [activeTab, setActiveTab] = useState<'filters' | 'gain' | 'geometry' | 'migration' | 'display' | 'header'>('header');
 
   // Custom Gain Curve Canvas Ref
   const gainCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -148,7 +157,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
       <div className="p-4 border-b border-border flex items-center justify-between bg-gray-50/50">
         <div className="flex items-center gap-2 text-primary font-bold text-sm">
           <Sliders className="w-4 h-4 text-primary" />
-          <span>Panel de Procesamiento DSP</span>
+          <span>Panel de Control DSP & AI</span>
         </div>
         <button
           onClick={onResetDSP}
@@ -161,6 +170,16 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
       {/* Tabs Bar */}
       <div className="grid grid-cols-6 bg-gray-100 p-1 border-b border-border text-xs gap-0.5">
+        <button
+          onClick={() => setActiveTab('header')}
+          className={`py-1.5 flex flex-col items-center gap-1 rounded-lg font-medium transition ${
+            activeTab === 'header' ? 'bg-primary text-white shadow-xs font-bold' : 'text-text-secondary hover:bg-gray-200'
+          }`}
+          title="Calibración y Gemini AI"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-accent-400" />
+          <span className="text-[10px]">Header</span>
+        </button>
         <button
           onClick={() => setActiveTab('filters')}
           className={`py-1.5 flex flex-col items-center gap-1 rounded-lg font-medium transition ${
@@ -211,21 +230,146 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
           <Palette className="w-3.5 h-3.5" />
           <span className="text-[10px]">Paleta</span>
         </button>
-        <button
-          onClick={() => setActiveTab('header')}
-          className={`py-1.5 flex flex-col items-center gap-1 rounded-lg font-medium transition ${
-            activeTab === 'header' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:bg-gray-200'
-          }`}
-          title="Calibración de Header"
-        >
-          <FileCog className="w-3.5 h-3.5" />
-          <span className="text-[10px]">Header</span>
-        </button>
       </div>
 
       {/* Tab Contents */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs text-text-secondary">
-        {/* TAB 1: FILTERS */}
+        {/* TAB 1: HEADER & AI CALIBRATION */}
+        {activeTab === 'header' && header && (
+          <div className="space-y-3">
+            {/* Gemini AI Action Box */}
+            <div className="bg-gradient-to-br from-primary-50 to-blue-50/60 p-3.5 rounded-2xl border border-primary-200 shadow-xs space-y-2.5">
+              <div className="flex items-center gap-2">
+                <div className="p-1 bg-primary text-white rounded-lg shadow-xs">
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                </div>
+                <div>
+                  <span className="font-bold text-primary text-xs block">Interpretar con Gemini AI</span>
+                  <span className="text-[10px] text-text-muted">Análisis automático del encabezado binario</span>
+                </div>
+              </div>
+
+              <button
+                onClick={onAnalyzeWithAI}
+                disabled={isAiLoading}
+                className="w-full btn-primary btn-sm py-2 text-xs flex items-center justify-center gap-2 font-bold shadow-glow disabled:opacity-50"
+              >
+                {isAiLoading ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Consultando Gemini...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Auto-Calibrar con Gemini AI</span>
+                  </>
+                )}
+              </button>
+
+              {aiExplanation && (
+                <div className="p-2 bg-white/90 rounded-xl border border-primary-100 text-[11px] text-primary leading-tight font-medium">
+                  {aiExplanation}
+                </div>
+              )}
+
+              {onAutoAlignCorrelation && (
+                <button
+                  onClick={onAutoAlignCorrelation}
+                  className="w-full py-1.5 px-2.5 bg-white hover:bg-gray-100 text-text-secondary hover:text-primary rounded-xl text-[11px] font-semibold border border-border transition flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCw className="w-3 h-3 text-emerald-600" />
+                  <span>Auto-Alinear por Correlación</span>
+                </button>
+              )}
+            </div>
+
+            {/* Manual Calibration Controls */}
+            <div className="bg-gray-50 p-3 rounded-2xl border border-border space-y-3">
+              <div>
+                <span className="font-bold text-text-primary block text-xs">Muestras por Traza (Ns)</span>
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Cambia el valor para corregir el ancho de traza y las líneas diagonales:
+                </p>
+              </div>
+
+              {/* Quick sample count buttons */}
+              <div className="grid grid-cols-4 gap-1.5">
+                {[256, 512, 1024, 2048].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => updateHeader('numSamples', s)}
+                    className={`py-1.5 px-2 rounded-xl text-xs font-mono font-bold border transition ${
+                      header.numSamples === s
+                        ? 'bg-primary text-white border-primary shadow-xs'
+                        : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Header Offset / Data Start */}
+              <div>
+                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                  Offset de Inicio de Datos:
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+                  {[0, 512, 1024].map((off) => (
+                    <button
+                      key={off}
+                      onClick={() => updateHeader('byteOffsetData', off)}
+                      className={`py-1 rounded-lg text-[11px] font-mono border transition ${
+                        header.byteOffsetData === off
+                          ? 'bg-primary text-white border-primary font-bold'
+                          : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                      }`}
+                    >
+                      {off} B
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Trace Header size */}
+              <div>
+                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                  Bytes de Cabecera por Traza:
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[0, 16, 24, 32].map((th) => (
+                    <button
+                      key={th}
+                      onClick={() => updateHeader('traceHeaderBytes', th)}
+                      className={`py-1 rounded-lg text-[11px] font-mono border transition ${
+                        header.traceHeaderBytes === th
+                          ? 'bg-primary text-white border-primary font-bold'
+                          : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                      }`}
+                    >
+                      {th} B
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Format & Traces */}
+              <div className="p-2.5 bg-white rounded-xl border border-border text-[11px] font-mono space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-text-muted">Total Trazas:</span>
+                  <span className="text-primary font-bold">{header.numTraces}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-muted">Formato Muestra:</span>
+                  <span className="text-text-primary uppercase font-bold">{header.dataType}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: FILTERS */}
         {activeTab === 'filters' && (
           <div className="space-y-3">
             {/* Dewow */}
@@ -347,7 +491,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
           </div>
         )}
 
-        {/* TAB 2: GAIN */}
+        {/* TAB 3: GAIN */}
         {activeTab === 'gain' && (
           <div className="space-y-3">
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
@@ -465,7 +609,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
           </div>
         )}
 
-        {/* TAB 3: GEOMETRY */}
+        {/* TAB 4: GEOMETRY */}
         {activeTab === 'geometry' && (
           <div className="space-y-3">
             {/* Zero-Time Shift */}
@@ -524,7 +668,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
           </div>
         )}
 
-        {/* TAB 4: MIGRATION & VELOCITY */}
+        {/* TAB 5: MIGRATION & VELOCITY */}
         {activeTab === 'migration' && (
           <div className="space-y-3">
             <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
@@ -633,7 +777,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
           </div>
         )}
 
-        {/* TAB 5: DISPLAY / RENDER */}
+        {/* TAB 6: DISPLAY / RENDER */}
         {activeTab === 'display' && (
           <div className="space-y-3">
             {/* Color Palette Selection */}
@@ -688,124 +832,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 onChange={(e) => onBrightnessChange(parseInt(e.target.value, 10))}
                 className="w-full accent-primary bg-gray-200 rounded"
               />
-            </div>
-          </div>
-        )}
-
-        {/* TAB 6: HEADER & GEOMETRY CALIBRATION */}
-        {activeTab === 'header' && header && (
-          <div className="space-y-3">
-            <div className="bg-gray-50 p-3 rounded-xl border border-border space-y-3">
-              <div>
-                <span className="font-semibold text-text-primary block">Calibración de Muestras / Traza</span>
-                <p className="text-[10px] text-text-muted mt-0.5">
-                  Ajusta las muestras por traza si el perfil se ve desfasado o con líneas diagonales.
-                </p>
-              </div>
-
-              {/* Quick sample count buttons */}
-              <div className="grid grid-cols-4 gap-1.5">
-                {[256, 512, 1024, 2048].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => updateHeader('numSamples', s)}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-mono font-semibold border transition ${
-                      header.numSamples === s
-                        ? 'bg-primary text-white border-primary shadow-xs'
-                        : 'bg-white text-text-secondary border-border hover:bg-gray-100'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom sample count input */}
-              <div>
-                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
-                  Muestras por Traza (Personalizado):
-                </label>
-                <input
-                  type="number"
-                  value={header.numSamples}
-                  onChange={(e) => updateHeader('numSamples', Math.max(32, parseInt(e.target.value, 10) || 512))}
-                  className="input text-xs py-1.5"
-                />
-              </div>
-
-              {/* Header Offset / Data Start */}
-              <div>
-                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
-                  Offset de Inicio de Datos (bytes):
-                </label>
-                <div className="grid grid-cols-3 gap-1.5 mb-1.5">
-                  {[0, 512, 1024].map((off) => (
-                    <button
-                      key={off}
-                      onClick={() => updateHeader('byteOffsetData', off)}
-                      className={`py-1 rounded-lg text-[11px] font-mono border transition ${
-                        header.byteOffsetData === off
-                          ? 'bg-primary text-white border-primary'
-                          : 'bg-white text-text-secondary border-border hover:bg-gray-100'
-                      }`}
-                    >
-                      {off} B
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="number"
-                  value={header.byteOffsetData}
-                  onChange={(e) => updateHeader('byteOffsetData', Math.max(0, parseInt(e.target.value, 10) || 0))}
-                  className="input text-xs py-1.5"
-                />
-              </div>
-
-              {/* Trace Header size */}
-              <div>
-                <label className="text-[11px] font-semibold text-text-secondary block mb-1">
-                  Header por Traza (bytes):
-                </label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[0, 16, 24, 32].map((th) => (
-                    <button
-                      key={th}
-                      onClick={() => updateHeader('traceHeaderBytes', th)}
-                      className={`py-1 rounded-lg text-[11px] font-mono border transition ${
-                        header.traceHeaderBytes === th
-                          ? 'bg-primary text-white border-primary'
-                          : 'bg-white text-text-secondary border-border hover:bg-gray-100'
-                      }`}
-                    >
-                      {th} B
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* dt & dx */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border">
-                <div>
-                  <label className="text-[10px] text-text-muted block">dt (ns):</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={header.sampleIntervalNs}
-                    onChange={(e) => updateHeader('sampleIntervalNs', parseFloat(e.target.value) || 0.1)}
-                    className="input text-xs py-1"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-text-muted block">dx (m):</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={header.traceDistanceStepM}
-                    onChange={(e) => updateHeader('traceDistanceStepM', parseFloat(e.target.value) || 0.05)}
-                    className="input text-xs py-1"
-                  />
-                </div>
-              </div>
             </div>
           </div>
         )}

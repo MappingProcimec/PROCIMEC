@@ -5,6 +5,7 @@ import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader } from '@/lib/gpr/gsfParser';
 import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, computeFFT } from '@/lib/gpr/dspEngine';
+import { analyzeHeaderWithGemini, autoDetectTraceStride } from '@/lib/gpr/aiHeaderAnalyzer';
 import { CanvasViewer, ColorPalette } from '@/components/radargrama/CanvasViewer';
 import { DSPOptionsPanel } from '@/components/radargrama/DSPOptionsPanel';
 import {
@@ -23,6 +24,7 @@ import {
   Sparkles,
   X,
   FolderOpen,
+  CheckCircle2,
 } from 'lucide-react';
 
 export default function RadargramaWorkstationPage() {
@@ -38,6 +40,10 @@ export default function RadargramaWorkstationPage() {
   const [contrast, setContrast] = useState<number>(1.2);
   const [brightness, setBrightness] = useState<number>(0);
   const [showHyperbolaTool, setShowHyperbolaTool] = useState<boolean>(false);
+
+  // AI Analysis states
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
 
   // Processed trace matrix cache (map dataset ID -> Float32Array[])
   const [processedMatrices, setProcessedMatrices] = useState<Record<string, Float32Array[]>>({});
@@ -89,14 +95,77 @@ export default function RadargramaWorkstationPage() {
       if (!activeDatasetId) {
         setActiveDatasetId(newDatasets[0].id);
       }
+
+      // Automatically trigger AI Header calibration on newly loaded file
+      const firstNew = newDatasets[0];
+      triggerAIAnalysisForDataset(firstNew);
     }
+  };
+
+  // Trigger Gemini AI Header Analysis
+  const triggerAIAnalysisForDataset = async (datasetToAnalyze: GPRDataset) => {
+    setIsAiLoading(true);
+    setAiExplanation('Consultando a Gemini AI para calibrar encabezado...');
+    try {
+      const aiResult = await analyzeHeaderWithGemini(datasetToAnalyze.rawBuffer, datasetToAnalyze.filename);
+      if (aiResult) {
+        const updatedHeader: GSFHeader = {
+          ...datasetToAnalyze.header,
+          numSamples: aiResult.numSamples || datasetToAnalyze.header.numSamples,
+          byteOffsetData: aiResult.byteOffsetData !== undefined ? aiResult.byteOffsetData : datasetToAnalyze.header.byteOffsetData,
+          traceHeaderBytes: aiResult.traceHeaderBytes !== undefined ? aiResult.traceHeaderBytes : datasetToAnalyze.header.traceHeaderBytes,
+          dataType: aiResult.dataType || datasetToAnalyze.header.dataType,
+          sampleIntervalNs: aiResult.sampleIntervalNs || datasetToAnalyze.header.sampleIntervalNs,
+          traceDistanceStepM: aiResult.traceDistanceStepM || datasetToAnalyze.header.traceDistanceStepM,
+          antennaFreqMHz: aiResult.antennaFreqMHz || datasetToAnalyze.header.antennaFreqMHz,
+        };
+
+        const reBuiltDataset = buildDatasetFromHeader(datasetToAnalyze.rawBuffer, datasetToAnalyze.filename, updatedHeader);
+
+        setDatasets((prev) =>
+          prev.map((d) => (d.id === datasetToAnalyze.id ? { ...reBuiltDataset, id: d.id } : d))
+        );
+
+        setAiExplanation(
+          aiResult.explanation ||
+            `✨ Calibrado con Gemini: ${updatedHeader.numSamples} muestras/traza, Offset ${updatedHeader.byteOffsetData}B, Header Traza ${updatedHeader.traceHeaderBytes}B.`
+        );
+      } else {
+        // Fallback to automated correlation analysis if API offline
+        handleAutoAlignCorrelation();
+        setAiExplanation('Calibrado mediante algoritmo de auto-correlación de fase.');
+      }
+    } catch (err) {
+      console.error('AI Analysis failed:', err);
+      setAiExplanation('No se pudo conectar a la IA, usando calibración determinística.');
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  // Manual trigger for active dataset
+  const handleAnalyzeWithAI = async () => {
+    if (!activeDataset) return;
+    await triggerAIAnalysisForDataset(activeDataset);
+  };
+
+  // Auto-align phase by cross-correlation
+  const handleAutoAlignCorrelation = () => {
+    if (!activeDataset) return;
+    const alignedHeader = autoDetectTraceStride(activeDataset.rawBuffer, activeDataset.header);
+    const reBuiltDataset = buildDatasetFromHeader(activeDataset.rawBuffer, activeDataset.filename, alignedHeader);
+
+    setDatasets((prev) =>
+      prev.map((d) => (d.id === activeDataset.id ? { ...reBuiltDataset, id: d.id } : d))
+    );
+    setAiExplanation(`Fase alineada: ${alignedHeader.numSamples} muestras, Header Traza: ${alignedHeader.traceHeaderBytes}B.`);
   };
 
   // Handle Header Calibration Override (live re-parsing from raw buffer)
   const handleHeaderOverride = (updatedHeader: GSFHeader) => {
     if (!activeDataset) return;
     const reBuiltDataset = buildDatasetFromHeader(activeDataset.rawBuffer, activeDataset.filename, updatedHeader);
-    
+
     setDatasets((prev) =>
       prev.map((d) => (d.id === activeDataset.id ? { ...reBuiltDataset, id: d.id } : d))
     );
@@ -286,10 +355,10 @@ export default function RadargramaWorkstationPage() {
                 <h1 className="text-lg font-bold text-text-primary">
                   Procesador Web de Radargramas (.gsf)
                 </h1>
-                <span className="badge-primary text-[10px] px-2 py-0.5">GPR DSP</span>
+                <span className="badge-primary text-[10px] px-2 py-0.5">GPR DSP & AI</span>
               </div>
               <p className="text-xs text-text-muted">
-                Procesamiento digital de señales GPR en memoria temporal (Dewow, AGC, Hilbert, Migración)
+                Procesamiento digital de señales GPR y calibración con Gemini AI
               </p>
             </div>
           </div>
@@ -364,27 +433,37 @@ export default function RadargramaWorkstationPage() {
 
       {/* Dataset Tab Bar (Multi-file batch manager) */}
       {datasets.length > 0 && (
-        <div className="bg-white border-b border-border px-4 sm:px-6 flex items-center gap-2 overflow-x-auto h-11">
-          {datasets.map((ds) => (
-            <div
-              key={ds.id}
-              onClick={() => setActiveDatasetId(ds.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition ${
-                activeDatasetId === ds.id
-                  ? 'bg-primary-50 text-primary border-primary font-semibold shadow-xs'
-                  : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'
-              }`}
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-primary" />
-              <span className="max-w-[160px] truncate">{ds.filename}</span>
-              <button
-                onClick={(e) => handleRemoveDataset(ds.id, e)}
-                className="p-0.5 hover:bg-red-100 rounded text-text-muted hover:text-red-600 transition"
+        <div className="bg-white border-b border-border px-4 sm:px-6 flex items-center justify-between overflow-x-auto h-11">
+          <div className="flex items-center gap-2">
+            {datasets.map((ds) => (
+              <div
+                key={ds.id}
+                onClick={() => setActiveDatasetId(ds.id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition ${
+                  activeDatasetId === ds.id
+                    ? 'bg-primary-50 text-primary border-primary font-semibold shadow-xs'
+                    : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'
+                }`}
               >
-                <X className="w-3 h-3" />
-              </button>
+                <FolderOpen className="w-3.5 h-3.5 text-primary" />
+                <span className="max-w-[160px] truncate">{ds.filename}</span>
+                <button
+                  onClick={(e) => handleRemoveDataset(ds.id, e)}
+                  className="p-0.5 hover:bg-red-100 rounded text-text-muted hover:text-red-600 transition"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* AI Banner feedback if available */}
+          {aiExplanation && (
+            <div className="hidden lg:flex items-center gap-2 text-xs text-primary font-medium bg-primary-50 px-3 py-1 rounded-full border border-primary-200">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="truncate max-w-md">{aiExplanation}</span>
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -413,6 +492,10 @@ export default function RadargramaWorkstationPage() {
                 header={activeDataset.header}
                 onChange={handleDSPOptionsChange}
                 onHeaderChange={handleHeaderOverride}
+                onAnalyzeWithAI={handleAnalyzeWithAI}
+                onAutoAlignCorrelation={handleAutoAlignCorrelation}
+                isAiLoading={isAiLoading}
+                aiExplanation={aiExplanation}
                 palette={palette}
                 onPaletteChange={setPalette}
                 contrast={contrast}
@@ -436,7 +519,7 @@ export default function RadargramaWorkstationPage() {
               <div>
                 <h2 className="text-xl font-bold text-text-primary">Sin Radargrama Cargado</h2>
                 <p className="text-xs text-text-muted mt-1 leading-relaxed">
-                  Carga tus archivos de radargrama <code>.gsf</code> (ImpulseRadar / Geotech) para iniciar la visualización B-Scan y el procesamiento DSP en vivo.
+                  Carga tus archivos de radargrama <code>.gsf</code> (ImpulseRadar / Geotech). La inteligencia artificial de Gemini y el motor DSP interpretarán y calibrarán las señales automáticamente.
                 </p>
               </div>
 
