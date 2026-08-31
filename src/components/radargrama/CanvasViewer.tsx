@@ -3,14 +3,12 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GPRDataset } from '@/lib/gpr/gsfParser';
 import { calculateVelocity } from '@/lib/gpr/dspEngine';
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 export type ColorPalette = 'seismic' | 'grayscale' | 'bone' | 'sepia' | 'jet';
 
 interface CanvasViewerProps {
   dataset: GPRDataset | null;
   processedMatrix: Float32Array[] | null;
-  pythonImageBase64?: string;
   palette: ColorPalette;
   contrast: number; // 0.1 to 5.0
   brightness: number; // -100 to 100
@@ -22,7 +20,6 @@ interface CanvasViewerProps {
 export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   dataset,
   processedMatrix,
-  pythonImageBase64,
   palette = 'seismic',
   contrast = 1.0,
   brightness = 0,
@@ -32,13 +29,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-
-  // Pan & Zoom state
-  const [zoomX, setZoomX] = useState<number>(1.0);
-  const [zoomY, setZoomY] = useState<number>(1.0);
-  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState<boolean>(false);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Mouse hover info
   const [hoverInfo, setHoverInfo] = useState<{
@@ -57,17 +47,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const numTraces = processedMatrix ? processedMatrix.length : 0;
   const numSamples = processedMatrix && numTraces > 0 ? processedMatrix[0].length : 0;
 
-  // Reset view
-  const handleResetView = () => {
-    setZoomX(1.0);
-    setZoomY(1.0);
-    setPanOffset({ x: 0, y: 0 });
-  };
-
   // Convert bipolar amplitude value [-1, 1] to RGB matching Python matplotlib colormaps
   const getPaletteColor = useCallback(
     (normVal: number): [number, number, number] => {
-      // normVal is in range [-1.0, 1.0]
       const val = Math.max(-1.0, Math.min(1.0, normVal * contrast + brightness / 100));
 
       if (palette === 'seismic') {
@@ -124,7 +106,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     [palette, contrast, brightness]
   );
 
-  // Render Canvas
+  // Render Canvas (Locked solidly to borders, no pan/zoom separation)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !processedMatrix || numTraces === 0 || numSamples === 0) return;
@@ -190,29 +172,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       offCtx.putImageData(imgData, 0, 0);
     }
 
-    // Clip to plot area & draw image with pan/zoom
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(margin.left, margin.top, plotWidth, plotHeight);
-    ctx.clip();
-
-    ctx.translate(margin.left + panOffset.x, margin.top + panOffset.y);
-    ctx.scale(zoomX, zoomY);
-
-    if (pythonImageBase64) {
-      const pyImg = new Image();
-      pyImg.src = pythonImageBase64;
-      if (pyImg.complete) {
-        ctx.drawImage(pyImg, 0, 0, plotWidth, plotHeight);
-      } else {
-        pyImg.onload = () => {
-          ctx.drawImage(pyImg, 0, 0, plotWidth, plotHeight);
-        };
-      }
-    } else {
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(offCanvas, 0, 0, numTraces, numSamples, 0, 0, plotWidth, plotHeight);
-    }
+    // Draw image locked solidly inside plot area [margin.left ... plotWidth, margin.top ... plotHeight]
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(offCanvas, 0, 0, numTraces, numSamples, margin.left, margin.top, plotWidth, plotHeight);
 
     // Hyperbola Tool Overlay
     if (showHyperbolaTool && dataset) {
@@ -221,8 +183,13 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       const dx = dataset.header.traceDistanceStepM;
       const vMPerNs = calculateVelocity(dielectricPermittivity);
 
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(margin.left, margin.top, plotWidth, plotHeight);
+      ctx.clip();
+
       ctx.strokeStyle = '#f5a623';
-      ctx.lineWidth = 2.5 / Math.min(zoomX, zoomY);
+      ctx.lineWidth = 2.5;
       ctx.beginPath();
 
       const t0Ns = apex.sample * dt;
@@ -234,27 +201,26 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
         const tNs = Math.sqrt(t0Ns * t0Ns + (4 * distM * distM) / (vMPerNs * vMPerNs));
         const sIdx = tNs / dt;
 
-        const canvasX = (tr / numTraces) * plotWidth;
-        const canvasY = (sIdx / numSamples) * plotHeight;
+        const canvasX = margin.left + (tr / numTraces) * plotWidth;
+        const canvasY = margin.top + (sIdx / numSamples) * plotHeight;
 
         if (tr === 0) ctx.moveTo(canvasX, canvasY);
         else ctx.lineTo(canvasX, canvasY);
       }
       ctx.stroke();
 
-      const apexCanvasX = (apex.trace / numTraces) * plotWidth;
-      const apexCanvasY = (apex.sample / numSamples) * plotHeight;
+      const apexCanvasX = margin.left + (apex.trace / numTraces) * plotWidth;
+      const apexCanvasY = margin.top + (apex.sample / numSamples) * plotHeight;
 
       ctx.fillStyle = '#f5a623';
       ctx.beginPath();
-      ctx.arc(apexCanvasX, apexCanvasY, 6 / Math.min(zoomX, zoomY), 0, Math.PI * 2);
+      ctx.arc(apexCanvasX, apexCanvasY, 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2 / Math.min(zoomX, zoomY);
+      ctx.lineWidth = 2;
       ctx.stroke();
+      ctx.restore();
     }
-
-    ctx.restore();
 
     // --- 4 GEOPHYSICAL AXES (Configurar Ejes Radargrama) ---
     ctx.strokeStyle = '#1A252C';
@@ -358,18 +324,14 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     palette,
     contrast,
     brightness,
-    zoomX,
-    zoomY,
-    panOffset,
     showHyperbolaTool,
     hyperbolaApex,
     dielectricPermittivity,
     getPaletteColor,
     dataset,
-    pythonImageBase64,
   ]);
 
-  // Mouse handlers
+  // Mouse handlers (Locked cleanly to plot coordinates)
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -388,22 +350,17 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       clickY >= margin.top &&
       clickY <= margin.top + plotHeight
     ) {
-      if (e.shiftKey || showHyperbolaTool) {
-        const normX = (clickX - margin.left - panOffset.x) / (plotWidth * zoomX);
-        const normY = (clickY - margin.top - panOffset.y) / (plotHeight * zoomY);
+      const normX = (clickX - margin.left) / plotWidth;
+      const normY = (clickY - margin.top) / plotHeight;
 
-        const traceIdx = Math.max(0, Math.min(numTraces - 1, Math.floor(normX * numTraces)));
-        const sampleIdx = Math.max(0, Math.min(numSamples - 1, Math.floor(normY * numSamples)));
+      const traceIdx = Math.max(0, Math.min(numTraces - 1, Math.floor(normX * numTraces)));
+      const sampleIdx = Math.max(0, Math.min(numSamples - 1, Math.floor(normY * numSamples)));
 
-        if (showHyperbolaTool) {
-          setHyperbolaApex({ trace: traceIdx, sample: sampleIdx });
-          setIsDraggingApex(true);
-        } else if (onSelectTrace) {
-          onSelectTrace(traceIdx);
-        }
-      } else {
-        setIsPanning(true);
-        setDragStart({ x: clickX - panOffset.x, y: clickY - panOffset.y });
+      if (showHyperbolaTool) {
+        setHyperbolaApex({ trace: traceIdx, sample: sampleIdx });
+        setIsDraggingApex(true);
+      } else if (onSelectTrace) {
+        onSelectTrace(traceIdx);
       }
     }
   };
@@ -420,17 +377,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const plotWidth = rect.width - margin.left - margin.right;
     const plotHeight = rect.height - margin.top - margin.bottom;
 
-    if (isPanning) {
-      setPanOffset({
-        x: mouseX - dragStart.x,
-        y: mouseY - dragStart.y,
-      });
-      return;
-    }
-
     if (isDraggingApex && showHyperbolaTool) {
-      const normX = (mouseX - margin.left - panOffset.x) / (plotWidth * zoomX);
-      const normY = (mouseY - margin.top - panOffset.y) / (plotHeight * zoomY);
+      const normX = (mouseX - margin.left) / plotWidth;
+      const normY = (mouseY - margin.top) / plotHeight;
 
       const traceIdx = Math.max(0, Math.min(numTraces - 1, Math.floor(normX * numTraces)));
       const sampleIdx = Math.max(0, Math.min(numSamples - 1, Math.floor(normY * numSamples)));
@@ -445,8 +394,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       mouseY >= margin.top &&
       mouseY <= margin.top + plotHeight
     ) {
-      const normX = (mouseX - margin.left - panOffset.x) / (plotWidth * zoomX);
-      const normY = (mouseY - margin.top - panOffset.y) / (plotHeight * zoomY);
+      const normX = (mouseX - margin.left) / plotWidth;
+      const normY = (mouseY - margin.top) / plotHeight;
 
       if (normX >= 0 && normX <= 1 && normY >= 0 && normY <= 1) {
         const traceIdx = Math.floor(normX * numTraces);
@@ -470,19 +419,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   };
 
   const handleMouseUp = () => {
-    setIsPanning(false);
     setIsDraggingApex(false);
-  };
-
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.15 : 0.85;
-    if (e.shiftKey) {
-      setZoomX((prev) => Math.max(0.2, Math.min(30.0, prev * factor)));
-    } else {
-      setZoomX((prev) => Math.max(0.2, Math.min(30.0, prev * factor)));
-      setZoomY((prev) => Math.max(0.2, Math.min(10.0, prev * factor)));
-    }
   };
 
   const twNs = dataset ? dataset.header.timeWindowNs : 90.0;
@@ -510,47 +447,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
             </span>
           )}
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setZoomX((z) => Math.min(30, z * 1.25));
-              setZoomY((z) => Math.min(10, z * 1.25));
-            }}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
-            title="Acercar Zoom"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => {
-              setZoomX((z) => Math.max(0.2, z * 0.8));
-              setZoomY((z) => Math.max(0.2, z * 0.8));
-            }}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
-            title="Alejar Zoom"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setZoomX((z) => Math.min(30, z * 1.5))}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition text-[10px] font-bold"
-            title="Expandir Horizontalmente"
-          >
-            ↔ Estirar
-          </button>
-          <button
-            onClick={handleResetView}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
-            title="Vista Completa"
-          >
-            <Maximize2 className="w-4 h-4" />
-          </button>
-          <span className="text-xs text-slate-400 ml-1 font-mono">{Math.round(zoomX * 100)}%</span>
-        </div>
       </div>
 
-      {/* Main Canvas */}
+      {/* Main Canvas (Locked Edge-to-Edge) */}
       <div className="relative flex-1 w-full h-full bg-white">
         <canvas
           ref={canvasRef}
@@ -558,7 +457,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
           className="w-full h-full cursor-crosshair block"
         />
 

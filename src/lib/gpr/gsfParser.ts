@@ -1,7 +1,7 @@
 /**
  * GSF Binary Parser for Geoscanners Akula9000C & GPRSoft PRO Compatible Systems
- * Faithfully implements the 937-byte hardware header parsing, metadata extraction,
- * and autocorrelation-based geometry detection.
+ * Robustly handles standard hardware sample rates (512, 1024, 256, etc.)
+ * with trailing GPS/footer tolerance and exact normalized cross-correlation.
  */
 
 export const C_LUZ_M_NS = 0.30;             // Speed of light in vacuum (m/ns)
@@ -60,7 +60,8 @@ export interface GPRDataset {
 }
 
 /**
- * Autocorrelation-based geometry detection for .gsf data block
+ * Normalized autocorrelation-based geometry detection for .gsf data block.
+ * Prioritizes standard GPR hardware configurations (512, 1024, 256, 2048).
  */
 export function detectarGeometriaGSF(
   buffer: ArrayBuffer,
@@ -89,48 +90,75 @@ export function detectarGeometriaGSF(
     raw[i] -= mean;
   }
 
-  // Compute autocorrelation for lags in [100, 2500]
-  const maxLag = Math.min(2500, nShorts - 1);
-  const minLag = 100;
+  // Standard GPR sample count candidates
+  const stdCandidates = [512, 1024, 256, 2048, 400, 500, 600, 800, 1000, 128];
+  let bestStdScore = -Infinity;
+  let bestStdSamples = 512;
 
-  let corr0 = 0;
-  for (let i = 0; i < Math.min(5000, nShorts); i++) {
-    corr0 += raw[i] * raw[i];
-  }
-  if (corr0 === 0) corr0 = 1;
+  for (const lag of stdCandidates) {
+    if (lag >= nShorts / 2) continue;
+    const testCount = Math.min(10000, nShorts - lag);
+    let num = 0;
+    let denomA = 0;
+    let denomB = 0;
 
-  const candidatos: Array<{ score: number; tamBloque: number; muestras: number }> = [];
+    for (let i = 0; i < testCount; i++) {
+      const a = raw[i];
+      const b = raw[i + lag];
+      num += a * b;
+      denomA += a * a;
+      denomB += b * b;
+    }
 
-  for (let lag = minLag; lag < maxLag; lag++) {
-    const bLag = lag * 2;
-    if (datosUtilesLen % bLag === 0) {
-      let sum = 0;
-      const testCount = Math.min(3000, nShorts - lag);
-      for (let i = 0; i < testCount; i++) {
-        sum += raw[i] * raw[i + lag];
-      }
-      const score = sum / corr0;
-      candidatos.push({ score, tamBloque: bLag, muestras: lag });
+    const denom = Math.sqrt(denomA * denomB);
+    const score = denom > 0 ? num / denom : 0;
+
+    if (score > bestStdScore) {
+      bestStdScore = score;
+      bestStdSamples = lag;
     }
   }
 
-  if (candidatos.length > 0) {
-    candidatos.sort((a, b) => b.score - a.score);
+  if (bestStdScore > 0.4) {
     return {
-      tamBloque: candidatos[0].tamBloque,
-      muestrasPorTraza: candidatos[0].muestras,
-      score: candidatos[0].score,
+      tamBloque: bestStdSamples * 2,
+      muestrasPorTraza: bestStdSamples,
+      score: bestStdScore,
     };
   }
 
-  const stdSamples = [512, 1024, 256, 2048, 4096];
-  for (const s of stdSamples) {
-    if (datosUtilesLen % (s * 2) === 0) {
-      return { tamBloque: s * 2, muestrasPorTraza: s, score: 1.0 };
+  // Fallback: search any lag in [100, 2500]
+  let bestLag = 512;
+  let maxScore = -Infinity;
+
+  for (let lag = 100; lag < Math.min(2500, Math.floor(nShorts / 2)); lag += 2) {
+    const testCount = Math.min(4000, nShorts - lag);
+    let num = 0;
+    let denomA = 0;
+    let denomB = 0;
+
+    for (let i = 0; i < testCount; i++) {
+      const a = raw[i];
+      const b = raw[i + lag];
+      num += a * b;
+      denomA += a * a;
+      denomB += b * b;
+    }
+
+    const denom = Math.sqrt(denomA * denomB);
+    const score = denom > 0 ? num / denom : 0;
+
+    if (score > maxScore) {
+      maxScore = score;
+      bestLag = lag;
     }
   }
 
-  return { tamBloque: 1024, muestrasPorTraza: 512, score: 0.5 };
+  return {
+    tamBloque: bestLag * 2,
+    muestrasPorTraza: bestLag,
+    score: maxScore,
+  };
 }
 
 /**
@@ -194,7 +222,7 @@ export function extractGSFHeader(
 
   if (manualSamples && manualSamples > 0) {
     muestrasPorTraza = manualSamples;
-  } else if (muestrasHdr && (totalBytes - cabecera) % (muestrasHdr * 2) === 0) {
+  } else if (muestrasHdr && muestrasHdr >= 100 && muestrasHdr <= 4096) {
     muestrasPorTraza = muestrasHdr;
   } else {
     const det = detectarGeometriaGSF(buffer, cabecera);
