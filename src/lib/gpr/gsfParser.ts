@@ -1,8 +1,10 @@
 /**
  * GSF Binary Parser for Geoscanners Akula9000C & GPRSoft PRO Compatible Systems
- * Robustly handles standard hardware sample rates (512, 1024, 256, etc.)
- * with trailing GPS/footer tolerance and exact normalized cross-correlation.
+ * Faithfully implements the 937-byte hardware header parsing, metadata extraction,
+ * and FFT-based cross-correlation matching scipy.signal.correlate(..., method='fft').
  */
+
+import { correlateFFT } from './fftCorrelation';
 
 export const C_LUZ_M_NS = 0.30;             // Speed of light in vacuum (m/ns)
 export const CABECERA_DEFAULT = 937;         // Standard Akula9000C header size (bytes)
@@ -60,8 +62,8 @@ export interface GPRDataset {
 }
 
 /**
- * Normalized autocorrelation-based geometry detection for .gsf data block.
- * Prioritizes standard GPR hardware configurations (512, 1024, 256, 2048).
+ * Autocorrelation-based geometry detection for .gsf data block using FFT.
+ * Exactly replicates scipy.signal.correlate(raw, raw, mode='full', method='fft') from Python.
  */
 export function detectarGeometriaGSF(
   buffer: ArrayBuffer,
@@ -90,64 +92,35 @@ export function detectarGeometriaGSF(
     raw[i] -= mean;
   }
 
-  // Standard GPR sample count candidates
-  const stdCandidates = [512, 1024, 256, 2048, 400, 500, 600, 800, 1000, 128];
-  let bestStdScore = -Infinity;
-  let bestStdSamples = 512;
+  // Correlación FFT idéntica a scipy.signal.correlate(raw, raw, method='fft')
+  const corr = correlateFFT(raw);
+  const corr0 = corr[0] !== 0 ? corr[0] : 1.0;
 
-  for (const lag of stdCandidates) {
-    if (lag >= nShorts / 2) continue;
-    const testCount = Math.min(10000, nShorts - lag);
-    let num = 0;
-    let denomA = 0;
-    let denomB = 0;
+  const maxLag = Math.min(2500, corr.length);
+  const candidatos: Array<{ score: number; tamBloque: number; muestras: number }> = [];
 
-    for (let i = 0; i < testCount; i++) {
-      const a = raw[i];
-      const b = raw[i + lag];
-      num += a * b;
-      denomA += a * a;
-      denomB += b * b;
-    }
-
-    const denom = Math.sqrt(denomA * denomB);
-    const score = denom > 0 ? num / denom : 0;
-
-    if (score > bestStdScore) {
-      bestStdScore = score;
-      bestStdSamples = lag;
+  for (let lag = 100; lag < maxLag; lag++) {
+    const bLag = lag * 2;
+    const score = corr[lag] / corr0;
+    if (datosUtilesLen % bLag === 0) {
+      candidatos.push({ score, tamBloque: bLag, muestras: lag });
     }
   }
 
-  if (bestStdScore > 0.4) {
+  if (candidatos.length > 0) {
+    candidatos.sort((a, b) => b.score - a.score);
     return {
-      tamBloque: bestStdSamples * 2,
-      muestrasPorTraza: bestStdSamples,
-      score: bestStdScore,
+      tamBloque: candidatos[0].tamBloque,
+      muestrasPorTraza: candidatos[0].muestras,
+      score: candidatos[0].score,
     };
   }
 
-  // Fallback: search any lag in [100, 2500]
+  // Si ninguno divide exactamente el residuo, buscar el lag de máxima correlación
   let bestLag = 512;
   let maxScore = -Infinity;
-
-  for (let lag = 100; lag < Math.min(2500, Math.floor(nShorts / 2)); lag += 2) {
-    const testCount = Math.min(4000, nShorts - lag);
-    let num = 0;
-    let denomA = 0;
-    let denomB = 0;
-
-    for (let i = 0; i < testCount; i++) {
-      const a = raw[i];
-      const b = raw[i + lag];
-      num += a * b;
-      denomA += a * a;
-      denomB += b * b;
-    }
-
-    const denom = Math.sqrt(denomA * denomB);
-    const score = denom > 0 ? num / denom : 0;
-
+  for (let lag = 100; lag < maxLag; lag++) {
+    const score = corr[lag] / corr0;
     if (score > maxScore) {
       maxScore = score;
       bestLag = lag;
@@ -222,7 +195,7 @@ export function extractGSFHeader(
 
   if (manualSamples && manualSamples > 0) {
     muestrasPorTraza = manualSamples;
-  } else if (muestrasHdr && muestrasHdr >= 100 && muestrasHdr <= 4096) {
+  } else if (muestrasHdr && (totalBytes - cabecera) % (muestrasHdr * 2) === 0) {
     muestrasPorTraza = muestrasHdr;
   } else {
     const det = detectarGeometriaGSF(buffer, cabecera);
