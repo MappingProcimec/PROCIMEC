@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
-import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader, CABECERA_DEFAULT, DX_DEF, DIELECTRICO_DEF, VENTANA_TIEMPO_NS_DEF } from '@/lib/gpr/gsfParser';
+import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader, CABECERA_DEFAULT, DX_DEF, DIELECTRICO_DEF, VENTANA_TIEMPO_NS_DEF, TRAZAS_POR_METRO_DEF } from '@/lib/gpr/gsfParser';
 import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, computeFFT } from '@/lib/gpr/dspEngine';
 import { CanvasViewer, ColorPalette } from '@/components/radargrama/CanvasViewer';
 import { DSPOptionsPanel } from '@/components/radargrama/DSPOptionsPanel';
@@ -170,6 +170,7 @@ export default function RadargramaWorkstationPage() {
       antennaFreqMHz: 400,
       dielectricPermittivity: 6.0,
       traceDistanceStepM,
+      tracesPerMeter: TRAZAS_POR_METRO_DEF,
       zeroOffsetNs: 0,
       byteOffsetData: CABECERA_DEFAULT,
       traceHeaderBytes: 0,

@@ -21,6 +21,7 @@ export interface GSFHeader {
   antennaFreqMHz: number;
   dielectricPermittivity: number; // RDP (epsilon_r)
   traceDistanceStepM: number;     // dx in meters (1/112 m = 0.00892857m)
+  tracesPerMeter: number;         // Odometry calibration (default 112 or 111 tr/m)
   zeroOffsetNs: number;
   byteOffsetData: number;         // 937 bytes
   traceHeaderBytes: number;       // 0 bytes (contiguous trace data)
@@ -103,7 +104,6 @@ export function detectarGeometriaGSF(
   for (let lag = minLag; lag < maxLag; lag++) {
     const bLag = lag * 2;
     if (datosUtilesLen % bLag === 0) {
-      // Evaluate correlation at this lag
       let sum = 0;
       const testCount = Math.min(3000, nShorts - lag);
       for (let i = 0; i < testCount; i++) {
@@ -123,7 +123,6 @@ export function detectarGeometriaGSF(
     };
   }
 
-  // Fallback to standard power-of-two samples
   const stdSamples = [512, 1024, 256, 2048, 4096];
   for (const s of stdSamples) {
     if (datosUtilesLen % (s * 2) === 0) {
@@ -210,15 +209,18 @@ export function extractGSFHeader(
   // Time window calibration
   let twFinal = VENTANA_TIEMPO_NS_DEF;
   if (ventanaNsHdr && ventanaNsHdr > 0) {
-    if (ventanaNsHdr <= 60 && muestrasPorTraza >= 400) {
-      twFinal = ventanaNsHdr <= 30 ? ventanaNsHdr * 2.0 : 90.0;
-    } else {
-      twFinal = ventanaNsHdr;
-    }
+    twFinal = ventanaNsHdr;
   }
 
   const erFinal = erHdr && erHdr > 0 ? erHdr : DIELECTRICO_DEF;
-  const dxFinal = stepHdr && stepHdr > 0 ? stepHdr : DX_DEF;
+  
+  let dxFinal = DX_DEF;
+  let tracesPerMeter = TRAZAS_POR_METRO_DEF;
+  if (stepHdr && stepHdr > 0) {
+    dxFinal = stepHdr;
+    tracesPerMeter = 1.0 / stepHdr;
+  }
+
   const dtFinal = twFinal / muestrasPorTraza;
 
   return {
@@ -231,6 +233,7 @@ export function extractGSFHeader(
     antennaFreqMHz: 400,
     dielectricPermittivity: erFinal,
     traceDistanceStepM: dxFinal,
+    tracesPerMeter,
     zeroOffsetNs: 0,
     byteOffsetData: cabecera,
     traceHeaderBytes: 0,
@@ -293,7 +296,7 @@ export function buildDatasetFromHeader(
     processedMatrix.push(processedSamples);
 
     traces.push({
-      id: t + 1, // 1-indexed trace #
+      id: t + 1,
       positionM: t * header.traceDistanceStepM,
       timeZeroShiftNs: 0,
       elevationM: 0,
@@ -341,7 +344,6 @@ export function serializeGSF(dataset: GPRDataset): ArrayBuffer {
   const buffer = new ArrayBuffer(totalSize);
   const dataView = new DataView(buffer);
 
-  // Preserve original header bytes if available
   if (dataset.rawBuffer && dataset.rawBuffer.byteLength >= cabecera) {
     const origBytes = new Uint8Array(dataset.rawBuffer, 0, cabecera);
     const destBytes = new Uint8Array(buffer, 0, cabecera);
