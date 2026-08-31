@@ -3,9 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
-import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader } from '@/lib/gpr/gsfParser';
+import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader, CABECERA_DEFAULT, DX_DEF, DIELECTRICO_DEF, VENTANA_TIEMPO_NS_DEF } from '@/lib/gpr/gsfParser';
 import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, computeFFT } from '@/lib/gpr/dspEngine';
-import { analyzeHeaderWithGemini, autoDetectTraceStride } from '@/lib/gpr/aiHeaderAnalyzer';
 import { CanvasViewer, ColorPalette } from '@/components/radargrama/CanvasViewer';
 import { DSPOptionsPanel } from '@/components/radargrama/DSPOptionsPanel';
 import {
@@ -24,7 +23,6 @@ import {
   Sparkles,
   X,
   FolderOpen,
-  CheckCircle2,
 } from 'lucide-react';
 
 export default function RadargramaWorkstationPage() {
@@ -35,15 +33,11 @@ export default function RadargramaWorkstationPage() {
   // DSP Options per dataset (map dataset ID -> options)
   const [dspOptionsMap, setDspOptionsMap] = useState<Record<string, DSPOptions>>({});
 
-  // Display Render parameters
-  const [palette, setPalette] = useState<ColorPalette>('grayscale');
-  const [contrast, setContrast] = useState<number>(1.2);
+  // Display Render parameters (default 'seismic' matching the Python visualizer)
+  const [palette, setPalette] = useState<ColorPalette>('seismic');
+  const [contrast, setContrast] = useState<number>(1.0);
   const [brightness, setBrightness] = useState<number>(0);
   const [showHyperbolaTool, setShowHyperbolaTool] = useState<boolean>(false);
-
-  // AI Analysis states
-  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
-  const [aiExplanation, setAiExplanation] = useState<string | null>(null);
 
   // Processed trace matrix cache (map dataset ID -> Float32Array[])
   const [processedMatrices, setProcessedMatrices] = useState<Record<string, Float32Array[]>>({});
@@ -82,7 +76,12 @@ export default function RadargramaWorkstationPage() {
         const buffer = await file.arrayBuffer();
         const ds = parseGSFBuffer(buffer, file.name);
         newDatasets.push(ds);
-        newOptionsMap[ds.id] = { ...DEFAULT_DSP_OPTIONS };
+        newOptionsMap[ds.id] = {
+          ...DEFAULT_DSP_OPTIONS,
+          dielectricPermittivity: ds.header.dielectricPermittivity || DIELECTRICO_DEF,
+          ventanaNs: ds.header.timeWindowNs || VENTANA_TIEMPO_NS_DEF,
+          traceDistanceStepM: ds.header.traceDistanceStepM || DX_DEF,
+        };
       } catch (err) {
         console.error(`Error al parsear el archivo ${file.name}:`, err);
       }
@@ -95,70 +94,7 @@ export default function RadargramaWorkstationPage() {
       if (!activeDatasetId) {
         setActiveDatasetId(newDatasets[0].id);
       }
-
-      // Automatically trigger AI Header calibration on newly loaded file
-      const firstNew = newDatasets[0];
-      triggerAIAnalysisForDataset(firstNew);
     }
-  };
-
-  // Trigger Gemini AI Header Analysis
-  const triggerAIAnalysisForDataset = async (datasetToAnalyze: GPRDataset) => {
-    setIsAiLoading(true);
-    setAiExplanation('Consultando a Gemini AI para calibrar encabezado...');
-    try {
-      const aiResult = await analyzeHeaderWithGemini(datasetToAnalyze.rawBuffer, datasetToAnalyze.filename);
-      if (aiResult) {
-        const updatedHeader: GSFHeader = {
-          ...datasetToAnalyze.header,
-          numSamples: aiResult.numSamples || datasetToAnalyze.header.numSamples,
-          byteOffsetData: aiResult.byteOffsetData !== undefined ? aiResult.byteOffsetData : datasetToAnalyze.header.byteOffsetData,
-          traceHeaderBytes: aiResult.traceHeaderBytes !== undefined ? aiResult.traceHeaderBytes : datasetToAnalyze.header.traceHeaderBytes,
-          dataType: aiResult.dataType || datasetToAnalyze.header.dataType,
-          sampleIntervalNs: aiResult.sampleIntervalNs || datasetToAnalyze.header.sampleIntervalNs,
-          traceDistanceStepM: aiResult.traceDistanceStepM || datasetToAnalyze.header.traceDistanceStepM,
-          antennaFreqMHz: aiResult.antennaFreqMHz || datasetToAnalyze.header.antennaFreqMHz,
-        };
-
-        const reBuiltDataset = buildDatasetFromHeader(datasetToAnalyze.rawBuffer, datasetToAnalyze.filename, updatedHeader);
-
-        setDatasets((prev) =>
-          prev.map((d) => (d.id === datasetToAnalyze.id ? { ...reBuiltDataset, id: d.id } : d))
-        );
-
-        setAiExplanation(
-          aiResult.explanation ||
-            `✨ Calibrado con Gemini: ${updatedHeader.numSamples} muestras/traza, Offset ${updatedHeader.byteOffsetData}B, Header Traza ${updatedHeader.traceHeaderBytes}B.`
-        );
-      } else {
-        // Fallback to automated correlation analysis if API offline
-        handleAutoAlignCorrelation();
-        setAiExplanation('Calibrado mediante algoritmo de auto-correlación de fase.');
-      }
-    } catch (err) {
-      console.error('AI Analysis failed:', err);
-      setAiExplanation('No se pudo conectar a la IA, usando calibración determinística.');
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
-  // Manual trigger for active dataset
-  const handleAnalyzeWithAI = async () => {
-    if (!activeDataset) return;
-    await triggerAIAnalysisForDataset(activeDataset);
-  };
-
-  // Auto-align phase by cross-correlation
-  const handleAutoAlignCorrelation = () => {
-    if (!activeDataset) return;
-    const alignedHeader = autoDetectTraceStride(activeDataset.rawBuffer, activeDataset.header);
-    const reBuiltDataset = buildDatasetFromHeader(activeDataset.rawBuffer, activeDataset.filename, alignedHeader);
-
-    setDatasets((prev) =>
-      prev.map((d) => (d.id === activeDataset.id ? { ...reBuiltDataset, id: d.id } : d))
-    );
-    setAiExplanation(`Fase alineada: ${alignedHeader.numSamples} muestras, Header Traza: ${alignedHeader.traceHeaderBytes}B.`);
   };
 
   // Handle Header Calibration Override (live re-parsing from raw buffer)
@@ -173,16 +109,16 @@ export default function RadargramaWorkstationPage() {
 
   // Generate Synthetic Demo GSF Radargram for testing if no file uploaded
   const handleLoadDemoDataset = () => {
-    const numTraces = 350;
+    const numTraces = 400;
     const numSamples = 512;
-    const sampleIntervalNs = 0.097656; // ~10.24 GS/s
-    const traceDistanceStepM = 0.05;
+    const sampleIntervalNs = 90.0 / numSamples;
+    const traceDistanceStepM = DX_DEF;
 
     const rawMatrix: Float32Array[] = [];
     const processedMatrix: Float32Array[] = [];
     const traces: GPRTrace[] = [];
 
-    // Synthesize realistic radargram profile with direct ground coupling, 2 geological layers, and 2 diffraction hyperbolas
+    // Synthesize realistic radargram profile with direct ground wave and 2 geological reflector horizons
     for (let t = 0; t < numTraces; t++) {
       const trace = new Float32Array(numSamples);
       const xM = t * traceDistanceStepM;
@@ -192,26 +128,21 @@ export default function RadargramaWorkstationPage() {
         let amp = 0;
 
         // 1. Direct Air/Ground Wave (First Arrival at t ~ 4.5ns)
-        amp += 5000 * Math.sin((tNs - 4.5) * 1.2) * Math.exp(-Math.pow((tNs - 4.5) / 1.6, 2));
+        amp += 6000 * Math.sin((tNs - 4.5) * 1.2) * Math.exp(-Math.pow((tNs - 4.5) / 1.6, 2));
 
-        // 2. Continuous Subsurface Stratum Horizon at t ~ 14.5ns
-        amp += 2200 * Math.sin((tNs - 14.5) * 0.9) * Math.exp(-Math.pow((tNs - 14.5) / 2.0, 2));
+        // 2. Subsurface Stratum Horizon at t ~ 18.0ns
+        amp += 2800 * Math.sin((tNs - 18.0) * 0.9) * Math.exp(-Math.pow((tNs - 18.0) / 2.0, 2));
 
-        // 3. Second Geological Bedrock Horizon at t ~ 28.0ns
-        amp += 1700 * Math.sin((tNs - 28.0) * 0.7) * Math.exp(-Math.pow((tNs - 28.0) / 2.5, 2));
+        // 3. Second Bedrock Horizon at t ~ 36.0ns
+        amp += 2000 * Math.sin((tNs - 36.0) * 0.7) * Math.exp(-Math.pow((tNs - 36.0) / 2.5, 2));
 
-        // 4. Pipe / Utility Target Hyperbola #1 (Apex at trace 110, t0 = 19.5ns)
-        const dist1 = xM - (110 * traceDistanceStepM);
-        const tHyp1 = Math.sqrt(19.5 * 19.5 + (4 * dist1 * dist1) / (0.1 * 0.1));
-        amp += 3800 * Math.sin((tNs - tHyp1) * 1.1) * Math.exp(-Math.pow((tNs - tHyp1) / 1.8, 2));
+        // 4. Pipe / Utility Target Hyperbola (Apex at trace 180, t0 = 24.0ns)
+        const dist1 = xM - (180 * traceDistanceStepM);
+        const tHyp1 = Math.sqrt(24.0 * 24.0 + (4 * dist1 * dist1) / (0.122 * 0.122));
+        amp += 4500 * Math.sin((tNs - tHyp1) * 1.1) * Math.exp(-Math.pow((tNs - tHyp1) / 1.8, 2));
 
-        // 5. Buried Object Hyperbola #2 (Apex at trace 240, t0 = 23.0ns)
-        const dist2 = xM - (240 * traceDistanceStepM);
-        const tHyp2 = Math.sqrt(23.0 * 23.0 + (4 * dist2 * dist2) / (0.1 * 0.1));
-        amp += 3400 * Math.sin((tNs - tHyp2) * 1.1) * Math.exp(-Math.pow((tNs - tHyp2) / 1.8, 2));
-
-        // Background soil attenuation noise
-        amp += (Math.random() - 0.5) * 180;
+        // Soil background noise
+        amp += (Math.random() - 0.5) * 150;
 
         trace[s] = amp;
       }
@@ -220,7 +151,7 @@ export default function RadargramaWorkstationPage() {
       processedMatrix.push(new Float32Array(trace));
 
       traces.push({
-        id: t,
+        id: t + 1,
         positionM: xM,
         timeZeroShiftNs: 0,
         elevationM: 0,
@@ -235,31 +166,35 @@ export default function RadargramaWorkstationPage() {
       numTraces,
       numSamples,
       sampleIntervalNs,
-      timeWindowNs: numSamples * sampleIntervalNs,
-      antennaFreqMHz: 450,
-      dielectricPermittivity: 9.0,
+      timeWindowNs: 90.0,
+      antennaFreqMHz: 400,
+      dielectricPermittivity: 6.0,
       traceDistanceStepM,
       zeroOffsetNs: 0,
-      byteOffsetData: 1024,
+      byteOffsetData: CABECERA_DEFAULT,
       traceHeaderBytes: 0,
       bytesPerSample: 2,
       dataType: 'int16',
-      littleEndian: true,
-      headerSize: 1024,
+      headerSize: CABECERA_DEFAULT,
+      ventanaNsHdr: 90,
+      muestrasHdr: 512,
+      erHdr: 6.0,
+      totalTrazasHdr: 400,
+      stepHdr: DX_DEF,
     };
 
-    const demoBuffer = new ArrayBuffer(1024 + numTraces * numSamples * 2);
+    const demoBuffer = new ArrayBuffer(CABECERA_DEFAULT + numTraces * numSamples * 2);
 
     const demoDataset: GPRDataset = {
       id: `demo_${Date.now()}`,
-      filename: 'Perfil_Demo_GPR.gsf',
+      filename: 'Perfil_Akula9000C_Demo.gsf',
       rawBuffer: demoBuffer,
       header: demoHeader,
       traces,
       rawMatrix,
       processedMatrix,
-      minAmplitude: -5500,
-      maxAmplitude: 5500,
+      minAmplitude: -6500,
+      maxAmplitude: 6500,
       createdTime: Date.now(),
     };
 
@@ -356,10 +291,10 @@ export default function RadargramaWorkstationPage() {
                 <h1 className="text-lg font-bold text-text-primary">
                   Procesador Web de Radargramas (.gsf)
                 </h1>
-                <span className="badge-primary text-[10px] px-2 py-0.5">GPR DSP & AI</span>
+                <span className="badge-primary text-[10px] px-2 py-0.5">Akula9000C / Geoscanners</span>
               </div>
               <p className="text-xs text-text-muted">
-                Procesamiento digital de señales GPR y calibración con Gemini AI
+                Visualizador Geofísico GPR (Modo Crudo Original y Filtros DSP)
               </p>
             </div>
           </div>
@@ -383,7 +318,7 @@ export default function RadargramaWorkstationPage() {
             <button
               onClick={handleLoadDemoDataset}
               className="btn-outline btn-sm"
-              title="Cargar radargrama sintético de prueba"
+              title="Cargar radargrama de ejemplo"
             >
               <Sparkles className="w-3.5 h-3.5 text-accent-700" />
               <span>Cargar Ejemplo</span>
@@ -411,7 +346,7 @@ export default function RadargramaWorkstationPage() {
                 <button
                   onClick={handleExportGSF}
                   className="px-2.5 py-1 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-white rounded-lg transition flex items-center gap-1.5 shadow-2xs"
-                  title="Descargar binario GSF procesado"
+                  title="Descargar binario GSF"
                 >
                   <FileDown className="w-3.5 h-3.5 text-primary" />
                   <span>GSF</span>
@@ -457,14 +392,6 @@ export default function RadargramaWorkstationPage() {
               </div>
             ))}
           </div>
-
-          {/* AI Banner feedback if available */}
-          {aiExplanation && (
-            <div className="hidden lg:flex items-center gap-2 text-xs text-primary font-medium bg-primary-50 px-3 py-1 rounded-full border border-primary-200">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="truncate max-w-md">{aiExplanation}</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -493,10 +420,6 @@ export default function RadargramaWorkstationPage() {
                 header={activeDataset.header}
                 onChange={handleDSPOptionsChange}
                 onHeaderChange={handleHeaderOverride}
-                onAnalyzeWithAI={handleAnalyzeWithAI}
-                onAutoAlignCorrelation={handleAutoAlignCorrelation}
-                isAiLoading={isAiLoading}
-                aiExplanation={aiExplanation}
                 palette={palette}
                 onPaletteChange={setPalette}
                 contrast={contrast}
@@ -520,7 +443,7 @@ export default function RadargramaWorkstationPage() {
               <div>
                 <h2 className="text-xl font-bold text-text-primary">Sin Radargrama Cargado</h2>
                 <p className="text-xs text-text-muted mt-1 leading-relaxed">
-                  Carga tus archivos de radargrama <code>.gsf</code> (ImpulseRadar / Geotech). La inteligencia artificial de Gemini y el motor DSP interpretarán y calibrarán las señales automáticamente.
+                  Carga tus archivos <code>.gsf</code> (Geoscanners Akula9000C / GPRSoft) para visualizar el perfil geofísico en modo crudo o con filtros DSP.
                 </p>
               </div>
 
@@ -583,10 +506,8 @@ function AScanInspectionModal({
   const numSamples = processedTrace.length;
   const distM = traceIdx * dataset.header.traceDistanceStepM;
 
-  // Compute FFT Frequency Spectrum
   const { magnitudes } = computeFFT(processedTrace);
 
-  // Render Waveform Canvas
   useEffect(() => {
     const canvas = waveformCanvasRef.current;
     if (!canvas) return;
@@ -599,7 +520,6 @@ function AScanInspectionModal({
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, w, h);
 
-    // Center baseline
     ctx.strokeStyle = '#334155';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -607,14 +527,12 @@ function AScanInspectionModal({
     ctx.lineTo(w, h / 2);
     ctx.stroke();
 
-    // Find max amp
     let maxA = 0;
     for (let i = 0; i < numSamples; i++) {
       if (Math.abs(processedTrace[i]) > maxA) maxA = Math.abs(processedTrace[i]);
     }
     if (maxA === 0) maxA = 1;
 
-    // Draw trace waveform
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -630,7 +548,6 @@ function AScanInspectionModal({
     ctx.stroke();
   }, [processedTrace, numSamples]);
 
-  // Render FFT Spectrum Canvas
   useEffect(() => {
     const canvas = fftCanvasRef.current;
     if (!canvas) return;
@@ -643,7 +560,6 @@ function AScanInspectionModal({
     ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, w, h);
 
-    // Find max magnitude
     let maxMag = 0;
     for (let i = 0; i < magnitudes.length; i++) {
       if (magnitudes[i] > maxMag) maxMag = magnitudes[i];
@@ -671,11 +587,10 @@ function AScanInspectionModal({
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white border border-border rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
-        {/* Modal Header */}
         <div className="p-4 border-b border-border flex items-center justify-between bg-gray-50">
           <div className="flex items-center gap-2 text-text-primary font-bold text-sm">
             <Activity className="w-4 h-4 text-primary" />
-            <span>Inspección de Traza A-Scan #{traceIdx}</span>
+            <span>Inspección de Traza A-Scan #{traceIdx + 1}</span>
             <span className="text-xs font-mono text-text-muted">({distM.toFixed(2)}m)</span>
           </div>
           <button
@@ -686,12 +601,10 @@ function AScanInspectionModal({
           </button>
         </div>
 
-        {/* Modal Body */}
         <div className="p-5 space-y-4">
-          {/* Waveform Plot */}
           <div>
             <div className="flex justify-between text-xs text-text-secondary mb-1.5 font-medium">
-              <span>Señal Temporal A-Scan (Amplitud vs Tiempo/Muestras)</span>
+              <span>Señal Temporal A-Scan</span>
               <span className="font-mono text-text-muted">{numSamples} muestras</span>
             </div>
             <canvas
@@ -702,7 +615,6 @@ function AScanInspectionModal({
             />
           </div>
 
-          {/* FFT Spectrum Plot */}
           <div>
             <div className="flex justify-between text-xs text-text-secondary mb-1.5 font-medium">
               <span>Espectro de Frecuencias (Transformada FFT)</span>
@@ -717,13 +629,12 @@ function AScanInspectionModal({
           </div>
         </div>
 
-        {/* Modal Footer */}
         <div className="p-4 bg-gray-50 border-t border-border flex justify-end">
           <button
             onClick={onClose}
             className="btn-outline btn-sm"
           >
-            Cerrar Inspección
+            Cerrar
           </button>
         </div>
       </div>

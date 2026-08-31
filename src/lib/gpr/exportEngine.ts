@@ -132,23 +132,20 @@ export async function exportTechnicalPDFReport(
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(11);
   pdf.setTextColor(15, 23, 42);
-  pdf.text('Filtros DSP Aplicados', panelX + 5, panelY + 8);
+  pdf.text('Parámetros y Filtros DSP', panelX + 5, panelY + 8);
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
   pdf.setTextColor(51, 65, 85);
 
-  pdf.text(`• Dewow: ${options.dewow ? `Sí (${options.dewowWindow} muestras)` : 'Desactivado'}`, panelX + 5, panelY + 16);
-  pdf.text(`• Bkg Removal: ${options.backgroundRemoval ? `Sí (${options.backgroundWindow} trazas)` : 'Desactivado'}`, panelX + 5, panelY + 22);
-  pdf.text(`• Filtro Frec: ${options.filterType.toUpperCase()}`, panelX + 5, panelY + 28);
-  if (options.filterType !== 'none') {
-    pdf.text(`  Cutoffs: ${options.lowCutMHz}MHz - ${options.highCutMHz}MHz`, panelX + 5, panelY + 34);
-  }
-  pdf.text(`• Ganancia: ${options.gainType.toUpperCase()}`, panelX + 5, panelY + 40);
-  pdf.text(`• Envolvente Hilbert: ${options.hilbertEnvelope ? 'Sí' : 'No'}`, panelX + 5, panelY + 46);
-  pdf.text(`• Permitividad (ε_r): ${options.dielectricPermittivity.toFixed(1)} (v=${velocity.toFixed(3)}m/ns)`, panelX + 5, panelY + 52);
-  pdf.text(`• Zero-Time Shift: ${options.zeroTimeShiftNs.toFixed(1)} ns`, panelX + 5, panelY + 58);
-  pdf.text(`• Migración Kirchhoff: ${options.enableMigration ? 'Sí' : 'No'}`, panelX + 5, panelY + 64);
+  pdf.text(`• Modo Señal: ${options.mode === 'crudo' ? 'Dato Crudo Original' : 'Procesado DSP'}`, panelX + 5, panelY + 16);
+  pdf.text(`• Dewow (DC Offset): ${options.dewow ? 'Activado' : 'Desactivado'}`, panelX + 5, panelY + 22);
+  pdf.text(`• Time-Zero: ${options.timeZero ? 'Activado' : 'Desactivado'}`, panelX + 5, panelY + 28);
+  pdf.text(`• Ganancia SEC: ${options.secGain ? 'Activada' : 'Desactivada'}`, panelX + 5, panelY + 34);
+  pdf.text(`• Pasa-Banda: ${options.bandpass ? 'Activado' : 'Desactivado'}`, panelX + 5, panelY + 40);
+  pdf.text(`• Bkg Removal: ${options.backgroundRemoval ? 'Activado' : 'Desactivado'}`, panelX + 5, panelY + 46);
+  pdf.text(`• Dieléctrico (ε_r): ${options.dielectricPermittivity.toFixed(1)} (v=${velocity.toFixed(3)}m/ns)`, panelX + 5, panelY + 52);
+  pdf.text(`• Migración Kirchhoff: ${options.enableMigration ? 'Activada' : 'Desactivada'}`, panelX + 5, panelY + 58);
 
   // Footer Signature & Branding
   pdf.setFontSize(8);
@@ -230,11 +227,12 @@ export async function exportBatchPPTX(
       [{ text: 'Muestras / Traza' }, { text: `${numSamples}` }],
       [{ text: 'Longitud Perfil' }, { text: `${distM} m` }],
       [{ text: 'Frecuencia Antena' }, { text: `${ds.header.antennaFreqMHz} MHz` }],
-      [{ text: 'Permitividad ε_r' }, { text: `${(opt.dielectricPermittivity || 9.0).toFixed(1)}` }],
+      [{ text: 'Permitividad ε_r' }, { text: `${(opt.dielectricPermittivity || 6.0).toFixed(1)}` }],
       [{ text: 'Velocidad v' }, { text: `${vel.toFixed(3)} m/ns` }],
-      [{ text: 'Filtro Frecuencial' }, { text: `${opt.filterType || 'Ninguno'}` }],
-      [{ text: 'Ganancia' }, { text: `${opt.gainType || 'Ninguna'}` }],
+      [{ text: 'Modo' }, { text: `${opt.mode === 'crudo' ? 'Dato Crudo' : 'Procesado DSP'}` }],
       [{ text: 'Dewow' }, { text: `${opt.dewow ? 'Activo' : 'Inactivo'}` }],
+      [{ text: 'Time-Zero' }, { text: `${opt.timeZero ? 'Activo' : 'Inactivo'}` }],
+      [{ text: 'Ganancia SEC' }, { text: `${opt.secGain ? 'Activo' : 'Inactivo'}` }],
       [{ text: 'Background Removal' }, { text: `${opt.backgroundRemoval ? 'Activo' : 'Inactivo'}` }],
     ];
 

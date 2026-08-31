@@ -5,7 +5,7 @@ import { GPRDataset } from '@/lib/gpr/gsfParser';
 import { calculateVelocity } from '@/lib/gpr/dspEngine';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
-export type ColorPalette = 'grayscale' | 'sepia' | 'jet' | 'seismic' | 'bone';
+export type ColorPalette = 'seismic' | 'grayscale' | 'bone' | 'sepia' | 'jet';
 
 interface CanvasViewerProps {
   dataset: GPRDataset | null;
@@ -21,10 +21,10 @@ interface CanvasViewerProps {
 export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   dataset,
   processedMatrix,
-  palette,
-  contrast,
-  brightness,
-  dielectricPermittivity,
+  palette = 'seismic',
+  contrast = 1.0,
+  brightness = 0,
+  dielectricPermittivity = 6.0,
   onSelectTrace,
   showHyperbolaTool,
 }) => {
@@ -62,35 +62,30 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     setPanOffset({ x: 0, y: 0 });
   };
 
-  // Convert normalized amplitude to RGBA color based on selected palette
+  // Convert bipolar amplitude value [-1, 1] to RGB matching Python matplotlib colormaps
   const getPaletteColor = useCallback(
     (normVal: number): [number, number, number] => {
-      // normVal is in range [-1, 1]
-      const val = Math.max(-1, Math.min(1, normVal * contrast + brightness / 100));
+      // normVal is in range [-1.0, 1.0]
+      const val = Math.max(-1.0, Math.min(1.0, normVal * contrast + brightness / 100));
 
-      if (palette === 'grayscale') {
-        const gray = Math.floor(((val + 1) / 2) * 255);
-        return [gray, gray, gray];
-      } else if (palette === 'sepia') {
-        const v = (val + 1) / 2;
-        return [
-          Math.floor(v * 230 + 25),
-          Math.floor(v * 180 + 15),
-          Math.floor(v * 120 + 10),
-        ];
-      } else if (palette === 'seismic') {
-        // Red - White - Blue
+      if (palette === 'seismic') {
+        // Matplotlib seismic: Red (+), White (0), Blue (-)
         if (val < 0) {
-          const r = Math.floor(255 * (1 + val));
-          const g = Math.floor(255 * (1 + val));
+          const t = 1.0 + val; // 0 to 1
+          const r = Math.floor(255 * t);
+          const g = Math.floor(255 * t);
           const b = 255;
           return [r, g, b];
         } else {
+          const t = 1.0 - val; // 1 to 0
           const r = 255;
-          const g = Math.floor(255 * (1 - val));
-          const b = Math.floor(255 * (1 - val));
+          const g = Math.floor(255 * t);
+          const b = Math.floor(255 * t);
           return [r, g, b];
         }
+      } else if (palette === 'grayscale') {
+        const gray = Math.floor(((val + 1) / 2) * 255);
+        return [gray, gray, gray];
       } else if (palette === 'bone') {
         const v = (val + 1) / 2;
         let r = 0, g = 0, b = 0;
@@ -108,8 +103,15 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           b = Math.floor(255);
         }
         return [Math.min(255, r), Math.min(255, g), Math.min(255, b)];
+      } else if (palette === 'sepia') {
+        const v = (val + 1) / 2;
+        return [
+          Math.floor(v * 230 + 25),
+          Math.floor(v * 180 + 15),
+          Math.floor(v * 120 + 10),
+        ];
       } else {
-        // Jet / Rainbow
+        // Jet
         const v = (val + 1) / 2;
         const r = Math.max(0, Math.min(255, Math.floor(255 * Math.sin(v * Math.PI))));
         const g = Math.max(0, Math.min(255, Math.floor(255 * Math.sin((v - 0.25) * Math.PI))));
@@ -129,41 +131,37 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     if (!ctx) return;
 
     const rect = canvas.getBoundingClientRect();
-    const width = Math.floor(rect.width || 800);
-    const height = Math.floor(rect.height || 500);
+    const width = Math.floor(rect.width || 1000);
+    const height = Math.floor(rect.height || 550);
 
     canvas.width = width;
     canvas.height = height;
 
     // Background
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
 
-    // Margins for rulers
-    const margin = { top: 30, left: 65, right: 20, bottom: 40 };
+    // 4-Axis Margins matching Python matplotlib layout
+    const margin = { top: 48, left: 68, right: 68, bottom: 42 };
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
 
     if (plotWidth <= 0 || plotHeight <= 0) return;
 
-    // Robust amplitude threshold using sampled percentiles / standard deviation
-    let sumAbs = 0;
-    let count = 0;
-    const sampleStep = Math.max(1, Math.floor(numTraces / 200));
-
-    for (let t = 0; t < numTraces; t += sampleStep) {
+    // Symmetric 98.5-percentile clipping (normalizar_clipping_simetrico)
+    const allAbs: number[] = [];
+    const step = Math.max(1, Math.floor(numTraces / 100));
+    for (let t = 0; t < numTraces; t += step) {
       const tr = processedMatrix[t];
-      for (let s = 0; s < numSamples; s += 2) {
-        sumAbs += Math.abs(tr[s]);
-        count++;
+      for (let s = 0; s < numSamples; s += 4) {
+        allAbs.push(Math.abs(tr[s]));
       }
     }
+    allAbs.sort((a, b) => a - b);
+    const pIdx = Math.floor(allAbs.length * 0.985);
+    const vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
 
-    const meanAbs = count > 0 ? sumAbs / count : 1.0;
-    // Robust saturation limit (typically ~2.8x mean absolute deviation)
-    const normScale = Math.max(1e-4, meanAbs * 2.8);
-
-    // Offscreen ImageData rendering
+    // Offscreen ImageData (numTraces x numSamples)
     const imgData = ctx.createImageData(numTraces, numSamples);
     const data = imgData.data;
 
@@ -171,7 +169,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     for (let s = 0; s < numSamples; s++) {
       for (let t = 0; t < numTraces; t++) {
         const amp = processedMatrix[t][s];
-        const normVal = Math.max(-1.0, Math.min(1.0, amp / normScale));
+        const normVal = Math.max(-1.0, Math.min(1.0, amp / vmax));
         const [r, g, b] = getPaletteColor(normVal);
 
         data[ptr] = r;
@@ -182,7 +180,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       }
     }
 
-    // Create offscreen canvas to scale and transform plot area
     const offCanvas = document.createElement('canvas');
     offCanvas.width = numTraces;
     offCanvas.height = numSamples;
@@ -203,7 +200,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(offCanvas, 0, 0, numTraces, numSamples, 0, 0, plotWidth, plotHeight);
 
-    // Draw Hyperbola tool overlay if active
+    // Hyperbola Tool Overlay
     if (showHyperbolaTool && dataset) {
       const apex = hyperbolaApex || { trace: Math.floor(numTraces / 2), sample: Math.floor(numSamples / 3) };
       const dt = dataset.header.sampleIntervalNs;
@@ -217,7 +214,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       const t0Ns = apex.sample * dt;
       const x0M = apex.trace * dx;
 
-      // Draw hyperbola curve t(x) = sqrt(t0^2 + 4 * (x - x0)^2 / v^2)
       for (let tr = 0; tr < numTraces; tr++) {
         const xM = tr * dx;
         const distM = xM - x0M;
@@ -227,15 +223,11 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
         const canvasX = (tr / numTraces) * plotWidth;
         const canvasY = (sIdx / numSamples) * plotHeight;
 
-        if (tr === 0) {
-          ctx.moveTo(canvasX, canvasY);
-        } else {
-          ctx.lineTo(canvasX, canvasY);
-        }
+        if (tr === 0) ctx.moveTo(canvasX, canvasY);
+        else ctx.lineTo(canvasX, canvasY);
       }
       ctx.stroke();
 
-      // Draw Apex handle point
       const apexCanvasX = (apex.trace / numTraces) * plotWidth;
       const apexCanvasY = (apex.sample / numSamples) * plotHeight;
 
@@ -250,66 +242,101 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
     ctx.restore();
 
-    // Draw Rulers & Grid Axes
-    ctx.strokeStyle = '#334155';
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '11px sans-serif';
-
-    // Outer border around plot
+    // --- 4 GEOPHYSICAL AXES (Configurar Ejes Radargrama) ---
+    ctx.strokeStyle = '#1A252C';
+    ctx.lineWidth = 1;
     ctx.strokeRect(margin.left, margin.top, plotWidth, plotHeight);
 
-    // Top X-Axis: Distance (m) & Trace #
+    const twNs = dataset ? dataset.header.timeWindowNs : 90.0;
+    const dxM = dataset ? dataset.header.traceDistanceStepM : 1.0 / 112.0;
+    const vMPerNs = calculateVelocity(dielectricPermittivity);
+    const profMaxM = (vMPerNs * twNs) / 2.0;
+    const distTotalM = numTraces * dxM;
+
+    // 1. TOP AXIS: Número de Traza (1 ... Nt)
+    ctx.fillStyle = '#1A252C';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Número de Traza', margin.left + plotWidth / 2, margin.top - 20);
+
+    ctx.font = '8px sans-serif';
     const numXTicks = 8;
     for (let i = 0; i <= numXTicks; i++) {
       const frac = i / numXTicks;
       const xPos = margin.left + frac * plotWidth;
+      const traceNum = Math.max(1, Math.round(frac * numTraces));
 
       ctx.beginPath();
       ctx.moveTo(xPos, margin.top);
-      ctx.lineTo(xPos, margin.top - 5);
+      ctx.lineTo(xPos, margin.top - 4);
       ctx.stroke();
-
-      const distM = (dataset ? dataset.header.traceDistanceStepM * numTraces * frac : frac * 100).toFixed(1);
-      ctx.textAlign = 'center';
-      ctx.fillText(`${distM}m`, xPos, margin.top - 8);
+      ctx.fillText(`${traceNum}`, xPos, margin.top - 6);
     }
 
-    // Left Y-Axis: Time (ns) & Depth (m)
-    const numYTicks = 6;
-    const dtNs = dataset ? dataset.header.sampleIntervalNs : 0.1;
-    const totalTimeNs = numSamples * dtNs;
-    const vMPerNs = calculateVelocity(dielectricPermittivity);
-    const totalDepthM = (totalTimeNs * vMPerNs) / 2;
+    // 2. BOTTOM AXIS: Distancia Recorrida (m)
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillText('Distancia Recorrida (m)', margin.left + plotWidth / 2, height - 10);
 
+    ctx.font = '8px sans-serif';
+    for (let i = 0; i <= numXTicks; i++) {
+      const frac = i / numXTicks;
+      const xPos = margin.left + frac * plotWidth;
+      const dist = (distTotalM * frac).toFixed(2);
+
+      ctx.beginPath();
+      ctx.moveTo(xPos, margin.top + plotHeight);
+      ctx.lineTo(xPos, margin.top + plotHeight + 4);
+      ctx.stroke();
+      ctx.fillText(`${dist}`, xPos, margin.top + plotHeight + 14);
+    }
+
+    // 3. LEFT AXIS: Tiempo de Viaje (ns)
+    ctx.save();
+    ctx.translate(16, margin.top + plotHeight / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillText('Tiempo de Viaje (ns)', 0, 0);
+    ctx.restore();
+
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'right';
+    const numYTicks = 6;
     for (let j = 0; j <= numYTicks; j++) {
       const frac = j / numYTicks;
       const yPos = margin.top + frac * plotHeight;
+      const tVal = (twNs * frac).toFixed(1);
 
       ctx.beginPath();
       ctx.moveTo(margin.left, yPos);
-      ctx.lineTo(margin.left - 5, yPos);
+      ctx.lineTo(margin.left - 4, yPos);
       ctx.stroke();
-
-      const timeVal = (totalTimeNs * frac).toFixed(0);
-      const depthVal = (totalDepthM * frac).toFixed(2);
-
-      ctx.textAlign = 'right';
-      ctx.fillText(`${timeVal}ns`, margin.left - 8, yPos - 2);
-      ctx.fillStyle = '#64748b';
-      ctx.fillText(`${depthVal}m`, margin.left - 8, yPos + 10);
-      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`${tVal}`, margin.left - 6, yPos + 3);
     }
 
-    // Axis titles
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText('Distancia Perfil (m)', margin.left + plotWidth / 2, 14);
-
+    // 4. RIGHT AXIS: Profundidad Estimada (m)
     ctx.save();
-    ctx.translate(14, margin.top + plotHeight / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText('Tiempo (ns) / Profundidad (m)', 0, 0);
+    ctx.translate(width - 12, margin.top + plotHeight / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = '#780000';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Profundidad Estimada (m)', 0, 0);
     ctx.restore();
+
+    ctx.fillStyle = '#780000';
+    ctx.font = '8px sans-serif';
+    ctx.textAlign = 'left';
+    for (let j = 0; j <= numYTicks; j++) {
+      const frac = j / numYTicks;
+      const yPos = margin.top + frac * plotHeight;
+      const pVal = (profMaxM * frac).toFixed(2);
+
+      ctx.beginPath();
+      ctx.moveTo(margin.left + plotWidth, yPos);
+      ctx.lineTo(margin.left + plotWidth + 4, yPos);
+      ctx.stroke();
+      ctx.fillText(`${pVal}`, margin.left + plotWidth + 6, yPos + 3);
+    }
   }, [
     processedMatrix,
     numTraces,
@@ -327,7 +354,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     dataset,
   ]);
 
-  // Mouse handlers for pan, zoom, hover & hyperbola apex dragging
+  // Mouse handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -336,7 +363,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
-    const margin = { top: 30, left: 65, right: 20, bottom: 40 };
+    const margin = { top: 48, left: 68, right: 68, bottom: 42 };
     const plotWidth = rect.width - margin.left - margin.right;
     const plotHeight = rect.height - margin.top - margin.bottom;
 
@@ -374,7 +401,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const margin = { top: 30, left: 65, right: 20, bottom: 40 };
+    const margin = { top: 48, left: 68, right: 68, bottom: 42 };
     const plotWidth = rect.width - margin.left - margin.right;
     const plotHeight = rect.height - margin.top - margin.bottom;
 
@@ -410,8 +437,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
         const traceIdx = Math.floor(normX * numTraces);
         const sampleIdx = Math.floor(normY * numSamples);
 
-        const dtNs = dataset ? dataset.header.sampleIntervalNs : 0.1;
-        const dxM = dataset ? dataset.header.traceDistanceStepM : 0.05;
+        const dtNs = dataset ? dataset.header.sampleIntervalNs : 0.0976;
+        const dxM = dataset ? dataset.header.traceDistanceStepM : 1.0 / 112.0;
         const timeNs = sampleIdx * dtNs;
         const vMPerNs = calculateVelocity(dielectricPermittivity);
         const depthM = (timeNs * vMPerNs) / 2;
@@ -436,7 +463,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.15 : 0.85;
     if (e.shiftKey) {
-      // Horizontal stretch only
       setZoomX((prev) => Math.max(0.2, Math.min(30.0, prev * factor)));
     } else {
       setZoomX((prev) => Math.max(0.2, Math.min(30.0, prev * factor)));
@@ -444,21 +470,33 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     }
   };
 
+  const twNs = dataset ? dataset.header.timeWindowNs : 90.0;
+  const dxM = dataset ? dataset.header.traceDistanceStepM : 1.0 / 112.0;
+  const vMPerNs = calculateVelocity(dielectricPermittivity);
+  const profMaxM = (vMPerNs * twNs) / 2.0;
+  const distTotalM = numTraces * dxM;
+
   return (
-    <div ref={containerRef} className="relative w-full h-full flex flex-col bg-slate-950 rounded-2xl border border-border overflow-hidden shadow-card">
-      {/* Top Overlay Controls Bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 text-slate-200 z-10">
-        <div className="flex items-center gap-3 text-xs">
-          <span className="font-bold text-sky-400">Visualizador B-Scan</span>
+    <div ref={containerRef} className="relative w-full h-full flex flex-col bg-white rounded-2xl border border-border overflow-hidden shadow-card">
+      {/* Top Banner: PROCIMEC INGENIERIA SAS */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-800 text-white z-10">
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-xs text-sky-400">PROCIMEC INGENIERIA SAS</span>
+            {dataset && (
+              <span className="text-[11px] text-slate-300 font-mono">
+                — {dataset.filename}
+              </span>
+            )}
+          </div>
           {dataset && (
-            <span className="bg-slate-800 px-2.5 py-0.5 rounded-full text-slate-300 font-mono text-[11px] border border-slate-700">
-              {dataset.filename} • <span className="text-emerald-400 font-bold">{numTraces}</span> trazas • <span className="text-amber-400 font-bold">{numSamples}</span> muestras
+            <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+              εr = {dielectricPermittivity.toFixed(1)} | v = {vMPerNs.toFixed(3)} m/ns | Ventana = {twNs.toFixed(1)} ns | Prof. Máx ≈ {profMaxM.toFixed(2)} m | Distancia ≈ {distTotalM.toFixed(2)} m ({numTraces} trazas × {numSamples} muestras)
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Zoom Buttons */}
           <button
             onClick={() => {
               setZoomX((z) => Math.min(30, z * 1.25));
@@ -482,24 +520,23 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           <button
             onClick={() => setZoomX((z) => Math.min(30, z * 1.5))}
             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition text-[10px] font-bold"
-            title="Expandir Horizontalmente (Estirar Ondas)"
+            title="Expandir Horizontalmente"
           >
             ↔ Estirar
           </button>
           <button
             onClick={handleResetView}
             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition"
-            title="Restablecer Vista Completa"
+            title="Vista Completa"
           >
             <Maximize2 className="w-4 h-4" />
           </button>
-
-          <span className="text-xs text-slate-400 ml-1.5 font-mono">{Math.round(zoomX * 100)}%</span>
+          <span className="text-xs text-slate-400 ml-1 font-mono">{Math.round(zoomX * 100)}%</span>
         </div>
       </div>
 
-      {/* Main Canvas Area */}
-      <div className="relative flex-1 w-full h-full bg-slate-950">
+      {/* Main Canvas */}
+      <div className="relative flex-1 w-full h-full bg-white">
         <canvas
           ref={canvasRef}
           onMouseDown={handleMouseDown}
@@ -510,11 +547,11 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           className="w-full h-full cursor-crosshair block"
         />
 
-        {/* Hover Coordinate Info Pill */}
+        {/* Hover Coordinate Info */}
         {hoverInfo && (
           <div className="absolute bottom-3 left-3 bg-slate-900/95 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200 shadow-xl backdrop-blur-md flex items-center gap-4 z-10">
             <div>
-              <span className="text-slate-400 font-sans">Traza:</span> <span className="text-sky-400 font-bold">{hoverInfo.traceIdx}</span>
+              <span className="text-slate-400 font-sans">Traza:</span> <span className="text-sky-400 font-bold">{hoverInfo.traceIdx + 1}</span>
             </div>
             <div>
               <span className="text-slate-400 font-sans">Distancia:</span> <span className="text-emerald-400 font-bold">{hoverInfo.distM.toFixed(2)}m</span>
@@ -526,7 +563,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
               <span className="text-slate-400 font-sans">Profundidad:</span> <span className="text-purple-400 font-bold">{hoverInfo.depthM.toFixed(2)}m</span>
             </div>
             <div>
-              <span className="text-slate-400 font-sans">Amplitud:</span> <span className="text-rose-400 font-bold">{hoverInfo.amplitude.toFixed(2)}</span>
+              <span className="text-slate-400 font-sans">Amplitud:</span> <span className="text-rose-400 font-bold">{hoverInfo.amplitude.toFixed(1)}</span>
             </div>
           </div>
         )}

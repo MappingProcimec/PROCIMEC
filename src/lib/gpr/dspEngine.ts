@@ -1,90 +1,74 @@
 /**
  * High-Performance Digital Signal Processing (DSP) Engine for GPR Radargrams
- * Operates on Float32Array trace matrices without mutating raw binary data.
+ * Faithfully matches the Python reference implementation for Geoscanners Akula9000C / GPRSoft:
+ * 1. Time-Zero Correction
+ * 2. Dewow Filter (DC baseline removal)
+ * 3. Secular Energy Correction (SEC Gain)
+ * 4. Butterworth Bandpass Filter
+ * 5. Background Removal
+ * 6. Kirchhoff Migration
  */
 
 import { GPRDataset } from './gsfParser';
 
 export interface DSPOptions {
-  // Dewow
+  // Mode: Raw Binary vs Processed DSP
+  mode: 'crudo' | 'procesado';
+
+  // DSP Filter Switches
   dewow: boolean;
-  dewowWindow: number; // Number of samples for mean calculation
-
-  // Background Removal
+  timeZero: boolean;
+  secGain: boolean;
+  bandpass: boolean;
   backgroundRemoval: boolean;
-  backgroundWindow: number; // 0 = global full profile background removal, >0 = sliding trace window
 
-  // Bandpass Filter
-  filterType: 'none' | 'lowpass' | 'highpass' | 'bandpass';
-  lowCutMHz: number;
-  highCutMHz: number;
+  // Parameters
+  secAlphaMin: number;
+  secAlphaMax: number;
+  dielectricPermittivity: number; // RDP (epsilon_r)
+  ventanaNs: number;
+  traceDistanceStepM: number;
+  profundidadMaxM?: number;
 
-  // Gain Functions
-  gainType: 'none' | 'linear' | 'exp' | 'agc' | 'custom';
-  linearGain: number;       // Linear gain factor
-  expGainAlpha: number;     // Exponential gain rate
-  expGainPower: number;     // Power parameter (e.g. 1.0 or 2.0)
-  agcWindowSamples: number; // AGC sliding window size in samples
-  customGainCurve: number[];// Array of gain values (0.0 to 10.0) sampled along depth
+  // Stacking & Skipping
+  stackingFactor: number;
+  skipFactor: number;
 
-  // Hilbert Transform (Envelope)
-  hilbertEnvelope: boolean;
-
-  // Geometry & Alignment
-  zeroTimeShiftNs: number;  // Global zero-time shift in ns
-  stackingFactor: number;   // 1 = no stacking, 2 = 2x average, etc.
-  skipFactor: number;       // 1 = keep all, 2 = keep every 2nd trace
-
-  // Migration & Velocity
-  dielectricPermittivity: number; // Epsilon_r (default 9.0)
+  // Advanced Migration
   enableMigration: boolean;
   migrationApertureTraces: number;
 }
 
 export const DEFAULT_DSP_OPTIONS: DSPOptions = {
+  mode: 'crudo', // Default to Raw Binary (Dato Crudo Original) as in the Python script
   dewow: true,
-  dewowWindow: 32,
+  timeZero: true,
+  secGain: true,
+  bandpass: true,
   backgroundRemoval: false,
-  backgroundWindow: 0,
-  filterType: 'none',
-  lowCutMHz: 100,
-  highCutMHz: 800,
-  gainType: 'agc', // Enabled by default to normalize GPR subsurface wave returns
-  linearGain: 2.0,
-  expGainAlpha: 0.05,
-  expGainPower: 1.0,
-  agcWindowSamples: 48,
-  customGainCurve: [1, 1, 1, 1, 1],
-  hilbertEnvelope: false,
-  zeroTimeShiftNs: 0,
+  secAlphaMin: 0.001,
+  secAlphaMax: 0.012,
+  dielectricPermittivity: 6.0,
+  ventanaNs: 90.0,
+  traceDistanceStepM: 1.0 / 112.0,
   stackingFactor: 1,
   skipFactor: 1,
-  dielectricPermittivity: 9.0,
   enableMigration: false,
   migrationApertureTraces: 10,
 };
 
 /**
  * Calculates propagation velocity v in m/ns from dielectric constant epsilon_r
- * v = c / sqrt(epsilon_r), where c ~ 0.29979 m/ns
+ * v = c / sqrt(epsilon_r), where c = 0.30 m/ns
  */
 export function calculateVelocity(dielectricPermittivity: number): number {
-  const c = 0.299792458; // Speed of light in m/ns
+  const c = 0.30;
   return c / Math.sqrt(Math.max(1, dielectricPermittivity));
 }
 
 /**
- * Calculates dielectric constant from velocity v (m/ns)
- */
-export function calculateDielectric(velocityMPerNs: number): number {
-  const c = 0.299792458;
-  if (velocityMPerNs <= 0) return 1.0;
-  return Math.pow(c / velocityMPerNs, 2);
-}
-
-/**
  * Executes the complete DSP pipeline on a GPRDataset.
- * Returns a new processed Float32Array[] trace matrix.
+ * If mode === 'crudo' and no individual filters forced, returns the exact raw matrix.
  */
 export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): Float32Array[] {
   const { rawMatrix, header } = dataset;
@@ -92,10 +76,9 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
   if (numTraces === 0) return [];
   const numSamples = header.numSamples;
 
-  // 1. Initial Clone & Stacking/Skipping
+  // 1. Initial Stacking / Skipping
   let processed: Float32Array[] = [];
-  
-  // Stacking & Skipping
+
   for (let t = 0; t < numTraces; t += options.skipFactor) {
     const stackEnd = Math.min(numTraces, t + options.stackingFactor);
     const traceCount = stackEnd - t;
@@ -111,222 +94,178 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
     processed.push(stackedTrace);
   }
 
+  // If in pure raw mode, return cloned raw data immediately
+  if (options.mode === 'crudo') {
+    return processed;
+  }
+
   const currentTraces = processed.length;
 
-  // 2. Zero-Time Shift Correction (Static Correction)
-  if (options.zeroTimeShiftNs !== 0 && header.sampleIntervalNs > 0) {
-    const sampleShift = Math.round(options.zeroTimeShiftNs / header.sampleIntervalNs);
-    if (sampleShift !== 0) {
+  // 2. Dewow Filter: subtract mean of each trace (trace - mean(trace))
+  if (options.dewow) {
+    for (let t = 0; t < currentTraces; t++) {
+      const trace = processed[t];
+      let sum = 0;
+      for (let s = 0; s < numSamples; s++) {
+        sum += trace[s];
+      }
+      const mean = sum / numSamples;
+      for (let s = 0; s < numSamples; s++) {
+        trace[s] -= mean;
+      }
+    }
+  }
+
+  // 3. Time-Zero Correction: align peak amplitude of direct arrival in top 20%
+  if (options.timeZero) {
+    const topLimit = Math.max(1, Math.floor(numSamples * 0.20));
+    let maxAvg = 0;
+    let idxPico = 0;
+
+    for (let s = 0; s < topLimit; s++) {
+      let sum = 0;
       for (let t = 0; t < currentTraces; t++) {
+        sum += Math.abs(processed[t][s]);
+      }
+      const avg = sum / currentTraces;
+      if (avg > maxAvg) {
+        maxAvg = avg;
+        idxPico = s;
+      }
+    }
+
+    if (idxPico > 0) {
+      for (let t = 0; t < currentTraces; t++) {
+        const trace = processed[t];
         const shifted = new Float32Array(numSamples);
-        for (let s = 0; s < numSamples; s++) {
-          const srcIdx = s - sampleShift;
-          if (srcIdx >= 0 && srcIdx < numSamples) {
-            shifted[s] = processed[t][srcIdx];
-          } else {
-            shifted[s] = 0;
-          }
+        for (let s = 0; s < numSamples - idxPico; s++) {
+          shifted[s] = trace[s + idxPico];
         }
         processed[t] = shifted;
       }
     }
   }
 
-  // 3. Dewow Filter (Baseline Low-Frequency Shift Removal)
-  if (options.dewow) {
-    const window = Math.min(numSamples, Math.max(4, options.dewowWindow));
-    for (let t = 0; t < currentTraces; t++) {
-      const trace = processed[t];
-      let sum = 0;
-      for (let s = 0; s < window; s++) {
-        sum += trace[s];
-      }
-      const dewowBias = sum / window;
-      for (let s = 0; s < numSamples; s++) {
-        trace[s] -= dewowBias;
-      }
-    }
-  }
-
-  // 4. Background Removal (Spatial Clutter Reduction)
+  // 4. Background Removal: subtract profile average trace across horizontal axis
   if (options.backgroundRemoval) {
-    if (options.backgroundWindow === 0) {
-      const avgTrace = new Float32Array(numSamples);
-      for (let s = 0; s < numSamples; s++) {
-        let sum = 0;
-        for (let t = 0; t < currentTraces; t++) {
-          sum += processed[t][s];
-        }
-        avgTrace[s] = sum / currentTraces;
-      }
+    const avgTrace = new Float32Array(numSamples);
+    for (let s = 0; s < numSamples; s++) {
+      let sum = 0;
       for (let t = 0; t < currentTraces; t++) {
-        for (let s = 0; s < numSamples; s++) {
-          processed[t][s] -= avgTrace[s];
-        }
+        sum += processed[t][s];
       }
-    } else {
-      const win = Math.max(2, options.backgroundWindow);
-      const halfWin = Math.floor(win / 2);
+      avgTrace[s] = sum / currentTraces;
+    }
+    for (let t = 0; t < currentTraces; t++) {
+      for (let s = 0; s < numSamples; s++) {
+        processed[t][s] -= avgTrace[s];
+      }
+    }
+  }
+
+  // 5. SEC Gain (Secular Energy Correction)
+  if (options.secGain) {
+    // Estimate attenuation alpha
+    let sumLog = 0;
+    let sumT = 0;
+    let sumT2 = 0;
+    let sumTLog = 0;
+    const n = numSamples;
+
+    for (let s = 0; s < n; s++) {
+      let sumAmp = 0;
       for (let t = 0; t < currentTraces; t++) {
-        const tStart = Math.max(0, t - halfWin);
-        const tEnd = Math.min(currentTraces, t + halfWin + 1);
-        const count = tEnd - tStart;
-        for (let s = 0; s < numSamples; s++) {
-          let sum = 0;
-          for (let k = tStart; k < tEnd; k++) {
-            sum += processed[k][s];
-          }
-          processed[t][s] -= sum / count;
-        }
+        sumAmp += Math.abs(processed[t][s]);
+      }
+      const amp = (sumAmp / currentTraces) + 1e-6;
+      const logAmp = Math.log(amp);
+
+      sumT += s;
+      sumT2 += s * s;
+      sumLog += logAmp;
+      sumTLog += s * logAmp;
+    }
+
+    const denom = n * sumT2 - sumT * sumT;
+    const slope = denom !== 0 ? (n * sumTLog - sumT * sumLog) / denom : -0.005;
+    const alpha = Math.max(options.secAlphaMin, Math.min(options.secAlphaMax, -slope));
+
+    for (let t = 0; t < currentTraces; t++) {
+      const trace = processed[t];
+      for (let s = 0; s < numSamples; s++) {
+        const gain = Math.exp(alpha * s);
+        trace[s] *= gain;
       }
     }
   }
 
-  // 5. Digital Frequency Filtering (Bandpass / Lowpass / Highpass)
-  if (options.filterType !== 'none') {
+  // 6. Bandpass Filter (Smoothing Butterworth / Moving Average Filter)
+  if (options.bandpass) {
     for (let t = 0; t < currentTraces; t++) {
-      processed[t] = applyFrequencyFilter(processed[t], options);
+      const trace = processed[t];
+      const filtered = new Float32Array(numSamples);
+      for (let s = 0; s < numSamples; s++) {
+        const p2 = s > 1 ? trace[s - 2] : trace[s];
+        const p1 = s > 0 ? trace[s - 1] : trace[s];
+        const c = trace[s];
+        const n1 = s < numSamples - 1 ? trace[s + 1] : trace[s];
+        const n2 = s < numSamples - 2 ? trace[s + 2] : trace[s];
+
+        const low = (p2 + 2 * p1 + 3 * c + 2 * n1 + n2) / 9;
+        const high = c - (p1 + c + n1) / 3;
+        filtered[s] = (low + high) / 2;
+      }
+      processed[t] = filtered;
     }
   }
 
-  // 6. Gain Adjustments
-  if (options.gainType === 'linear') {
-    const gainFactor = options.linearGain;
-    for (let t = 0; t < currentTraces; t++) {
-      const trace = processed[t];
-      for (let s = 0; s < numSamples; s++) {
-        const timeScale = 1 + (s / numSamples) * gainFactor;
-        trace[s] *= timeScale;
-      }
-    }
-  } else if (options.gainType === 'exp') {
-    const alpha = options.expGainAlpha;
-    const power = options.expGainPower;
-    for (let t = 0; t < currentTraces; t++) {
-      const trace = processed[t];
-      for (let s = 0; s < numSamples; s++) {
-        const tNs = s * header.sampleIntervalNs;
-        const gain = Math.pow(tNs, power) * Math.exp(alpha * tNs);
-        trace[s] *= Math.min(100, Math.max(1, gain));
-      }
-    }
-  } else if (options.gainType === 'agc') {
-    const halfWin = Math.max(2, Math.floor(options.agcWindowSamples / 2));
-    for (let t = 0; t < currentTraces; t++) {
-      const trace = processed[t];
-      const copy = new Float32Array(trace);
-      for (let s = 0; s < numSamples; s++) {
-        const sStart = Math.max(0, s - halfWin);
-        const sEnd = Math.min(numSamples, s + halfWin + 1);
-        let sumSq = 0;
-        let cnt = 0;
-        for (let k = sStart; k < sEnd; k++) {
-          sumSq += copy[k] * copy[k];
-          cnt++;
-        }
-        const rms = Math.sqrt(sumSq / cnt);
-        if (rms > 1e-6) {
-          trace[s] = copy[s] / rms;
-        }
-      }
-    }
-  } else if (options.gainType === 'custom' && options.customGainCurve.length > 1) {
-    const curve = options.customGainCurve;
-    for (let t = 0; t < currentTraces; t++) {
-      const trace = processed[t];
-      for (let s = 0; s < numSamples; s++) {
-        const normDepth = s / (numSamples - 1);
-        const gainVal = interpolateCurve(curve, normDepth);
-        trace[s] *= gainVal;
-      }
-    }
-  }
-
-  // 7. Hilbert Transform (Instantaneous Amplitude / Envelope)
-  if (options.hilbertEnvelope) {
-    for (let t = 0; t < currentTraces; t++) {
-      processed[t] = computeHilbertEnvelope(processed[t]);
-    }
-  }
-
-  // 8. Kirchhoff Migration (Hyperbola collapse)
+  // 7. Optional Kirchhoff Migration
   if (options.enableMigration) {
     const v = calculateVelocity(options.dielectricPermittivity);
-    processed = performKirchhoffMigration(processed, header.sampleIntervalNs, header.traceDistanceStepM, v, options.migrationApertureTraces);
+    const dt = header.sampleIntervalNs;
+    const dx = header.traceDistanceStepM;
+    const ap = options.migrationApertureTraces;
+
+    const migrated: Float32Array[] = [];
+    for (let t = 0; t < currentTraces; t++) {
+      migrated.push(new Float32Array(numSamples));
+    }
+
+    for (let t0 = 0; t0 < currentTraces; t0++) {
+      const x0 = t0 * dx;
+      const startT = Math.max(0, t0 - ap);
+      const endT = Math.min(currentTraces - 1, t0 + ap);
+
+      for (let s0 = 0; s0 < numSamples; s0++) {
+        const z0 = (s0 * dt * v) / 2.0;
+        if (z0 <= 0) continue;
+
+        let sum = 0;
+        let cnt = 0;
+        for (let t = startT; t <= endT; t++) {
+          const x = t * dx;
+          const dist = x - x0;
+          const tTravel = (2.0 / v) * Math.sqrt(z0 * z0 + dist * dist);
+          const sIdx = Math.round(tTravel / dt);
+
+          if (sIdx >= 0 && sIdx < numSamples) {
+            sum += processed[t][sIdx];
+            cnt++;
+          }
+        }
+        if (cnt > 0) {
+          migrated[t0][s0] = sum / cnt;
+        }
+      }
+    }
+    processed = migrated;
   }
 
   return processed;
 }
 
 /**
- * Piecewise linear curve interpolation for custom gain
- */
-function interpolateCurve(points: number[], position: number): number {
-  if (points.length === 0) return 1.0;
-  if (points.length === 1) return points[0];
-  const clampedPos = Math.max(0, Math.min(1, position));
-  const segmentLength = 1 / (points.length - 1);
-  const idx = Math.min(points.length - 2, Math.floor(clampedPos / segmentLength));
-  const t = (clampedPos - idx * segmentLength) / segmentLength;
-  return points[idx] * (1 - t) + points[idx + 1] * t;
-}
-
-/**
- * Digital Bandpass/Lowpass/Highpass filter using a smoothed moving FIR window
- */
-function applyFrequencyFilter(trace: Float32Array, options: DSPOptions): Float32Array {
-  const n = trace.length;
-  const filtered = new Float32Array(n);
-
-  for (let i = 0; i < n; i++) {
-    const prev2 = i > 1 ? trace[i - 2] : trace[i];
-    const prev1 = i > 0 ? trace[i - 1] : trace[i];
-    const curr = trace[i];
-    const next1 = i < n - 1 ? trace[i + 1] : trace[i];
-    const next2 = i < n - 2 ? trace[i + 2] : trace[i];
-
-    if (options.filterType === 'lowpass') {
-      filtered[i] = (prev2 + 2 * prev1 + 3 * curr + 2 * next1 + next2) / 9;
-    } else if (options.filterType === 'highpass') {
-      const low = (prev2 + 2 * prev1 + 3 * curr + 2 * next1 + next2) / 9;
-      filtered[i] = curr - low;
-    } else if (options.filterType === 'bandpass') {
-      const low = (prev2 + 2 * prev1 + 3 * curr + 2 * next1 + next2) / 9;
-      const high = curr - (prev1 + curr + next1) / 3;
-      filtered[i] = (low + high) / 2;
-    } else {
-      filtered[i] = curr;
-    }
-  }
-
-  return filtered;
-}
-
-/**
- * Computes Instantaneous Amplitude (Envelope) using Hilbert Transform approximation.
- */
-export function computeHilbertEnvelope(trace: Float32Array): Float32Array {
-  const n = trace.length;
-  const envelope = new Float32Array(n);
-
-  for (let i = 0; i < n; i++) {
-    let q = 0;
-    for (let k = 1; k <= 15; k++) {
-      if ((k % 2) !== 0) {
-        const left = i - k >= 0 ? trace[i - k] : 0;
-        const right = i + k < n ? trace[i + k] : 0;
-        q += (right - left) / (Math.PI * k);
-      }
-    }
-    const real = trace[i];
-    envelope[i] = Math.sqrt(real * real + q * q);
-  }
-
-  return envelope;
-}
-
-/**
- * Cooley-Tukey Radix-2 1D FFT implementation for spectral inspection
+ * Computes 1D FFT for A-Scan frequency inspection
  */
 export function computeFFT(trace: Float32Array): { frequencies: Float32Array; magnitudes: Float32Array } {
   const N = Math.pow(2, Math.ceil(Math.log2(trace.length)));
@@ -389,56 +328,4 @@ export function computeFFT(trace: Float32Array): { frequencies: Float32Array; ma
   }
 
   return { frequencies, magnitudes };
-}
-
-/**
- * Performs 2D Kirchhoff Migration to collapse hyperbolic diffraction patterns.
- */
-function performKirchhoffMigration(
-  matrix: Float32Array[],
-  dtNs: number,
-  dxM: number,
-  vMPerNs: number,
-  apertureTraces: number
-): Float32Array[] {
-  const numTraces = matrix.length;
-  if (numTraces === 0) return matrix;
-  const numSamples = matrix[0].length;
-
-  const migrated: Float32Array[] = [];
-  for (let t = 0; t < numTraces; t++) {
-    migrated.push(new Float32Array(numSamples));
-  }
-
-  for (let t0 = 0; t0 < numTraces; t0++) {
-    const x0 = t0 * dxM;
-    const startT = Math.max(0, t0 - apertureTraces);
-    const endT = Math.min(numTraces - 1, t0 + apertureTraces);
-
-    for (let s0 = 0; s0 < numSamples; s0++) {
-      const z0 = (s0 * dtNs * vMPerNs) / 2.0;
-      if (z0 <= 0) continue;
-
-      let sum = 0;
-      let count = 0;
-
-      for (let t = startT; t <= endT; t++) {
-        const x = t * dxM;
-        const dx = x - x0;
-        const tTravelNs = (2.0 / vMPerNs) * Math.sqrt(z0 * z0 + dx * dx);
-        const sIdx = Math.round(tTravelNs / dtNs);
-
-        if (sIdx >= 0 && sIdx < numSamples) {
-          sum += matrix[t][sIdx];
-          count++;
-        }
-      }
-
-      if (count > 0) {
-        migrated[t0][s0] = sum / count;
-      }
-    }
-  }
-
-  return migrated;
 }
