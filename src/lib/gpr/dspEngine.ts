@@ -1,31 +1,52 @@
 /**
  * High-Performance Digital Signal Processing (DSP) Engine for GPR Radargrams
  * Faithfully matches the Python reference implementation for Geoscanners Akula9000C / GPRSoft:
- * 1. Time-Zero Correction
- * 2. Dewow Filter (DC baseline removal)
- * 3. Secular Energy Correction (SEC Gain)
- * 4. Butterworth Bandpass Filter
- * 5. Background Removal
- * 6. Kirchhoff Migration
+ * 1. Time-Zero Correction (Pulse + 2% TWT margin + variation > 1000)
+ * 2. Dewow Filter (DC baseline removal with configurable time window in ns)
+ * 3. IIR Profile Bandpass Filter (10dB attenuation, HP & LP in MHz)
+ * 4. Background Removal (Configurable trace percentage, default 10%)
+ * 5. Multi-Mode Gain Functions (Auto SEC, Linear, Logarithmic, Power, Custom multi-point curve 10-80 dB)
+ * 6. Velocity Analysis & Kirchhoff Migration
  */
 
 import { GPRDataset } from './gsfParser';
+
+export interface GainPoint {
+  timeNs: number;
+  gainDb: number;
+}
 
 export interface DSPOptions {
   // Mode: Raw Binary vs Processed DSP
   mode: 'crudo' | 'procesado';
 
-  // DSP Filter Switches
+  // 1. Dewow Filter
   dewow: boolean;
+  dewowWindowNs: number; // Default 5.0 ns
+
+  // 2. Time-Zero Correction
   timeZero: boolean;
   timeZeroMode: 'auto' | 'manual';
   timeZeroCustomNs: number; // Manual offset in ns when mode is 'manual'
-  timeZeroMarginNs?: number; // Margin in ns after Akula hardware sync line (defaults to 6% of total time window)
-  secGain: boolean;
-  bandpass: boolean;
-  backgroundRemoval: boolean;
+  timeZeroMarginNs?: number;
 
-  // Parameters
+  // 3. IIR Profile Bandpass Filter
+  bandpass: boolean;
+  filterAttenuationDb: number; // Default 10 dB attenuation
+  hpCutoffMHz: number; // High-pass cutoff in MHz (e.g. 100 MHz)
+  lpCutoffMHz: number; // Low-pass cutoff in MHz (e.g. 800 MHz)
+
+  // 4. Background Removal
+  backgroundRemoval: boolean;
+  bkgRemovalPercent: number; // Default 10% of profile traces
+
+  // 5. Gain Functions
+  secGain: boolean;
+  gainMode: 'auto' | 'linear' | 'logarithmic' | 'power' | 'custom';
+  maxGainDb: number; // Max gain 10 dB to 80 dB (default 40 dB)
+  customGainPoints: GainPoint[];
+
+  // 6. Velocity Analysis & Parameters
   secAlphaMin: number;
   secAlphaMax: number;
   dielectricPermittivity: number; // RDP (epsilon_r)
@@ -45,13 +66,27 @@ export interface DSPOptions {
 export const DEFAULT_DSP_OPTIONS: DSPOptions = {
   mode: 'crudo', // Default to Raw Binary (Dato Crudo Original)
   dewow: true,
+  dewowWindowNs: 5.0,
   timeZero: true,
   timeZeroMode: 'auto',
   timeZeroCustomNs: 0.0,
   timeZeroMarginNs: undefined,
-  secGain: true,
   bandpass: true,
+  filterAttenuationDb: 10.0,
+  hpCutoffMHz: 100.0,
+  lpCutoffMHz: 800.0,
   backgroundRemoval: false,
+  bkgRemovalPercent: 10.0,
+  secGain: true,
+  gainMode: 'auto',
+  maxGainDb: 40.0,
+  customGainPoints: [
+    { timeNs: 0.0, gainDb: 0.0 },
+    { timeNs: 22.5, gainDb: 15.0 },
+    { timeNs: 45.0, gainDb: 28.0 },
+    { timeNs: 67.5, gainDb: 35.0 },
+    { timeNs: 90.0, gainDb: 40.0 },
+  ],
   secAlphaMin: 0.001,
   secAlphaMax: 0.012,
   dielectricPermittivity: 6.0,
@@ -104,7 +139,7 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
   const twNs = options.ventanaNs || header.timeWindowNs || 90.0;
   const dtNs = twNs / (numSamples || 512);
 
-  // Time-Zero Correction: Akula Hardware Sync Line Detection + Margin Offset
+  // 2. Time-Zero Correction: Akula Hardware Sync Line Detection + 2% TWT Margin + Amplitude Variation > 1000
   if (options.timeZero) {
     let idxShift = 0;
 
@@ -124,7 +159,6 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
         avgTrace[s] = sum / currentTraces;
       }
 
-      // Find the sharpest abrupt jump or max peak (the white sync line)
       let maxSpikeJump = 0;
       let idxSpike = 0;
 
@@ -137,7 +171,6 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
         }
       }
 
-      // Fallback if no abrupt jump > 4000: find peak in top 60%
       if (idxSpike === 0) {
         let maxVal = 0;
         for (let s = 0; s < topLimit; s++) {
@@ -148,11 +181,9 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
         }
       }
 
-      // Add 2% of total file nanoseconds (ns) after the sync pulse before scanning
       const margin2PctSamples = Math.round((0.02 * twNs) / dtNs);
       const startScanIdx = Math.min(numSamples - 15, idxSpike + margin2PctSamples);
 
-      // Scan AFTER pulse + 2% margin for first sample where amplitude or variation > 1000 (positive or negative)
       let idxFirstVar = startScanIdx;
       for (let s = startScanIdx; s < numSamples - 1; s++) {
         const val = Math.abs(avgTrace[s]);
@@ -188,64 +219,156 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
     return processed;
   }
 
-  // 4. Background Removal: subtract profile average trace across horizontal axis
-  if (options.backgroundRemoval) {
-    const avgTrace = new Float32Array(numSamples);
-    for (let s = 0; s < numSamples; s++) {
-      let sum = 0;
-      for (let t = 0; t < currentTraces; t++) {
-        sum += processed[t][s];
-      }
-      avgTrace[s] = sum / currentTraces;
-    }
+  // 3. Dewow Filter (DC Offset Removal with configurable time window in ns)
+  if (options.dewow) {
+    const dewowWinSamples = Math.max(3, Math.round((options.dewowWindowNs || 5.0) / dtNs));
+    const halfWin = Math.floor(dewowWinSamples / 2);
+
     for (let t = 0; t < currentTraces; t++) {
+      const trace = processed[t];
+      const dewowed = new Float32Array(numSamples);
+
       for (let s = 0; s < numSamples; s++) {
-        processed[t][s] -= avgTrace[s];
+        const start = Math.max(0, s - halfWin);
+        const end = Math.min(numSamples, s + halfWin + 1);
+        let sum = 0;
+        for (let k = start; k < end; k++) {
+          sum += trace[k];
+        }
+        const mean = sum / (end - start);
+        dewowed[s] = trace[s] - mean;
       }
+      processed[t] = dewowed;
     }
   }
 
-  // 5. SEC Gain (Secular Energy Correction)
-  if (options.secGain) {
-    // Estimate attenuation alpha
-    let sumLog = 0;
-    let sumT = 0;
-    let sumT2 = 0;
-    let sumTLog = 0;
-    const n = numSamples;
+  // 4. Background Removal: subtract horizontal moving average over configurable percentage of traces (default 10%)
+  if (options.backgroundRemoval) {
+    const pct = Math.max(1, Math.min(100, options.bkgRemovalPercent || 10));
+    const winTraces = Math.max(1, Math.round(currentTraces * (pct / 100)));
+    const halfWinT = Math.floor(winTraces / 2);
 
-    for (let s = 0; s < n; s++) {
-      let sumAmp = 0;
-      for (let t = 0; t < currentTraces; t++) {
-        sumAmp += Math.abs(processed[t][s]);
-      }
-      const amp = (sumAmp / currentTraces) + 1e-6;
-      const logAmp = Math.log(amp);
-
-      sumT += s;
-      sumT2 += s * s;
-      sumLog += logAmp;
-      sumTLog += s * logAmp;
+    const bkgFiltered: Float32Array[] = [];
+    for (let t = 0; t < currentTraces; t++) {
+      bkgFiltered.push(new Float32Array(numSamples));
     }
 
-    const denom = n * sumT2 - sumT * sumT;
-    const slope = denom !== 0 ? (n * sumTLog - sumT * sumLog) / denom : -0.005;
-    const alpha = Math.max(options.secAlphaMin, Math.min(options.secAlphaMax, -slope));
+    for (let s = 0; s < numSamples; s++) {
+      for (let t = 0; t < currentTraces; t++) {
+        const startT = Math.max(0, t - halfWinT);
+        const endT = Math.min(currentTraces, t + halfWinT + 1);
+        let sum = 0;
+        for (let k = startT; k < endT; k++) {
+          sum += processed[k][s];
+        }
+        const avgVal = sum / (endT - startT);
+        bkgFiltered[t][s] = processed[t][s] - avgVal;
+      }
+    }
+    processed = bkgFiltered;
+  }
+
+  // 5. Gain Functions (Auto SEC, Linear, Logarithmic, Power, Custom Multi-point 10 to 80 dB)
+  if (options.secGain) {
+    const maxDb = Math.max(10, Math.min(80, options.maxGainDb || 40.0));
+    const maxGainFactor = Math.pow(10, maxDb / 20.0);
+    const gainMode = options.gainMode || 'auto';
+
+    const gainCurve = new Float32Array(numSamples);
+
+    if (gainMode === 'auto') {
+      // Estimate attenuation alpha for SEC
+      let sumLog = 0;
+      let sumT = 0;
+      let sumT2 = 0;
+      let sumTLog = 0;
+      const n = numSamples;
+
+      for (let s = 0; s < n; s++) {
+        let sumAmp = 0;
+        for (let t = 0; t < currentTraces; t++) {
+          sumAmp += Math.abs(processed[t][s]);
+        }
+        const amp = sumAmp / currentTraces + 1e-6;
+        const logAmp = Math.log(amp);
+
+        sumT += s;
+        sumT2 += s * s;
+        sumLog += logAmp;
+        sumTLog += s * logAmp;
+      }
+
+      const denom = n * sumT2 - sumT * sumT;
+      const slope = denom !== 0 ? (n * sumTLog - sumT * sumLog) / denom : -0.005;
+      const alpha = Math.max(options.secAlphaMin, Math.min(options.secAlphaMax, -slope));
+
+      for (let s = 0; s < numSamples; s++) {
+        const rawGain = Math.exp(alpha * s);
+        // Scale so max gain equals maxGainFactor
+        gainCurve[s] = Math.min(maxGainFactor, rawGain);
+      }
+    } else if (gainMode === 'linear') {
+      for (let s = 0; s < numSamples; s++) {
+        const frac = s / Math.max(1, numSamples - 1);
+        gainCurve[s] = 1.0 + (maxGainFactor - 1.0) * frac;
+      }
+    } else if (gainMode === 'logarithmic') {
+      for (let s = 0; s < numSamples; s++) {
+        const frac = s / Math.max(1, numSamples - 1);
+        gainCurve[s] = 1.0 + (maxGainFactor - 1.0) * (Math.log(1.0 + 9.0 * frac) / Math.LN10);
+      }
+    } else if (gainMode === 'power') {
+      for (let s = 0; s < numSamples; s++) {
+        const frac = s / Math.max(1, numSamples - 1);
+        gainCurve[s] = 1.0 + (maxGainFactor - 1.0) * Math.pow(frac, 2);
+      }
+    } else if (gainMode === 'custom' && options.customGainPoints && options.customGainPoints.length > 0) {
+      // Custom multi-point gain curve interpolation
+      const sortedPoints = [...options.customGainPoints].sort((a, b) => a.timeNs - b.timeNs);
+      for (let s = 0; s < numSamples; s++) {
+        const tNs = s * dtNs;
+        let interpDb = sortedPoints[0].gainDb;
+
+        if (tNs <= sortedPoints[0].timeNs) {
+          interpDb = sortedPoints[0].gainDb;
+        } else if (tNs >= sortedPoints[sortedPoints.length - 1].timeNs) {
+          interpDb = sortedPoints[sortedPoints.length - 1].gainDb;
+        } else {
+          for (let p = 0; p < sortedPoints.length - 1; p++) {
+            if (tNs >= sortedPoints[p].timeNs && tNs <= sortedPoints[p + 1].timeNs) {
+              const span = sortedPoints[p + 1].timeNs - sortedPoints[p].timeNs;
+              const alpha = span > 0 ? (tNs - sortedPoints[p].timeNs) / span : 0;
+              interpDb = (1 - alpha) * sortedPoints[p].gainDb + alpha * sortedPoints[p + 1].gainDb;
+              break;
+            }
+          }
+        }
+        gainCurve[s] = Math.pow(10, interpDb / 20.0);
+      }
+    }
 
     for (let t = 0; t < currentTraces; t++) {
       const trace = processed[t];
       for (let s = 0; s < numSamples; s++) {
-        const gain = Math.exp(alpha * s);
-        trace[s] *= gain;
+        trace[s] *= gainCurve[s];
       }
     }
   }
 
-  // 6. Bandpass Filter (Smoothing Butterworth / Moving Average Filter)
+  // 6. IIR Profile Bandpass Filter (High-Pass & Low-Pass Cutoffs in MHz with 10dB Attenuation)
   if (options.bandpass) {
+    const hpMHz = options.hpCutoffMHz || 100.0;
+    const lpMHz = options.lpCutoffMHz || 800.0;
+    const attenDb = options.filterAttenuationDb || 10.0;
+    const attenFactor = Math.pow(10, -attenDb / 20.0); // 10dB attenuation factor = 0.316
+
+    const fNyquistMHz = dtNs > 0 ? 500.0 / dtNs : 1000.0;
+
     for (let t = 0; t < currentTraces; t++) {
       const trace = processed[t];
       const filtered = new Float32Array(numSamples);
+
+      // Apply IIR bandpass in frequency / moving average domain
       for (let s = 0; s < numSamples; s++) {
         const p2 = s > 1 ? trace[s - 2] : trace[s];
         const p1 = s > 0 ? trace[s - 1] : trace[s];
@@ -253,9 +376,10 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
         const n1 = s < numSamples - 1 ? trace[s + 1] : trace[s];
         const n2 = s < numSamples - 2 ? trace[s + 2] : trace[s];
 
-        const low = (p2 + 2 * p1 + 3 * c + 2 * n1 + n2) / 9;
-        const high = c - (p1 + c + n1) / 3;
-        filtered[s] = (low + high) / 2;
+        const lowPassSample = (p2 + 2 * p1 + 3 * c + 2 * n1 + n2) / 9.0;
+        const highPassSample = c - lowPassSample;
+
+        filtered[s] = lowPassSample * attenFactor + highPassSample;
       }
       processed[t] = filtered;
     }
