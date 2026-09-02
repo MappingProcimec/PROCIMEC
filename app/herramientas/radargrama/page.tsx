@@ -90,10 +90,8 @@ export default function RadargramaWorkstationPage() {
     if (newDatasets.length > 0) {
       setDatasets((prev) => [...prev, ...newDatasets]);
       setDspOptionsMap(newOptionsMap);
-
-      if (!activeDatasetId) {
-        setActiveDatasetId(newDatasets[0].id);
-      }
+      // Automatically switch view to newly uploaded profile
+      setActiveDatasetId(newDatasets[newDatasets.length - 1].id);
     }
   };
 

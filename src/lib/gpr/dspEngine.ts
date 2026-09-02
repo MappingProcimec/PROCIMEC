@@ -110,37 +110,8 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
       const customNs = options.timeZeroCustomNs || 0;
       idxShift = Math.max(0, Math.round(customNs / dtNs));
     } else {
-      // Auto-detection of First Break / Direct Arrival (up to 42.5% of total ns of the file)
-      const topLimit = Math.max(1, Math.floor(numSamples * 0.425));
-      const avgAbs = new Float32Array(topLimit);
-
-      let maxAvg = 0;
-      let idxPeak = 0;
-
-      for (let s = 0; s < topLimit; s++) {
-        let sum = 0;
-        for (let t = 0; t < currentTraces; t++) {
-          sum += Math.abs(processed[t][s]);
-        }
-        avgAbs[s] = sum / currentTraces;
-        if (avgAbs[s] > maxAvg) {
-          maxAvg = avgAbs[s];
-          idxPeak = s;
-        }
-      }
-
-      if (maxAvg > 0 && idxPeak > 0) {
-        // Threshold: 8% of peak amplitude (start of direct arrival variation)
-        const threshold = maxAvg * 0.08;
-        idxShift = idxPeak;
-
-        for (let s = idxPeak; s >= 0; s--) {
-          if (avgAbs[s] <= threshold) {
-            idxShift = s;
-            break;
-          }
-        }
-      }
+      // Directly cut at 42.5% of total trace samples / time window
+      idxShift = Math.floor(numSamples * 0.425);
     }
 
     if (idxShift > 0 && idxShift < numSamples - 1) {

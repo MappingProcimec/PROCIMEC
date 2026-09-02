@@ -544,7 +544,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         }`}
                       >
                         <Sparkles className="w-3 h-3 text-amber-300" />
-                        <span>Auto (Variación)</span>
+                        <span>Auto (Corte 42.5%)</span>
                       </button>
                       <button
                         onClick={() => updateOption('timeZeroMode', 'manual')}
