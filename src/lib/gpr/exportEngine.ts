@@ -118,19 +118,25 @@ export function renderFullProfileCanvas(
     const imgData = imgCtx.createImageData(numTraces, numSamples);
     const data = imgData.data;
 
-    let maxAmp = 0;
-    for (let t = 0; t < numTraces; t += 4) {
+    // Symmetric 98.5-percentile clipping matching CanvasViewer exactly
+    const allAbs: number[] = [];
+    const step = Math.max(1, Math.floor(numTraces / 100));
+    for (let t = 0; t < numTraces; t += step) {
+      const tr = processedMatrix[t];
+      if (!tr) continue;
       for (let s = 0; s < numSamples; s += 4) {
-        const a = Math.abs(processedMatrix[t][s]);
-        if (a > maxAmp) maxAmp = a;
+        allAbs.push(Math.abs(tr[s]));
       }
     }
-    if (maxAmp === 0) maxAmp = 1;
+    allAbs.sort((a, b) => a - b);
+    const pIdx = Math.floor(allAbs.length * 0.985);
+    const vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
 
     for (let t = 0; t < numTraces; t++) {
       const trace = processedMatrix[t];
       for (let s = 0; s < numSamples; s++) {
-        const normVal = trace[s] / maxAmp;
+        const amp = trace ? trace[s] : 0;
+        const normVal = Math.max(-1.0, Math.min(1.0, amp / vmax));
         const [r, g, b] = getExportPaletteColor(normVal, palette, contrast, brightness);
 
         const pxIdx = (s * numTraces + t) * 4;
@@ -742,19 +748,25 @@ export function renderPPTXProfileCanvas(
     const imgData = imgCtx.createImageData(numTraces, numSamples);
     const data = imgData.data;
 
-    let maxAmp = 0;
-    for (let t = 0; t < numTraces; t += 4) {
+    // Symmetric 98.5-percentile clipping matching CanvasViewer exactly
+    const allAbs: number[] = [];
+    const step = Math.max(1, Math.floor(numTraces / 100));
+    for (let t = 0; t < numTraces; t += step) {
+      const tr = processedMatrix[t];
+      if (!tr) continue;
       for (let s = 0; s < numSamples; s += 4) {
-        const a = Math.abs(processedMatrix[t][s]);
-        if (a > maxAmp) maxAmp = a;
+        allAbs.push(Math.abs(tr[s]));
       }
     }
-    if (maxAmp === 0) maxAmp = 1;
+    allAbs.sort((a, b) => a - b);
+    const pIdx = Math.floor(allAbs.length * 0.985);
+    const vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
 
     for (let t = 0; t < numTraces; t++) {
       const trace = processedMatrix[t];
       for (let s = 0; s < numSamples; s++) {
-        const normVal = trace[s] / maxAmp;
+        const amp = trace ? trace[s] : 0;
+        const normVal = Math.max(-1.0, Math.min(1.0, amp / vmax));
         const [r, g, b] = getExportPaletteColor(normVal, palette, contrast, brightness);
 
         const pxIdx = (s * numTraces + t) * 4;
