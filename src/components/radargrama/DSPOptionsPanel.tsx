@@ -1239,8 +1239,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         step="0.5"
                         min="0.5"
                         max="30"
-                        value={options.dewowWindowNs || 5.0}
-                        onChange={(e) => updateOption('dewowWindowNs', Math.max(0.5, parseFloat(e.target.value) || 5.0))}
+                        value={options.dewowWindowNs || 2.0}
+                        onChange={(e) => updateOption('dewowWindowNs', Math.max(0.5, parseFloat(e.target.value) || 2.0))}
                         className="input text-xs py-1 font-mono font-bold text-amber-700 flex-1"
                       />
                       <span className="text-[10px] font-mono text-text-muted">ns</span>

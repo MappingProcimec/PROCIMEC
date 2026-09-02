@@ -66,7 +66,7 @@ export interface DSPOptions {
 export const DEFAULT_DSP_OPTIONS: DSPOptions = {
   mode: 'crudo', // Default to Raw Binary (Dato Crudo Original)
   dewow: true,
-  dewowWindowNs: 5.0,
+  dewowWindowNs: 2.0,
   timeZero: true,
   timeZeroMode: 'auto',
   timeZeroCustomNs: 0.0,
@@ -221,7 +221,7 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
 
   // 3. Dewow Filter (DC Offset Removal with configurable time window in ns)
   if (options.dewow) {
-    const dewowWinSamples = Math.max(3, Math.round((options.dewowWindowNs || 5.0) / dtNs));
+    const dewowWinSamples = Math.max(3, Math.round((options.dewowWindowNs || 2.0) / dtNs));
     const halfWin = Math.floor(dewowWinSamples / 2);
 
     for (let t = 0; t < currentTraces; t++) {
@@ -498,3 +498,109 @@ export function computeFFT(trace: Float32Array): { frequencies: Float32Array; ma
 
   return { frequencies, magnitudes };
 }
+
+export interface GPRMacro {
+  id: string;
+  name: string;
+  description: string;
+  options: DSPOptions;
+}
+
+export const BUILTIN_MACROS: GPRMacro[] = [
+  {
+    id: 'macro-standard',
+    name: 'Standard Geoscanners',
+    description: 'Dewow + Auto Time-Zero + Filtro IIR Pasa-Banda + Ganancia SEC',
+    options: {
+      mode: 'procesado',
+      dewow: true,
+      dewowWindowNs: 5.0,
+      timeZero: true,
+      timeZeroMode: 'auto',
+      timeZeroCustomNs: 0,
+      bandpass: true,
+      filterAttenuationDb: 10,
+      hpCutoffMHz: 100,
+      lpCutoffMHz: 800,
+      backgroundRemoval: false,
+      bkgRemovalPercent: 10,
+      secGain: true,
+      gainMode: 'auto',
+      maxGainDb: 40,
+      customGainPoints: [],
+      secAlphaMin: 0.001,
+      secAlphaMax: 0.012,
+      dielectricPermittivity: 6.0,
+      ventanaNs: 90.0,
+      traceDistanceStepM: 1.0 / 112.0,
+      stackingFactor: 1,
+      skipFactor: 1,
+      enableMigration: false,
+      migrationApertureTraces: 10,
+    },
+  },
+  {
+    id: 'macro-concrete',
+    name: 'Hormigón & Puentes',
+    description: 'Dewow + Auto T-Zero + Background Removal 10% + Ganancia 45dB (εr=6.0)',
+    options: {
+      mode: 'procesado',
+      dewow: true,
+      dewowWindowNs: 4.0,
+      timeZero: true,
+      timeZeroMode: 'auto',
+      timeZeroCustomNs: 0,
+      bandpass: true,
+      filterAttenuationDb: 10,
+      hpCutoffMHz: 200,
+      lpCutoffMHz: 900,
+      backgroundRemoval: true,
+      bkgRemovalPercent: 10,
+      secGain: true,
+      gainMode: 'logarithmic',
+      maxGainDb: 45,
+      customGainPoints: [],
+      secAlphaMin: 0.001,
+      secAlphaMax: 0.012,
+      dielectricPermittivity: 6.0,
+      ventanaNs: 90.0,
+      traceDistanceStepM: 1.0 / 112.0,
+      stackingFactor: 1,
+      skipFactor: 1,
+      enableMigration: false,
+      migrationApertureTraces: 10,
+    },
+  },
+  {
+    id: 'macro-utilities',
+    name: 'Tuberías & Servicios',
+    description: 'Dewow + IIR 150-600MHz + Background Removal 15% + Ganancia 50dB',
+    options: {
+      mode: 'procesado',
+      dewow: true,
+      dewowWindowNs: 5.0,
+      timeZero: true,
+      timeZeroMode: 'auto',
+      timeZeroCustomNs: 0,
+      bandpass: true,
+      filterAttenuationDb: 10,
+      hpCutoffMHz: 150,
+      lpCutoffMHz: 600,
+      backgroundRemoval: true,
+      bkgRemovalPercent: 15,
+      secGain: true,
+      gainMode: 'power',
+      maxGainDb: 50,
+      customGainPoints: [],
+      secAlphaMin: 0.001,
+      secAlphaMax: 0.012,
+      dielectricPermittivity: 9.0,
+      ventanaNs: 90.0,
+      traceDistanceStepM: 1.0 / 112.0,
+      stackingFactor: 1,
+      skipFactor: 1,
+      enableMigration: false,
+      migrationApertureTraces: 10,
+    },
+  },
+];
