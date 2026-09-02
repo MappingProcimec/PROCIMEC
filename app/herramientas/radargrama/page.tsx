@@ -311,14 +311,11 @@ export default function RadargramaWorkstationPage() {
               <Activity className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-text-primary">
-                  Procesador Web de Radargramas (.gsf)
-                </h1>
-                <span className="badge-primary text-[10px] font-mono">Akula9000C / Geoscanners</span>
-              </div>
+              <h1 className="text-lg font-bold text-text-primary tracking-tight">
+                Procesador de Radargramas GPR
+              </h1>
               <p className="text-xs text-text-muted">
-                Visualizador Geofísico GPR (Modo Crudo Original y Filtros DSP)
+                Workstation Geofísica de Procesamiento, Filtros DSP y Calibración (.gsf)
               </p>
             </div>
           </div>

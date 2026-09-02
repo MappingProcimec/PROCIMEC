@@ -64,7 +64,7 @@ export interface DSPOptions {
 }
 
 export const DEFAULT_DSP_OPTIONS: DSPOptions = {
-  mode: 'procesado', // Predeterminado: Modo Procesado (Todos los Filtros Activados)
+  mode: 'crudo', // Predeterminado: Dato Crudo Original (Binario Original)
   dewow: true,
   dewowWindowNs: 2.0,
   timeZero: true,
