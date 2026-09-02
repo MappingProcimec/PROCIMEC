@@ -508,48 +508,59 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
   return (
     <div className="flex-1 flex flex-col bg-surface overflow-hidden relative">
-      {/* Top Metadata Header Bar */}
-      <div className="bg-slate-900 text-slate-100 px-4 py-2 text-xs font-mono flex items-center justify-between border-b border-slate-800 shadow-md">
-        <div className="flex items-center gap-4 flex-wrap">
-          <span className="font-bold text-sky-400">
+      {/* Top Metadata Header Bar (Locked to fixed 40px height, 100% single line to prevent layout shift) */}
+      <div className="h-10 bg-slate-900 text-slate-100 px-3 text-[11px] font-mono flex items-center justify-between border-b border-slate-800 shadow-sm flex-shrink-0 select-none overflow-hidden">
+        {/* Left Side: File and GPR Geophysical Metadata (Single Line, No Wrap) */}
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-nowrap whitespace-nowrap overflow-x-auto no-scrollbar py-0.5 min-w-0">
+          <span className="font-bold text-sky-400 bg-sky-950/70 px-2 py-0.5 rounded border border-sky-800/60 text-xs flex-shrink-0">
             {dataset ? dataset.filename : 'Sin archivo'}
           </span>
-          <span className="text-slate-400">
-            εr = <strong className="text-slate-200">{dielectricPermittivity.toFixed(1)}</strong>
+          <span className="text-slate-400 flex-shrink-0">
+            εr: <strong className="text-slate-100">{dielectricPermittivity.toFixed(1)}</strong>
           </span>
-          <span className="text-slate-400">
-            v = <strong className="text-slate-200">{calculateVelocity(dielectricPermittivity).toFixed(3)} m/ns</strong>
+          <span className="text-slate-600 flex-shrink-0">•</span>
+          <span className="text-slate-400 flex-shrink-0">
+            v: <strong className="text-slate-100">{calculateVelocity(dielectricPermittivity).toFixed(3)} m/ns</strong>
           </span>
-          <span className="text-slate-400">
-            Ventana = <strong className="text-amber-300">{ventanaNs.toFixed(1)} ns</strong>
+          <span className="text-slate-600 flex-shrink-0">•</span>
+          <span className="text-slate-400 flex-shrink-0">
+            Ventana: <strong className="text-amber-300">{ventanaNs.toFixed(1)} ns</strong>
           </span>
-          <span className="text-slate-400">
-            Prof. Máx = <strong className="text-purple-300">{((calculateVelocity(dielectricPermittivity) * ventanaNs) / 2).toFixed(2)} m</strong>
+          <span className="text-slate-600 flex-shrink-0">•</span>
+          <span className="text-slate-400 flex-shrink-0">
+            Prof. Máx: <strong className="text-purple-300">{((calculateVelocity(dielectricPermittivity) * ventanaNs) / 2).toFixed(2)} m</strong>
           </span>
-          <span className="text-slate-400">
-            Distancia Total = <strong className="text-emerald-400">{distTotalM.toFixed(2)} m</strong> ({numTraces} trazas)
+          <span className="text-slate-600 flex-shrink-0">•</span>
+          <span className="text-slate-400 flex-shrink-0">
+            Distancia: <strong className="text-emerald-400">{distTotalM.toFixed(2)} m</strong> <span className="text-slate-400 font-normal">({numTraces} tr)</span>
           </span>
         </div>
 
-        {hoverInfo && (
-          <div className="hidden lg:flex items-center gap-3 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 text-[11px]">
-            {hoverInfo.hasData ? (
-              <>
-                <span>Traza: <strong>#{hoverInfo.traceIdx + 1}</strong></span>
-                <span>Dist: <strong>{hoverInfo.distM.toFixed(2)}m</strong></span>
-                <span>Tiempo: <strong>{hoverInfo.timeNs.toFixed(1)}ns</strong></span>
-                <span>Prof: <strong>{hoverInfo.depthM.toFixed(2)}m</strong></span>
-                <span>Amp: <strong className={hoverInfo.amplitude >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{Math.round(hoverInfo.amplitude)}</strong></span>
-              </>
-            ) : (
-              <>
-                <span>Dist: <strong>{hoverInfo.distM.toFixed(2)}m</strong></span>
-                <span>Tiempo: <strong>{hoverInfo.timeNs.toFixed(1)}ns</strong></span>
-                <span className="text-slate-400 italic">Espacio en Blanco (Sin Datos)</span>
-              </>
-            )}
-          </div>
-        )}
+        {/* Right Side: Reserved Inspection Panel (Single Line, Never Alters Header Height) */}
+        <div className="flex-shrink-0 ml-3 flex items-center">
+          {hoverInfo && hoverInfo.hasData ? (
+            <div className="flex items-center gap-2 bg-slate-800/90 px-2.5 py-0.5 rounded-md border border-slate-700 text-[11px] text-slate-200 shadow-inner whitespace-nowrap">
+              <span>Tr: <strong className="text-white">#{hoverInfo.traceIdx + 1}</strong></span>
+              <span className="text-slate-600">|</span>
+              <span>Dist: <strong className="text-white">{hoverInfo.distM.toFixed(2)}m</strong></span>
+              <span className="text-slate-600">|</span>
+              <span>t: <strong className="text-amber-300">{hoverInfo.timeNs.toFixed(1)}ns</strong></span>
+              <span className="text-slate-600">|</span>
+              <span>z: <strong className="text-purple-300">{hoverInfo.depthM.toFixed(2)}m</strong></span>
+              <span className="text-slate-600">|</span>
+              <span>Amp: <strong className={hoverInfo.amplitude >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{Math.round(hoverInfo.amplitude)}</strong></span>
+            </div>
+          ) : hoverInfo && !hoverInfo.hasData ? (
+            <div className="flex items-center gap-2 bg-slate-800/60 px-2.5 py-0.5 rounded-md border border-slate-700/60 text-[11px] text-slate-400 whitespace-nowrap">
+              <span>Dist: <strong>{hoverInfo.distM.toFixed(2)}m</strong></span>
+              <span className="italic text-slate-400">(Sin Datos)</span>
+            </div>
+          ) : (
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10.5px] text-slate-400 bg-slate-800/40 border border-slate-800/80 whitespace-nowrap">
+              <span>Inspección: Mover cursor</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main Canvas Area */}
