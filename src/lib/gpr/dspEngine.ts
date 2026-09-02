@@ -110,8 +110,8 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
       const customNs = options.timeZeroCustomNs || 0;
       idxShift = Math.max(0, Math.round(customNs / dtNs));
     } else {
-      // Auto-detection of First Break / Direct Arrival (Donde comienza la variación de amplitud)
-      const topLimit = Math.max(1, Math.floor(numSamples * 0.25));
+      // Auto-detection of First Break / Direct Arrival (up to half of total ns of the file)
+      const topLimit = Math.max(1, Math.floor(numSamples * 0.50));
       const avgAbs = new Float32Array(topLimit);
 
       let maxAvg = 0;
@@ -143,14 +143,19 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
       }
     }
 
-    if (idxShift > 0 && idxShift < numSamples) {
+    if (idxShift > 0 && idxShift < numSamples - 1) {
+      const srcLen = numSamples - idxShift;
       for (let t = 0; t < currentTraces; t++) {
         const trace = processed[t];
-        const shifted = new Float32Array(numSamples);
-        for (let s = 0; s < numSamples - idxShift; s++) {
-          shifted[s] = trace[s + idxShift];
+        const stretched = new Float32Array(numSamples);
+        for (let i = 0; i < numSamples; i++) {
+          const srcIdxFloat = idxShift + (i / (numSamples - 1)) * (srcLen - 1);
+          const k = Math.floor(srcIdxFloat);
+          const alpha = srcIdxFloat - k;
+          const kNext = Math.min(k + 1, numSamples - 1);
+          stretched[i] = (1 - alpha) * trace[k] + alpha * trace[kNext];
         }
-        processed[t] = shifted;
+        processed[t] = stretched;
       }
     }
   }

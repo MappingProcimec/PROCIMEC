@@ -565,18 +565,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         <div className="flex justify-between items-center text-[11px]">
                           <span className="font-semibold text-text-primary">Inicio Time-Zero (ns):</span>
                           <span className="font-mono text-amber-600 font-bold">
-                            {(options.timeZeroCustomNs || 0).toFixed(2)} ns
+                            {(options.timeZeroCustomNs || 0).toFixed(2)} ns / {currentTwNs.toFixed(1)} ns
                           </span>
                         </div>
 
                         <input
                           type="range"
                           min={0}
-                          max={Math.min(30, currentTwNs * 0.4)}
+                          max={currentTwNs}
                           step={0.1}
                           value={options.timeZeroCustomNs || 0}
                           onChange={(e) => updateOption('timeZeroCustomNs', parseFloat(e.target.value))}
-                          className="w-full accent-amber-500 bg-gray-200 rounded"
+                          className="w-full accent-amber-500 bg-gray-200 rounded cursor-pointer"
                         />
 
                         <div className="flex items-center gap-1.5">
@@ -584,16 +584,32 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                             type="number"
                             step="0.1"
                             min={0}
-                            max={50}
+                            max={currentTwNs}
                             value={parseFloat((options.timeZeroCustomNs || 0).toFixed(2))}
-                            onChange={(e) => updateOption('timeZeroCustomNs', Math.max(0, parseFloat(e.target.value) || 0))}
+                            onChange={(e) => updateOption('timeZeroCustomNs', Math.max(0, Math.min(currentTwNs, parseFloat(e.target.value) || 0)))}
                             className="input text-xs py-1 font-mono font-bold text-amber-700 flex-1"
                           />
+                        </div>
+
+                        {/* Quick Presets: 0ns, Mitad ns, Total ns */}
+                        <div className="grid grid-cols-3 gap-1 pt-1">
                           <button
                             onClick={() => updateOption('timeZeroCustomNs', 0)}
-                            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-text-secondary rounded-lg text-[10px] transition font-mono"
+                            className="px-1.5 py-1 bg-gray-100 hover:bg-gray-200 text-text-secondary rounded-lg text-[10px] transition font-mono"
                           >
                             0 ns
+                          </button>
+                          <button
+                            onClick={() => updateOption('timeZeroCustomNs', parseFloat((currentTwNs / 2).toFixed(1)))}
+                            className="px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] transition font-mono font-bold"
+                          >
+                            Mitad ({(currentTwNs / 2).toFixed(1)}ns)
+                          </button>
+                          <button
+                            onClick={() => updateOption('timeZeroCustomNs', parseFloat(currentTwNs.toFixed(1)))}
+                            className="px-1.5 py-1 bg-gray-100 hover:bg-gray-200 text-text-secondary rounded-lg text-[10px] transition font-mono"
+                          >
+                            Total ({currentTwNs.toFixed(1)}ns)
                           </button>
                         </div>
                       </div>
