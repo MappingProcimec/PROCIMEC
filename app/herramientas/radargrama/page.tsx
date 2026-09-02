@@ -212,19 +212,17 @@ export default function RadargramaWorkstationPage() {
     }));
   };
 
-  // Single JPG Export
+  // Single JPG Export (Full Distance Profile 0m to Total Distance)
   const handleExportJPG = async () => {
-    const canvas = document.querySelector('canvas');
-    if (canvas && activeDataset) {
-      await exportRadargramJPG(canvas, activeDataset.filename);
+    if (activeDataset && activeProcessedMatrix) {
+      await exportRadargramJPG(activeDataset, activeProcessedMatrix, activeOptions, palette, contrast, brightness);
     }
   };
 
-  // Single PDF Technical Report Export
+  // Single PDF Technical Report Export (Full Distance Profile 0m to Total Distance)
   const handleExportPDF = async () => {
-    const canvas = document.querySelector('canvas');
-    if (canvas && activeDataset) {
-      await exportTechnicalPDFReport(activeDataset, canvas, activeOptions);
+    if (activeDataset && activeProcessedMatrix) {
+      await exportTechnicalPDFReport(activeDataset, activeProcessedMatrix, activeOptions, palette, contrast, brightness);
     }
   };
 
@@ -239,19 +237,20 @@ export default function RadargramaWorkstationPage() {
     }
   };
 
-  // Batch PPTX Export
+  // Batch PPTX Export (Full Distance Profile 0m to Total Distance for all datasets)
   const handleExportBatchPPTX = async () => {
     if (datasets.length === 0) return;
-    const canvas = document.querySelector('canvas');
-    const canvasMap = new Map<string, HTMLCanvasElement>();
+    const processedMatricesMap = new Map<string, Float32Array[]>();
     const optionsMap = new Map<string, DSPOptions>();
 
     datasets.forEach((ds) => {
-      if (canvas) canvasMap.set(ds.id, canvas);
-      optionsMap.set(ds.id, dspOptionsMap[ds.id] || DEFAULT_DSP_OPTIONS);
+      const opts = dspOptionsMap[ds.id] || DEFAULT_DSP_OPTIONS;
+      const matrix = processRadargramDSP(ds, opts);
+      processedMatricesMap.set(ds.id, matrix);
+      optionsMap.set(ds.id, opts);
     });
 
-    await exportBatchPPTX(datasets, canvasMap, optionsMap);
+    await exportBatchPPTX(datasets, processedMatricesMap, optionsMap, palette, contrast, brightness);
   };
 
   // Remove dataset
@@ -282,7 +281,7 @@ export default function RadargramaWorkstationPage() {
                 <h1 className="text-lg font-bold text-text-primary">
                   Procesador Web de Radargramas (.gsf)
                 </h1>
-                <span className="badge-primary text-[10px] px-2 py-0.5">Akula9000C / Geoscanners</span>
+                <span className="badge-primary text-[10px] font-mono">Akula9000C / Geoscanners</span>
               </div>
               <p className="text-xs text-text-muted">
                 Visualizador Geofísico GPR (Modo Crudo Original y Filtros DSP)
@@ -304,16 +303,6 @@ export default function RadargramaWorkstationPage() {
                 className="hidden"
               />
             </label>
-
-            {/* Load Demo Data Button */}
-            <button
-              onClick={handleLoadDemoDataset}
-              className="btn-outline btn-sm"
-              title="Cargar radargrama de ejemplo"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-accent-700" />
-              <span>Cargar Ejemplo</span>
-            </button>
 
             {/* Export Toolbar */}
             {activeDataset && (
