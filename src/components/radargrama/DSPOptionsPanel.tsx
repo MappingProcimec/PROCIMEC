@@ -559,41 +559,47 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       </button>
                     </div>
 
-                    {/* Auto Mode Controls (Línea Blanca Sync + Margen) */}
+                    {/* Auto Mode Controls (Línea Blanca Sync + Margen 6%) */}
                     {(options.timeZeroMode || 'auto') === 'auto' && (
                       <div className="bg-white p-2.5 rounded-xl border border-border space-y-2">
                         <div className="flex justify-between items-center text-[11px]">
                           <span className="font-semibold text-text-primary">Margen tras Línea Blanca:</span>
                           <span className="font-mono text-amber-600 font-bold">
-                            +{(options.timeZeroMarginNs ?? 2.5).toFixed(1)} ns
+                            +{(options.timeZeroMarginNs ?? (currentTwNs * 0.06)).toFixed(1)} ns ({options.timeZeroMarginNs != null ? ((options.timeZeroMarginNs / currentTwNs) * 100).toFixed(1) : '6.0'}%)
                           </span>
                         </div>
 
                         <input
                           type="range"
                           min={0.0}
-                          max={10.0}
-                          step={0.5}
-                          value={options.timeZeroMarginNs ?? 2.5}
+                          max={Math.max(10.0, currentTwNs * 0.15)}
+                          step={0.1}
+                          value={options.timeZeroMarginNs ?? (currentTwNs * 0.06)}
                           onChange={(e) => updateOption('timeZeroMarginNs', parseFloat(e.target.value))}
                           className="w-full accent-amber-500 bg-gray-200 rounded cursor-pointer"
                         />
 
-                        {/* Presets: +1.0ns, +2.5ns, +4.0ns, +5.0ns */}
-                        <div className="grid grid-cols-4 gap-1 pt-1">
-                          {[1.0, 2.5, 4.0, 5.0].map((m) => (
-                            <button
-                              key={m}
-                              onClick={() => updateOption('timeZeroMarginNs', m)}
-                              className={`py-1 rounded-lg text-[10px] font-mono border transition ${
-                                Math.abs((options.timeZeroMarginNs ?? 2.5) - m) < 0.2
-                                  ? 'bg-amber-500 text-white border-amber-500 font-bold shadow-xs'
-                                  : 'bg-gray-100 hover:bg-gray-200 text-text-secondary border-border'
-                              }`}
-                            >
-                              +{m} ns
-                            </button>
-                          ))}
+                        {/* Presets: 3%, 6% (Default), 8%, 10% */}
+                        <div className="grid grid-cols-4 gap-1 pt-1 text-[9px]">
+                          {[0.03, 0.06, 0.08, 0.10].map((pct) => {
+                            const valNs = parseFloat((currentTwNs * pct).toFixed(1));
+                            const isSelected = Math.abs((options.timeZeroMarginNs ?? (currentTwNs * 0.06)) - valNs) < 0.3;
+                            return (
+                              <button
+                                key={pct}
+                                onClick={() => updateOption('timeZeroMarginNs', valNs)}
+                                className={`py-1 rounded-lg font-mono border transition flex flex-col items-center justify-center ${
+                                  isSelected
+                                    ? 'bg-amber-500 text-white border-amber-500 font-bold shadow-xs'
+                                    : 'bg-gray-100 hover:bg-gray-200 text-text-secondary border-border'
+                                }`}
+                                title={`Margen ${pct * 100}% = ${valNs} ns`}
+                              >
+                                <span>{pct * 100}%</span>
+                                <span className="opacity-80">{valNs}ns</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

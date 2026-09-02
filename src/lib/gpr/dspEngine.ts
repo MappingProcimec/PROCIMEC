@@ -20,7 +20,7 @@ export interface DSPOptions {
   timeZero: boolean;
   timeZeroMode: 'auto' | 'manual';
   timeZeroCustomNs: number; // Manual offset in ns when mode is 'manual'
-  timeZeroMarginNs: number; // Margin in ns after Akula hardware sync line (default: 2.5 ns)
+  timeZeroMarginNs?: number; // Margin in ns after Akula hardware sync line (defaults to 6% of total time window)
   secGain: boolean;
   bandpass: boolean;
   backgroundRemoval: boolean;
@@ -48,7 +48,7 @@ export const DEFAULT_DSP_OPTIONS: DSPOptions = {
   timeZero: true,
   timeZeroMode: 'auto',
   timeZeroCustomNs: 0.0,
-  timeZeroMarginNs: 2.5,
+  timeZeroMarginNs: undefined,
   secGain: true,
   bandpass: true,
   backgroundRemoval: false,
@@ -147,8 +147,8 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
         }
       }
 
-      // Add margin in ns after the white sync line (default 2.5 ns)
-      const marginNs = options.timeZeroMarginNs ?? 2.5;
+      // Add margin of 6% of total file ns after the white sync line (or custom marginNs if specified)
+      const marginNs = options.timeZeroMarginNs != null ? options.timeZeroMarginNs : (twNs * 0.06);
       const marginSamples = Math.round(marginNs / dtNs);
 
       idxShift = Math.min(numSamples - 10, idxSpike + marginSamples);
