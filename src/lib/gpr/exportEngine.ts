@@ -761,33 +761,35 @@ export async function exportBatchPPTX(
       fill: { color: '0F172A' },
     });
 
-    slide.addText(`Radargrama GPR #${i + 1}: ${ds.filename}`, {
-      x: 0.4,
+    // Header Title: Radargrama GPR: [filename]
+    slide.addText(`Radargrama GPR: ${ds.filename}`, {
+      x: 0.5,
       y: 0.22,
-      fontSize: 16,
+      fontSize: 17,
       bold: true,
       color: 'FFFFFF',
     });
 
-    // Render Full Profile Canvas for Slide
+    // Render High-Resolution Full Profile Canvas for Slide
     const fullCanvas = renderFullProfileCanvas(ds, matrix, opt, palette, contrast, brightness);
-    const dataUrl = fullCanvas.toDataURL('image/jpeg', 0.88);
+    const dataUrl = fullCanvas.toDataURL('image/jpeg', 0.95);
 
-    // Full Profile Image on Left Side
+    // Profile Image on Left Side (Aspect ratio ~1:1.55, max 1:2, high resolution)
     slide.addImage({
       data: dataUrl,
-      x: 0.4,
-      y: 0.9,
-      w: 8.5,
-      h: 6.0,
+      x: 0.5,
+      y: 1.05,
+      w: 8.8,
+      h: 5.8,
     });
 
-    // Metadata Table on Right Side (Fit inside 16x9 layout without overflow)
+    // Metadata Table on Right Side (Strictly inside 16x9 slide bounds: x=9.5, w=3.4, total=12.9 < 13.33)
     const numTraces = matrix.length;
     const numSamples = ds.header.numSamples;
     const dxM = opt.traceDistanceStepM || ds.header.traceDistanceStepM || 1.0 / 112.0;
     const distM = (numTraces * dxM).toFixed(1);
     const vel = calculateVelocity(opt.dielectricPermittivity || 6.0);
+    const isCrudo = opt.mode === 'crudo';
 
     const rows = [
       [
@@ -800,19 +802,21 @@ export async function exportBatchPPTX(
       [{ text: 'Frecuencia Antena' }, { text: `${ds.header.antennaFreqMHz || 400} MHz` }],
       [{ text: 'Permitividad ε_r' }, { text: `${(opt.dielectricPermittivity || 6.0).toFixed(1)}` }],
       [{ text: 'Velocidad v' }, { text: `${vel.toFixed(3)} m/ns` }],
-      [{ text: 'Modo Señal' }, { text: `${opt.mode === 'crudo' ? 'Dato Crudo' : 'Procesado DSP'}` }],
-      [{ text: 'Dewow' }, { text: `${opt.dewow ? 'Activo' : 'Inactivo'}` }],
-      [{ text: 'Time-Zero' }, { text: `${opt.timeZero ? 'Activo' : 'Inactivo'}` }],
-      [{ text: 'Ganancia SEC' }, { text: `${opt.secGain ? 'Activo' : 'Inactivo'}` }],
-      [{ text: 'Bkg Removal' }, { text: `${opt.backgroundRemoval ? 'Activo' : 'Inactivo'}` }],
+      [{ text: 'Modo Señal' }, { text: `${isCrudo ? 'Dato Crudo' : 'Procesado DSP'}` }],
+      [{ text: 'Dewow' }, { text: `${!isCrudo && opt.dewow ? 'Activo' : 'Inactivo'}` }],
+      [{ text: 'Time-Zero' }, { text: `${!isCrudo && opt.timeZero ? 'Activo' : 'Inactivo'}` }],
+      [{ text: 'Ganancia SEC' }, { text: `${!isCrudo && opt.secGain ? 'Activo' : 'Inactivo'}` }],
+      [{ text: 'Bkg Removal' }, { text: `${!isCrudo && opt.backgroundRemoval ? 'Activo' : 'Inactivo'}` }],
     ];
 
     slide.addTable(rows, {
-      x: 9.0,
-      y: 0.9,
-      w: 3.9,
-      colW: [2.0, 1.9],
+      x: 9.5,
+      y: 1.05,
+      w: 3.35,
+      colW: [1.85, 1.5],
       fontSize: 8.5,
+      rowH: 0.38,
+      margin: [2, 3, 2, 3],
       border: { pt: 0.5, color: 'CBD5E1' },
     });
   }
