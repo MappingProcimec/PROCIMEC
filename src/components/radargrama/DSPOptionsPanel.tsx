@@ -22,6 +22,7 @@ import {
   Filter,
   Layers,
   BarChart,
+  Scan,
 } from 'lucide-react';
 
 interface DSPOptionsPanelProps {
@@ -246,8 +247,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   onToggleHyperbolaTool,
   onResetDSP,
 }) => {
-  // Main tabs: Modo (Izquierda), Procesamiento (Centro), Calibración (Derecha)
-  const [activeTab, setActiveTab] = useState<'mode' | 'filters' | 'calibracion'>('mode');
+  // Main tabs: Modo (Izquierda), Procesamiento (Centro), Calibración, Detección
+  const [activeTab, setActiveTab] = useState<'mode' | 'filters' | 'calibracion' | 'deteccion'>('mode');
 
   // Collapsible Accordion sections for Calibración view (ALL CONTRACTED BY DEFAULT!)
   const [openSections, setOpenSections] = useState<{
@@ -381,43 +382,55 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         </button>
       </div>
 
-      {/* Tabs Bar: Modo (Izquierda) | Procesamiento (Centro) | Calibración (Derecha) */}
-      <div className="grid grid-cols-3 bg-gray-100 p-1 border-b border-border text-xs gap-1">
+      {/* Tabs Bar: Modo | Procesamiento | Calibración | Detección */}
+      <div className="grid grid-cols-4 bg-gray-100 p-1 border-b border-border text-xs gap-0.5">
         <button
           onClick={() => setActiveTab('mode')}
-          className={`py-2 flex items-center justify-center gap-1.5 rounded-lg font-medium transition ${
+          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition ${
             activeTab === 'mode'
               ? 'bg-primary text-white shadow-xs font-bold'
               : 'text-text-secondary hover:bg-gray-200'
           }`}
           title="Modo de Señal (Dato Crudo / Procesado)"
         >
-          <FileSpreadsheet className="w-3.5 h-3.5" />
-          <span className="text-[11px]">Modo</span>
+          <FileSpreadsheet className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-[10px] sm:text-[11px] truncate">Modo</span>
         </button>
         <button
           onClick={() => setActiveTab('filters')}
-          className={`py-2 flex items-center justify-center gap-1.5 rounded-lg font-medium transition ${
+          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition ${
             activeTab === 'filters'
               ? 'bg-primary text-white shadow-xs font-bold'
               : 'text-text-secondary hover:bg-gray-200'
           }`}
           title="Filtros y Procesamiento DSP"
         >
-          <Activity className="w-3.5 h-3.5" />
-          <span className="text-[11px]">Procesamiento</span>
+          <Activity className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-[10px] sm:text-[11px] truncate">Procesamiento</span>
         </button>
         <button
           onClick={() => setActiveTab('calibracion')}
-          className={`py-2 flex items-center justify-center gap-1.5 rounded-lg font-medium transition ${
+          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition ${
             activeTab === 'calibracion'
               ? 'bg-primary text-white shadow-xs font-bold'
               : 'text-text-secondary hover:bg-gray-200'
           }`}
           title="Calibración Centralizada (Cabecera, Geometría, Time-Zero, Paleta)"
         >
-          <Sliders className="w-3.5 h-3.5" />
-          <span className="text-[11px]">Calibración</span>
+          <Sliders className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-[10px] sm:text-[11px] truncate">Calibración</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('deteccion')}
+          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition ${
+            activeTab === 'deteccion'
+              ? 'bg-primary text-white shadow-xs font-bold'
+              : 'text-text-secondary hover:bg-gray-200'
+          }`}
+          title="Detección Automática sobre Perfil"
+        >
+          <Scan className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-[10px] sm:text-[11px] truncate">Detección</span>
         </button>
       </div>
 
@@ -897,7 +910,64 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         {activeTab === 'filters' && (
           <div className="space-y-3">
             {/* ------------------------------------------------------------ */}
-            {/* 1. SECCIÓN: FILTROS DE PERFIL (IIR 10 dB)                    */}
+            {/* 1. SECCIÓN: FILTRO DEWOW (DERIVA DC EN NS)                   */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleFilterSection('dewow')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>Filtro Dewow (Remoción DC)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={options.dewow}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateOption('dewow', e.target.checked);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                  />
+                  {filterOpenSections.dewow ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {filterOpenSections.dewow && options.dewow && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10px] text-text-muted leading-relaxed">
+                    Elimina la oscilación inicial de baja frecuencia (deriva DC) por saturación de antena.
+                  </p>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-border">
+                    <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                      Ventana de Tiempo Dewow (ns):
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        max="30"
+                        value={options.dewowWindowNs || 2.0}
+                        onChange={(e) => updateOption('dewowWindowNs', Math.max(0.5, parseFloat(e.target.value) || 2.0))}
+                        className="input text-xs py-1 font-mono font-bold text-amber-700 flex-1"
+                      />
+                      <span className="text-[10px] font-mono text-text-muted">ns</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* 2. SECCIÓN: FILTROS DE PERFIL (IIR 10 dB)                    */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -964,7 +1034,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* ------------------------------------------------------------ */}
-            {/* 2. SECCIÓN: ELIMINACIÓN DE FONDO (BACKGROUND REMOVAL)        */}
+            {/* 3. SECCIÓN: ELIMINACIÓN DE FONDO (BACKGROUND REMOVAL)        */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -1026,7 +1096,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* ------------------------------------------------------------ */}
-            {/* 3. SECCIÓN: FUNCIÓN DE GANANCIA (GAIN FUNCTIONS & SEC)       */}
+            {/* 4. SECCIÓN: FUNCIÓN DE GANANCIA (GAIN FUNCTIONS & SEC)       */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -1057,25 +1127,24 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
               {filterOpenSections.gain && options.secGain && (
                 <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
-                  {/* Mode Buttons */}
                   <div>
                     <label className="text-[10px] font-semibold text-text-secondary block mb-1">
-                      Tipo de Función de Ganancia:
+                      Modelo de Ganancia:
                     </label>
-                    <div className="grid grid-cols-3 gap-1 mb-1">
+                    <div className="grid grid-cols-3 gap-1">
                       {[
-                        { id: 'auto', label: 'Automático' },
+                        { id: 'auto', label: 'Auto SEC' },
                         { id: 'linear', label: 'Lineal' },
-                        { id: 'logarithmic', label: 'Log' },
-                        { id: 'power', label: 'Potencias' },
-                        { id: 'custom', label: 'Personalizada' },
+                        { id: 'logarithmic', label: 'Logarítmica' },
+                        { id: 'power', label: 'Potencial' },
+                        { id: 'custom', label: 'Curva Custom' },
                       ].map((m) => (
                         <button
                           key={m.id}
-                          onClick={() => updateOption('gainMode', m.id as DSPOptions['gainMode'])}
-                          className={`py-1 px-1.5 rounded-lg text-[10px] font-medium border transition ${
+                          onClick={() => updateOption('gainMode', m.id as any)}
+                          className={`py-1.5 px-1 rounded-xl text-[10px] font-medium border transition ${
                             (options.gainMode || 'auto') === m.id
-                              ? 'bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs'
+                              ? 'bg-primary text-white border-primary font-bold shadow-xs'
                               : 'bg-white text-text-secondary border-border hover:bg-gray-100'
                           }`}
                         >
@@ -1085,61 +1154,44 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     </div>
                   </div>
 
-                  {/* Max Gain dB Slider (10 to 80 dB) */}
-                  <div className="bg-white p-2.5 rounded-xl border border-border space-y-1.5">
+                  <div className="space-y-1.5 bg-white p-2.5 rounded-xl border border-border">
                     <div className="flex justify-between items-center text-[11px]">
                       <span className="font-semibold text-text-primary">Ganancia Máxima (dB):</span>
                       <span className="font-mono text-emerald-700 font-bold">
-                        {options.maxGainDb || 40} dB
+                        {options.maxGainDb || 40.0} dB
                       </span>
                     </div>
                     <input
                       type="range"
-                      min={10}
-                      max={80}
-                      step={1}
-                      value={options.maxGainDb || 40}
+                      min={10.0}
+                      max={80.0}
+                      step={1.0}
+                      value={options.maxGainDb || 40.0}
                       onChange={(e) => updateOption('maxGainDb', parseFloat(e.target.value))}
                       className="w-full accent-emerald-600 bg-gray-200 rounded cursor-pointer"
                     />
                     <div className="flex justify-between text-[9px] text-text-muted font-mono">
-                      <span>10 dB</span>
+                      <span>10 dB (Mín)</span>
                       <span>40 dB (Default)</span>
                       <span>80 dB (Máx)</span>
                     </div>
                   </div>
 
-                  {/* Interactive Graph Canvas (Amplitude dB vs Time ns) */}
-                  <div>
-                    <div className="flex justify-between text-[10px] font-semibold text-text-secondary mb-1">
-                      <span>Curva de Ganancia (Amplitud dB vs ns):</span>
-                      <span className="font-mono text-sky-600">{options.gainMode || 'auto'}</span>
-                    </div>
-                    <GainCurveGraph
-                      points={options.customGainPoints || []}
-                      twNs={currentTwNs}
-                      maxGainDb={options.maxGainDb || 40}
-                      gainMode={options.gainMode || 'auto'}
-                      onPointsChange={(pts) => updateOption('customGainPoints', pts)}
-                    />
-                  </div>
-
-                  {/* Point Selection Controls & Table for Custom Mode */}
                   {options.gainMode === 'custom' && (
-                    <div className="space-y-2 pt-1 border-t border-border">
+                    <div className="bg-white p-2.5 rounded-xl border border-border space-y-3">
                       <div className="flex justify-between items-center">
-                        <label className="text-[10px] font-semibold text-text-secondary">
-                          Número de Puntos:
-                        </label>
-                        <div className="flex gap-1">
-                          {[3, 5, 8, 10].map((cnt) => (
+                        <span className="text-[10px] font-bold text-text-primary uppercase tracking-wider">
+                          Curva Personalizada (Nodos)
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {[3, 5, 8].map((cnt) => (
                             <button
                               key={cnt}
                               onClick={() => handleSetPointCount(cnt)}
-                              className={`px-1.5 py-0.5 text-[9px] font-mono rounded border transition ${
+                              className={`px-2 py-0.5 text-[9px] font-bold rounded-lg border transition ${
                                 (options.customGainPoints || []).length === cnt
-                                  ? 'bg-emerald-600 text-white font-bold'
-                                  : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                                  ? 'bg-emerald-600 text-white border-emerald-600'
+                                  : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'
                               }`}
                             >
                               {cnt} Pts
@@ -1148,34 +1200,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         </div>
                       </div>
 
-                      {/* Interactive Points Table */}
-                      <div className="max-h-32 overflow-y-auto border border-border rounded-xl bg-white p-1">
-                        <table className="w-full text-[10px] font-mono">
-                          <thead>
-                            <tr className="border-b border-border text-text-muted bg-gray-50">
-                              <th className="p-1 text-left">Pt #</th>
-                              <th className="p-1 text-left">Tiempo (ns)</th>
-                              <th className="p-1 text-right">Ganancia (dB)</th>
+                      <GainCurveGraph
+                        points={options.customGainPoints || []}
+                        twNs={currentTwNs}
+                        maxGainDb={options.maxGainDb || 40.0}
+                        gainMode={options.gainMode || 'auto'}
+                        onPointsChange={(pts) => updateOption('customGainPoints', pts)}
+                      />
+
+                      <div className="max-h-36 overflow-y-auto border border-border rounded-xl">
+                        <table className="w-full text-[10px]">
+                          <thead className="bg-gray-100 text-text-muted border-b border-border sticky top-0">
+                            <tr>
+                              <th className="py-1 px-2 text-left font-semibold">Nodo</th>
+                              <th className="py-1 px-2 text-left font-semibold">Tiempo (ns)</th>
+                              <th className="py-1 px-2 text-right font-semibold">Ganancia (dB)</th>
                             </tr>
                           </thead>
-                          <tbody>
+                          <tbody className="divide-y divide-border/60">
                             {(options.customGainPoints || []).map((pt, idx) => (
-                              <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
-                                <td className="p-1 font-bold text-primary">#{idx + 1}</td>
-                                <td className="p-1">
-                                  <input
-                                    type="number"
-                                    step="0.5"
-                                    value={pt.timeNs}
-                                    onChange={(e) => handleUpdateGainPoint(idx, 'timeNs', parseFloat(e.target.value) || 0)}
-                                    className="w-16 input text-[10px] py-0 px-1 font-mono"
-                                  />
-                                </td>
-                                <td className="p-1 text-right">
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="py-1 px-2 font-bold text-text-primary">#{idx + 1}</td>
+                                <td className="py-1 px-2 font-mono">{pt.timeNs.toFixed(1)} ns</td>
+                                <td className="py-1 px-2 text-right">
                                   <input
                                     type="number"
                                     step="1"
-                                    min={0}
+                                    min="0"
                                     max={options.maxGainDb || 80}
                                     value={pt.gainDb}
                                     onChange={(e) => handleUpdateGainPoint(idx, 'gainDb', parseFloat(e.target.value) || 0)}
@@ -1189,63 +1240,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       </div>
                     </div>
                   )}
-                </div>
-              )}
-            </div>
-
-            {/* ------------------------------------------------------------ */}
-            {/* 4. SECCIÓN: FILTRO DEWOW (DERIVA DC EN NS)                   */}
-            {/* ------------------------------------------------------------ */}
-            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
-              <button
-                onClick={() => toggleFilterSection('dewow')}
-                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
-              >
-                <div className="flex items-center gap-2 text-primary font-bold text-xs">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  <span>Filtro Dewow (Remoción DC)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={options.dewow}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      updateOption('dewow', e.target.checked);
-                    }}
-                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
-                  />
-                  {filterOpenSections.dewow ? (
-                    <ChevronDown className="w-4 h-4 text-text-muted" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 text-text-muted" />
-                  )}
-                </div>
-              </button>
-
-              {filterOpenSections.dewow && options.dewow && (
-                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
-                  <p className="text-[10px] text-text-muted leading-relaxed">
-                    Elimina la oscilación inicial de baja frecuencia (deriva DC) por saturación de antena.
-                  </p>
-
-                  <div className="bg-white p-2.5 rounded-xl border border-border">
-                    <label className="text-[10px] font-semibold text-text-secondary block mb-1">
-                      Ventana de Tiempo Dewow (ns):
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.5"
-                        min="0.5"
-                        max="30"
-                        value={options.dewowWindowNs || 2.0}
-                        onChange={(e) => updateOption('dewowWindowNs', Math.max(0.5, parseFloat(e.target.value) || 2.0))}
-                        className="input text-xs py-1 font-mono font-bold text-amber-700 flex-1"
-                      />
-                      <span className="text-[10px] font-mono text-text-muted">ns</span>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
@@ -1323,6 +1317,29 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* TAB 4: DETECCIÓN AUTOMÁTICA SOBRE PERFIL                     */}
+        {/* ============================================================ */}
+        {activeTab === 'deteccion' && (
+          <div className="space-y-3">
+            <div className="bg-gray-50 rounded-2xl border border-border p-4 text-center space-y-3 shadow-2xs">
+              <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto border border-amber-200 shadow-2xs">
+                <Scan className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h4 className="font-bold text-text-primary text-xs">Detección Automática sobre Perfil</h4>
+                <p className="text-[11px] text-text-muted mt-1 leading-relaxed">
+                  Módulo reservado para el reconocimiento automático de anomalías, trazado de tuberías, armaduras de concreto y patrones hiperbólicos.
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-amber-800 border border-amber-300 rounded-full text-[10px] font-bold shadow-2xs">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Sección Lista para Modelos y Algoritmos</span>
+              </div>
             </div>
           </div>
         )}
