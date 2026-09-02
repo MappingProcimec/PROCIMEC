@@ -1,8 +1,7 @@
 /**
  * Export Engine for GPR Radargrams
- * Handles full-profile JPG image export (entire profile 0m to total distance),
- * single-page PDF technical report generation, modified GSF binary download,
- * and batch PowerPoint (.pptx) deck generation.
+ * Handles full-profile High-Res JPG image export, single/multi-page extended PDF technical reports,
+ * modified GSF binary download, and batch PowerPoint (.pptx) deck generation.
  */
 
 import { GPRDataset, serializeGSF } from './gsfParser';
@@ -60,8 +59,8 @@ function getExportPaletteColor(
 }
 
 /**
- * Renders an off-screen HTMLCanvasElement containing the ENTIRE profile (all traces from 0m to total distance)
- * with complete axes, ticks, distance, depth, and header metadata.
+ * Renders an off-screen HTMLCanvasElement containing the ENTIRE profile (0m to total distance)
+ * with ample padding and zero text collisions. Dynamically expands canvas width for long profiles.
  */
 export function renderFullProfileCanvas(
   dataset: GPRDataset,
@@ -80,21 +79,24 @@ export function renderFullProfileCanvas(
   const velocity = calculateVelocity(options.dielectricPermittivity || 6.0);
   const depthMaxM = (velocity * twNs) / 2.0;
 
-  // High-resolution canvas for crisp export
+  // Scale canvas width dynamically proportional to profile length (min 1800px)
+  const MIN_WINDOW_M = 10.0;
+  const dispWindowM = Math.max(MIN_WINDOW_M, distTotalM);
+
   const canvas = document.createElement('canvas');
-  const width = Math.max(1600, Math.min(3200, numTraces * 2));
-  const height = 900;
+  const width = Math.max(1800, Math.min(4800, Math.round((dispWindowM / 10.0) * 1800)));
+  const height = 950;
   canvas.width = width;
   canvas.height = height;
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return canvas;
 
-  // Layout Margins
-  const padL = 75;
-  const padR = 75;
-  const padT = 65;
-  const padB = 60;
+  // Generous Layout Margins to completely avoid text overlaps
+  const padL = 90;
+  const padR = 90;
+  const padT = 105; // 105px top padding for clean, un-crowded headers
+  const padB = 65;
 
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
@@ -104,15 +106,13 @@ export function renderFullProfileCanvas(
   ctx.fillRect(0, 0, width, height);
 
   // 2. Render Radargram Image (All Traces 0 to numTraces)
+  const dataFraction = Math.min(1.0, distTotalM / dispWindowM);
+  const dataPlotWidth = Math.max(1, Math.floor(plotW * dataFraction));
+
   const imgCanvas = document.createElement('canvas');
   imgCanvas.width = numTraces;
   imgCanvas.height = numSamples;
   const imgCtx = imgCanvas.getContext('2d');
-
-  const MIN_WINDOW_M = 10.0;
-  const dispWindowM = Math.max(MIN_WINDOW_M, distTotalM);
-  const dataFraction = Math.min(1.0, distTotalM / dispWindowM);
-  const dataPlotWidth = plotW * dataFraction;
 
   if (imgCtx && numTraces > 0 && numSamples > 0) {
     const imgData = imgCtx.createImageData(numTraces, numSamples);
@@ -144,7 +144,7 @@ export function renderFullProfileCanvas(
     imgCtx.putImageData(imgData, 0, 0);
     ctx.drawImage(imgCanvas, padL, padT, dataPlotWidth, plotH);
 
-    // Fill remaining horizontal area with clean white blank space if data length < 10m
+    // Fill remaining area with clean white space if profile < 10m
     if (dataPlotWidth < plotW) {
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(padL + dataPlotWidth, padT, plotW - dataPlotWidth, plotH);
@@ -156,26 +156,30 @@ export function renderFullProfileCanvas(
   ctx.lineWidth = 1.5;
   ctx.strokeRect(padL, padT, plotW, plotH);
 
-  // Header Title
+  // 3. Header Texts (Well-spaced without any overlaps)
+  // Line 1: Title
   ctx.fillStyle = '#0f172a';
   ctx.font = 'bold 16px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(`PROCIMEC INGENIERIA SAS  —  ${dataset.filename}`, padL, 25);
+  ctx.fillText(`PROCIMEC INGENIERIA SAS  —  ${dataset.filename}`, padL, 26);
 
-  ctx.font = '12px sans-serif';
+  // Line 2: Subtitle & Metadata
+  ctx.font = '11.5px sans-serif';
   ctx.fillStyle = '#475569';
   ctx.fillText(
     `εr = ${options.dielectricPermittivity.toFixed(1)} | v = ${velocity.toFixed(3)} m/ns | Ventana = ${twNs.toFixed(1)} ns | Prof. Máx = ${depthMaxM.toFixed(2)} m | Distancia Total = ${distTotalM.toFixed(2)} m (${numTraces} trazas)`,
     padL,
-    46
+    48
   );
 
-  // Top X-Axis Ticks: Trace Numbers (Over dataPlotWidth)
+  // Top X-Axis Header: Número de Traza
   ctx.fillStyle = '#334155';
-  ctx.font = '11px sans-serif';
+  ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Número de Traza', padL + dataPlotWidth / 2, padT - 22);
+  ctx.fillText('Número de Traza', padL + dataPlotWidth / 2, 70);
 
+  // Top X-Axis Ticks: Trace Numbers
+  ctx.font = '10px sans-serif';
   const numTricks = 8;
   for (let i = 0; i <= numTricks; i++) {
     const frac = i / numTricks;
@@ -190,9 +194,12 @@ export function renderFullProfileCanvas(
     ctx.fillText(`${tVal}`, x, padT - 8);
   }
 
-  // Bottom X-Axis Ticks: Distance in Meters (0.00m to dispWindowM, minimum 10.0m)
-  ctx.fillText('Distancia Recorrida (m)', padL + plotW / 2, padT + plotH + 45);
+  // Bottom X-Axis Ticks: Distance in Meters
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('Distancia Recorrida (m)', padL + plotW / 2, padT + plotH + 48);
 
+  ctx.font = '10px sans-serif';
   for (let i = 0; i <= numTricks; i++) {
     const frac = i / numTricks;
     const x = padL + frac * plotW;
@@ -203,12 +210,13 @@ export function renderFullProfileCanvas(
     ctx.lineTo(x, padT + plotH + 5);
     ctx.stroke();
 
-    ctx.fillText(`${mVal.toFixed(2)}`, x, padT + plotH + 20);
+    ctx.fillText(`${mVal.toFixed(2)}`, x, padT + plotH + 22);
   }
 
   // Left Y-Axis Ticks: Time (ns)
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
+  ctx.font = '10px sans-serif';
   const numTTicks = 6;
 
   for (let i = 0; i <= numTTicks; i++) {
@@ -223,10 +231,16 @@ export function renderFullProfileCanvas(
 
     ctx.fillText(`${tVal.toFixed(1)}`, padL - 8, y);
   }
-  ctx.fillText('Tiempo (ns)', padL - 10, padT - 10);
+
+  // Left Y-Axis Title (Placed cleanly above Y-axis at padL - 10, y = padT - 18)
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('Tiempo (ns)', padL - 10, padT - 18);
 
   // Right Y-Axis Ticks: Depth (m)
   ctx.textAlign = 'left';
+  ctx.font = '10px sans-serif';
   ctx.fillStyle = '#b91c1c'; // Dark red
 
   for (let i = 0; i <= numTTicks; i++) {
@@ -241,7 +255,209 @@ export function renderFullProfileCanvas(
 
     ctx.fillText(`${dVal.toFixed(2)}`, padL + plotW + 8, y);
   }
-  ctx.fillText('Prof. Est (m)', padL + plotW + 8, padT - 10);
+
+  // Right Y-Axis Title
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillText('Prof. Est (m)', padL + plotW + 8, padT - 18);
+
+  return canvas;
+}
+
+/**
+ * Renders an off-screen Canvas segment for a 10-meter section of a profile (High-Res 1:1 Scale)
+ */
+export function renderSegmentProfileCanvas(
+  dataset: GPRDataset,
+  processedMatrix: Float32Array[],
+  options: DSPOptions,
+  startM: number,
+  segmentLenM: number = 10.0,
+  palette: string = 'grayscale',
+  contrast = 1.0,
+  brightness = 0
+): HTMLCanvasElement {
+  const numTraces = processedMatrix.length;
+  const numSamples = numTraces > 0 ? processedMatrix[0].length : 0;
+
+  const dxM = options.traceDistanceStepM || dataset.header.traceDistanceStepM || (1.0 / 112.0);
+  const distTotalM = numTraces * dxM;
+  const endM = Math.min(distTotalM, startM + segmentLenM);
+
+  const startTrace = Math.max(0, Math.floor(startM / dxM));
+  const endTrace = Math.min(numTraces, Math.ceil(endM / dxM));
+  const visibleTraces = Math.max(1, endTrace - startTrace);
+
+  const twNs = options.ventanaNs || dataset.header.timeWindowNs || 90.0;
+  const velocity = calculateVelocity(options.dielectricPermittivity || 6.0);
+  const depthMaxM = (velocity * twNs) / 2.0;
+
+  const canvas = document.createElement('canvas');
+  const width = 1800;
+  const height = 850;
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+
+  const padL = 90;
+  const padR = 90;
+  const padT = 95;
+  const padB = 65;
+
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, width, height);
+
+  const dataFraction = Math.min(1.0, (endM - startM) / segmentLenM);
+  const dataPlotWidth = Math.max(1, Math.floor(plotW * dataFraction));
+
+  const imgCanvas = document.createElement('canvas');
+  imgCanvas.width = visibleTraces;
+  imgCanvas.height = numSamples;
+  const imgCtx = imgCanvas.getContext('2d');
+
+  if (imgCtx && visibleTraces > 0 && numSamples > 0) {
+    const imgData = imgCtx.createImageData(visibleTraces, numSamples);
+    const data = imgData.data;
+
+    let maxAmp = 0;
+    for (let t = startTrace; t < endTrace; t += 4) {
+      for (let s = 0; s < numSamples; s += 4) {
+        const a = Math.abs(processedMatrix[t][s]);
+        if (a > maxAmp) maxAmp = a;
+      }
+    }
+    if (maxAmp === 0) maxAmp = 1;
+
+    let ptr = 0;
+    for (let s = 0; s < numSamples; s++) {
+      for (let t = 0; t < visibleTraces; t++) {
+        const traceIdx = startTrace + t;
+        const normVal = (processedMatrix[traceIdx]?.[s] || 0) / maxAmp;
+        const [r, g, b] = getExportPaletteColor(normVal, palette, contrast, brightness);
+
+        data[ptr] = r;
+        data[ptr + 1] = g;
+        data[ptr + 2] = b;
+        data[ptr + 3] = 255;
+        ptr += 4;
+      }
+    }
+
+    imgCtx.putImageData(imgData, 0, 0);
+    ctx.drawImage(imgCanvas, padL, padT, dataPlotWidth, plotH);
+
+    if (dataPlotWidth < plotW) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(padL + dataPlotWidth, padT, plotW - dataPlotWidth, plotH);
+    }
+  }
+
+  // Border
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(padL, padT, plotW, plotH);
+
+  // Title
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(
+    `SECCIÓN DETALLADA DE PERFIL: ${startM.toFixed(2)}m – ${endM.toFixed(2)}m  (${dataset.filename})`,
+    padL,
+    25
+  );
+
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#475569';
+  ctx.fillText(
+    `εr = ${options.dielectricPermittivity.toFixed(1)} | v = ${velocity.toFixed(3)} m/ns | Ventana = ${twNs.toFixed(1)} ns | Prof. Máx = ${depthMaxM.toFixed(2)} m | Trazas ${startTrace + 1} a ${endTrace}`,
+    padL,
+    45
+  );
+
+  // Top Ticks (Trace numbers)
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Número de Traza', padL + dataPlotWidth / 2, 65);
+
+  ctx.font = '10px sans-serif';
+  const numTricks = 8;
+  for (let i = 0; i <= numTricks; i++) {
+    const frac = i / numTricks;
+    const x = padL + frac * dataPlotWidth;
+    const tVal = Math.round(startTrace + 1 + frac * Math.max(0, visibleTraces - 1));
+
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, padT - 5);
+    ctx.stroke();
+
+    ctx.fillText(`${tVal}`, x, padT - 8);
+  }
+
+  // Bottom Ticks (Distance in meters)
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('Distancia Recorrida (m)', padL + plotW / 2, padT + plotH + 48);
+
+  ctx.font = '10px sans-serif';
+  for (let i = 0; i <= numTricks; i++) {
+    const frac = i / numTricks;
+    const x = padL + frac * plotW;
+    const mVal = startM + frac * segmentLenM;
+
+    ctx.beginPath();
+    ctx.moveTo(x, padT + plotH);
+    ctx.lineTo(x, padT + plotH + 5);
+    ctx.stroke();
+
+    ctx.fillText(`${mVal.toFixed(2)}`, x, padT + plotH + 22);
+  }
+
+  // Left Y-Axis Ticks
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.font = '10px sans-serif';
+  const numTTicks = 6;
+  for (let i = 0; i <= numTTicks; i++) {
+    const frac = i / numTTicks;
+    const y = padT + frac * plotH;
+    const tVal = frac * twNs;
+
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL - 5, y);
+    ctx.stroke();
+
+    ctx.fillText(`${tVal.toFixed(1)}`, padL - 8, y);
+  }
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillText('Tiempo (ns)', padL - 10, padT - 18);
+
+  // Right Y-Axis Ticks
+  ctx.textAlign = 'left';
+  ctx.font = '10px sans-serif';
+  ctx.fillStyle = '#b91c1c';
+  for (let i = 0; i <= numTTicks; i++) {
+    const frac = i / numTTicks;
+    const y = padT + frac * plotH;
+    const dVal = frac * depthMaxM;
+
+    ctx.beginPath();
+    ctx.moveTo(padL + plotW, y);
+    ctx.lineTo(padL + plotW + 5, y);
+    ctx.stroke();
+
+    ctx.fillText(`${dVal.toFixed(2)}`, padL + plotW + 8, y);
+  }
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillText('Prof. Est (m)', padL + plotW + 8, padT - 18);
 
   return canvas;
 }
@@ -261,7 +477,7 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 /**
- * Export full-profile JPG image (entire distance profile from 0m to total distance)
+ * Export High-Resolution Extended JPG image (entire profile with uncompressed horizontal width)
  */
 export async function exportRadargramJPG(
   dataset: GPRDataset,
@@ -287,7 +503,9 @@ export async function exportRadargramJPG(
 }
 
 /**
- * Generates and downloads a 1-Page Technical PDF Report for full distance profile.
+ * Generates an Extended PDF Technical Report:
+ * Page 1: Executive Technical Report Overview.
+ * Subsequent Pages (for profiles > 10m): High-Resolution 10-meter Segment Panels.
  */
 export async function exportTechnicalPDFReport(
   dataset: GPRDataset,
@@ -333,7 +551,7 @@ export async function exportTechnicalPDFReport(
   pdf.setTextColor(148, 163, 184);
   pdf.text(`Fecha: ${dateStr}`, pageWidth - 75, 18);
 
-  // Render Full Profile Canvas
+  // Render Full Overview Canvas
   const fullCanvas = renderFullProfileCanvas(dataset, processedMatrix, options, palette, contrast, brightness);
   const imgData = fullCanvas.toDataURL('image/jpeg', 0.92);
 
@@ -367,19 +585,19 @@ export async function exportTechnicalPDFReport(
   const numTraces = processedMatrix.length;
   const numSamples = dataset.header.numSamples;
   const dxM = options.traceDistanceStepM || dataset.header.traceDistanceStepM || 1.0 / 112.0;
-  const totalDist = (numTraces * dxM).toFixed(2);
+  const totalDistM = numTraces * dxM;
   const twNs = options.ventanaNs || dataset.header.timeWindowNs || 90.0;
   const velocity = calculateVelocity(options.dielectricPermittivity || 6.0);
   const depthM = ((twNs * velocity) / 2).toFixed(2);
 
   pdf.text(`Número de Trazas: ${numTraces}`, panelX + 5, panelY + 15);
   pdf.text(`Muestras por Traza: ${numSamples}`, panelX + 5, panelY + 21);
-  pdf.text(`Distancia Total: ${totalDist} m`, panelX + 5, panelY + 27);
+  pdf.text(`Distancia Total: ${totalDistM.toFixed(2)} m`, panelX + 5, panelY + 27);
   pdf.text(`Ventana Temporal: ${twNs.toFixed(1)} ns`, panelX + 5, panelY + 33);
   pdf.text(`Profundidad Est.: ${depthM} m`, panelX + 5, panelY + 39);
   pdf.text(`Frec. Antena: ${dataset.header.antennaFreqMHz || 400} MHz`, panelX + 5, panelY + 45);
 
-  // Box 2: Applied DSP Parameters
+  // Box 2: Applied DSP Parameters (Truthful reporting based on Signal Mode)
   panelY += 54;
   pdf.setFillColor(248, 250, 252);
   pdf.rect(panelX, panelY, panelW, 71, 'F');
@@ -394,21 +612,113 @@ export async function exportTechnicalPDFReport(
   pdf.setFontSize(8);
   pdf.setTextColor(51, 65, 85);
 
-  pdf.text(`• Modo Señal: ${options.mode === 'crudo' ? 'Dato Crudo Original' : 'Procesado DSP'}`, panelX + 5, panelY + 15);
-  pdf.text(`• Dewow (DC Offset): ${options.dewow ? 'Activado' : 'Desactivado'}`, panelX + 5, panelY + 21);
-  pdf.text(`• Time-Zero: ${options.timeZero ? 'Activado' : 'Desactivado'}`, panelX + 5, panelY + 27);
-  pdf.text(`• Ganancia SEC: ${options.secGain ? 'Activada' : 'Desactivada'}`, panelX + 5, panelY + 33);
-  pdf.text(`• Pasa-Banda: ${options.bandpass ? 'Activado' : 'Desactivado'}`, panelX + 5, panelY + 39);
-  pdf.text(`• Bkg Removal: ${options.backgroundRemoval ? 'Activado' : 'Desactivado'}`, panelX + 5, panelY + 45);
-  pdf.text(`• Dieléctrico (ε_r): ${options.dielectricPermittivity.toFixed(1)} (v=${velocity.toFixed(3)} m/ns)`, panelX + 5, panelY + 51);
-  pdf.text(`• Migración Kirchhoff: ${options.enableMigration ? 'Activada' : 'Desactivada'}`, panelX + 5, panelY + 57);
+  const isCrudoMode = options.mode === 'crudo';
 
-  // Footer Signature & Branding
+  pdf.text(
+    `• Modo Señal: ${isCrudoMode ? 'Dato Crudo Original (Sin Filtros)' : 'Procesado DSP'}`,
+    panelX + 5,
+    panelY + 15
+  );
+  pdf.text(
+    `• Dewow (DC Offset): ${!isCrudoMode && options.dewow ? `Activado (${options.dewowWindowNs || 2.0}ns)` : 'Desactivado'}`,
+    panelX + 5,
+    panelY + 21
+  );
+  pdf.text(
+    `• Time-Zero: ${!isCrudoMode && options.timeZero ? `Activado (${options.timeZeroMode === 'auto' ? 'Auto Pulso+2%' : 'Manual'})` : 'Desactivado'}`,
+    panelX + 5,
+    panelY + 27
+  );
+  pdf.text(
+    `• Ganancia SEC: ${!isCrudoMode && options.secGain ? `Activada (${options.gainMode || 'auto'}, max ${options.maxGainDb || 40}dB)` : 'Desactivada'}`,
+    panelX + 5,
+    panelY + 33
+  );
+  pdf.text(
+    `• Pasa-Banda IIR: ${!isCrudoMode && options.bandpass ? `Activado (${options.hpCutoffMHz}-${options.lpCutoffMHz}MHz)` : 'Desactivado'}`,
+    panelX + 5,
+    panelY + 39
+  );
+  pdf.text(
+    `• Bkg Removal: ${!isCrudoMode && options.backgroundRemoval ? `Activado (${options.bkgRemovalPercent || 10}%)` : 'Desactivado'}`,
+    panelX + 5,
+    panelY + 45
+  );
+  pdf.text(
+    `• Dieléctrico (ε_r): ${options.dielectricPermittivity.toFixed(1)} (v=${velocity.toFixed(3)} m/ns)`,
+    panelX + 5,
+    panelY + 51
+  );
+  pdf.text(
+    `• Migración Kirchhoff: ${!isCrudoMode && options.enableMigration ? 'Activada' : 'Desactivada'}`,
+    panelX + 5,
+    panelY + 57
+  );
+
+  // Footer
   pdf.setFontSize(8);
   pdf.setTextColor(100, 116, 139);
-  pdf.text('Generado automáticamente por PROCIMEC Radargram Processing Workstation', 12, pageHeight - 8);
+  pdf.text('Generado automáticamente por PROCIMEC Radargram Processing Workstation — Página 1 (Resumen)', 12, pageHeight - 8);
 
-  pdf.save(`${dataset.filename.replace(/\.[^/.]+$/, '')}_ReporteTecnico.pdf`);
+  // IF PROFILE > 10 METERS: ADD EXTENDED HIGH-RES 10m SEGMENT PAGES
+  const SEGMENT_LEN_M = 10.0;
+  if (totalDistM > SEGMENT_LEN_M) {
+    const numSegments = Math.ceil(totalDistM / SEGMENT_LEN_M);
+
+    for (let segIdx = 0; segIdx < numSegments; segIdx++) {
+      const segStartM = segIdx * SEGMENT_LEN_M;
+      const segEndM = Math.min(totalDistM, segStartM + SEGMENT_LEN_M);
+
+      pdf.addPage('a4', 'landscape');
+
+      // Header Bar
+      pdf.setFillColor(15, 23, 42);
+      pdf.rect(0, 0, pageWidth, 20, 'F');
+
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(13);
+      pdf.text(`PERFIL EXTENDIDO SECCIÓN #${segIdx + 1}: ${segStartM.toFixed(2)}m – ${segEndM.toFixed(2)}m`, 12, 10);
+
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(56, 189, 248);
+      pdf.text(`Archivo: ${dataset.filename} (Distancia Total: ${totalDistM.toFixed(2)}m)`, 12, 16);
+
+      pdf.setTextColor(148, 163, 184);
+      pdf.text(`Página ${segIdx + 2} de ${numSegments + 1}`, pageWidth - 45, 16);
+
+      // Render High-Res Segment Canvas
+      const segCanvas = renderSegmentProfileCanvas(
+        dataset,
+        processedMatrix,
+        options,
+        segStartM,
+        SEGMENT_LEN_M,
+        palette,
+        contrast,
+        brightness
+      );
+      const segImgData = segCanvas.toDataURL('image/jpeg', 0.95);
+
+      const segW = 273;
+      const segH = 160;
+      pdf.addImage(segImgData, 'JPEG', 12, 25, segW, segH);
+
+      pdf.setDrawColor(51, 65, 85);
+      pdf.rect(12, 25, segW, segH);
+
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(
+        `PROCIMEC Radargram Workstation — Sección ${segStartM.toFixed(2)}m a ${segEndM.toFixed(2)}m (Alta Resolución 1:1)`,
+        12,
+        pageHeight - 6
+      );
+    }
+  }
+
+  pdf.save(`${dataset.filename.replace(/\.[^/.]+$/, '')}_ReporteTecnicoExtendido.pdf`);
 }
 
 /**
@@ -422,7 +732,6 @@ export function exportModifiedGSF(dataset: GPRDataset): void {
 
 /**
  * Generates a batch PowerPoint (.pptx) presentation deck for multiple GPR datasets.
- * Full distance profile on left, perfectly fitted parameter table on right without overflow.
  */
 export async function exportBatchPPTX(
   datasets: GPRDataset[],
