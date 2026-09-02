@@ -18,6 +18,8 @@ export interface DSPOptions {
   // DSP Filter Switches
   dewow: boolean;
   timeZero: boolean;
+  timeZeroMode: 'auto' | 'manual';
+  timeZeroCustomNs: number; // Manual offset in ns when mode is 'manual'
   secGain: boolean;
   bandpass: boolean;
   backgroundRemoval: boolean;
@@ -40,9 +42,11 @@ export interface DSPOptions {
 }
 
 export const DEFAULT_DSP_OPTIONS: DSPOptions = {
-  mode: 'crudo', // Default to Raw Binary (Dato Crudo Original) as in the Python script
+  mode: 'crudo', // Default to Raw Binary (Dato Crudo Original)
   dewow: true,
   timeZero: true,
+  timeZeroMode: 'auto',
+  timeZeroCustomNs: 0.0,
   secGain: true,
   bandpass: true,
   backgroundRemoval: false,
@@ -68,7 +72,7 @@ export function calculateVelocity(dielectricPermittivity: number): number {
 
 /**
  * Executes the complete DSP pipeline on a GPRDataset.
- * If mode === 'crudo' and no individual filters forced, returns the exact raw matrix.
+ * If mode === 'crudo' and no individual filters forced, returns raw matrix with Time-Zero applied if active.
  */
 export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): Float32Array[] {
   const { rawMatrix, header } = dataset;
@@ -94,56 +98,66 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
     processed.push(stackedTrace);
   }
 
-  // If in pure raw mode, return cloned raw data immediately
-  if (options.mode === 'crudo') {
-    return processed;
-  }
-
   const currentTraces = processed.length;
+  const twNs = options.ventanaNs || header.timeWindowNs || 90.0;
+  const dtNs = twNs / (numSamples || 512);
 
-  // 2. Dewow Filter: subtract mean of each trace (trace - mean(trace))
-  if (options.dewow) {
-    for (let t = 0; t < currentTraces; t++) {
-      const trace = processed[t];
-      let sum = 0;
-      for (let s = 0; s < numSamples; s++) {
-        sum += trace[s];
-      }
-      const mean = sum / numSamples;
-      for (let s = 0; s < numSamples; s++) {
-        trace[s] -= mean;
-      }
-    }
-  }
-
-  // 3. Time-Zero Correction: align peak amplitude of direct arrival in top 20%
+  // Time-Zero Correction (Active by default in both raw and processed modes if enabled)
   if (options.timeZero) {
-    const topLimit = Math.max(1, Math.floor(numSamples * 0.20));
-    let maxAvg = 0;
-    let idxPico = 0;
+    let idxShift = 0;
 
-    for (let s = 0; s < topLimit; s++) {
-      let sum = 0;
-      for (let t = 0; t < currentTraces; t++) {
-        sum += Math.abs(processed[t][s]);
+    if (options.timeZeroMode === 'manual') {
+      const customNs = options.timeZeroCustomNs || 0;
+      idxShift = Math.max(0, Math.round(customNs / dtNs));
+    } else {
+      // Auto-detection of First Break / Direct Arrival (Donde comienza la variación de amplitud)
+      const topLimit = Math.max(1, Math.floor(numSamples * 0.25));
+      const avgAbs = new Float32Array(topLimit);
+
+      let maxAvg = 0;
+      let idxPeak = 0;
+
+      for (let s = 0; s < topLimit; s++) {
+        let sum = 0;
+        for (let t = 0; t < currentTraces; t++) {
+          sum += Math.abs(processed[t][s]);
+        }
+        avgAbs[s] = sum / currentTraces;
+        if (avgAbs[s] > maxAvg) {
+          maxAvg = avgAbs[s];
+          idxPeak = s;
+        }
       }
-      const avg = sum / currentTraces;
-      if (avg > maxAvg) {
-        maxAvg = avg;
-        idxPico = s;
+
+      if (maxAvg > 0 && idxPeak > 0) {
+        // Threshold: 8% of peak amplitude (start of direct arrival variation)
+        const threshold = maxAvg * 0.08;
+        idxShift = idxPeak;
+
+        for (let s = idxPeak; s >= 0; s--) {
+          if (avgAbs[s] <= threshold) {
+            idxShift = s;
+            break;
+          }
+        }
       }
     }
 
-    if (idxPico > 0) {
+    if (idxShift > 0 && idxShift < numSamples) {
       for (let t = 0; t < currentTraces; t++) {
         const trace = processed[t];
         const shifted = new Float32Array(numSamples);
-        for (let s = 0; s < numSamples - idxPico; s++) {
-          shifted[s] = trace[s + idxPico];
+        for (let s = 0; s < numSamples - idxShift; s++) {
+          shifted[s] = trace[s + idxShift];
         }
         processed[t] = shifted;
       }
     }
+  }
+
+  // If in pure raw mode, return raw data with Time-Zero applied
+  if (options.mode === 'crudo') {
+    return processed;
   }
 
   // 4. Background Removal: subtract profile average trace across horizontal axis

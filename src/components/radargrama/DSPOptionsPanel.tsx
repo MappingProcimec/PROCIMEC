@@ -13,6 +13,9 @@ import {
   FileSpreadsheet,
   Ruler,
   FileCode,
+  Zap,
+  Sparkles,
+  Clock,
 } from 'lucide-react';
 
 interface DSPOptionsPanelProps {
@@ -50,7 +53,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   const [activeTab, setActiveTab] = useState<'calibracion' | 'filters' | 'mode'>('calibracion');
 
   // Sub-filter for calibration view (Show all or focus on a section)
-  const [calibFilter, setCalibFilter] = useState<'all' | 'header' | 'geometry' | 'display'>('all');
+  const [calibFilter, setCalibFilter] = useState<'all' | 'header' | 'geometry' | 'timezero' | 'display'>('all');
 
   const updateOption = <K extends keyof DSPOptions>(key: K, value: DSPOptions[K]) => {
     onChange({
@@ -128,7 +131,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               ? 'bg-primary text-white shadow-xs font-bold'
               : 'text-text-secondary hover:bg-gray-200'
           }`}
-          title="Calibración Centralizada (Cabecera, Geometría, Paleta)"
+          title="Calibración Centralizada (Cabecera, Geometría, Time-Zero, Paleta)"
         >
           <Sliders className="w-3.5 h-3.5" />
           <span className="text-[11px]">Calibración</span>
@@ -162,7 +165,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
       {/* Quick Section Filter Chips for Calibración View */}
       {activeTab === 'calibracion' && (
         <div className="flex items-center gap-1 px-3 py-1.5 bg-slate-50 border-b border-border overflow-x-auto text-[10px]">
-          <span className="text-text-muted font-medium mr-0.5">Sección:</span>
+          <span className="text-text-muted font-medium mr-0.5">Ver:</span>
           <button
             onClick={() => setCalibFilter('all')}
             className={`px-2 py-0.5 rounded-md font-medium transition ${
@@ -182,7 +185,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             }`}
           >
             <FileCode className="w-2.5 h-2.5" />
-            Cabecera (512B)
+            Cabecera
           </button>
           <button
             onClick={() => setCalibFilter('geometry')}
@@ -194,6 +197,17 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
           >
             <Ruler className="w-2.5 h-2.5" />
             Geometría
+          </button>
+          <button
+            onClick={() => setCalibFilter('timezero')}
+            className={`px-2 py-0.5 rounded-md font-medium transition flex items-center gap-1 ${
+              calibFilter === 'timezero'
+                ? 'bg-primary-100 text-primary font-bold'
+                : 'text-text-secondary hover:bg-gray-200'
+            }`}
+          >
+            <Zap className="w-2.5 h-2.5 text-amber-500" />
+            Time-Zero
           </button>
           <button
             onClick={() => setCalibFilter('display')}
@@ -212,7 +226,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
       {/* Tab Contents */}
       <div className="flex-1 overflow-y-auto p-3.5 space-y-4 text-xs text-text-secondary">
         {/* ============================================================ */}
-        {/* TAB 1: CENTRALIZED CALIBRATION (Cabecera, Geometría, Paleta) */}
+        {/* TAB 1: CENTRALIZED CALIBRATION (Cabecera, Geometría, T-Zero, Paleta) */}
         {/* ============================================================ */}
         {activeTab === 'calibracion' && (
           <div className="space-y-4">
@@ -495,7 +509,102 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             )}
 
             {/* ------------------------------------------------------------ */}
-            {/* 3. SECCIÓN: PALETA DE COLORES & VISUALIZACIÓN                */}
+            {/* 3. SECCIÓN: CORRECCIÓN TIME-ZERO (TIEMPO CERO)               */}
+            {/* ------------------------------------------------------------ */}
+            {(calibFilter === 'all' || calibFilter === 'timezero') && (
+              <div className="bg-gray-50 p-3 rounded-2xl border border-border space-y-3">
+                <div className="flex items-center justify-between border-b border-border pb-1.5">
+                  <div className="flex items-center gap-1.5 text-primary font-bold text-xs">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Corrección Time-Zero (Primer Arribo)</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={options.timeZero}
+                    onChange={(e) => updateOption('timeZero', e.target.checked)}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                    title="Activar o desactivar corte de Time-Zero"
+                  />
+                </div>
+
+                {options.timeZero && (
+                  <div className="space-y-2.5">
+                    <p className="text-[10px] text-text-muted leading-relaxed">
+                      Recorta la demora inicial dejando <code className="font-mono text-primary font-bold">t = 0 ns</code> en el inicio de la variación de amplitud (arribo directo).
+                    </p>
+
+                    {/* Mode Selector: Auto vs Manual */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={() => updateOption('timeZeroMode', 'auto')}
+                        className={`py-1.5 px-2 rounded-xl text-[11px] font-medium border transition flex items-center justify-center gap-1 ${
+                          (options.timeZeroMode || 'auto') === 'auto'
+                            ? 'bg-primary text-white border-primary font-bold shadow-xs'
+                            : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                        }`}
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-300" />
+                        <span>Auto (Variación)</span>
+                      </button>
+                      <button
+                        onClick={() => updateOption('timeZeroMode', 'manual')}
+                        className={`py-1.5 px-2 rounded-xl text-[11px] font-medium border transition flex items-center justify-center gap-1 ${
+                          options.timeZeroMode === 'manual'
+                            ? 'bg-primary text-white border-primary font-bold shadow-xs'
+                            : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                        }`}
+                      >
+                        <Clock className="w-3 h-3 text-sky-300" />
+                        <span>Manual (ns)</span>
+                      </button>
+                    </div>
+
+                    {/* Manual Controls */}
+                    {options.timeZeroMode === 'manual' && (
+                      <div className="bg-white p-2.5 rounded-xl border border-border space-y-2">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="font-semibold text-text-primary">Inicio Time-Zero (ns):</span>
+                          <span className="font-mono text-amber-600 font-bold">
+                            {(options.timeZeroCustomNs || 0).toFixed(2)} ns
+                          </span>
+                        </div>
+
+                        <input
+                          type="range"
+                          min={0}
+                          max={Math.min(30, currentTwNs * 0.4)}
+                          step={0.1}
+                          value={options.timeZeroCustomNs || 0}
+                          onChange={(e) => updateOption('timeZeroCustomNs', parseFloat(e.target.value))}
+                          className="w-full accent-amber-500 bg-gray-200 rounded"
+                        />
+
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min={0}
+                            max={50}
+                            value={parseFloat((options.timeZeroCustomNs || 0).toFixed(2))}
+                            onChange={(e) => updateOption('timeZeroCustomNs', Math.max(0, parseFloat(e.target.value) || 0))}
+                            className="input text-xs py-1 font-mono font-bold text-amber-700 flex-1"
+                          />
+                          <button
+                            onClick={() => updateOption('timeZeroCustomNs', 0)}
+                            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-text-secondary rounded-lg text-[10px] transition font-mono"
+                          >
+                            0 ns
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ------------------------------------------------------------ */}
+            {/* 4. SECCIÓN: PALETA DE COLORES & VISUALIZACIÓN                */}
             {/* ------------------------------------------------------------ */}
             {(calibFilter === 'all' || calibFilter === 'display') && (
               <div className="bg-gray-50 p-3 rounded-2xl border border-border space-y-3">
