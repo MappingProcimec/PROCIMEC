@@ -1141,7 +1141,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       ].map((m) => (
                         <button
                           key={m.id}
-                          onClick={() => updateOption('gainMode', m.id as any)}
+                          onClick={() => updateOption('gainMode', m.id as DSPOptions['gainMode'])}
                           className={`py-1.5 px-1 rounded-xl text-[10px] font-medium border transition ${
                             (options.gainMode || 'auto') === m.id
                               ? 'bg-primary text-white border-primary font-bold shadow-xs'
