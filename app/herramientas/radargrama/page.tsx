@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader, CABECERA_DEFAULT, DX_DEF, DIELECTRICO_DEF, VENTANA_TIEMPO_NS_DEF, TRAZAS_POR_METRO_DEF } from '@/lib/gpr/gsfParser';
-import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, computeFFT } from '@/lib/gpr/dspEngine';
+import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP } from '@/lib/gpr/dspEngine';
 import { CanvasViewer, ColorPalette } from '@/components/radargrama/CanvasViewer';
 import { DSPOptionsPanel } from '@/components/radargrama/DSPOptionsPanel';
+import { AScanInspectionModal } from '@/components/radargrama/AScanInspectionModal';
 import {
   exportRadargramJPG,
   exportTechnicalPDFReport,
@@ -478,158 +479,4 @@ export default function RadargramaWorkstationPage() {
   );
 }
 
-/**
- * Modal component for A-Scan waveform & FFT Spectrum inspection
- */
-function AScanInspectionModal({
-  traceIdx,
-  dataset,
-  processedTrace,
-  onClose,
-}: {
-  traceIdx: number;
-  dataset: GPRDataset;
-  processedTrace: Float32Array;
-  onClose: () => void;
-}) {
-  const waveformCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const fftCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const numSamples = processedTrace.length;
-  const distM = traceIdx * dataset.header.traceDistanceStepM;
-
-  const { magnitudes } = computeFFT(processedTrace);
-
-  useEffect(() => {
-    const canvas = waveformCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const w = canvas.width;
-    const h = canvas.height;
-
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, w, h);
-
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, h / 2);
-    ctx.lineTo(w, h / 2);
-    ctx.stroke();
-
-    let maxA = 0;
-    for (let i = 0; i < numSamples; i++) {
-      if (Math.abs(processedTrace[i]) > maxA) maxA = Math.abs(processedTrace[i]);
-    }
-    if (maxA === 0) maxA = 1;
-
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-
-    for (let i = 0; i < numSamples; i++) {
-      const x = (i / (numSamples - 1)) * w;
-      const normVal = processedTrace[i] / maxA;
-      const y = h / 2 - normVal * (h / 2 - 10);
-
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }, [processedTrace, numSamples]);
-
-  useEffect(() => {
-    const canvas = fftCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const w = canvas.width;
-    const h = canvas.height;
-
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, w, h);
-
-    let maxMag = 0;
-    for (let i = 0; i < magnitudes.length; i++) {
-      if (magnitudes[i] > maxMag) maxMag = magnitudes[i];
-    }
-    if (maxMag === 0) maxMag = 1;
-
-    ctx.strokeStyle = '#f5a623';
-    ctx.fillStyle = 'rgba(245, 166, 35, 0.2)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(0, h);
-
-    for (let i = 0; i < magnitudes.length; i++) {
-      const x = (i / (magnitudes.length - 1)) * w;
-      const normMag = magnitudes[i] / maxMag;
-      const y = h - normMag * (h - 15);
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(w, h);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  }, [magnitudes]);
-
-  return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white border border-border rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
-        <div className="p-4 border-b border-border flex items-center justify-between bg-gray-50">
-          <div className="flex items-center gap-2 text-text-primary font-bold text-sm">
-            <Activity className="w-4 h-4 text-primary" />
-            <span>Inspección de Traza A-Scan #{traceIdx + 1}</span>
-            <span className="text-xs font-mono text-text-muted">({distM.toFixed(2)}m)</span>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 hover:bg-gray-200 rounded-full text-text-secondary hover:text-text-primary transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-4">
-          <div>
-            <div className="flex justify-between text-xs text-text-secondary mb-1.5 font-medium">
-              <span>Señal Temporal A-Scan</span>
-              <span className="font-mono text-text-muted">{numSamples} muestras</span>
-            </div>
-            <canvas
-              ref={waveformCanvasRef}
-              width={600}
-              height={140}
-              className="w-full h-36 border border-border rounded-2xl block bg-slate-950"
-            />
-          </div>
-
-          <div>
-            <div className="flex justify-between text-xs text-text-secondary mb-1.5 font-medium">
-              <span>Espectro de Frecuencias (Transformada FFT)</span>
-              <span className="font-mono text-accent-700 font-bold">Dominio de Frecuencia</span>
-            </div>
-            <canvas
-              ref={fftCanvasRef}
-              width={600}
-              height={140}
-              className="w-full h-36 border border-border rounded-2xl block bg-slate-950"
-            />
-          </div>
-        </div>
-
-        <div className="p-4 bg-gray-50 border-t border-border flex justify-end">
-          <button
-            onClick={onClose}
-            className="btn-outline btn-sm"
-          >
-            Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

@@ -148,9 +148,13 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
         }
       }
 
-      // Scan AFTER the pulse (from idxSpike + 2) for first sample with amplitude or variation > 1000
-      let idxFirstVar = idxSpike + 2;
-      for (let s = idxSpike + 2; s < numSamples - 1; s++) {
+      // Add 2% of total file nanoseconds (ns) after the sync pulse before scanning
+      const margin2PctSamples = Math.round((0.02 * twNs) / dtNs);
+      const startScanIdx = Math.min(numSamples - 15, idxSpike + margin2PctSamples);
+
+      // Scan AFTER pulse + 2% margin for first sample where amplitude or variation > 1000 (positive or negative)
+      let idxFirstVar = startScanIdx;
+      for (let s = startScanIdx; s < numSamples - 1; s++) {
         const val = Math.abs(avgTrace[s]);
         const diff = Math.abs(avgTrace[s] - avgTrace[s - 1]);
         if (val > 1000 || diff > 1000) {

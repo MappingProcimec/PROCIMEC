@@ -567,7 +567,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                           <span>Detección Automática Activa</span>
                         </p>
                         <p className="text-[10px] text-text-muted leading-relaxed">
-                          Corta en la primera variación de amplitud (&gt;1000) posterior al pulso de sincronización.
+                          Ubicación del pulso de sincronización + 2% de los ns del archivo → primera variación de amplitud (&gt;1000).
                         </p>
                       </div>
                     )}
