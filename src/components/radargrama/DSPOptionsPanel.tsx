@@ -343,7 +343,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     timezero: boolean;
     display: boolean;
   }>({
-    antenna: true, // Expandida por defecto para fácil configuración
+    antenna: false, // Predeterminado colapsado según requerimiento
     header: false,
     geometry: false,
     timezero: false,
@@ -1542,7 +1542,187 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         {activeTab === 'deteccion' && (
           <div className="space-y-3">
             {/* ------------------------------------------------------------ */}
-            {/* ROW 1: BRIGHT SPOT (ACUMULACIÓN DE AGUA)                     */}
+            {/* ROW 1: TUBERÍAS Y SERVICIOS ENTERRADOS                       */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleDetectionSection('pipeUtility')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-[11px] shadow-2xs">
+                    ⚡
+                  </div>
+                  <span>Tuberías y Servicios</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.pipeUtility.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('pipeUtility', 'enabled', e.target.checked, true);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                    title="Activar / Desactivar Detección de Tuberías"
+                  />
+                  {detectionOpenSections.pipeUtility ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {detectionOpenSections.pipeUtility && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5 text-xs">
+                  {/* Material Filter */}
+                  <div className="space-y-1">
+                    <label className="text-text-secondary font-medium text-[11px] block">
+                      Filtro de Material:
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      {([
+                        { id: 'all', label: 'Todos' },
+                        { id: 'metallic', label: '⚡ Metálicas' },
+                        { id: 'plastic', label: '🔸 PVC / PEAD' },
+                        { id: 'concrete', label: '🟢 Hormigón' },
+                      ] as const).map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => updateDetection('pipeUtility', 'materialFilter', m.id, true)}
+                          className={`py-1 px-2 rounded-lg border text-left font-medium transition ${
+                            localConfig.pipeUtility.materialFilter === m.id
+                              ? 'bg-amber-500 text-white border-amber-600 font-bold shadow-2xs'
+                              : 'bg-white text-text-primary border-border hover:bg-gray-100'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Internal Content (Permittivity) */}
+                  <div className="space-y-1">
+                    <label className="text-text-secondary font-medium text-[11px] block">
+                      Fluido / Contenido Interior:
+                    </label>
+                    <div className="grid grid-cols-3 gap-1 text-[10.5px]">
+                      {([
+                        { id: 'empty_gas', label: 'Vacía / Gas', eps: 'ε=1' },
+                        { id: 'water', label: 'Agua', eps: 'ε=81' },
+                        { id: 'drainage', label: 'Drenaje', eps: 'ε=25' },
+                      ] as const).map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => updateDetection('pipeUtility', 'pipeContent', c.id, true)}
+                          className={`py-1 px-1.5 rounded-lg border text-center font-medium transition flex flex-col items-center ${
+                            localConfig.pipeUtility.pipeContent === c.id
+                              ? 'bg-primary text-white border-primary font-bold shadow-2xs'
+                              : 'bg-white text-text-primary border-border hover:bg-gray-100'
+                          }`}
+                        >
+                          <span className="truncate w-full">{c.label}</span>
+                          <span className="text-[9px] opacity-80">{c.eps}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Hyperbolic Coherence R² Slider */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-text-secondary text-[11px]">
+                      <span>Coherencia Hiperbólica (R²):</span>
+                      <strong className="text-text-primary font-mono font-bold">
+                        {localConfig.pipeUtility.minCoherenceR2.toFixed(2)}
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.60"
+                      max="0.95"
+                      step="0.05"
+                      value={localConfig.pipeUtility.minCoherenceR2}
+                      onChange={(e) =>
+                        updateDetection('pipeUtility', 'minCoherenceR2', parseFloat(e.target.value))
+                      }
+                      className="w-full accent-amber-500"
+                    />
+                    <div className="flex justify-between text-[9px] text-text-muted">
+                      <span>0.60 (Permisivo)</span>
+                      <span>0.75 (Estándar)</span>
+                      <span>0.95 (Estricto)</span>
+                    </div>
+                  </div>
+
+                  {/* Max Depth Slider */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-text-secondary text-[11px]">
+                      <span>Profundidad Máx. Exploración:</span>
+                      <strong className="text-text-primary font-mono font-bold">
+                        {localConfig.pipeUtility.maxDepthM.toFixed(1)} m
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min="1.0"
+                      max="5.0"
+                      step="0.2"
+                      value={localConfig.pipeUtility.maxDepthM}
+                      onChange={(e) =>
+                        updateDetection('pipeUtility', 'maxDepthM', parseFloat(e.target.value))
+                      }
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
+
+                  {/* Physics info */}
+                  <div className="p-2 bg-amber-50/70 rounded-xl border border-amber-200/80 text-[10.5px] text-amber-900 space-y-1 font-mono">
+                    <div className="font-bold flex items-center gap-1 text-amber-950">
+                      <span>Criterio Geofísico (ASCE 38-02):</span>
+                    </div>
+                    <p className="text-[10px] text-amber-800 leading-tight">
+                      • Diámetro: D = c · Δt_solera / (2√ε_int)
+                      <br />• Metal: Inversión 180° (R ≈ -1.0) y ringing
+                      <br />• Plástico: Fase 0° (R &gt; 0, sin inversión)
+                    </p>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults?.pipesUtilities
+                        ? `${detectionResults.pipesUtilities.count} tuberías (${detectionResults.pipesUtilities.metallicCount} met., ${detectionResults.pipesUtilities.plasticCount} plást.)`
+                        : '0 tuberías detectadas'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend with yellow variations */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <div className="flex items-center gap-2 flex-wrap text-[9.5px]">
+                      <span className="flex items-center gap-1 font-semibold text-amber-600">
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs inline-block" style={{ backgroundColor: '#FFE600' }} />
+                        Metal (Am. Eléctrico)
+                      </span>
+                      <span className="flex items-center gap-1 font-semibold text-amber-700">
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs inline-block" style={{ backgroundColor: '#FFB703' }} />
+                        PVC (Ámbar)
+                      </span>
+                      <span className="flex items-center gap-1 font-semibold text-lime-700">
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs inline-block" style={{ backgroundColor: '#D4E157' }} />
+                        Hormigón (Am. Esmeralda)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 2: BRIGHT SPOT (ACUMULACIÓN DE AGUA)                     */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -2588,197 +2768,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       <line x1="18" y1="5" x2="34" y2="5" stroke="#E74C3C" strokeWidth="1.5" strokeDasharray="2,2" />
                     </svg>
                     <span className="truncate">Curva punteada verde (#2ECC71) / roja (#E74C3C)</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* ------------------------------------------------------------ */}
-            {/* ROW 9: TUBERÍAS Y SERVICIOS ENTERRADOS (SEG STANDARD)        */}
-            {/* ------------------------------------------------------------ */}
-            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition">
-              <div className="p-3 flex items-center justify-between hover:bg-gray-100/60 transition">
-                <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
-                  <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-[11px] shadow-2xs">
-                    ⚡
-                  </div>
-                  <span>Tuberías y Servicios (SEG)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={localConfig.pipeUtility.enabled}
-                    onChange={(e) => {
-                      e.stopPropagation();
-                      updateDetection('pipeUtility', 'enabled', e.target.checked, true);
-                    }}
-                    className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer"
-                    title="Activar / Desactivar Detección de Tuberías"
-                  />
-                  <button
-                    onClick={() => toggleDetectionSection('pipeUtility')}
-                    className="p-1 hover:bg-gray-200 rounded text-text-secondary transition"
-                  >
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 transition-transform ${
-                        detectionOpenSections.pipeUtility ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {detectionOpenSections.pipeUtility && (
-                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-2 text-xs">
-                  {/* SEG Standard Header Badge */}
-                  <div className="px-2.5 py-1.5 bg-amber-500/10 border border-amber-400/40 rounded-xl text-amber-900 text-[11px] font-medium flex items-center justify-between">
-                    <span className="font-bold flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                      SEG Standard
-                    </span>
-                    <span className="text-[10px] text-amber-700">Society of Exploration Geophysicists</span>
-                  </div>
-
-                  {/* Material Filter */}
-                  <div className="space-y-1">
-                    <label className="text-text-secondary font-medium text-[11px] block">
-                      Filtro de Material:
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                      {([
-                        { id: 'all', label: 'Todos' },
-                        { id: 'metallic', label: '⚡ Metálicas' },
-                        { id: 'plastic', label: '🔸 PVC / PEAD' },
-                        { id: 'concrete', label: '🟢 Hormigón' },
-                      ] as const).map((m) => (
-                        <button
-                          key={m.id}
-                          onClick={() => updateDetection('pipeUtility', 'materialFilter', m.id, true)}
-                          className={`py-1 px-2 rounded-lg border text-left font-medium transition ${
-                            localConfig.pipeUtility.materialFilter === m.id
-                              ? 'bg-amber-500 text-white border-amber-600 font-bold shadow-2xs'
-                              : 'bg-white text-text-primary border-border hover:bg-gray-100'
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Internal Content (Permittivity) */}
-                  <div className="space-y-1">
-                    <label className="text-text-secondary font-medium text-[11px] block">
-                      Fluido / Contenido Interior:
-                    </label>
-                    <div className="grid grid-cols-3 gap-1 text-[10.5px]">
-                      {([
-                        { id: 'empty_gas', label: 'Vacía / Gas', eps: 'ε=1' },
-                        { id: 'water', label: 'Agua', eps: 'ε=81' },
-                        { id: 'drainage', label: 'Drenaje', eps: 'ε=25' },
-                      ] as const).map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => updateDetection('pipeUtility', 'pipeContent', c.id, true)}
-                          className={`py-1 px-1.5 rounded-lg border text-center font-medium transition flex flex-col items-center ${
-                            localConfig.pipeUtility.pipeContent === c.id
-                              ? 'bg-primary text-white border-primary font-bold shadow-2xs'
-                              : 'bg-white text-text-primary border-border hover:bg-gray-100'
-                          }`}
-                        >
-                          <span className="truncate w-full">{c.label}</span>
-                          <span className="text-[9px] opacity-80">{c.eps}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Hyperbolic Coherence R² Slider */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-text-secondary text-[11px]">
-                      <span>Coherencia Hiperbólica SEG (R²):</span>
-                      <strong className="text-text-primary font-mono font-bold">
-                        {localConfig.pipeUtility.minCoherenceR2.toFixed(2)}
-                      </strong>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.60"
-                      max="0.95"
-                      step="0.05"
-                      value={localConfig.pipeUtility.minCoherenceR2}
-                      onChange={(e) =>
-                        updateDetection('pipeUtility', 'minCoherenceR2', parseFloat(e.target.value))
-                      }
-                      className="w-full accent-amber-500"
-                    />
-                    <div className="flex justify-between text-[9px] text-text-muted">
-                      <span>0.60 (Permisivo)</span>
-                      <span>0.75 (Estándar SEG)</span>
-                      <span>0.95 (Estricto)</span>
-                    </div>
-                  </div>
-
-                  {/* Max Depth Slider */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-text-secondary text-[11px]">
-                      <span>Profundidad Máx. Exploración:</span>
-                      <strong className="text-text-primary font-mono font-bold">
-                        {localConfig.pipeUtility.maxDepthM.toFixed(1)} m
-                      </strong>
-                    </div>
-                    <input
-                      type="range"
-                      min="1.0"
-                      max="5.0"
-                      step="0.2"
-                      value={localConfig.pipeUtility.maxDepthM}
-                      onChange={(e) =>
-                        updateDetection('pipeUtility', 'maxDepthM', parseFloat(e.target.value))
-                      }
-                      className="w-full accent-amber-500"
-                    />
-                  </div>
-
-                  {/* Physics info */}
-                  <div className="p-2 bg-amber-50/70 rounded-xl border border-amber-200/80 text-[10.5px] text-amber-900 space-y-1 font-mono">
-                    <div className="font-bold flex items-center gap-1 text-amber-950">
-                      <span>Criterio Geofísico SEG (ASCE 38-02):</span>
-                    </div>
-                    <p className="text-[10px] text-amber-800 leading-tight">
-                      • Diámetro: D = c · Δt_solera / (2√ε_int)
-                      <br />• Metal: Inversión 180° (R ≈ -1.0) y ringing
-                      <br />• Plástico: Fase 0° (R &gt; 0, sin inversión)
-                    </p>
-                  </div>
-
-                  {/* Result badge */}
-                  <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs font-semibold">
-                    <span>Resultado:</span>
-                    <span>
-                      {detectionResults?.pipesUtilities
-                        ? `${detectionResults.pipesUtilities.count} tuberías (${detectionResults.pipesUtilities.metallicCount} met., ${detectionResults.pipesUtilities.plasticCount} plást.)`
-                        : '0 tuberías detectadas'}
-                    </span>
-                  </div>
-
-                  {/* Mini Legend with yellow variations */}
-                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
-                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
-                    <div className="flex items-center gap-2 flex-wrap text-[9.5px]">
-                      <span className="flex items-center gap-1 font-semibold text-amber-600">
-                        <span className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs inline-block" style={{ backgroundColor: '#FFE600' }} />
-                        Metal (Am. Eléctrico)
-                      </span>
-                      <span className="flex items-center gap-1 font-semibold text-amber-700">
-                        <span className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs inline-block" style={{ backgroundColor: '#FFB703' }} />
-                        PVC (Ámbar)
-                      </span>
-                      <span className="flex items-center gap-1 font-semibold text-lime-700">
-                        <span className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs inline-block" style={{ backgroundColor: '#D4E157' }} />
-                        Hormigón (Am. Esmeralda)
-                      </span>
-                    </div>
                   </div>
                 </div>
               )}

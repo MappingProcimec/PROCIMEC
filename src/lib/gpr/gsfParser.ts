@@ -135,14 +135,11 @@ export function detectarGeometriaGSF(
 }
 
 /**
- * Automatically detects the antenna frequency (200, 400, or 500 MHz) used in a GSF profile:
- * 1. Explicit filename identifiers (e.g. 200, 400, 500, FLB200, etc.)
- * 2. Header ASCII scanning for antenna identifiers
- * 3. Dominant pulse cycle / zero-crossing period analysis of raw traces
- * 4. Geoscanners Akula time window physics:
- *    - TWT >= 130 ns -> 200 MHz (Deep penetrations, as 400/500 MHz signals extinguish after 60-90 ns)
- *    - TWT <= 55 ns  -> 500 MHz (High-resolution shallow pavements / concrete)
- *    - 55 < TWT < 130 ns -> 400 MHz (Standard utility & road surveys)
+ * Robustly detects the antenna frequency (200, 400, or 500 MHz) used in a GSF profile:
+ * 1. Filename explicit tags (regex matching 200, 400, 500, FLB200, etc.)
+ * 2. Header ASCII scanning for antenna identifiers in Akula9000C hardware blocks
+ * 3. Multi-trace Discrete Fourier Transform (DFT) spectral power distribution
+ * 4. Physics of sampling interval dt (ns) and time window TWT (ns)
  */
 export function detectAntennaFromGSF(
   buffer: ArrayBuffer,
@@ -151,20 +148,24 @@ export function detectAntennaFromGSF(
   numSamples: number,
   cabecera: number = CABECERA_DEFAULT
 ): number {
+  let score200 = 0;
+  let score400 = 0;
+  let score500 = 0;
+
   const fnLower = filename.toLowerCase();
 
-  // 1. Check filename tags
-  if (fnLower.includes('200mhz') || fnLower.includes('200_mhz') || fnLower.includes('flb200') || fnLower.includes('flb-200') || fnLower.includes('ant200') || fnLower.includes('_200.') || fnLower.includes('-200.')) {
-    return 200;
+  // 1. Filename Regex Analysis
+  if (/(?:^|[_\-.])(200mhz|flb-?200|gc-?200|ant-?200|200)(?:[_\-.]|$)/i.test(fnLower)) {
+    score200 += 50;
   }
-  if (fnLower.includes('500mhz') || fnLower.includes('500_mhz') || fnLower.includes('flb500') || fnLower.includes('flb-500') || fnLower.includes('ant500') || fnLower.includes('_500.') || fnLower.includes('-500.')) {
-    return 500;
+  if (/(?:^|[_\-.])(500mhz|flb-?500|gc-?500|ant-?500|500)(?:[_\-.]|$)/i.test(fnLower)) {
+    score500 += 50;
   }
-  if (fnLower.includes('400mhz') || fnLower.includes('400_mhz') || fnLower.includes('flb400') || fnLower.includes('flb-400') || fnLower.includes('ant400') || fnLower.includes('_400.') || fnLower.includes('-400.')) {
-    return 400;
+  if (/(?:^|[_\-.])(400mhz|flb-?400|gc-?400|ant-?400|400)(?:[_\-.]|$)/i.test(fnLower)) {
+    score400 += 50;
   }
 
-  // 2. Scan header ASCII bytes (0 to cabecera)
+  // 2. Scan Header ASCII Text (Offsets 0 to cabecera)
   if (buffer.byteLength >= cabecera) {
     const bytes = new Uint8Array(buffer, 0, Math.min(cabecera, buffer.byteLength));
     let headerStr = '';
@@ -177,86 +178,107 @@ export function detectAntennaFromGSF(
       }
     }
     const hLower = headerStr.toLowerCase();
-    if (hLower.includes('200mhz') || hLower.includes('flb200') || hLower.includes('flb-200') || hLower.includes('akula-200')) {
-      return 200;
-    }
-    if (hLower.includes('500mhz') || hLower.includes('flb500') || hLower.includes('flb-500') || hLower.includes('akula-500')) {
-      return 500;
-    }
-    if (hLower.includes('400mhz') || hLower.includes('flb400') || hLower.includes('flb-400') || hLower.includes('akula-400')) {
-      return 400;
-    }
+    if (/(200mhz|flb-?200|akula-?200|ant-?200)/i.test(hLower)) score200 += 40;
+    if (/(500mhz|flb-?500|akula-?500|ant-?500)/i.test(hLower)) score500 += 40;
+    if (/(400mhz|flb-?400|akula-?400|ant-?400)/i.test(hLower)) score400 += 40;
   }
 
-  // 3. Pulse / Wavelet period analysis from traces
-  const dtNs = numSamples > 0 ? timeWindowNs / numSamples : 0.175;
+  // 3. Time Window and Sampling Rate Physics
+  const dtNs = numSamples > 0 && timeWindowNs > 0 ? timeWindowNs / numSamples : 0.175;
+
+  // Time window heuristics:
+  if (timeWindowNs >= 120.0) {
+    score200 += 35; // Deep survey (e.g. 184 ns = 9.2 m is characteristic of 200 MHz)
+  } else if (timeWindowNs <= 55.0) {
+    score500 += 35; // Very shallow high-res
+  } else {
+    score400 += 25; // Standard 60-110 ns window
+  }
+
+  // Sample interval heuristics:
+  if (dtNs >= 0.28) {
+    score200 += 20; // 200 MHz Nyquist sampling
+  } else if (dtNs <= 0.13) {
+    score500 += 20; // 500 MHz fine sampling
+  } else {
+    score400 += 15;
+  }
+
+  // 4. Multi-Trace DFT Spectral Energy Analysis
   const bytesPerTrace = numSamples * 2;
   const availableData = buffer.byteLength - cabecera;
-  if (availableData >= bytesPerTrace * 6 && dtNs > 0) {
+  if (availableData >= bytesPerTrace * 10 && dtNs > 0) {
     const dataView = new DataView(buffer);
-    let estimatedFreqSum = 0;
-    let validEstimations = 0;
+    let pwr200 = 0;
+    let pwr400 = 0;
+    let pwr500 = 0;
 
-    for (let tr = 2; tr <= 6; tr++) {
+    // Test across traces 4 to 10
+    for (let tr = 4; tr <= 10; tr++) {
       const traceOffset = cabecera + tr * bytesPerTrace;
-      let maxAbs = 0;
-      let maxSampleIdx = -1;
-      for (let s = 5; s < Math.min(numSamples, 140); s++) {
-        const val = Math.abs(dataView.getInt16(traceOffset + s * 2, true));
-        if (val > maxAbs) {
-          maxAbs = val;
-          maxSampleIdx = s;
-        }
+      const startS = 10;
+      const endS = Math.min(numSamples - 1, 130);
+      const nLen = endS - startS;
+      if (nLen < 20) continue;
+
+      // Demean samples
+      let sum = 0;
+      for (let s = startS; s < endS; s++) {
+        sum += dataView.getInt16(traceOffset + s * 2, true);
       }
+      const mean = sum / nLen;
 
-      if (maxSampleIdx > 5 && maxAbs > 400) {
-        let zBefore = maxSampleIdx;
-        while (zBefore > 0) {
-          const vCurrent = dataView.getInt16(traceOffset + zBefore * 2, true);
-          const vPrev = dataView.getInt16(traceOffset + (zBefore - 1) * 2, true);
-          if (vCurrent * vPrev <= 0) break;
-          zBefore--;
-        }
+      // Compute DFT power at target frequencies (in GHz for f * dtNs)
+      const testFreqs200 = [0.18, 0.20, 0.22]; // GHz
+      const testFreqs400 = [0.36, 0.40, 0.42]; // GHz
+      const testFreqs500 = [0.48, 0.50, 0.53]; // GHz
 
-        let zAfter = maxSampleIdx;
-        while (zAfter < Math.min(numSamples - 1, maxSampleIdx + 40)) {
-          const vCurrent = dataView.getInt16(traceOffset + zAfter * 2, true);
-          const vNext = dataView.getInt16(traceOffset + (zAfter + 1) * 2, true);
-          if (vCurrent * vNext <= 0) break;
-          zAfter++;
-        }
-
-        const halfCycleSamples = zAfter - zBefore;
-        if (halfCycleSamples >= 2) {
-          const fullCycleNs = halfCycleSamples * dtNs * 2.0;
-          if (fullCycleNs > 0) {
-            const freqMHz = 1000.0 / fullCycleNs;
-            estimatedFreqSum += freqMHz;
-            validEstimations++;
+      const getBandPower = (freqs: number[]) => {
+        let bandPwr = 0;
+        for (let fi = 0; fi < freqs.length; fi++) {
+          const f = freqs[fi];
+          let cosSum = 0;
+          let sinSum = 0;
+          for (let s = startS; s < endS; s++) {
+            const val = dataView.getInt16(traceOffset + s * 2, true) - mean;
+            const angle = 2 * Math.PI * f * (s * dtNs);
+            cosSum += val * Math.cos(angle);
+            sinSum += val * Math.sin(angle);
           }
+          bandPwr += (cosSum * cosSum + sinSum * sinSum);
         }
-      }
+        return bandPwr;
+      };
+
+      pwr200 += getBandPower(testFreqs200);
+      pwr400 += getBandPower(testFreqs400);
+      pwr500 += getBandPower(testFreqs500);
     }
 
-    if (validEstimations > 0) {
-      const avgFreqMHz = estimatedFreqSum / validEstimations;
-      if (avgFreqMHz <= 290) return 200;
-      if (avgFreqMHz >= 460) return 500;
-      return 400;
+    const totalPwr = pwr200 + pwr400 + pwr500;
+    if (totalPwr > 0) {
+      const ratio200 = pwr200 / totalPwr;
+      const ratio400 = pwr400 / totalPwr;
+      const ratio500 = pwr500 / totalPwr;
+
+      if (ratio200 > 0.45) score200 += 35;
+      else if (ratio200 > 0.35) score200 += 15;
+
+      if (ratio400 > 0.45) score400 += 35;
+      else if (ratio400 > 0.35) score400 += 15;
+
+      if (ratio500 > 0.45) score500 += 35;
+      else if (ratio500 > 0.35) score500 += 15;
     }
   }
 
-  // 4. Time Window Heuristic (Akula9000C operational protocol):
-  // 200 MHz is required for deep surveys (TWT >= 130 ns, e.g. 184 ns)
-  // 500 MHz is utilized for shallow high-res (TWT <= 55 ns)
-  // 400 MHz is the standard mid-depth antenna (60 - 120 ns)
-  if (timeWindowNs >= 130.0) {
+  // Final Decision based on highest score
+  if (score200 > score400 && score200 > score500) {
     return 200;
   }
-  if (timeWindowNs <= 55.0) {
+  if (score500 > score400 && score500 > score200) {
     return 500;
   }
-
   return 400;
 }
 
