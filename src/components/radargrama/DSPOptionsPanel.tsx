@@ -13,7 +13,6 @@ import {
   FileSpreadsheet,
   Ruler,
   FileCode,
-  Layers,
 } from 'lucide-react';
 
 interface DSPOptionsPanelProps {
