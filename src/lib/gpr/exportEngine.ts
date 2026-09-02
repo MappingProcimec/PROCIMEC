@@ -870,7 +870,7 @@ export function renderPPTXProfileCanvas(
 
     ctx.beginPath();
     ctx.moveTo(padL + plotW, y);
-    ctx.lineTo(padL + plotW + 6);
+    ctx.lineTo(padL + plotW + 6, y);
     ctx.stroke();
 
     ctx.fillText(`${dVal.toFixed(2)}`, padL + plotW + 10, y);
