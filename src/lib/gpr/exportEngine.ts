@@ -505,7 +505,9 @@ export async function exportRadargramJPG(
 /**
  * Generates an Extended PDF Technical Report:
  * Page 1: Executive Technical Report Overview.
- * Subsequent Pages (for profiles > 10m): High-Resolution 10-meter Segment Panels.
+ * Subsequent Pages (for profiles > 10m): High-Resolution 10-meter Segment /**
+ * Generates an Extended Continuous Banner PDF Technical Report (Formato Bandera):
+ * Entire profile rendered continuously on a single wide-format page without chopping or compression.
  */
 export async function exportTechnicalPDFReport(
   dataset: GPRDataset,
@@ -517,29 +519,48 @@ export async function exportTechnicalPDFReport(
 ): Promise<void> {
   const { default: jsPDF } = await import('jspdf');
 
+  const numTraces = processedMatrix.length;
+  const numSamples = dataset.header.numSamples;
+  const dxM = options.traceDistanceStepM || dataset.header.traceDistanceStepM || 1.0 / 112.0;
+  const totalDistM = numTraces * dxM;
+  const twNs = options.ventanaNs || dataset.header.timeWindowNs || 90.0;
+  const velocity = calculateVelocity(options.dielectricPermittivity || 6.0);
+  const depthM = ((twNs * velocity) / 2).toFixed(2);
+
+  // Banner Format (Ancho dinámico proporcional a la distancia del perfil, escala 22mm por metro, min 10m)
+  const MIN_WINDOW_M = 10.0;
+  const dispDistM = Math.max(MIN_WINDOW_M, totalDistM);
+
+  const imgWidthMm = Math.max(185, Math.round(dispDistM * 22));
+  const imgHeightMm = 160;
+  const panelWidthMm = 90;
+  const marginMm = 15;
+  const gapMm = 12;
+
+  // Single continuous banner page width & height
+  const pageWidthMm = marginMm + imgWidthMm + gapMm + panelWidthMm + marginMm;
+  const pageHeightMm = 215;
+
   const pdf = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
-    format: 'a4',
+    format: [pageHeightMm, pageWidthMm],
   });
 
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-
-  // Background Header Bar
+  // Background Header Bar (Full Banner Width)
   pdf.setFillColor(15, 23, 42); // Dark Slate #0f172a
-  pdf.rect(0, 0, pageWidth, 24, 'F');
+  pdf.rect(0, 0, pageWidthMm, 24, 'F');
 
   // Header Title
   pdf.setTextColor(255, 255, 255);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(15);
-  pdf.text('REPORTE TÉCNICO DE PROCESAMIENTO RADARGRAMA GPR', 12, 11);
+  pdf.text('REPORTE TÉCNICO DE PROCESAMIENTO RADARGRAMA GPR', marginMm, 11);
 
   pdf.setFontSize(9.5);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(56, 189, 248); // Sky blue
-  pdf.text(`Proyecto / Archivo: ${dataset.filename}`, 12, 18);
+  pdf.text(`Proyecto / Archivo: ${dataset.filename}  (Perfil Continuo Completo)`, marginMm, 18);
 
   const dateStr = new Date().toLocaleDateString('es-ES', {
     year: 'numeric',
@@ -549,64 +570,53 @@ export async function exportTechnicalPDFReport(
     minute: '2-digit',
   });
   pdf.setTextColor(148, 163, 184);
-  pdf.text(`Fecha: ${dateStr}`, pageWidth - 75, 18);
+  pdf.text(`Fecha: ${dateStr}`, pageWidthMm - 80, 18);
 
-  // Render Full Overview Canvas
+  // Render Full Uncompressed Overview Canvas
   const fullCanvas = renderFullProfileCanvas(dataset, processedMatrix, options, palette, contrast, brightness);
-  const imgData = fullCanvas.toDataURL('image/jpeg', 0.92);
+  const imgData = fullCanvas.toDataURL('image/jpeg', 0.95);
 
-  const imgWidth = 185;
-  const imgHeight = 125;
-  pdf.addImage(imgData, 'JPEG', 12, 30, imgWidth, imgHeight);
+  pdf.addImage(imgData, 'JPEG', marginMm, 30, imgWidthMm, imgHeightMm);
 
   // Border around radargram image
   pdf.setDrawColor(51, 65, 85);
-  pdf.rect(12, 30, imgWidth, imgHeight);
+  pdf.rect(marginMm, 30, imgWidthMm, imgHeightMm);
 
-  // Side Panel: Metadata & DSP Parameters (x: 202, w: 83mm)
-  const panelX = 202;
-  const panelW = 83;
+  // Side Panel: Metadata & DSP Parameters (Positioned to the right of the continuous profile)
+  const panelX = marginMm + imgWidthMm + gapMm;
   let panelY = 30;
 
   // Box 1: Metadata Summary
   pdf.setFillColor(248, 250, 252);
-  pdf.rect(panelX, panelY, panelW, 50, 'F');
-  pdf.rect(panelX, panelY, panelW, 50, 'S');
+  pdf.rect(panelX, panelY, panelWidthMm, 56, 'F');
+  pdf.rect(panelX, panelY, panelWidthMm, 56, 'S');
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(10.5);
   pdf.setTextColor(15, 23, 42);
-  pdf.text('Metadatos de Perfil', panelX + 5, panelY + 7);
+  pdf.text('Metadatos de Perfil', panelX + 5, panelY + 8);
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8.5);
   pdf.setTextColor(51, 65, 85);
 
-  const numTraces = processedMatrix.length;
-  const numSamples = dataset.header.numSamples;
-  const dxM = options.traceDistanceStepM || dataset.header.traceDistanceStepM || 1.0 / 112.0;
-  const totalDistM = numTraces * dxM;
-  const twNs = options.ventanaNs || dataset.header.timeWindowNs || 90.0;
-  const velocity = calculateVelocity(options.dielectricPermittivity || 6.0);
-  const depthM = ((twNs * velocity) / 2).toFixed(2);
-
-  pdf.text(`Número de Trazas: ${numTraces}`, panelX + 5, panelY + 15);
-  pdf.text(`Muestras por Traza: ${numSamples}`, panelX + 5, panelY + 21);
-  pdf.text(`Distancia Total: ${totalDistM.toFixed(2)} m`, panelX + 5, panelY + 27);
-  pdf.text(`Ventana Temporal: ${twNs.toFixed(1)} ns`, panelX + 5, panelY + 33);
-  pdf.text(`Profundidad Est.: ${depthM} m`, panelX + 5, panelY + 39);
-  pdf.text(`Frec. Antena: ${dataset.header.antennaFreqMHz || 400} MHz`, panelX + 5, panelY + 45);
+  pdf.text(`Número de Trazas: ${numTraces}`, panelX + 5, panelY + 17);
+  pdf.text(`Muestras por Traza: ${numSamples}`, panelX + 5, panelY + 24);
+  pdf.text(`Distancia Total: ${totalDistM.toFixed(2)} m`, panelX + 5, panelY + 31);
+  pdf.text(`Ventana Temporal: ${twNs.toFixed(1)} ns`, panelX + 5, panelY + 38);
+  pdf.text(`Profundidad Est.: ${depthM} m`, panelX + 5, panelY + 45);
+  pdf.text(`Frec. Antena: ${dataset.header.antennaFreqMHz || 400} MHz`, panelX + 5, panelY + 52);
 
   // Box 2: Applied DSP Parameters (Truthful reporting based on Signal Mode)
-  panelY += 54;
+  panelY += 62;
   pdf.setFillColor(248, 250, 252);
-  pdf.rect(panelX, panelY, panelW, 71, 'F');
-  pdf.rect(panelX, panelY, panelW, 71, 'S');
+  pdf.rect(panelX, panelY, panelWidthMm, 80, 'F');
+  pdf.rect(panelX, panelY, panelWidthMm, 80, 'S');
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(10.5);
   pdf.setTextColor(15, 23, 42);
-  pdf.text('Parámetros y Filtros DSP', panelX + 5, panelY + 7);
+  pdf.text('Parámetros y Filtros DSP', panelX + 5, panelY + 8);
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
@@ -617,108 +627,54 @@ export async function exportTechnicalPDFReport(
   pdf.text(
     `• Modo Señal: ${isCrudoMode ? 'Dato Crudo Original (Sin Filtros)' : 'Procesado DSP'}`,
     panelX + 5,
-    panelY + 15
+    panelY + 17
   );
   pdf.text(
     `• Dewow (DC Offset): ${!isCrudoMode && options.dewow ? `Activado (${options.dewowWindowNs || 2.0}ns)` : 'Desactivado'}`,
     panelX + 5,
-    panelY + 21
+    panelY + 25
   );
   pdf.text(
     `• Time-Zero: ${!isCrudoMode && options.timeZero ? `Activado (${options.timeZeroMode === 'auto' ? 'Auto Pulso+2%' : 'Manual'})` : 'Desactivado'}`,
     panelX + 5,
-    panelY + 27
+    panelY + 33
   );
   pdf.text(
     `• Ganancia SEC: ${!isCrudoMode && options.secGain ? `Activada (${options.gainMode || 'auto'}, max ${options.maxGainDb || 40}dB)` : 'Desactivada'}`,
     panelX + 5,
-    panelY + 33
+    panelY + 41
   );
   pdf.text(
     `• Pasa-Banda IIR: ${!isCrudoMode && options.bandpass ? `Activado (${options.hpCutoffMHz}-${options.lpCutoffMHz}MHz)` : 'Desactivado'}`,
     panelX + 5,
-    panelY + 39
+    panelY + 49
   );
   pdf.text(
     `• Bkg Removal: ${!isCrudoMode && options.backgroundRemoval ? `Activado (${options.bkgRemovalPercent || 10}%)` : 'Desactivado'}`,
     panelX + 5,
-    panelY + 45
+    panelY + 57
   );
   pdf.text(
     `• Dieléctrico (ε_r): ${options.dielectricPermittivity.toFixed(1)} (v=${velocity.toFixed(3)} m/ns)`,
     panelX + 5,
-    panelY + 51
+    panelY + 65
   );
   pdf.text(
     `• Migración Kirchhoff: ${!isCrudoMode && options.enableMigration ? 'Activada' : 'Desactivada'}`,
     panelX + 5,
-    panelY + 57
+    panelY + 73
   );
 
   // Footer
   pdf.setFontSize(8);
   pdf.setTextColor(100, 116, 139);
-  pdf.text('Generado automáticamente por PROCIMEC Radargram Processing Workstation — Página 1 (Resumen)', 12, pageHeight - 8);
+  pdf.text(
+    'Generado automáticamente por PROCIMEC Radargram Processing Workstation — Perfil Continuo Completo',
+    marginMm,
+    pageHeightMm - 8
+  );
 
-  // IF PROFILE > 10 METERS: ADD EXTENDED HIGH-RES 10m SEGMENT PAGES
-  const SEGMENT_LEN_M = 10.0;
-  if (totalDistM > SEGMENT_LEN_M) {
-    const numSegments = Math.ceil(totalDistM / SEGMENT_LEN_M);
-
-    for (let segIdx = 0; segIdx < numSegments; segIdx++) {
-      const segStartM = segIdx * SEGMENT_LEN_M;
-      const segEndM = Math.min(totalDistM, segStartM + SEGMENT_LEN_M);
-
-      pdf.addPage('a4', 'landscape');
-
-      // Header Bar
-      pdf.setFillColor(15, 23, 42);
-      pdf.rect(0, 0, pageWidth, 20, 'F');
-
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(13);
-      pdf.text(`PERFIL EXTENDIDO SECCIÓN #${segIdx + 1}: ${segStartM.toFixed(2)}m – ${segEndM.toFixed(2)}m`, 12, 10);
-
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(56, 189, 248);
-      pdf.text(`Archivo: ${dataset.filename} (Distancia Total: ${totalDistM.toFixed(2)}m)`, 12, 16);
-
-      pdf.setTextColor(148, 163, 184);
-      pdf.text(`Página ${segIdx + 2} de ${numSegments + 1}`, pageWidth - 45, 16);
-
-      // Render High-Res Segment Canvas
-      const segCanvas = renderSegmentProfileCanvas(
-        dataset,
-        processedMatrix,
-        options,
-        segStartM,
-        SEGMENT_LEN_M,
-        palette,
-        contrast,
-        brightness
-      );
-      const segImgData = segCanvas.toDataURL('image/jpeg', 0.95);
-
-      const segW = 273;
-      const segH = 160;
-      pdf.addImage(segImgData, 'JPEG', 12, 25, segW, segH);
-
-      pdf.setDrawColor(51, 65, 85);
-      pdf.rect(12, 25, segW, segH);
-
-      pdf.setFontSize(8);
-      pdf.setTextColor(100, 116, 139);
-      pdf.text(
-        `PROCIMEC Radargram Workstation — Sección ${segStartM.toFixed(2)}m a ${segEndM.toFixed(2)}m (Alta Resolución 1:1)`,
-        12,
-        pageHeight - 6
-      );
-    }
-  }
-
-  pdf.save(`${dataset.filename.replace(/\.[^/.]+$/, '')}_ReporteTecnicoExtendido.pdf`);
+  pdf.save(`${dataset.filename.replace(/\.[^/.]+$/, '')}_ReporteTecnicoBandera.pdf`);
 }
 
 /**
@@ -732,7 +688,7 @@ export function exportModifiedGSF(dataset: GPRDataset): void {
 
 /**
  * Specialized high-resolution canvas renderer for PowerPoint 16:9 slides
- * Produces crisp, congruent 1:1.91 aspect ratio (2400x1250 px) matching 8.8" x 4.6"
+ * Produces crisp, congruent 1:1.45 aspect ratio (2000x1380 px) matching 6.4" x 4.4"
  */
 export function renderPPTXProfileCanvas(
   dataset: GPRDataset,
@@ -754,8 +710,8 @@ export function renderPPTXProfileCanvas(
   const MIN_WINDOW_M = 10.0;
   const dispWindowM = Math.max(MIN_WINDOW_M, distTotalM);
 
-  const width = 2400;
-  const height = 1250;
+  const width = 2000;
+  const height = 1380;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -763,8 +719,8 @@ export function renderPPTXProfileCanvas(
   const ctx = canvas.getContext('2d');
   if (!ctx) return canvas;
 
-  const padL = 110;
-  const padR = 100;
+  const padL = 105;
+  const padR = 95;
   const padT = 115;
   const padB = 85;
 
@@ -914,7 +870,7 @@ export function renderPPTXProfileCanvas(
 
     ctx.beginPath();
     ctx.moveTo(padL + plotW, y);
-    ctx.lineTo(padL + plotW + 6, y);
+    ctx.lineTo(padL + plotW + 6);
     ctx.stroke();
 
     ctx.fillText(`${dVal.toFixed(2)}`, padL + plotW + 10, y);
@@ -928,7 +884,7 @@ export function renderPPTXProfileCanvas(
 
 /**
  * Generates a batch PowerPoint (.pptx) presentation deck for multiple GPR datasets.
- * Congruent 1:1.91 (max 1:2) radargram aspect ratio and strictly contained right-hand metadata table.
+ * Fitted 100% inside 10.0" x 5.625" slide bounds so table and radargram NEVER overflow into gray area.
  */
 export async function exportBatchPPTX(
   datasets: GPRDataset[],
@@ -949,38 +905,38 @@ export async function exportBatchPPTX(
 
     const slide = pptx.addSlide();
 
-    // Slide Header Bar (Dark Navy #0F172A)
+    // Slide Header Bar (Dark Navy #0F172A, width 10.0", height 0.65")
     slide.addShape(pptx.ShapeType?.rect || 'rect', {
       x: 0,
       y: 0,
       w: '100%',
-      h: 0.8,
+      h: 0.65,
       fill: { color: '0F172A' },
     });
 
     // Header Title: Radargrama GPR: [filename]
     slide.addText(`Radargrama GPR: ${ds.filename}`, {
-      x: 0.6,
-      y: 0.24,
-      fontSize: 18,
+      x: 0.35,
+      y: 0.16,
+      fontSize: 14,
       bold: true,
       color: 'FFFFFF',
     });
 
-    // Render High-Resolution 1:1.91 Canvas specifically optimized for 16:9 slides
+    // Render High-Resolution Canvas specifically scaled for PowerPoint
     const fullCanvas = renderPPTXProfileCanvas(ds, matrix, opt, palette, contrast, brightness);
     const dataUrl = fullCanvas.toDataURL('image/jpeg', 0.95);
 
-    // Profile Image on Left Side (Aspect ratio 8.8 : 4.6 = 1.91 : 1, max 1:2, fully contained)
+    // Profile Image on Left Side (Width 6.4", Height 4.4", finishes at y=5.2 < 5.625)
     slide.addImage({
       data: dataUrl,
-      x: 0.6,
-      y: 1.15,
-      w: 8.8,
-      h: 4.6,
+      x: 0.35,
+      y: 0.8,
+      w: 6.4,
+      h: 4.4,
     });
 
-    // Metadata Table on Right Side (x=9.6, w=3.2, y=1.15, rowH=0.34, fits 100% inside slide)
+    // Metadata Table on Right Side (x=6.95, w=2.7, colW=[1.4, 1.3], finishes at x=9.65 < 10.0)
     const numTraces = matrix.length;
     const numSamples = ds.header.numSamples;
     const dxM = opt.traceDistanceStepM || ds.header.traceDistanceStepM || 1.0 / 112.0;
@@ -1007,13 +963,13 @@ export async function exportBatchPPTX(
     ];
 
     slide.addTable(rows, {
-      x: 9.6,
-      y: 1.15,
-      w: 3.2,
-      colW: [1.7, 1.5],
-      fontSize: 8.5,
-      rowH: 0.34,
-      margin: [2, 3, 2, 3],
+      x: 6.95,
+      y: 0.8,
+      w: 2.7,
+      colW: [1.4, 1.3],
+      fontSize: 7.5,
+      rowH: 0.28,
+      margin: [1.5, 2.5, 1.5, 2.5],
       border: { pt: 0.5, color: 'CBD5E1' },
     });
   }
