@@ -293,8 +293,10 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 {/* Hardware Offsets Preview */}
                 <div className="p-2.5 bg-white rounded-xl border border-border text-[10px] font-mono space-y-1">
                   <div className="flex justify-between">
-                    <span className="text-text-muted">Offset 66 (TW):</span>
-                    <span className="text-primary font-bold">{header.ventanaNsHdr ?? 'N/A'} ns</span>
+                    <span className="text-text-muted">Offset 66 (OWT → TWT):</span>
+                    <span className="text-primary font-bold">
+                      {header.ventanaNsHdr != null ? `${header.ventanaNsHdr} ns → ${header.timeWindowNs} ns` : 'N/A'}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-muted">Offset 84 (Muestras):</span>
