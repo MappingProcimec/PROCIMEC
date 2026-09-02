@@ -49,8 +49,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   onToggleHyperbolaTool,
   onResetDSP,
 }) => {
-  // Main tabs: Centralized Calibration, DSP Filters, Signal Mode & Info
-  const [activeTab, setActiveTab] = useState<'calibracion' | 'filters' | 'mode'>('calibracion');
+  // Main tabs: Modo (Izquierda), Procesamiento (Centro), Calibración (Derecha)
+  const [activeTab, setActiveTab] = useState<'mode' | 'filters' | 'calibracion'>('mode');
 
   // Sub-filter for calibration view (Show all or focus on a section)
   const [calibFilter, setCalibFilter] = useState<'all' | 'header' | 'geometry' | 'timezero' | 'display'>('all');
@@ -122,8 +122,32 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         </button>
       </div>
 
-      {/* Tabs Bar: Centralized Calibración | Filtros DSP | Modo */}
+      {/* Tabs Bar: Modo (Izquierda) | Procesamiento (Centro) | Calibración (Derecha) */}
       <div className="grid grid-cols-3 bg-gray-100 p-1 border-b border-border text-xs gap-1">
+        <button
+          onClick={() => setActiveTab('mode')}
+          className={`py-2 flex items-center justify-center gap-1.5 rounded-lg font-medium transition ${
+            activeTab === 'mode'
+              ? 'bg-primary text-white shadow-xs font-bold'
+              : 'text-text-secondary hover:bg-gray-200'
+          }`}
+          title="Modo de Señal (Dato Crudo / Procesado)"
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5" />
+          <span className="text-[11px]">Modo</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('filters')}
+          className={`py-2 flex items-center justify-center gap-1.5 rounded-lg font-medium transition ${
+            activeTab === 'filters'
+              ? 'bg-primary text-white shadow-xs font-bold'
+              : 'text-text-secondary hover:bg-gray-200'
+          }`}
+          title="Filtros y Procesamiento DSP"
+        >
+          <Activity className="w-3.5 h-3.5" />
+          <span className="text-[11px]">Procesamiento</span>
+        </button>
         <button
           onClick={() => setActiveTab('calibracion')}
           className={`py-2 flex items-center justify-center gap-1.5 rounded-lg font-medium transition ${
@@ -135,30 +159,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         >
           <Sliders className="w-3.5 h-3.5" />
           <span className="text-[11px]">Calibración</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('filters')}
-          className={`py-2 flex items-center justify-center gap-1.5 rounded-lg font-medium transition ${
-            activeTab === 'filters'
-              ? 'bg-primary text-white shadow-xs font-bold'
-              : 'text-text-secondary hover:bg-gray-200'
-          }`}
-          title="Filtros DSP Geofísicos"
-        >
-          <Activity className="w-3.5 h-3.5" />
-          <span className="text-[11px]">Filtros</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('mode')}
-          className={`py-2 flex items-center justify-center gap-1.5 rounded-lg font-medium transition ${
-            activeTab === 'mode'
-              ? 'bg-primary text-white shadow-xs font-bold'
-              : 'text-text-secondary hover:bg-gray-200'
-          }`}
-          title="Modo de Señal y Resumen"
-        >
-          <FileSpreadsheet className="w-3.5 h-3.5" />
-          <span className="text-[11px]">Modo</span>
         </button>
       </div>
 

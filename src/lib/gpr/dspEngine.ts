@@ -110,8 +110,8 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
       const customNs = options.timeZeroCustomNs || 0;
       idxShift = Math.max(0, Math.round(customNs / dtNs));
     } else {
-      // Auto-detection of First Break / Direct Arrival (up to half of total ns of the file)
-      const topLimit = Math.max(1, Math.floor(numSamples * 0.50));
+      // Auto-detection of First Break / Direct Arrival (up to 42.5% of total ns of the file)
+      const topLimit = Math.max(1, Math.floor(numSamples * 0.425));
       const avgAbs = new Float32Array(topLimit);
 
       let maxAvg = 0;
