@@ -731,7 +731,204 @@ export function exportModifiedGSF(dataset: GPRDataset): void {
 }
 
 /**
+ * Specialized high-resolution canvas renderer for PowerPoint 16:9 slides
+ * Produces crisp, congruent 1:1.91 aspect ratio (2400x1250 px) matching 8.8" x 4.6"
+ */
+export function renderPPTXProfileCanvas(
+  dataset: GPRDataset,
+  processedMatrix: Float32Array[],
+  options: DSPOptions,
+  palette: string = 'grayscale',
+  contrast = 1.0,
+  brightness = 0
+): HTMLCanvasElement {
+  const numTraces = processedMatrix.length;
+  const numSamples = numTraces > 0 ? processedMatrix[0].length : 0;
+
+  const dxM = options.traceDistanceStepM || dataset.header.traceDistanceStepM || (1.0 / 112.0);
+  const distTotalM = numTraces * dxM;
+  const twNs = options.ventanaNs || dataset.header.timeWindowNs || 90.0;
+  const velocity = calculateVelocity(options.dielectricPermittivity || 6.0);
+  const depthMaxM = (velocity * twNs) / 2.0;
+
+  const MIN_WINDOW_M = 10.0;
+  const dispWindowM = Math.max(MIN_WINDOW_M, distTotalM);
+
+  const width = 2400;
+  const height = 1250;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+
+  const padL = 110;
+  const padR = 100;
+  const padT = 115;
+  const padB = 85;
+
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, width, height);
+
+  const dataFraction = Math.min(1.0, distTotalM / dispWindowM);
+  const dataPlotWidth = Math.max(1, Math.floor(plotW * dataFraction));
+
+  const imgCanvas = document.createElement('canvas');
+  imgCanvas.width = numTraces;
+  imgCanvas.height = numSamples;
+  const imgCtx = imgCanvas.getContext('2d');
+
+  if (imgCtx && numTraces > 0 && numSamples > 0) {
+    const imgData = imgCtx.createImageData(numTraces, numSamples);
+    const data = imgData.data;
+
+    let maxAmp = 0;
+    for (let t = 0; t < numTraces; t += 4) {
+      for (let s = 0; s < numSamples; s += 4) {
+        const a = Math.abs(processedMatrix[t][s]);
+        if (a > maxAmp) maxAmp = a;
+      }
+    }
+    if (maxAmp === 0) maxAmp = 1;
+
+    for (let t = 0; t < numTraces; t++) {
+      const trace = processedMatrix[t];
+      for (let s = 0; s < numSamples; s++) {
+        const normVal = trace[s] / maxAmp;
+        const [r, g, b] = getExportPaletteColor(normVal, palette, contrast, brightness);
+
+        const pxIdx = (s * numTraces + t) * 4;
+        data[pxIdx] = r;
+        data[pxIdx + 1] = g;
+        data[pxIdx + 2] = b;
+        data[pxIdx + 3] = 255;
+      }
+    }
+
+    imgCtx.putImageData(imgData, 0, 0);
+    ctx.drawImage(imgCanvas, padL, padT, dataPlotWidth, plotH);
+
+    if (dataPlotWidth < plotW) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(padL + dataPlotWidth, padT, plotW - dataPlotWidth, plotH);
+    }
+  }
+
+  // Plot Border
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(padL, padT, plotW, plotH);
+
+  // Title
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`PROCIMEC INGENIERIA SAS  —  ${dataset.filename}`, padL, 34);
+
+  // Subtitle
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = '#475569';
+  ctx.fillText(
+    `εr = ${options.dielectricPermittivity.toFixed(1)} | v = ${velocity.toFixed(3)} m/ns | Ventana = ${twNs.toFixed(1)} ns | Prof. Máx = ${depthMaxM.toFixed(2)} m | Distancia Total = ${distTotalM.toFixed(2)} m (${numTraces} trazas)`,
+    padL,
+    62
+  );
+
+  // Top X-Axis Header
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Número de Traza', padL + dataPlotWidth / 2, 88);
+
+  // Top X-Axis Ticks
+  ctx.font = '13px sans-serif';
+  const numTricks = 8;
+  for (let i = 0; i <= numTricks; i++) {
+    const frac = i / numTricks;
+    const x = padL + frac * dataPlotWidth;
+    const tVal = Math.round(frac * (numTraces - 1)) + 1;
+
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, padT - 6);
+    ctx.stroke();
+
+    ctx.fillText(`${tVal}`, x, padT - 10);
+  }
+
+  // Bottom X-Axis Ticks: Distance in Meters
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('Distancia Recorrida (m)', padL + plotW / 2, padT + plotH + 60);
+
+  ctx.font = '13px sans-serif';
+  for (let i = 0; i <= numTricks; i++) {
+    const frac = i / numTricks;
+    const x = padL + frac * plotW;
+    const mVal = frac * dispWindowM;
+
+    ctx.beginPath();
+    ctx.moveTo(x, padT + plotH);
+    ctx.lineTo(x, padT + plotH + 6);
+    ctx.stroke();
+
+    ctx.fillText(`${mVal.toFixed(2)}`, x, padT + plotH + 26);
+  }
+
+  // Left Y-Axis Ticks: Time (ns)
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.font = '13px sans-serif';
+  const numTTicks = 6;
+
+  for (let i = 0; i <= numTTicks; i++) {
+    const frac = i / numTTicks;
+    const y = padT + frac * plotH;
+    const tVal = frac * twNs;
+
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL - 6, y);
+    ctx.stroke();
+
+    ctx.fillText(`${tVal.toFixed(1)}`, padL - 10, y);
+  }
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('Tiempo (ns)', padL - 12, padT - 18);
+
+  // Right Y-Axis Ticks: Depth (m)
+  ctx.textAlign = 'left';
+  ctx.font = '13px sans-serif';
+  ctx.fillStyle = '#b91c1c';
+
+  for (let i = 0; i <= numTTicks; i++) {
+    const frac = i / numTTicks;
+    const y = padT + frac * plotH;
+    const dVal = frac * depthMaxM;
+
+    ctx.beginPath();
+    ctx.moveTo(padL + plotW, y);
+    ctx.lineTo(padL + plotW + 6, y);
+    ctx.stroke();
+
+    ctx.fillText(`${dVal.toFixed(2)}`, padL + plotW + 10, y);
+  }
+
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('Prof. Est (m)', padL + plotW + 10, padT - 18);
+
+  return canvas;
+}
+
+/**
  * Generates a batch PowerPoint (.pptx) presentation deck for multiple GPR datasets.
+ * Congruent 1:1.91 (max 1:2) radargram aspect ratio and strictly contained right-hand metadata table.
  */
 export async function exportBatchPPTX(
   datasets: GPRDataset[],
@@ -752,38 +949,38 @@ export async function exportBatchPPTX(
 
     const slide = pptx.addSlide();
 
-    // Slide Header Bar
+    // Slide Header Bar (Dark Navy #0F172A)
     slide.addShape(pptx.ShapeType?.rect || 'rect', {
       x: 0,
       y: 0,
       w: '100%',
-      h: 0.75,
+      h: 0.8,
       fill: { color: '0F172A' },
     });
 
     // Header Title: Radargrama GPR: [filename]
     slide.addText(`Radargrama GPR: ${ds.filename}`, {
-      x: 0.5,
-      y: 0.22,
-      fontSize: 17,
+      x: 0.6,
+      y: 0.24,
+      fontSize: 18,
       bold: true,
       color: 'FFFFFF',
     });
 
-    // Render High-Resolution Full Profile Canvas for Slide
-    const fullCanvas = renderFullProfileCanvas(ds, matrix, opt, palette, contrast, brightness);
+    // Render High-Resolution 1:1.91 Canvas specifically optimized for 16:9 slides
+    const fullCanvas = renderPPTXProfileCanvas(ds, matrix, opt, palette, contrast, brightness);
     const dataUrl = fullCanvas.toDataURL('image/jpeg', 0.95);
 
-    // Profile Image on Left Side (Aspect ratio ~1:1.55, max 1:2, high resolution)
+    // Profile Image on Left Side (Aspect ratio 8.8 : 4.6 = 1.91 : 1, max 1:2, fully contained)
     slide.addImage({
       data: dataUrl,
-      x: 0.5,
-      y: 1.05,
+      x: 0.6,
+      y: 1.15,
       w: 8.8,
-      h: 5.8,
+      h: 4.6,
     });
 
-    // Metadata Table on Right Side (Strictly inside 16x9 slide bounds: x=9.5, w=3.4, total=12.9 < 13.33)
+    // Metadata Table on Right Side (x=9.6, w=3.2, y=1.15, rowH=0.34, fits 100% inside slide)
     const numTraces = matrix.length;
     const numSamples = ds.header.numSamples;
     const dxM = opt.traceDistanceStepM || ds.header.traceDistanceStepM || 1.0 / 112.0;
@@ -810,12 +1007,12 @@ export async function exportBatchPPTX(
     ];
 
     slide.addTable(rows, {
-      x: 9.5,
-      y: 1.05,
-      w: 3.35,
-      colW: [1.85, 1.5],
+      x: 9.6,
+      y: 1.15,
+      w: 3.2,
+      colW: [1.7, 1.5],
       fontSize: 8.5,
-      rowH: 0.38,
+      rowH: 0.34,
       margin: [2, 3, 2, 3],
       border: { pt: 0.5, color: 'CBD5E1' },
     });
