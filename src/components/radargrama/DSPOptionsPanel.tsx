@@ -544,7 +544,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         }`}
                       >
                         <Sparkles className="w-3 h-3 text-amber-300" />
-                        <span>Auto (Corte 42.5%)</span>
+                        <span>Auto (Línea Sync)</span>
                       </button>
                       <button
                         onClick={() => updateOption('timeZeroMode', 'manual')}
@@ -558,6 +558,45 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         <span>Manual (ns)</span>
                       </button>
                     </div>
+
+                    {/* Auto Mode Controls (Línea Blanca Sync + Margen) */}
+                    {(options.timeZeroMode || 'auto') === 'auto' && (
+                      <div className="bg-white p-2.5 rounded-xl border border-border space-y-2">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="font-semibold text-text-primary">Margen tras Línea Blanca:</span>
+                          <span className="font-mono text-amber-600 font-bold">
+                            +{(options.timeZeroMarginNs ?? 2.5).toFixed(1)} ns
+                          </span>
+                        </div>
+
+                        <input
+                          type="range"
+                          min={0.0}
+                          max={10.0}
+                          step={0.5}
+                          value={options.timeZeroMarginNs ?? 2.5}
+                          onChange={(e) => updateOption('timeZeroMarginNs', parseFloat(e.target.value))}
+                          className="w-full accent-amber-500 bg-gray-200 rounded cursor-pointer"
+                        />
+
+                        {/* Presets: +1.0ns, +2.5ns, +4.0ns, +5.0ns */}
+                        <div className="grid grid-cols-4 gap-1 pt-1">
+                          {[1.0, 2.5, 4.0, 5.0].map((m) => (
+                            <button
+                              key={m}
+                              onClick={() => updateOption('timeZeroMarginNs', m)}
+                              className={`py-1 rounded-lg text-[10px] font-mono border transition ${
+                                Math.abs((options.timeZeroMarginNs ?? 2.5) - m) < 0.2
+                                  ? 'bg-amber-500 text-white border-amber-500 font-bold shadow-xs'
+                                  : 'bg-gray-100 hover:bg-gray-200 text-text-secondary border-border'
+                              }`}
+                            >
+                              +{m} ns
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Manual Controls */}
                     {options.timeZeroMode === 'manual' && (

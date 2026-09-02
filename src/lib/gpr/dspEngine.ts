@@ -20,6 +20,7 @@ export interface DSPOptions {
   timeZero: boolean;
   timeZeroMode: 'auto' | 'manual';
   timeZeroCustomNs: number; // Manual offset in ns when mode is 'manual'
+  timeZeroMarginNs: number; // Margin in ns after Akula hardware sync line (default: 2.5 ns)
   secGain: boolean;
   bandpass: boolean;
   backgroundRemoval: boolean;
@@ -47,6 +48,7 @@ export const DEFAULT_DSP_OPTIONS: DSPOptions = {
   timeZero: true,
   timeZeroMode: 'auto',
   timeZeroCustomNs: 0.0,
+  timeZeroMarginNs: 2.5,
   secGain: true,
   bandpass: true,
   backgroundRemoval: false,
@@ -102,7 +104,7 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
   const twNs = options.ventanaNs || header.timeWindowNs || 90.0;
   const dtNs = twNs / (numSamples || 512);
 
-  // Time-Zero Correction (Active by default in both raw and processed modes if enabled)
+  // Time-Zero Correction: Akula Hardware Sync Line Detection + Margin Offset
   if (options.timeZero) {
     let idxShift = 0;
 
@@ -110,8 +112,46 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
       const customNs = options.timeZeroCustomNs || 0;
       idxShift = Math.max(0, Math.round(customNs / dtNs));
     } else {
-      // Directly cut at 42.5% of total trace samples / time window
-      idxShift = Math.floor(numSamples * 0.425);
+      // Auto-detection: Locate Akula hardware sync pulse (abrupt white line ~24,000 amp)
+      const topLimit = Math.max(1, Math.floor(numSamples * 0.60));
+      const avgAbs = new Float32Array(topLimit);
+
+      for (let s = 0; s < topLimit; s++) {
+        let sum = 0;
+        for (let t = 0; t < currentTraces; t++) {
+          sum += Math.abs(processed[t][s]);
+        }
+        avgAbs[s] = sum / currentTraces;
+      }
+
+      // Find the sharpest abrupt jump or max peak (the white sync line)
+      let maxSpikeJump = 0;
+      let idxSpike = 0;
+
+      for (let s = 1; s < topLimit - 1; s++) {
+        const jump = avgAbs[s] - avgAbs[s - 1];
+        if (avgAbs[s] > 4000 && jump > maxSpikeJump) {
+          maxSpikeJump = jump;
+          idxSpike = s;
+        }
+      }
+
+      // Fallback if no abrupt jump > 4000: find peak in top 60%
+      if (idxSpike === 0) {
+        let maxVal = 0;
+        for (let s = 0; s < topLimit; s++) {
+          if (avgAbs[s] > maxVal) {
+            maxVal = avgAbs[s];
+            idxSpike = s;
+          }
+        }
+      }
+
+      // Add margin in ns after the white sync line (default 2.5 ns)
+      const marginNs = options.timeZeroMarginNs ?? 2.5;
+      const marginSamples = Math.round(marginNs / dtNs);
+
+      idxShift = Math.min(numSamples - 10, idxSpike + marginSamples);
     }
 
     if (idxShift > 0 && idxShift < numSamples - 1) {
