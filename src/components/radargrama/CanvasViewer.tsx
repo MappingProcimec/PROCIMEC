@@ -8,7 +8,9 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  X,
 } from 'lucide-react';
+import { DetectionConfig, DetectionResults, AnomalyMarker } from '@/lib/gpr/detectionTypes';
 
 export type ColorPalette = 'grayscale' | 'seismic' | 'bone' | 'sepia' | 'jet';
 
@@ -23,6 +25,8 @@ interface CanvasViewerProps {
   traceDistanceStepM: number;
   onSelectTrace?: (traceIdx: number) => void;
   showHyperbolaTool: boolean;
+  detectionConfig?: DetectionConfig;
+  detectionResults?: DetectionResults;
 }
 
 export const CanvasViewer: React.FC<CanvasViewerProps> = ({
@@ -36,6 +40,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   traceDistanceStepM = 1.0 / 112.0,
   onSelectTrace,
   showHyperbolaTool,
+  detectionConfig,
+  detectionResults,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -58,6 +64,22 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   // Hyperbola tool state
   const [hyperbolaApex, setHyperbolaApex] = useState<{ trace: number; sample: number } | null>(null);
   const [isDraggingApex, setIsDraggingApex] = useState<boolean>(false);
+
+  // Anomaly detection overlay states
+  const [plotMetrics, setPlotMetrics] = useState<{
+    width: number;
+    height: number;
+    marginLeft: number;
+    marginTop: number;
+    dataPlotWidth: number;
+    plotHeight: number;
+    startTrace: number;
+    visibleTraces: number;
+  } | null>(null);
+
+  const [hoveredMarker, setHoveredMarker] = useState<AnomalyMarker | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [selectedMarker, setSelectedMarker] = useState<AnomalyMarker | null>(null);
 
   const numTraces = processedMatrix ? processedMatrix.length : 0;
   const numSamples = processedMatrix && numTraces > 0 ? processedMatrix[0].length : 0;
@@ -166,6 +188,17 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     // Proportion of physical data width relative to 10m minimum window
     const dataFraction = Math.min(1.0, visibleDataDistM / effWindowM);
     const dataPlotWidth = Math.max(1, Math.floor(plotWidth * dataFraction));
+
+    setPlotMetrics({
+      width,
+      height,
+      marginLeft: margin.left,
+      marginTop: margin.top,
+      dataPlotWidth,
+      plotHeight,
+      startTrace,
+      visibleTraces,
+    });
 
     // Symmetric 98.5-percentile clipping across visible traces
     const allAbs: number[] = [];
@@ -506,6 +539,24 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     setScrollMeters((prev) => Math.max(0, Math.min(maxScrollM, prev + deltaM)));
   };
 
+  // Coordinate mapping helpers for Anomaly SVG overlay
+  const getCanvasXFromTrace = (trace: number) => {
+    if (!plotMetrics) return 0;
+    const normX = (trace - plotMetrics.startTrace) / Math.max(1, plotMetrics.visibleTraces);
+    return plotMetrics.marginLeft + normX * plotMetrics.dataPlotWidth;
+  };
+
+  const getCanvasXFromDistM = (distM: number) => {
+    const tr = distM / dxM;
+    return getCanvasXFromTrace(tr);
+  };
+
+  const getCanvasYFromTimeNs = (timeNs: number) => {
+    if (!plotMetrics) return 0;
+    const normY = timeNs / Math.max(0.1, ventanaNs);
+    return plotMetrics.marginTop + normY * plotMetrics.plotHeight;
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-surface overflow-hidden relative">
       {/* Top Metadata Header Bar (Locked to fixed 40px height, 100% single line to prevent layout shift) */}
@@ -565,15 +616,409 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
       {/* Main Canvas Area */}
       <div ref={containerRef} className="flex-1 relative bg-white overflow-hidden flex items-center justify-center p-2">
-        <canvas
-          ref={canvasRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-          className="w-full h-full block cursor-crosshair"
-        />
+        <div className="relative w-full h-full">
+          <canvas
+            ref={canvasRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            className="w-full h-full block cursor-crosshair"
+          />
+
+          {/* SVG Anomaly Markers Overlay */}
+          {plotMetrics && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none select-none"
+              viewBox={`0 0 ${plotMetrics.width} ${plotMetrics.height}`}
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <clipPath id="gpr-plot-area-clip">
+                  <rect
+                    x={plotMetrics.marginLeft}
+                    y={plotMetrics.marginTop}
+                    width={plotMetrics.dataPlotWidth}
+                    height={plotMetrics.plotHeight}
+                  />
+                </clipPath>
+              </defs>
+
+              <g clipPath="url(#gpr-plot-area-clip)">
+                {/* 1. BRIGHT SPOT MARKERS: Dashed cyan-blue horizontal line (1px, #00BFFF) */}
+                {detectionConfig?.brightSpot.enabled &&
+                  detectionResults?.brightSpots.markers.map((m) => {
+                    const x1 = getCanvasXFromDistM(m.xStartM);
+                    const x2 = getCanvasXFromDistM(m.xEndM);
+                    const y = getCanvasYFromTimeNs(m.timeNs);
+                    return (
+                      <g key={m.id} className="pointer-events-auto">
+                        <line
+                          x1={x1}
+                          y1={y}
+                          x2={x2}
+                          y2={y}
+                          stroke="#00BFFF"
+                          strokeWidth="1"
+                          strokeDasharray="4,2"
+                        />
+                        {/* Interactive invisible hit area */}
+                        <line
+                          x1={x1}
+                          y1={y}
+                          x2={x2}
+                          y2={y}
+                          stroke="transparent"
+                          strokeWidth="12"
+                          className="cursor-pointer"
+                          onMouseEnter={(e) => {
+                            setHoveredMarker(m);
+                            setTooltipPos({ x: e.clientX, y: e.clientY });
+                          }}
+                          onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                          onMouseLeave={() => setHoveredMarker(null)}
+                          onClick={() => setSelectedMarker(m)}
+                        />
+                      </g>
+                    );
+                  })}
+
+                {/* 2. HYPERBOLA MARKERS: Orange-red circle (radius 8px, #FF4500) */}
+                {detectionConfig?.hyperbola.enabled &&
+                  detectionResults?.hyperbolas.markers.map((m) => {
+                    const cx = getCanvasXFromDistM(m.xCenterM);
+                    const cy = getCanvasYFromTimeNs(m.timeNs);
+                    return (
+                      <g key={m.id} className="pointer-events-auto">
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r="8"
+                          fill="#FF4500"
+                          stroke="#FFFFFF"
+                          strokeWidth="1.5"
+                          className="cursor-pointer hover:opacity-80 transition"
+                          onMouseEnter={(e) => {
+                            setHoveredMarker(m);
+                            setTooltipPos({ x: e.clientX, y: e.clientY });
+                          }}
+                          onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                          onMouseLeave={() => setHoveredMarker(null)}
+                          onClick={() => setSelectedMarker(m)}
+                        />
+                      </g>
+                    );
+                  })}
+
+                {/* 3. DELAMINATION MARKERS: Solid gold horizontal line (1px, #FFD700) */}
+                {detectionConfig?.delamination.enabled &&
+                  detectionResults?.delaminations.markers.map((m) => {
+                    const x1 = getCanvasXFromDistM(m.xStartM);
+                    const x2 = getCanvasXFromDistM(m.xEndM);
+                    const y = getCanvasYFromTimeNs(m.timeNs);
+                    return (
+                      <g key={m.id} className="pointer-events-auto">
+                        <line
+                          x1={x1}
+                          y1={y}
+                          x2={x2}
+                          y2={y}
+                          stroke="#FFD700"
+                          strokeWidth="1.5"
+                        />
+                        {/* Interactive hit area */}
+                        <line
+                          x1={x1}
+                          y1={y}
+                          x2={x2}
+                          y2={y}
+                          stroke="transparent"
+                          strokeWidth="12"
+                          className="cursor-pointer"
+                          onMouseEnter={(e) => {
+                            setHoveredMarker(m);
+                            setTooltipPos({ x: e.clientX, y: e.clientY });
+                          }}
+                          onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                          onMouseLeave={() => setHoveredMarker(null)}
+                          onClick={() => setSelectedMarker(m)}
+                        />
+                      </g>
+                    );
+                  })}
+
+                {/* 4. SUB-SLAB VOID MARKERS: Filled red circle (radius 12px, #FF0000) with pulsing animation */}
+                {detectionConfig?.subslabVoid.enabled &&
+                  detectionResults?.subslabVoids.markers.map((m) => {
+                    const cx = getCanvasXFromDistM(m.xCenterM);
+                    const cy = getCanvasYFromTimeNs(m.timeNs);
+                    return (
+                      <g
+                        key={m.id}
+                        className="pointer-events-auto cursor-pointer"
+                        onMouseEnter={(e) => {
+                          setHoveredMarker(m);
+                          setTooltipPos({ x: e.clientX, y: e.clientY });
+                        }}
+                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                        onMouseLeave={() => setHoveredMarker(null)}
+                        onClick={() => setSelectedMarker(m)}
+                      >
+                        {m.isCritical && detectionConfig.subslabVoid.pulsingCritical && (
+                          <circle cx={cx} cy={cy} r="12" fill="none" stroke="#FF0000" strokeWidth="2.5">
+                            <animate attributeName="r" values="12;24;12" dur="1.3s" repeatCount="indefinite" />
+                            <animate attributeName="opacity" values="0.9;0.1;0.9" dur="1.3s" repeatCount="indefinite" />
+                          </circle>
+                        )}
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r="12"
+                          fill="#FF0000"
+                          stroke="#FFFFFF"
+                          strokeWidth="2"
+                          className="hover:opacity-90 transition shadow"
+                        />
+                      </g>
+                    );
+                  })}
+
+                {/* 5. DIFFUSE SCATTERING MARKERS: Orange semi-transparent rectangle (#FF6600, 25% opacity) */}
+                {detectionConfig?.diffuseScattering.enabled &&
+                  detectionResults?.diffuseScattering.markers.map((m) => {
+                    const x1 = getCanvasXFromDistM(m.xStartM);
+                    const x2 = getCanvasXFromDistM(m.xEndM);
+                    const y1 = getCanvasYFromTimeNs(m.timeNs);
+                    const y2 = getCanvasYFromTimeNs(m.timeEndNs || m.timeNs + 15);
+                    return (
+                      <rect
+                        key={m.id}
+                        x={Math.min(x1, x2)}
+                        y={Math.min(y1, y2)}
+                        width={Math.max(4, Math.abs(x2 - x1))}
+                        height={Math.max(8, Math.abs(y2 - y1))}
+                        fill="#FF6600"
+                        fillOpacity="0.25"
+                        stroke="none"
+                        className="pointer-events-auto cursor-pointer hover:fill-opacity-40 transition"
+                        onMouseEnter={(e) => {
+                          setHoveredMarker(m);
+                          setTooltipPos({ x: e.clientX, y: e.clientY });
+                        }}
+                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                        onMouseLeave={() => setHoveredMarker(null)}
+                        onClick={() => setSelectedMarker(m)}
+                      />
+                    );
+                  })}
+
+                {/* 6. JOINT INFILTRATION MARKERS: Purple circle (radius 6px, stroke 2px, #9B59B6) */}
+                {detectionConfig?.jointInfiltration.enabled &&
+                  detectionResults?.jointInfiltrations.markers.map((m) => {
+                    const cx = getCanvasXFromDistM(m.xCenterM);
+                    const cy = getCanvasYFromTimeNs(m.timeNs);
+                    return (
+                      <circle
+                        key={m.id}
+                        cx={cx}
+                        cy={cy}
+                        r="6"
+                        fill="#FFFFFF"
+                        stroke="#9B59B6"
+                        strokeWidth="2"
+                        className="pointer-events-auto cursor-pointer hover:scale-125 transition-transform"
+                        onMouseEnter={(e) => {
+                          setHoveredMarker(m);
+                          setTooltipPos({ x: e.clientX, y: e.clientY });
+                        }}
+                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                        onMouseLeave={() => setHoveredMarker(null)}
+                        onClick={() => setSelectedMarker(m)}
+                      />
+                    );
+                  })}
+
+                {/* 7. DIELECTRIC SHADOW MARKERS: Gray vertical dashed line (1px, #808080) + vertical band (opacity 20%) */}
+                {detectionConfig?.dielectricShadow.enabled &&
+                  detectionResults?.dielectricShadows.markers.map((m) => {
+                    const x1 = getCanvasXFromDistM(m.xStartM);
+                    const x2 = getCanvasXFromDistM(m.xEndM);
+                    const cx = getCanvasXFromDistM(m.xCenterM);
+                    return (
+                      <g
+                        key={m.id}
+                        className="pointer-events-auto cursor-pointer"
+                        onMouseEnter={(e) => {
+                          setHoveredMarker(m);
+                          setTooltipPos({ x: e.clientX, y: e.clientY });
+                        }}
+                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                        onMouseLeave={() => setHoveredMarker(null)}
+                        onClick={() => setSelectedMarker(m)}
+                      >
+                        <rect
+                          x={Math.min(x1, x2)}
+                          y={plotMetrics.marginTop}
+                          width={Math.max(4, Math.abs(x2 - x1))}
+                          height={plotMetrics.plotHeight}
+                          fill="#808080"
+                          fillOpacity="0.20"
+                          stroke="none"
+                          className="hover:fill-opacity-35 transition"
+                        />
+                        <line
+                          x1={cx}
+                          y1={plotMetrics.marginTop}
+                          x2={cx}
+                          y2={plotMetrics.marginTop + plotMetrics.plotHeight}
+                          stroke="#808080"
+                          strokeWidth="1"
+                          strokeDasharray="4,3"
+                        />
+                      </g>
+                    );
+                  })}
+
+                {/* 8. THICKNESS VARIATION MARKERS: Dotted green line (#2ECC71) following t2(x), turns red (#E74C3C) on anomaly */}
+                {detectionConfig?.thicknessVariation.enabled &&
+                  (detectionResults?.thicknessVariations.markers.length ?? 0) > 0 &&
+                  (() => {
+                    const firstMarker = detectionResults?.thicknessVariations.markers[0];
+                    if (!firstMarker) return null;
+                    const pts = firstMarker.curvePoints || [];
+                    if (pts.length < 2) return null;
+
+                    const segments: React.ReactNode[] = [];
+                    for (let i = 0; i < pts.length - 1; i++) {
+                      const p1 = pts[i];
+                      const p2 = pts[i + 1];
+                      const x1 = getCanvasXFromTrace(p1.traceIdx);
+                      const y1 = getCanvasYFromTimeNs(p1.timeNs);
+                      const x2 = getCanvasXFromTrace(p2.traceIdx);
+                      const y2 = getCanvasYFromTimeNs(p2.timeNs);
+                      const isAnom = p1.isAnomalous || p2.isAnomalous;
+
+                      segments.push(
+                        <line
+                          key={`thick-seg-${i}`}
+                          x1={x1}
+                          y1={y1}
+                          x2={x2}
+                          y2={y2}
+                          stroke={isAnom ? '#E74C3C' : '#2ECC71'}
+                          strokeWidth={isAnom ? '2' : '1.5'}
+                          strokeDasharray="3,2"
+                          className="pointer-events-auto cursor-pointer"
+                          onMouseEnter={(e) => {
+                            setHoveredMarker(firstMarker);
+                            setTooltipPos({ x: e.clientX, y: e.clientY });
+                          }}
+                          onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                          onMouseLeave={() => setHoveredMarker(null)}
+                          onClick={() => setSelectedMarker(firstMarker)}
+                        />
+                      );
+                    }
+                    return segments;
+                  })()}
+              </g>
+            </svg>
+          )}
+        </div>
       </div>
+
+      {/* Floating Tooltip on Marker Hover */}
+      {hoveredMarker && (
+        <div
+          style={{
+            left: `${Math.min(typeof window !== 'undefined' ? window.innerWidth - 240 : 800, Math.max(10, tooltipPos.x + 12))}px`,
+            top: `${Math.max(10, tooltipPos.y - 45)}px`,
+          }}
+          className="fixed z-40 pointer-events-none bg-slate-900/95 text-white p-2.5 rounded-xl border border-slate-700 shadow-xl backdrop-blur text-xs space-y-1 max-w-xs animate-in fade-in duration-100"
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
+            <strong className="text-sky-300 font-semibold">{hoveredMarker.title}</strong>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono">
+              {hoveredMarker.severityLabel}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px] text-slate-300 font-mono pt-0.5">
+            <div>X: <span className="text-white">{hoveredMarker.xCenterM.toFixed(2)} m</span></div>
+            <div>Prof: <span className="text-purple-300">{hoveredMarker.depthM.toFixed(2)} m</span></div>
+            <div>TWT: <span className="text-amber-300">{hoveredMarker.timeNs.toFixed(1)} ns</span></div>
+            <div>Severidad: <span className="text-emerald-400">{hoveredMarker.severity.toFixed(2)}</span></div>
+          </div>
+          <p className="text-[9px] text-slate-400 italic pt-0.5">Click para ver ficha técnica detallada</p>
+        </div>
+      )}
+
+      {/* Detail Card Modal on Marker Click */}
+      {selectedMarker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-border max-w-md w-full overflow-hidden text-xs">
+            <div className="p-4 bg-primary text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm">{selectedMarker.title}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white">
+                  {selectedMarker.severityLabel}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedMarker(null)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3.5 max-h-[75vh] overflow-y-auto">
+              <div className="bg-surface p-3 rounded-xl border border-border">
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
+                  Ubicación Geofísica
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                  <div>Posición X: <strong>{selectedMarker.xCenterM.toFixed(2)} m</strong></div>
+                  <div>Profundidad z: <strong className="text-purple-700">{selectedMarker.depthM.toFixed(3)} m</strong></div>
+                  <div>Tiempo TWT: <strong className="text-amber-700">{selectedMarker.timeNs.toFixed(1)} ns</strong></div>
+                  <div>Extensión Lateral: <strong>{(selectedMarker.xEndM - selectedMarker.xStartM).toFixed(2)} m</strong></div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-200">
+                <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider block mb-1">
+                  Criterio Matemático Disparado
+                </span>
+                <code className="text-xs font-mono font-bold text-primary block bg-white p-2 rounded-lg border border-blue-200/80 break-words">
+                  {selectedMarker.mathCriterion}
+                </code>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
+                  Valores Medidos
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(selectedMarker.measuredValues).map(([k, v]) => (
+                    <div key={k} className="p-2 bg-gray-50 rounded-lg border border-border flex flex-col">
+                      <span className="text-[9px] text-text-muted">{k}</span>
+                      <span className="font-mono font-bold text-primary text-xs">{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-surface border-t border-border flex justify-end">
+              <button
+                onClick={() => setSelectedMarker(null)}
+                className="btn btn-primary btn-sm px-4 py-1.5 cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Navigation Toolbar */}
       <div className="bg-slate-900 border-t border-slate-800 px-4 py-2 flex items-center justify-between gap-3 text-xs">

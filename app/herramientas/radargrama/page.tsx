@@ -16,6 +16,13 @@ import {
   exportBatchPPTX,
 } from '@/lib/gpr/exportEngine';
 import {
+  DetectionConfig,
+  DetectionResults,
+  DEFAULT_DETECTION_CONFIG,
+  EMPTY_DETECTION_RESULTS,
+} from '@/lib/gpr/detectionTypes';
+import { runAnomalyDetections } from '@/lib/gpr/detectionEngine';
+import {
   Upload,
   FileSpreadsheet,
   FileDown,
@@ -51,6 +58,10 @@ export default function RadargramaWorkstationPage() {
   // Selected A-Scan modal state
   const [selectedTraceIdx, setSelectedTraceIdx] = useState<number | null>(null);
 
+  // Anomaly Detection State per dataset (map dataset ID -> DetectionConfig)
+  const [detectionConfigMap, setDetectionConfigMap] = useState<Record<string, DetectionConfig>>({});
+  const [detectionResultsMap, setDetectionResultsMap] = useState<Record<string, DetectionResults>>({});
+
   // Macro Manager & Batch Processing state
   const [showMacroModal, setShowMacroModal] = useState<boolean>(false);
   const [customMacros, setCustomMacros] = useState<GPRMacro[]>([]);
@@ -74,6 +85,22 @@ export default function RadargramaWorkstationPage() {
     ? dspOptionsMap[activeDatasetId]
     : DEFAULT_DSP_OPTIONS;
   const activeProcessedMatrix = activeDatasetId ? processedMatrices[activeDatasetId] || null : null;
+
+  const activeDetectionConfig = activeDatasetId && detectionConfigMap[activeDatasetId]
+    ? detectionConfigMap[activeDatasetId]
+    : DEFAULT_DETECTION_CONFIG;
+
+  const activeDetectionResults = activeDatasetId && detectionResultsMap[activeDatasetId]
+    ? detectionResultsMap[activeDatasetId]
+    : EMPTY_DETECTION_RESULTS;
+
+  const handleDetectionConfigChange = (newConfig: DetectionConfig) => {
+    if (!activeDatasetId) return;
+    setDetectionConfigMap((prev) => ({
+      ...prev,
+      [activeDatasetId]: newConfig,
+    }));
+  };
 
   // Apply specified DSP options to given dataset IDs
   const handleApplyOptionsToDatasets = (datasetIds: string[], options: DSPOptions) => {
@@ -111,6 +138,31 @@ export default function RadargramaWorkstationPage() {
       [activeDataset.id]: processed,
     }));
   }, [activeDataset, activeOptions]);
+
+  // Run anomaly detections whenever dataset, processedMatrix, or detection configuration changes
+  useEffect(() => {
+    if (!activeDatasetId || !activeProcessedMatrix) return;
+
+    const results = runAnomalyDetections(
+      activeProcessedMatrix,
+      activeOptions.ventanaNs,
+      activeOptions.traceDistanceStepM,
+      activeOptions.dielectricPermittivity,
+      activeDetectionConfig
+    );
+
+    setDetectionResultsMap((prev) => ({
+      ...prev,
+      [activeDatasetId]: results,
+    }));
+  }, [
+    activeDatasetId,
+    activeProcessedMatrix,
+    activeDetectionConfig,
+    activeOptions.ventanaNs,
+    activeOptions.traceDistanceStepM,
+    activeOptions.dielectricPermittivity,
+  ]);
 
   // Handle Binary GSF File Upload (Single or Batch)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -501,6 +553,8 @@ export default function RadargramaWorkstationPage() {
                 traceDistanceStepM={activeOptions.traceDistanceStepM}
                 onSelectTrace={(traceIdx) => setSelectedTraceIdx(traceIdx)}
                 showHyperbolaTool={showHyperbolaTool}
+                detectionConfig={activeDetectionConfig}
+                detectionResults={activeDetectionResults}
               />
             </div>
 
@@ -520,6 +574,9 @@ export default function RadargramaWorkstationPage() {
                 showHyperbolaTool={showHyperbolaTool}
                 onToggleHyperbolaTool={setShowHyperbolaTool}
                 onResetDSP={handleResetDSP}
+                detectionConfig={activeDetectionConfig}
+                onDetectionConfigChange={handleDetectionConfigChange}
+                detectionResults={activeDetectionResults}
               />
             </div>
           </>

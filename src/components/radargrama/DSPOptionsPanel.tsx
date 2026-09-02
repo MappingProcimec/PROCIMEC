@@ -23,7 +23,18 @@ import {
   Layers,
   BarChart,
   Scan,
+  Droplets,
+  CircleDot,
+  AlertTriangle,
+  Grid,
+  GitCommit,
+  Moon,
 } from 'lucide-react';
+import {
+  DetectionConfig,
+  DetectionResults,
+  DEFAULT_DETECTION_CONFIG,
+} from '@/lib/gpr/detectionTypes';
 
 interface DSPOptionsPanelProps {
   options: DSPOptions;
@@ -39,6 +50,9 @@ interface DSPOptionsPanelProps {
   showHyperbolaTool: boolean;
   onToggleHyperbolaTool: (show: boolean) => void;
   onResetDSP: () => void;
+  detectionConfig?: DetectionConfig;
+  onDetectionConfigChange?: (cfg: DetectionConfig) => void;
+  detectionResults?: DetectionResults;
 }
 
 /**
@@ -246,9 +260,77 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   showHyperbolaTool,
   onToggleHyperbolaTool,
   onResetDSP,
+  detectionConfig = DEFAULT_DETECTION_CONFIG,
+  onDetectionConfigChange,
+  detectionResults,
 }) => {
   // Main tabs: Modo (Izquierda), Procesamiento (Centro), Calibración, Detección
   const [activeTab, setActiveTab] = useState<'mode' | 'filters' | 'calibracion' | 'deteccion'>('mode');
+
+  // Detection config state with 300ms debounce
+  const [localConfig, setLocalConfig] = useState<DetectionConfig>(detectionConfig);
+
+  useEffect(() => {
+    if (detectionConfig) {
+      setLocalConfig(detectionConfig);
+    }
+  }, [detectionConfig]);
+
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const updateDetection = <K extends keyof DetectionConfig, F extends keyof DetectionConfig[K]>(
+    category: K,
+    field: F,
+    value: DetectionConfig[K][F],
+    isImmediate = false
+  ) => {
+    const updated = {
+      ...localConfig,
+      [category]: {
+        ...localConfig[category],
+        [field]: value,
+      },
+    };
+    setLocalConfig(updated);
+
+    if (isImmediate) {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      onDetectionConfigChange?.(updated);
+    } else {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        onDetectionConfigChange?.(updated);
+      }, 300);
+    }
+  };
+
+  // Collapsible Accordion sections for Detección view (ALL CONTRACTED BY DEFAULT!)
+  const [detectionOpenSections, setDetectionOpenSections] = useState<{
+    brightSpot: boolean;
+    hyperbola: boolean;
+    delamination: boolean;
+    subslabVoid: boolean;
+    diffuseScattering: boolean;
+    jointInfiltration: boolean;
+    dielectricShadow: boolean;
+    thicknessVariation: boolean;
+  }>({
+    brightSpot: false,
+    hyperbola: false,
+    delamination: false,
+    subslabVoid: false,
+    diffuseScattering: false,
+    jointInfiltration: false,
+    dielectricShadow: false,
+    thicknessVariation: false,
+  });
+
+  const toggleDetectionSection = (key: keyof typeof detectionOpenSections) => {
+    setDetectionOpenSections((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   // Collapsible Accordion sections for Calibración view (ALL CONTRACTED BY DEFAULT!)
   const [openSections, setOpenSections] = useState<{
@@ -371,7 +453,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
       <div className="p-3.5 border-b border-border flex items-center justify-between bg-gray-50/70">
         <div className="flex items-center gap-2 text-primary font-bold text-sm">
           <Sliders className="w-4 h-4 text-primary" />
-          <span>Panel de Calibración GPR</span>
+          <span>Panel de Control y Análisis GPR</span>
         </div>
         <button
           onClick={onResetDSP}
@@ -1326,20 +1408,1056 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         {/* ============================================================ */}
         {activeTab === 'deteccion' && (
           <div className="space-y-3">
-            <div className="bg-gray-50 rounded-2xl border border-border p-4 text-center space-y-3 shadow-2xs">
-              <div className="w-10 h-10 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto border border-amber-200 shadow-2xs">
-                <Scan className="w-5 h-5 text-amber-600" />
-              </div>
-              <div>
-                <h4 className="font-bold text-text-primary text-xs">Detección Automática sobre Perfil</h4>
-                <p className="text-[11px] text-text-muted mt-1 leading-relaxed">
-                  Módulo reservado para el reconocimiento automático de anomalías, trazado de tuberías, armaduras de concreto y patrones hiperbólicos.
-                </p>
-              </div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-amber-800 border border-amber-300 rounded-full text-[10px] font-bold shadow-2xs">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Sección Lista para Modelos y Algoritmos</span>
-              </div>
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 1: BRIGHT SPOT (ACUMULACIÓN DE AGUA)                     */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleDetectionSection('brightSpot')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <Droplets className="w-4 h-4 text-sky-500" />
+                  <span>Bright Spot (Acumulación de Agua)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.brightSpot.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('brightSpot', 'enabled', e.target.checked, true);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                  />
+                  {detectionOpenSections.brightSpot ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {detectionOpenSections.brightSpot && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10px] text-text-muted leading-relaxed">
+                    Identifica zonas de saturación hídrica mediante alta permitividad (εr ≈ 81), inversión de fase e incremento anómalo de amplitud.
+                  </p>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Umbral de Amplitud (A &gt; μ + kσ):
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-sky-600">
+                          {localConfig.brightSpot.thresholdSigma.toFixed(1)}σ
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1.5"
+                        max="4.0"
+                        step="0.1"
+                        value={localConfig.brightSpot.thresholdSigma}
+                        onChange={(e) =>
+                          updateDetection('brightSpot', 'thresholdSigma', parseFloat(e.target.value))
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[9px] text-text-muted font-mono mt-0.5">
+                        <span>1.5σ</span>
+                        <span>Predet: 2.5σ</span>
+                        <span>4.0σ</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                      <label className="text-[10px] font-semibold text-text-secondary">
+                        Filtro de Fase: Solo Invertida (R &lt; 0)
+                      </label>
+                      <input
+                        type="checkbox"
+                        checked={localConfig.brightSpot.invertedOnly}
+                        onChange={(e) =>
+                          updateDetection('brightSpot', 'invertedOnly', e.target.checked, true)
+                        }
+                        className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                        Extensión Lateral Máxima (m):
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.2"
+                          min="0.4"
+                          max="15.0"
+                          value={localConfig.brightSpot.maxLateralExtentM}
+                          onChange={(e) =>
+                            updateDetection(
+                              'brightSpot',
+                              'maxLateralExtentM',
+                              Math.max(0.2, parseFloat(e.target.value) || 2.0)
+                            )
+                          }
+                          className="input text-xs py-1 font-mono font-bold text-primary flex-1"
+                        />
+                        <span className="text-[10px] font-mono text-text-muted">metros</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-sky-50 rounded-xl border border-sky-200 text-sky-800 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults ? `${detectionResults.brightSpots.count} bright spots detected` : '0 bright spots detected'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <svg height="8" width="36" className="flex-shrink-0">
+                      <line x1="0" y1="4" x2="36" y2="4" stroke="#00BFFF" strokeWidth="1" strokeDasharray="4,2" />
+                    </svg>
+                    <span className="truncate">Línea horizontal segmentada cian (1px, #00BFFF)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 2: HIPÉRBOLAS DE DIFRACCIÓN (ACERO / DISCONTINUIDADES)   */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleDetectionSection('hyperbola')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <CircleDot className="w-4 h-4 text-rose-500" />
+                  <span>Hipérbolas de Difracción (Acero / Discontinuidades)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.hyperbola.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('hyperbola', 'enabled', e.target.checked, true);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                  />
+                  {detectionOpenSections.hyperbola ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {detectionOpenSections.hyperbola && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10px] text-text-muted leading-relaxed">
+                    Detección analítica de ramas de difracción t(x) = √(t₀² + 4Δx²/v²) originadas por varillas de acero, tuberías y bordes estructurales.
+                  </p>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Tolerancia Desviación Profundidad (Δz):
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-rose-600">
+                          ±{localConfig.hyperbola.depthDeviationM.toFixed(2)} m
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.01"
+                        max="0.20"
+                        step="0.01"
+                        value={localConfig.hyperbola.depthDeviationM}
+                        onChange={(e) =>
+                          updateDetection('hyperbola', 'depthDeviationM', parseFloat(e.target.value))
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Umbral de Amplitud de Ápice (&gt; μ + kσ):
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-rose-600">
+                          &gt; {localConfig.hyperbola.amplitudeThresholdSigma.toFixed(1)}σ
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1.0"
+                        max="4.0"
+                        step="0.1"
+                        value={localConfig.hyperbola.amplitudeThresholdSigma}
+                        onChange={(e) =>
+                          updateDetection('hyperbola', 'amplitudeThresholdSigma', parseFloat(e.target.value))
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                          Ratio Asimetría (&gt;):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="1.0"
+                          max="5.0"
+                          value={localConfig.hyperbola.asymmetryRatio}
+                          onChange={(e) =>
+                            updateDetection(
+                              'hyperbola',
+                              'asymmetryRatio',
+                              Math.max(1.0, parseFloat(e.target.value) || 1.3)
+                            )
+                          }
+                          className="input text-xs py-1 font-mono font-bold text-primary w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                          Velocidad Ajuste (m/ns):
+                        </label>
+                        <input
+                          type="number"
+                          step="0.005"
+                          min="0.05"
+                          max="0.25"
+                          value={localConfig.hyperbola.velocityFitting}
+                          onChange={(e) =>
+                            updateDetection(
+                              'hyperbola',
+                              'velocityFitting',
+                              Math.max(0.04, parseFloat(e.target.value) || 0.13)
+                            )
+                          }
+                          className="input text-xs py-1 font-mono font-bold text-primary w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-rose-50 rounded-xl border border-rose-200 text-rose-800 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults ? `${detectionResults.hyperbolas.count} anomalous hyperbolas detected` : '0 anomalous hyperbolas detected'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <svg height="14" width="14" className="flex-shrink-0">
+                      <circle cx="7" cy="7" r="6" fill="#FF4500" stroke="#FFFFFF" strokeWidth="1" />
+                    </svg>
+                    <span className="truncate">Círculo rojo-naranja (radio 8px, #FF4500)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 3: DELAMINACIÓN (SEPARACIÓN ENTRE CAPAS)                 */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleDetectionSection('delamination')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <Layers className="w-4 h-4 text-amber-500" />
+                  <span>Delaminación (Separación entre Capas)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.delamination.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('delamination', 'enabled', e.target.checked, true);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                  />
+                  {detectionOpenSections.delamination ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {detectionOpenSections.delamination && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10px] text-text-muted leading-relaxed">
+                    Identifica desprendimientos y huecos milimétricos entre capas de asfalto y losa por atenuación del eco subyacente.
+                  </p>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
+                    {/* Fixed Info */}
+                    <div className="flex items-center justify-between bg-amber-50/70 p-2 rounded-lg border border-amber-200/80 text-[10px]">
+                      <span className="font-semibold text-amber-900">Gap mínimo resoluble:</span>
+                      <span className="font-mono font-bold text-amber-800">
+                        Δt &gt; 0.33 ns (= 50 mm)
+                      </span>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Umbral Pérdida de Reflexión Profunda:
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-amber-700">
+                          &gt; {localConfig.delamination.reflectionLossPercent}% caída
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="80"
+                        step="5"
+                        value={localConfig.delamination.reflectionLossPercent}
+                        onChange={(e) =>
+                          updateDetection('delamination', 'reflectionLossPercent', parseInt(e.target.value, 10))
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[9px] text-text-muted font-mono mt-0.5">
+                        <span>10%</span>
+                        <span>Predet: 40%</span>
+                        <span>80%</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2 bg-gray-50 rounded-lg border border-border text-[10px] text-text-secondary">
+                      <span className="font-semibold text-primary">Condición de Fase: </span>
+                      <span>Primer pico R &gt; 0 (sin inversión de fase por aire)</span>
+                    </div>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults ? `${detectionResults.delaminations.count} delamination zones detected` : '0 delamination zones detected'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <svg height="8" width="36" className="flex-shrink-0">
+                      <line x1="0" y1="4" x2="36" y2="4" stroke="#FFD700" strokeWidth="1.5" />
+                    </svg>
+                    <span className="truncate">Línea sólida dorada (1px, #FFD700)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 4: VACÍO SUB-LOSA (ALTA CRITICIDAD)                       */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleDetectionSection('subslabVoid')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                  <span>Vacío Sub-losa (Alta Criticidad)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.subslabVoid.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('subslabVoid', 'enabled', e.target.checked, true);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                  />
+                  {detectionOpenSections.subslabVoid ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {detectionOpenSections.subslabVoid && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10px] text-text-muted leading-relaxed">
+                    Cavidad o socavación inferior bajo pavimento rígido. Detecta interfaz concreto-aire R₂ y fondo aire-suelo R₃ con pérdida energética posterior.
+                  </p>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
+                    {/* Fixed Info Badges */}
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div className="bg-red-50 p-2 rounded-lg border border-red-200">
+                        <span className="text-text-muted block text-[9px]">Altura mín. detectable:</span>
+                        <strong className="text-red-700 font-mono">100 mm (Δt = 0.67 ns)</strong>
+                      </div>
+                      <div className="bg-red-50 p-2 rounded-lg border border-red-200">
+                        <span className="text-text-muted block text-[9px]">Umbral Amplitud R₂:</span>
+                        <strong className="text-red-700 font-mono">&gt; μ + 2.0σ (sin inv.)</strong>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                        R₃ debe seguir dentro de ventana (ns):
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] text-text-muted">Min:</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0.3"
+                            max="2.0"
+                            value={localConfig.subslabVoid.r3FollowWindowMinNs}
+                            onChange={(e) =>
+                              updateDetection(
+                                'subslabVoid',
+                                'r3FollowWindowMinNs',
+                                parseFloat(e.target.value) || 0.67
+                              )
+                            }
+                            className="input text-xs py-1 font-mono font-bold w-full"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] text-text-muted">Max:</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="1.0"
+                            max="5.0"
+                            value={localConfig.subslabVoid.r3FollowWindowMaxNs}
+                            onChange={(e) =>
+                              updateDetection(
+                                'subslabVoid',
+                                'r3FollowWindowMaxNs',
+                                parseFloat(e.target.value) || 3.0
+                              )
+                            }
+                            className="input text-xs py-1 font-mono font-bold w-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Pérdida de Señal Bajo R₃:
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-red-600">
+                          &gt; {localConfig.subslabVoid.signalLossPercent}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="20"
+                        max="80"
+                        step="5"
+                        value={localConfig.subslabVoid.signalLossPercent}
+                        onChange={(e) =>
+                          updateDetection('subslabVoid', 'signalLossPercent', parseInt(e.target.value, 10))
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                      <label className="text-[10px] font-semibold text-text-secondary">
+                        Animación pulsante si umbral crítico IS &gt; 1.0
+                      </label>
+                      <input
+                        type="checkbox"
+                        checked={localConfig.subslabVoid.pulsingCritical}
+                        onChange={(e) =>
+                          updateDetection('subslabVoid', 'pulsingCritical', e.target.checked, true)
+                        }
+                        className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-red-50 rounded-xl border border-red-200 text-red-800 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults
+                        ? `${detectionResults.subslabVoids.count} voids detected — ${detectionResults.subslabVoids.criticalCount} critical`
+                        : '0 voids detected — 0 critical'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <svg height="16" width="16" className="flex-shrink-0">
+                      <circle cx="8" cy="8" r="6" fill="#FF0000" />
+                    </svg>
+                    <span className="truncate">Círculo rojo relleno (radio 12px, #FF0000)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 5: SCATTERING DIFUSO (FISURACIÓN MASIVA)                 */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleDetectionSection('diffuseScattering')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <Grid className="w-4 h-4 text-orange-500" />
+                  <span>Scattering Difuso (Fisuración Masiva)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.diffuseScattering.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('diffuseScattering', 'enabled', e.target.checked, true);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                  />
+                  {detectionOpenSections.diffuseScattering ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {detectionOpenSections.diffuseScattering && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10px] text-text-muted leading-relaxed">
+                    Identifica dispersión difusa e incoherencia de fase por microfisuras o degradación volumétrica del hormigón.
+                  </p>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Umbral Coeficiente Variación CV_A (&gt;):
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-orange-600">
+                          {localConfig.diffuseScattering.cvaThreshold.toFixed(2)}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.30"
+                        max="0.90"
+                        step="0.05"
+                        value={localConfig.diffuseScattering.cvaThreshold}
+                        onChange={(e) =>
+                          updateDetection('diffuseScattering', 'cvaThreshold', parseFloat(e.target.value))
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[9px] text-text-muted font-mono mt-0.5">
+                        <span>0.30</span>
+                        <span>Predet: 0.50</span>
+                        <span>0.90</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                        Extensión Lateral Mínima (m):
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="1.0"
+                          max="20.0"
+                          value={localConfig.diffuseScattering.minLateralExtentM}
+                          onChange={(e) =>
+                            updateDetection(
+                              'diffuseScattering',
+                              'minLateralExtentM',
+                              Math.max(0.5, parseFloat(e.target.value) || 3.0)
+                            )
+                          }
+                          className="input text-xs py-1 font-mono font-bold text-primary flex-1"
+                        />
+                        <span className="text-[10px] font-mono text-text-muted">metros</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Caída Energía DC FFT vs Referencia:
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-orange-600">
+                          &gt; {localConfig.diffuseScattering.fftDcEnergyDropPercent}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="20"
+                        max="90"
+                        step="5"
+                        value={localConfig.diffuseScattering.fftDcEnergyDropPercent}
+                        onChange={(e) =>
+                          updateDetection(
+                            'diffuseScattering',
+                            'fftDcEnergyDropPercent',
+                            parseInt(e.target.value, 10)
+                          )
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="p-2 bg-orange-50/60 rounded-lg border border-orange-200/80 text-[10px] text-orange-900">
+                      <span className="font-semibold block mb-0.5">Clasificación de Severidad:</span>
+                      <span>0.50–0.80 moderada | &gt; 0.80 severa</span>
+                    </div>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-orange-50 rounded-xl border border-orange-200 text-orange-800 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults
+                        ? `${detectionResults.diffuseScattering.count} cracking zones — total ${detectionResults.diffuseScattering.totalAffectedM.toFixed(1)}m affected`
+                        : '0 cracking zones — total 0.0m affected'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <svg height="12" width="24" className="flex-shrink-0">
+                      <rect width="24" height="12" fill="#FF6600" fillOpacity="0.25" />
+                    </svg>
+                    <span className="truncate">Rectángulo naranja translúcido (#FF6600, 25% opacidad)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 6: INFILTRACIÓN EN JUNTAS (PATRÓN PERIÓDICO)             */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleDetectionSection('jointInfiltration')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <GitCommit className="w-4 h-4 text-purple-600" />
+                  <span>Infiltración en Juntas (Patrón Periódico)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.jointInfiltration.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('jointInfiltration', 'enabled', e.target.checked, true);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                  />
+                  {detectionOpenSections.jointInfiltration ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {detectionOpenSections.jointInfiltration && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10px] text-text-muted leading-relaxed">
+                    Detecta anomalías de humedad recurrentes en juntas de dilatación o contracción con periodicidad L_j.
+                  </p>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
+                    <div>
+                      <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                        Espaciado Esperado de Juntas L_j (3 – 8 m):
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="3.0"
+                          max="8.0"
+                          value={localConfig.jointInfiltration.expectedJointSpacingM}
+                          onChange={(e) =>
+                            updateDetection(
+                              'jointInfiltration',
+                              'expectedJointSpacingM',
+                              Math.max(2.0, Math.min(10.0, parseFloat(e.target.value) || 4.5))
+                            )
+                          }
+                          className="input text-xs py-1 font-mono font-bold text-primary flex-1"
+                        />
+                        <span className="text-[10px] font-mono text-text-muted">metros</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Umbral Factor IDF (&gt;):
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-purple-700">
+                          {localConfig.jointInfiltration.idfThreshold.toFixed(1)}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1.0"
+                        max="6.0"
+                        step="0.2"
+                        value={localConfig.jointInfiltration.idfThreshold}
+                        onChange={(e) =>
+                          updateDetection('jointInfiltration', 'idfThreshold', parseFloat(e.target.value))
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[9px] text-text-muted font-mono mt-0.5">
+                        <span>1.0</span>
+                        <span>Predet: 2.0</span>
+                        <span>6.0</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2 bg-purple-50/70 rounded-lg border border-purple-200/80 text-[10px] text-purple-900">
+                      <span>IDF &lt; 2: Bueno | IDF 2–5: Daño moderado | IDF &gt; 5: Crítico</span>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                        Ventana Temporal de Análisis:
+                      </label>
+                      <div className="flex items-center gap-2 font-mono text-xs text-text-secondary">
+                        <span>{localConfig.jointInfiltration.analysisWindowMinNs} ns</span>
+                        <span>–</span>
+                        <span>{localConfig.jointInfiltration.analysisWindowMaxNs} ns</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-purple-50 rounded-xl border border-purple-200 text-purple-800 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults
+                        ? `${detectionResults.jointInfiltrations.count} infiltrated joints — max IDF: ${detectionResults.jointInfiltrations.maxIdf.toFixed(1)}`
+                        : '0 infiltrated joints — max IDF: 0.0'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <svg height="14" width="14" className="flex-shrink-0">
+                      <circle cx="7" cy="7" r="5" fill="none" stroke="#9B59B6" strokeWidth="2" />
+                    </svg>
+                    <span className="truncate">Círculo violeta (radio 6px, trazo 2px, #9B59B6)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 7: SOMBRA DIELÉCTRICA (PÉRDIDA PREMATURA DE SEÑAL)       */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleDetectionSection('dielectricShadow')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <Moon className="w-4 h-4 text-slate-600" />
+                  <span>Sombra Dieléctrica (Pérdida Prematura de Señal)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.dielectricShadow.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('dielectricShadow', 'enabled', e.target.checked, true);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                  />
+                  {detectionOpenSections.dielectricShadow ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {detectionOpenSections.dielectricShadow && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10px] text-text-muted leading-relaxed">
+                    Extinción anticipada del pulso por alta conductividad (suelos arcillosos, humedad salina o escoria metálica).
+                  </p>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Umbral de Pérdida (&lt; % Amplitud Superficie):
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-slate-700">
+                          &lt; {localConfig.dielectricShadow.signalLossThresholdPercent}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="20"
+                        step="1"
+                        value={localConfig.dielectricShadow.signalLossThresholdPercent}
+                        onChange={(e) =>
+                          updateDetection(
+                            'dielectricShadow',
+                            'signalLossThresholdPercent',
+                            parseInt(e.target.value, 10)
+                          )
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                        Ventana de Pérdida Sostenida (ns):
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="2"
+                        max="15"
+                        value={localConfig.dielectricShadow.sustainedLossWindowNs}
+                        onChange={(e) =>
+                          updateDetection(
+                            'dielectricShadow',
+                            'sustainedLossWindowNs',
+                            Math.max(1, parseInt(e.target.value, 10) || 5)
+                          )
+                        }
+                        className="input text-xs py-1 font-mono font-bold text-primary w-full"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Tiempo de Extinción Crítico t_ext:
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-slate-700">
+                          &lt; {localConfig.dielectricShadow.criticalExtinctionTimeNs} ns
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="8"
+                        max="25"
+                        step="1"
+                        value={localConfig.dielectricShadow.criticalExtinctionTimeNs}
+                        onChange={(e) =>
+                          updateDetection(
+                            'dielectricShadow',
+                            'criticalExtinctionTimeNs',
+                            parseInt(e.target.value, 10)
+                          )
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="p-2 bg-gray-50 rounded-lg border border-border text-[10px] text-text-secondary">
+                      <span className="font-semibold text-primary">Estimación de Atenuación: </span>
+                      <span>α = (15 - t_ext)/15 mapeado a dB/m</span>
+                    </div>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 rounded-xl border border-slate-300 text-slate-800 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults
+                        ? `${detectionResults.dielectricShadows.count} shadow zones — estimated α > 10 dB/m`
+                        : '0 shadow zones — estimated α > 10 dB/m'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <svg height="14" width="26" className="flex-shrink-0">
+                      <rect width="18" height="14" x="4" fill="#808080" fillOpacity="0.2" />
+                      <line x1="13" y1="0" x2="13" y2="14" stroke="#808080" strokeWidth="1" strokeDasharray="3,2" />
+                    </svg>
+                    <span className="truncate">Línea vertical gris (1px, #808080) + banda translúcida (20%)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 8: VARIACIÓN DE ESPESOR (INCONSISTENCIA ESTRUCTURAL)      */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleDetectionSection('thicknessVariation')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <Ruler className="w-4 h-4 text-emerald-600" />
+                  <span>Variación de Espesor (Inconsistencia Estructural)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.thicknessVariation.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('thicknessVariation', 'enabled', e.target.checked, true);
+                    }}
+                    className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
+                  />
+                  {detectionOpenSections.thicknessVariation ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {detectionOpenSections.thicknessVariation && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10px] text-text-muted leading-relaxed">
+                    Trazado automático de interfaz asfalto-base t₂(x) y detección de variaciones excesivas de espesor constructivo.
+                  </p>
+
+                  <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
+                    <div className="flex items-center justify-between bg-emerald-50/70 p-2 rounded-lg border border-emerald-200/80 text-[10px]">
+                      <span className="font-semibold text-emerald-900">Seguimiento de Interfaz:</span>
+                      <span className="font-mono font-bold text-emerald-800">
+                        t₂(x) reflexión asfalto-base [auto]
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                        Ventana Media Móvil (m):
+                      </label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        max="10.0"
+                        value={localConfig.thicknessVariation.rollingMeanWindowM}
+                        onChange={(e) =>
+                          updateDetection(
+                            'thicknessVariation',
+                            'rollingMeanWindowM',
+                            Math.max(0.5, parseFloat(e.target.value) || 2.0)
+                          )
+                        }
+                        className="input text-xs py-1 font-mono font-bold text-primary w-full"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-semibold text-text-secondary">
+                          Umbral de Desviación:
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-emerald-700">
+                          &gt; ±{localConfig.thicknessVariation.deviationThresholdNs.toFixed(1)} ns
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="3.0"
+                        step="0.1"
+                        value={localConfig.thicknessVariation.deviationThresholdNs}
+                        onChange={(e) =>
+                          updateDetection(
+                            'thicknessVariation',
+                            'deviationThresholdNs',
+                            parseFloat(e.target.value)
+                          )
+                        }
+                        className="w-full accent-primary bg-gray-200 rounded h-1.5 cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[9px] text-text-muted font-mono mt-0.5">
+                        <span>0.5 ns</span>
+                        <span>Predet: 1.5 ns</span>
+                        <span>3.0 ns</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2 bg-gray-50 rounded-lg border border-border text-[10px] text-text-secondary">
+                      <span className="font-semibold text-primary">Equivalencia en Profundidad: </span>
+                      <span className="font-mono">
+                        Δd = v·Δt/2 = ({(0.13 * localConfig.thicknessVariation.deviationThresholdNs * 50).toFixed(1)} cm a v=0.13)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults
+                        ? `${detectionResults.thicknessVariations.count} thickness anomaly zones — max deviation ±${detectionResults.thicknessVariations.maxDeviationCm.toFixed(1)} cm`
+                        : '0 thickness anomaly zones — max deviation ±0.0 cm'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <svg height="10" width="34" className="flex-shrink-0">
+                      <line x1="0" y1="5" x2="18" y2="5" stroke="#2ECC71" strokeWidth="1.5" strokeDasharray="2,2" />
+                      <line x1="18" y1="5" x2="34" y2="5" stroke="#E74C3C" strokeWidth="1.5" strokeDasharray="2,2" />
+                    </svg>
+                    <span className="truncate">Curva punteada verde (#2ECC71) / roja (#E74C3C)</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
