@@ -109,6 +109,11 @@ export function renderFullProfileCanvas(
   imgCanvas.height = numSamples;
   const imgCtx = imgCanvas.getContext('2d');
 
+  const MIN_WINDOW_M = 10.0;
+  const dispWindowM = Math.max(MIN_WINDOW_M, distTotalM);
+  const dataFraction = Math.min(1.0, distTotalM / dispWindowM);
+  const dataPlotWidth = plotW * dataFraction;
+
   if (imgCtx && numTraces > 0 && numSamples > 0) {
     const imgData = imgCtx.createImageData(numTraces, numSamples);
     const data = imgData.data;
@@ -137,7 +142,15 @@ export function renderFullProfileCanvas(
     }
 
     imgCtx.putImageData(imgData, 0, 0);
-    ctx.drawImage(imgCanvas, padL, padT, plotW, plotH);
+    ctx.drawImage(imgCanvas, padL, padT, dataPlotWidth, plotH);
+
+    // Fill remaining horizontal area with white blank space if data length < 10m
+    if (dataPlotWidth < plotW) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(padL + dataPlotWidth, padT, plotW - dataPlotWidth, plotH);
+      ctx.strokeStyle = '#E2E8F0';
+      ctx.strokeRect(padL + dataPlotWidth, padT, plotW - dataPlotWidth, plotH);
+    }
   }
 
   // Plot Border
@@ -159,16 +172,16 @@ export function renderFullProfileCanvas(
     46
   );
 
-  // Top X-Axis Ticks: Trace Numbers
+  // Top X-Axis Ticks: Trace Numbers (Over dataPlotWidth)
   ctx.fillStyle = '#334155';
   ctx.font = '11px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Número de Traza', padL + plotW / 2, padT - 22);
+  ctx.fillText('Número de Traza', padL + dataPlotWidth / 2, padT - 22);
 
   const numTricks = 8;
   for (let i = 0; i <= numTricks; i++) {
     const frac = i / numTricks;
-    const x = padL + frac * plotW;
+    const x = padL + frac * dataPlotWidth;
     const tVal = Math.round(frac * (numTraces - 1)) + 1;
 
     ctx.beginPath();
@@ -179,13 +192,13 @@ export function renderFullProfileCanvas(
     ctx.fillText(`${tVal}`, x, padT - 8);
   }
 
-  // Bottom X-Axis Ticks: Distance in Meters
+  // Bottom X-Axis Ticks: Distance in Meters (0.00m to dispWindowM, minimum 10.0m)
   ctx.fillText('Distancia Recorrida (m)', padL + plotW / 2, padT + plotH + 45);
 
   for (let i = 0; i <= numTricks; i++) {
     const frac = i / numTricks;
     const x = padL + frac * plotW;
-    const mVal = frac * distTotalM;
+    const mVal = frac * dispWindowM;
 
     ctx.beginPath();
     ctx.moveTo(x, padT + plotH);

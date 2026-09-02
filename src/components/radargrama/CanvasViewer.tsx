@@ -40,7 +40,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Horizontal Window & Panning state (Default 10 meters visible window)
+  // Horizontal Window & Panning state (Minimum window size = 10 meters)
   const [windowMeters, setWindowMeters] = useState<number>(10.0);
   const [scrollMeters, setScrollMeters] = useState<number>(0.0);
 
@@ -52,6 +52,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     depthM: number;
     distM: number;
     amplitude: number;
+    hasData: boolean;
   } | null>(null);
 
   // Hyperbola tool state
@@ -64,8 +65,12 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const dxM = traceDistanceStepM > 0 ? traceDistanceStepM : 1.0 / 112.0;
   const distTotalM = numTraces * dxM;
 
-  // Calculate visible window and trace range
-  const effWindowM = windowMeters === 0 ? distTotalM : Math.min(windowMeters, distTotalM);
+  // Minimum visible window in distance is ALWAYS 10.0 meters
+  const MIN_WINDOW_M = 10.0;
+  const effWindowM = windowMeters === 0
+    ? Math.max(MIN_WINDOW_M, distTotalM)
+    : Math.max(MIN_WINDOW_M, Math.min(windowMeters, distTotalM));
+
   const maxScrollM = Math.max(0, distTotalM - effWindowM);
   const startM = Math.max(0, Math.min(maxScrollM, scrollMeters));
   const endM = Math.min(distTotalM, startM + effWindowM);
@@ -73,6 +78,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const startTrace = Math.max(0, Math.floor(startM / dxM));
   const endTrace = Math.min(numTraces, Math.ceil(endM / dxM));
   const visibleTraces = Math.max(1, endTrace - startTrace);
+  const visibleDataDistM = visibleTraces * dxM;
 
   // Convert bipolar amplitude value [-1, 1] to RGB matching Python matplotlib colormaps
   const getPaletteColor = useCallback(
@@ -131,7 +137,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     [palette, contrast, brightness]
   );
 
-  // Render Canvas with 10m Windowing
+  // Render Canvas with Minimum 10m Windowing & Blank Space for Short Profiles
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !processedMatrix || numTraces === 0 || numSamples === 0) return;
@@ -157,6 +163,10 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
     if (plotWidth <= 0 || plotHeight <= 0) return;
 
+    // Proportion of physical data width relative to 10m minimum window
+    const dataFraction = Math.min(1.0, visibleDataDistM / effWindowM);
+    const dataPlotWidth = Math.max(1, Math.floor(plotWidth * dataFraction));
+
     // Symmetric 98.5-percentile clipping across visible traces
     const allAbs: number[] = [];
     const step = Math.max(1, Math.floor(visibleTraces / 100));
@@ -171,7 +181,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const pIdx = Math.floor(allAbs.length * 0.985);
     const vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
 
-    // Offscreen ImageData for current 10m window (visibleTraces x numSamples)
+    // Offscreen ImageData for current profile data (visibleTraces x numSamples)
     const imgData = ctx.createImageData(visibleTraces, numSamples);
     const data = imgData.data;
 
@@ -199,9 +209,25 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       offCtx.putImageData(imgData, 0, 0);
     }
 
-    // Draw image locked solidly inside plot area [margin.left ... plotWidth, margin.top ... plotHeight]
+    // Draw profile image strictly inside dataPlotWidth
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(offCanvas, 0, 0, visibleTraces, numSamples, margin.left, margin.top, plotWidth, plotHeight);
+    ctx.drawImage(offCanvas, 0, 0, visibleTraces, numSamples, margin.left, margin.top, dataPlotWidth, plotHeight);
+
+    // Fill remaining horizontal area with white blank space when profile length < 10m
+    if (dataPlotWidth < plotWidth) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(margin.left + dataPlotWidth, margin.top, plotWidth - dataPlotWidth, plotHeight);
+
+      // Subtle hatch pattern for empty space
+      ctx.strokeStyle = '#E2E8F0';
+      ctx.lineWidth = 1;
+      for (let x = margin.left + dataPlotWidth; x < margin.left + plotWidth; x += 15) {
+        ctx.beginPath();
+        ctx.moveTo(x, margin.top);
+        ctx.lineTo(x - 20, margin.top + plotHeight);
+        ctx.stroke();
+      }
+    }
 
     // Hyperbola Tool Overlay
     if (showHyperbolaTool) {
@@ -212,7 +238,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
       ctx.save();
       ctx.beginPath();
-      ctx.rect(margin.left, margin.top, plotWidth, plotHeight);
+      ctx.rect(margin.left, margin.top, dataPlotWidth, plotHeight);
       ctx.clip();
 
       ctx.strokeStyle = '#f5a623';
@@ -228,7 +254,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
         const tNs = Math.sqrt(t0Ns * t0Ns + (4 * distM * distM) / (vMPerNs * vMPerNs));
         const sIdx = tNs / dt;
 
-        const canvasX = margin.left + ((tr - startTrace) / visibleTraces) * plotWidth;
+        const canvasX = margin.left + ((tr - startTrace) / visibleTraces) * dataPlotWidth;
         const canvasY = margin.top + (sIdx / numSamples) * plotHeight;
 
         if (tr === startTrace) ctx.moveTo(canvasX, canvasY);
@@ -237,7 +263,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       ctx.stroke();
 
       if (apex.trace >= startTrace && apex.trace < endTrace) {
-        const apexCanvasX = margin.left + ((apex.trace - startTrace) / visibleTraces) * plotWidth;
+        const apexCanvasX = margin.left + ((apex.trace - startTrace) / visibleTraces) * dataPlotWidth;
         const apexCanvasY = margin.top + (apex.sample / numSamples) * plotHeight;
 
         ctx.fillStyle = '#f5a623';
@@ -260,17 +286,17 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const vMPerNs = calculateVelocity(dielectricPermittivity);
     const profMaxM = (vMPerNs * twNs) / 2.0;
 
-    // 1. TOP AXIS: Número de Traza (startTrace + 1 ... endTrace)
+    // 1. TOP AXIS: Número de Traza (Over dataPlotWidth span)
     ctx.fillStyle = '#1A252C';
     ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Número de Traza', margin.left + plotWidth / 2, margin.top - 20);
+    ctx.fillText('Número de Traza', margin.left + dataPlotWidth / 2, margin.top - 20);
 
     ctx.font = '8px sans-serif';
     const numXTicks = 8;
     for (let i = 0; i <= numXTicks; i++) {
       const frac = i / numXTicks;
-      const xPos = margin.left + frac * plotWidth;
+      const xPos = margin.left + frac * dataPlotWidth;
       const traceNum = Math.max(1, Math.round(startTrace + 1 + frac * Math.max(0, visibleTraces - 1)));
 
       ctx.beginPath();
@@ -280,7 +306,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       ctx.fillText(`${traceNum}`, xPos, margin.top - 6);
     }
 
-    // 2. BOTTOM AXIS: Distancia Recorrida (m)
+    // 2. BOTTOM AXIS: Distancia Recorrida (m) (0.00m to effWindowM minimum 10.0m)
     ctx.font = 'bold 9px sans-serif';
     ctx.fillText('Distancia Recorrida (m)', margin.left + plotWidth / 2, height - 10);
 
@@ -299,9 +325,10 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
     // 3. LEFT AXIS: Tiempo de Viaje (ns)
     ctx.save();
-    ctx.translate(16, margin.top + plotHeight / 2);
+    ctx.translate(15, margin.top + plotHeight / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
     ctx.fillText('Tiempo de Viaje (ns)', 0, 0);
     ctx.restore();
 
@@ -322,10 +349,10 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
     // 4. RIGHT AXIS: Profundidad Estimada (m)
     ctx.save();
-    ctx.translate(width - 12, margin.top + plotHeight / 2);
+    ctx.translate(width - 15, margin.top + plotHeight / 2);
     ctx.rotate(Math.PI / 2);
-    ctx.fillStyle = '#780000';
     ctx.font = 'bold 9px sans-serif';
+    ctx.fillStyle = '#780000';
     ctx.textAlign = 'center';
     ctx.fillText('Profundidad Estimada (m)', 0, 0);
     ctx.restore();
@@ -359,6 +386,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     startTrace,
     endTrace,
     visibleTraces,
+    visibleDataDistM,
     startM,
     endM,
     effWindowM,
@@ -366,7 +394,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     dataset,
   ]);
 
-  // Mouse handlers (Locked cleanly to plot coordinates & window)
+  // Mouse handlers (Locked cleanly to data plot region)
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -379,13 +407,16 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const plotWidth = rect.width - margin.left - margin.right;
     const plotHeight = rect.height - margin.top - margin.bottom;
 
+    const dataFraction = Math.min(1.0, visibleDataDistM / effWindowM);
+    const dataPlotWidth = Math.max(1, Math.floor(plotWidth * dataFraction));
+
     if (
       clickX >= margin.left &&
-      clickX <= margin.left + plotWidth &&
+      clickX <= margin.left + dataPlotWidth &&
       clickY >= margin.top &&
       clickY <= margin.top + plotHeight
     ) {
-      const normX = (clickX - margin.left) / plotWidth;
+      const normX = (clickX - margin.left) / dataPlotWidth;
       const normY = (clickY - margin.top) / plotHeight;
 
       const traceIdx = Math.max(0, Math.min(numTraces - 1, startTrace + Math.floor(normX * visibleTraces)));
@@ -412,13 +443,15 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const plotWidth = rect.width - margin.left - margin.right;
     const plotHeight = rect.height - margin.top - margin.bottom;
 
+    const dataFraction = Math.min(1.0, visibleDataDistM / effWindowM);
+    const dataPlotWidth = Math.max(1, Math.floor(plotWidth * dataFraction));
+
     if (isDraggingApex && showHyperbolaTool) {
-      const normX = (mouseX - margin.left) / plotWidth;
+      const normX = (mouseX - margin.left) / dataPlotWidth;
       const normY = (mouseY - margin.top) / plotHeight;
 
       const traceIdx = Math.max(0, Math.min(numTraces - 1, startTrace + Math.floor(normX * visibleTraces)));
       const sampleIdx = Math.max(0, Math.min(numSamples - 1, Math.floor(normY * numSamples)));
-
       setHyperbolaApex({ trace: traceIdx, sample: sampleIdx });
       return;
     }
@@ -429,23 +462,40 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       mouseY >= margin.top &&
       mouseY <= margin.top + plotHeight
     ) {
-      const normX = (mouseX - margin.left) / plotWidth;
       const normY = (mouseY - margin.top) / plotHeight;
+      const sampleIdx = Math.max(0, Math.min(numSamples - 1, Math.floor(normY * numSamples)));
+      const timeNs = (sampleIdx / Math.max(1, numSamples - 1)) * ventanaNs;
+      const vMPerNs = calculateVelocity(dielectricPermittivity);
+      const depthM = (timeNs * vMPerNs) / 2.0;
 
-      if (normX >= 0 && normX <= 1 && normY >= 0 && normY <= 1) {
+      if (mouseX <= margin.left + dataPlotWidth) {
+        const normX = (mouseX - margin.left) / dataPlotWidth;
         const traceIdx = Math.max(0, Math.min(numTraces - 1, startTrace + Math.floor(normX * visibleTraces)));
-        const sampleIdx = Math.max(0, Math.min(numSamples - 1, Math.floor(normY * numSamples)));
-
-        const dtNs = ventanaNs / (numSamples || 512);
-        const timeNs = sampleIdx * dtNs;
-        const vMPerNs = calculateVelocity(dielectricPermittivity);
-        const depthM = (timeNs * vMPerNs) / 2;
         const distM = traceIdx * dxM;
         const amplitude = processedMatrix[traceIdx]?.[sampleIdx] || 0;
 
-        setHoverInfo({ traceIdx, sampleIdx, timeNs, depthM, distM, amplitude });
+        setHoverInfo({
+          traceIdx,
+          sampleIdx,
+          timeNs,
+          depthM,
+          distM,
+          amplitude,
+          hasData: true,
+        });
       } else {
-        setHoverInfo(null);
+        const normXFull = (mouseX - margin.left) / plotWidth;
+        const distM = startM + normXFull * effWindowM;
+
+        setHoverInfo({
+          traceIdx: numTraces,
+          sampleIdx,
+          timeNs,
+          depthM,
+          distM,
+          amplitude: 0,
+          hasData: false,
+        });
       }
     } else {
       setHoverInfo(null);
@@ -456,156 +506,154 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     setIsDraggingApex(false);
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    if (distTotalM <= effWindowM || effWindowM <= 0) return;
-    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    const stepM = (effWindowM * 0.15) * (delta > 0 ? 1 : -1);
-    setScrollMeters((prev) => Math.max(0, Math.min(maxScrollM, prev + stepM)));
+  const handleMouseLeave = () => {
+    setIsDraggingApex(false);
+    setHoverInfo(null);
   };
 
-  const twNs = ventanaNs;
-  const vMPerNs = calculateVelocity(dielectricPermittivity);
-  const profMaxM = (vMPerNs * twNs) / 2.0;
+  // Quick navigation helpers
+  const handleScroll = (deltaM: number) => {
+    setScrollMeters((prev) => Math.max(0, Math.min(maxScrollM, prev + deltaM)));
+  };
 
   return (
-    <div ref={containerRef} className="relative w-full h-full flex flex-col bg-white rounded-2xl border border-border overflow-hidden shadow-card">
-      {/* Top Banner: PROCIMEC INGENIERIA SAS */}
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800 text-white z-10">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-xs text-sky-400">PROCIMEC INGENIERIA SAS</span>
-            {dataset && (
-              <span className="text-[11px] text-slate-300 font-mono">
-                — {dataset.filename}
-              </span>
+    <div className="flex-1 flex flex-col bg-surface overflow-hidden relative">
+      {/* Top Metadata Header Bar */}
+      <div className="bg-slate-900 text-slate-100 px-4 py-2 text-xs font-mono flex items-center justify-between border-b border-slate-800 shadow-md">
+        <div className="flex items-center gap-4 flex-wrap">
+          <span className="font-bold text-sky-400">
+            {dataset ? dataset.filename : 'Sin archivo'}
+          </span>
+          <span className="text-slate-400">
+            εr = <strong className="text-slate-200">{dielectricPermittivity.toFixed(1)}</strong>
+          </span>
+          <span className="text-slate-400">
+            v = <strong className="text-slate-200">{calculateVelocity(dielectricPermittivity).toFixed(3)} m/ns</strong>
+          </span>
+          <span className="text-slate-400">
+            Ventana = <strong className="text-amber-300">{ventanaNs.toFixed(1)} ns</strong>
+          </span>
+          <span className="text-slate-400">
+            Prof. Máx = <strong className="text-purple-300">{((calculateVelocity(dielectricPermittivity) * ventanaNs) / 2).toFixed(2)} m</strong>
+          </span>
+          <span className="text-slate-400">
+            Distancia Total = <strong className="text-emerald-400">{distTotalM.toFixed(2)} m</strong> ({numTraces} trazas)
+          </span>
+        </div>
+
+        {hoverInfo && (
+          <div className="hidden lg:flex items-center gap-3 bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 text-[11px]">
+            {hoverInfo.hasData ? (
+              <>
+                <span>Traza: <strong>#{hoverInfo.traceIdx + 1}</strong></span>
+                <span>Dist: <strong>{hoverInfo.distM.toFixed(2)}m</strong></span>
+                <span>Tiempo: <strong>{hoverInfo.timeNs.toFixed(1)}ns</strong></span>
+                <span>Prof: <strong>{hoverInfo.depthM.toFixed(2)}m</strong></span>
+                <span>Amp: <strong className={hoverInfo.amplitude >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{Math.round(hoverInfo.amplitude)}</strong></span>
+              </>
+            ) : (
+              <>
+                <span>Dist: <strong>{hoverInfo.distM.toFixed(2)}m</strong></span>
+                <span>Tiempo: <strong>{hoverInfo.timeNs.toFixed(1)}ns</strong></span>
+                <span className="text-slate-400 italic">Espacio en Blanco (Sin Datos)</span>
+              </>
             )}
           </div>
-          {dataset && (
-            <span className="text-[10px] text-slate-400 font-mono mt-0.5">
-              εr = {dielectricPermittivity.toFixed(1)} | v = {vMPerNs.toFixed(3)} m/ns | Ventana = {twNs.toFixed(1)} ns | Prof. Máx ≈ {profMaxM.toFixed(2)} m | Distancia Total = {distTotalM.toFixed(2)} m ({numTraces} trazas)
-            </span>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Main Canvas Viewport */}
-      <div className="relative flex-1 w-full h-full bg-white">
+      {/* Main Canvas Area */}
+      <div ref={containerRef} className="flex-1 relative bg-white overflow-hidden flex items-center justify-center p-2">
         <canvas
           ref={canvasRef}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
-          className="w-full h-full cursor-crosshair block"
+          onMouseLeave={handleMouseLeave}
+          className="w-full h-full block cursor-crosshair"
         />
-
-        {/* Hover Coordinate Info */}
-        {hoverInfo && (
-          <div className="absolute bottom-3 left-3 bg-slate-900/95 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-200 shadow-xl backdrop-blur-md flex items-center gap-4 z-10">
-            <div>
-              <span className="text-slate-400 font-sans">Traza:</span> <span className="text-sky-400 font-bold">{hoverInfo.traceIdx + 1}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 font-sans">Distancia:</span> <span className="text-emerald-400 font-bold">{hoverInfo.distM.toFixed(2)}m</span>
-            </div>
-            <div>
-              <span className="text-slate-400 font-sans">Tiempo:</span> <span className="text-amber-400 font-bold">{hoverInfo.timeNs.toFixed(1)}ns</span>
-            </div>
-            <div>
-              <span className="text-slate-400 font-sans">Profundidad:</span> <span className="text-purple-400 font-bold">{hoverInfo.depthM.toFixed(2)}m</span>
-            </div>
-            <div>
-              <span className="text-slate-400 font-sans">Amplitud:</span> <span className="text-rose-400 font-bold">{hoverInfo.amplitude.toFixed(1)}</span>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Bottom Horizontal Navigation & Scrollbar Bar (10m default window scrollbar) */}
-      {dataset && numTraces > 0 && (
-        <div className="bg-slate-900 border-t border-slate-800 px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-white z-10 select-none">
-          {/* Left: Navigation Buttons & Range Slider */}
-          <div className="flex items-center gap-1.5 text-xs w-full sm:w-auto flex-1 max-w-xl">
-            <button
-              onClick={() => setScrollMeters(0)}
-              disabled={scrollMeters <= 0}
-              className="p-1.5 hover:bg-slate-800 disabled:opacity-30 rounded text-slate-300 hover:text-white transition flex-shrink-0"
-              title="Ir al Inicio (0.00m)"
-            >
-              <ChevronsLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setScrollMeters((prev) => Math.max(0, prev - (effWindowM > 0 ? effWindowM : 10)))}
-              disabled={scrollMeters <= 0}
-              className="p-1.5 hover:bg-slate-800 disabled:opacity-30 rounded text-slate-300 hover:text-white transition flex-shrink-0"
-              title="Retroceder Ventana"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+      {/* Bottom Navigation Toolbar */}
+      <div className="bg-slate-900 border-t border-slate-800 px-4 py-2 flex items-center justify-between gap-3 text-xs">
+        {/* Scroll Controls */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => handleScroll(-10)}
+            disabled={scrollMeters <= 0}
+            className="p-1 text-slate-300 hover:text-white disabled:opacity-30 rounded hover:bg-slate-800 transition"
+            title="Inicio / Retroceder 10m"
+          >
+            <ChevronsLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleScroll(-2)}
+            disabled={scrollMeters <= 0}
+            className="p-1 text-slate-300 hover:text-white disabled:opacity-30 rounded hover:bg-slate-800 transition"
+            title="Retroceder 2m"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
 
-            {/* Horizontal Scrollbar Slider */}
-            <div className="flex-1 px-2 flex items-center">
-              <input
-                type="range"
-                min={0}
-                max={maxScrollM}
-                step={0.1}
-                value={startM}
-                onChange={(e) => setScrollMeters(parseFloat(e.target.value))}
-                disabled={maxScrollM <= 0}
-                className="w-full accent-sky-400 bg-slate-700 h-2 rounded cursor-pointer disabled:cursor-not-allowed"
-              />
-            </div>
-
-            <button
-              onClick={() => setScrollMeters((prev) => Math.min(maxScrollM, prev + (effWindowM > 0 ? effWindowM : 10)))}
-              disabled={scrollMeters >= maxScrollM}
-              className="p-1.5 hover:bg-slate-800 disabled:opacity-30 rounded text-slate-300 hover:text-white transition flex-shrink-0"
-              title="Avanzar Ventana"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setScrollMeters(maxScrollM)}
-              disabled={scrollMeters >= maxScrollM}
-              className="p-1.5 hover:bg-slate-800 disabled:opacity-30 rounded text-slate-300 hover:text-white transition flex-shrink-0"
-              title="Ir al Final"
-            >
-              <ChevronsRight className="w-4 h-4" />
-            </button>
+          {/* Range Slider for Panning */}
+          <div className="w-48 sm:w-72 mx-2">
+            <input
+              type="range"
+              min={0}
+              max={maxScrollM || 0.01}
+              step={0.1}
+              value={scrollMeters}
+              onChange={(e) => setScrollMeters(parseFloat(e.target.value))}
+              disabled={maxScrollM <= 0}
+              className="w-full accent-primary bg-slate-700 rounded h-1.5 cursor-pointer disabled:opacity-30"
+            />
           </div>
 
-          {/* Right: Window Presets (10m Default) & Distance Badge */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {/* Window Selector Presets */}
-            <div className="flex items-center gap-1 bg-slate-800/80 p-0.5 rounded-lg border border-slate-700 text-[11px]">
-              <span className="text-slate-400 px-1.5 text-[10px]">Ventana:</span>
-              {[10, 20, 50, 0].map((w) => (
-                <button
-                  key={w}
-                  onClick={() => {
-                    setWindowMeters(w);
-                    setScrollMeters(0);
-                  }}
-                  className={`px-2 py-0.5 rounded transition font-mono ${
-                    windowMeters === w
-                      ? 'bg-sky-500 text-white font-bold shadow-xs'
-                      : 'text-slate-300 hover:bg-slate-700'
-                  }`}
-                >
-                  {w === 0 ? 'Ver Todo' : `${w}m`}
-                </button>
-              ))}
-            </div>
-
-            {/* Distance Window Badge */}
-            <div className="text-[11px] font-mono bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700 text-sky-300">
-              {startM.toFixed(2)}m – {endM.toFixed(2)}m
-            </div>
-          </div>
+          <button
+            onClick={() => handleScroll(2)}
+            disabled={scrollMeters >= maxScrollM}
+            className="p-1 text-slate-300 hover:text-white disabled:opacity-30 rounded hover:bg-slate-800 transition"
+            title="Avanzar 2m"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleScroll(10)}
+            disabled={scrollMeters >= maxScrollM}
+            className="p-1 text-slate-300 hover:text-white disabled:opacity-30 rounded hover:bg-slate-800 transition"
+            title="Fin / Avanzar 10m"
+          >
+            <ChevronsRight className="w-4 h-4" />
+          </button>
         </div>
-      )}
+
+        {/* Window Selector & Range Readout */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
+            <span className="text-[10px] text-slate-400 px-1 font-medium">Ventana:</span>
+            {[10, 20, 50, 0].map((m) => (
+              <button
+                key={m}
+                onClick={() => {
+                  setWindowMeters(m);
+                  setScrollMeters(0);
+                }}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono transition ${
+                  windowMeters === m
+                    ? 'bg-primary text-white font-bold'
+                    : 'text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {m === 0 ? 'Ver Todo' : `${m}m`}
+              </button>
+            ))}
+          </div>
+
+          <span className="font-mono text-[11px] text-slate-300 bg-slate-800 px-2 py-1 rounded border border-slate-700">
+            {startM.toFixed(2)}m – {endM.toFixed(2)}m
+          </span>
+        </div>
+      </div>
     </div>
   );
 };
