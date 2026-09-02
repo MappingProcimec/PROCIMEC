@@ -4,10 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader, CABECERA_DEFAULT, DX_DEF, DIELECTRICO_DEF, VENTANA_TIEMPO_NS_DEF, TRAZAS_POR_METRO_DEF } from '@/lib/gpr/gsfParser';
-import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP } from '@/lib/gpr/dspEngine';
+import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, GPRMacro } from '@/lib/gpr/dspEngine';
 import { CanvasViewer, ColorPalette } from '@/components/radargrama/CanvasViewer';
 import { DSPOptionsPanel } from '@/components/radargrama/DSPOptionsPanel';
 import { AScanInspectionModal } from '@/components/radargrama/AScanInspectionModal';
+import { MacroManagerModal } from '@/components/radargrama/MacroManagerModal';
 import {
   exportRadargramJPG,
   exportTechnicalPDFReport,
@@ -24,6 +25,8 @@ import {
   Sparkles,
   X,
   FolderOpen,
+  Wand2,
+  Zap,
 } from 'lucide-react';
 
 export default function RadargramaWorkstationPage() {
@@ -46,11 +49,42 @@ export default function RadargramaWorkstationPage() {
   // Selected A-Scan modal state
   const [selectedTraceIdx, setSelectedTraceIdx] = useState<number | null>(null);
 
+  // Macro Manager & Batch Processing state
+  const [showMacroModal, setShowMacroModal] = useState<boolean>(false);
+  const [customMacros, setCustomMacros] = useState<GPRMacro[]>([]);
+  const [batchToast, setBatchToast] = useState<string | null>(null);
+
   const activeDataset = datasets.find((d) => d.id === activeDatasetId) || null;
   const activeOptions = activeDatasetId && dspOptionsMap[activeDatasetId]
     ? dspOptionsMap[activeDatasetId]
     : DEFAULT_DSP_OPTIONS;
   const activeProcessedMatrix = activeDatasetId ? processedMatrices[activeDatasetId] || null : null;
+
+  // Apply specified DSP options to given dataset IDs
+  const handleApplyOptionsToDatasets = (datasetIds: string[], options: DSPOptions) => {
+    setDspOptionsMap((prev) => {
+      const updated = { ...prev };
+      datasetIds.forEach((id) => {
+        updated[id] = { ...options };
+      });
+      return updated;
+    });
+
+    setBatchToast(`Procesamiento aplicado a ${datasetIds.length} perfiles.`);
+    setTimeout(() => setBatchToast(null), 3500);
+  };
+
+  // Apply current active DSP options to ALL open datasets
+  const handleBatchProcessAllOpen = () => {
+    if (datasets.length === 0 || !activeOptions) return;
+    const allIds = datasets.map((d) => d.id);
+    handleApplyOptionsToDatasets(allIds, activeOptions);
+  };
+
+  // Save new custom macro preset
+  const handleSaveCustomMacro = (macro: GPRMacro) => {
+    setCustomMacros((prev) => [...prev, macro]);
+  };
 
   // Run DSP pipeline whenever active dataset or its DSP options change
   useEffect(() => {
@@ -304,6 +338,28 @@ export default function RadargramaWorkstationPage() {
               />
             </label>
 
+            {/* Batch Process All Open Profiles */}
+            <button
+              onClick={handleBatchProcessAllOpen}
+              disabled={datasets.length === 0}
+              className="btn-outline btn-sm font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-300 shadow-xs disabled:opacity-40"
+              title="Aplicar el procesamiento actual a todos los perfiles abiertos"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-600" />
+              <span>Aplicar a Todos ({datasets.length})</span>
+            </button>
+
+            {/* Macros Manager Modal Button */}
+            <button
+              onClick={() => setShowMacroModal(true)}
+              disabled={datasets.length === 0}
+              className="btn-outline btn-sm font-bold text-primary bg-primary-50 hover:bg-primary-100 border-primary-300 shadow-xs disabled:opacity-40"
+              title="Abrir gestor de macros y procesamiento por lotes o selección"
+            >
+              <Wand2 className="w-3.5 h-3.5 text-primary" />
+              <span>Macros (Lote)</span>
+            </button>
+
             {/* Export Toolbar */}
             {activeDataset && (
               <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-border">
@@ -455,6 +511,16 @@ export default function RadargramaWorkstationPage() {
         )}
       </div>
 
+      {/* Floating Batch Processing Toast Alert */}
+      {batchToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-bounce">
+          <div className="p-1.5 bg-amber-500/20 text-amber-400 rounded-xl">
+            <Zap className="w-4 h-4 text-amber-400" />
+          </div>
+          <span className="text-xs font-semibold">{batchToast}</span>
+        </div>
+      )}
+
       {/* Modal for Detailed Single A-Scan Inspection & FFT Spectrum */}
       {selectedTraceIdx !== null && activeDataset && activeProcessedMatrix && (
         <AScanInspectionModal
@@ -462,6 +528,18 @@ export default function RadargramaWorkstationPage() {
           dataset={activeDataset}
           processedTrace={activeProcessedMatrix[selectedTraceIdx]}
           onClose={() => setSelectedTraceIdx(null)}
+        />
+      )}
+
+      {/* Modal for Batch Processing & Macros Management */}
+      {showMacroModal && (
+        <MacroManagerModal
+          datasets={datasets}
+          activeOptions={activeOptions}
+          customMacros={customMacros}
+          onSaveCustomMacro={handleSaveCustomMacro}
+          onApplyOptionsToDatasets={handleApplyOptionsToDatasets}
+          onClose={() => setShowMacroModal(false)}
         />
       )}
     </div>

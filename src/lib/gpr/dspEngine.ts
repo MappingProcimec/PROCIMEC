@@ -64,7 +64,7 @@ export interface DSPOptions {
 }
 
 export const DEFAULT_DSP_OPTIONS: DSPOptions = {
-  mode: 'crudo', // Default to Raw Binary (Dato Crudo Original)
+  mode: 'procesado', // Predeterminado: Modo Procesado (Todos los Filtros Activados)
   dewow: true,
   dewowWindowNs: 2.0,
   timeZero: true,
@@ -75,7 +75,7 @@ export const DEFAULT_DSP_OPTIONS: DSPOptions = {
   filterAttenuationDb: 10.0,
   hpCutoffMHz: 100.0,
   lpCutoffMHz: 800.0,
-  backgroundRemoval: false,
+  backgroundRemoval: true, // Encendido por defecto
   bkgRemovalPercent: 10.0,
   secGain: true,
   gainMode: 'auto',
