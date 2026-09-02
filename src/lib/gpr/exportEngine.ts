@@ -144,12 +144,10 @@ export function renderFullProfileCanvas(
     imgCtx.putImageData(imgData, 0, 0);
     ctx.drawImage(imgCanvas, padL, padT, dataPlotWidth, plotH);
 
-    // Fill remaining horizontal area with white blank space if data length < 10m
+    // Fill remaining horizontal area with clean white blank space if data length < 10m
     if (dataPlotWidth < plotW) {
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(padL + dataPlotWidth, padT, plotW - dataPlotWidth, plotH);
-      ctx.strokeStyle = '#E2E8F0';
-      ctx.strokeRect(padL + dataPlotWidth, padT, plotW - dataPlotWidth, plotH);
     }
   }
 

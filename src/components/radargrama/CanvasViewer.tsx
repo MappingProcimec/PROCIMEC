@@ -213,20 +213,10 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(offCanvas, 0, 0, visibleTraces, numSamples, margin.left, margin.top, dataPlotWidth, plotHeight);
 
-    // Fill remaining horizontal area with white blank space when profile length < 10m
+    // Fill remaining horizontal area with clean white blank space when profile length < 10m
     if (dataPlotWidth < plotWidth) {
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(margin.left + dataPlotWidth, margin.top, plotWidth - dataPlotWidth, plotHeight);
-
-      // Subtle hatch pattern for empty space
-      ctx.strokeStyle = '#E2E8F0';
-      ctx.lineWidth = 1;
-      for (let x = margin.left + dataPlotWidth; x < margin.left + plotWidth; x += 15) {
-        ctx.beginPath();
-        ctx.moveTo(x, margin.top);
-        ctx.lineTo(x - 20, margin.top + plotHeight);
-        ctx.stroke();
-      }
     }
 
     // Hyperbola Tool Overlay
