@@ -119,7 +119,8 @@ export function calculateResolution(freqMHz: number = 400, permittivity: number 
   const vM_s = v * 1e9;
   const lambdaM = vM_s / fHz; // m
   const rayleighM = lambdaM / 4.0;
-  const recommendedDewowNs = Math.max(1.5, parseFloat((2.0 * (1000 / freqMHz)).toFixed(1)));
+  // Remoción DC Dewow siempre es 2.0 o 3.0 ns según estándar geofísico de adquisición PROCIMEC
+  const recommendedDewowNs = freqMHz <= 200 ? 3.0 : 2.0;
   const recommendedHpMHz = Math.round(freqMHz * 0.5);
   const recommendedLpMHz = Math.round(freqMHz * 2.0);
 

@@ -135,6 +135,132 @@ export function detectarGeometriaGSF(
 }
 
 /**
+ * Automatically detects the antenna frequency (200, 400, or 500 MHz) used in a GSF profile:
+ * 1. Explicit filename identifiers (e.g. 200, 400, 500, FLB200, etc.)
+ * 2. Header ASCII scanning for antenna identifiers
+ * 3. Dominant pulse cycle / zero-crossing period analysis of raw traces
+ * 4. Geoscanners Akula time window physics:
+ *    - TWT >= 130 ns -> 200 MHz (Deep penetrations, as 400/500 MHz signals extinguish after 60-90 ns)
+ *    - TWT <= 55 ns  -> 500 MHz (High-resolution shallow pavements / concrete)
+ *    - 55 < TWT < 130 ns -> 400 MHz (Standard utility & road surveys)
+ */
+export function detectAntennaFromGSF(
+  buffer: ArrayBuffer,
+  filename: string,
+  timeWindowNs: number,
+  numSamples: number,
+  cabecera: number = CABECERA_DEFAULT
+): number {
+  const fnLower = filename.toLowerCase();
+
+  // 1. Check filename tags
+  if (fnLower.includes('200mhz') || fnLower.includes('200_mhz') || fnLower.includes('flb200') || fnLower.includes('flb-200') || fnLower.includes('ant200') || fnLower.includes('_200.') || fnLower.includes('-200.')) {
+    return 200;
+  }
+  if (fnLower.includes('500mhz') || fnLower.includes('500_mhz') || fnLower.includes('flb500') || fnLower.includes('flb-500') || fnLower.includes('ant500') || fnLower.includes('_500.') || fnLower.includes('-500.')) {
+    return 500;
+  }
+  if (fnLower.includes('400mhz') || fnLower.includes('400_mhz') || fnLower.includes('flb400') || fnLower.includes('flb-400') || fnLower.includes('ant400') || fnLower.includes('_400.') || fnLower.includes('-400.')) {
+    return 400;
+  }
+
+  // 2. Scan header ASCII bytes (0 to cabecera)
+  if (buffer.byteLength >= cabecera) {
+    const bytes = new Uint8Array(buffer, 0, Math.min(cabecera, buffer.byteLength));
+    let headerStr = '';
+    for (let i = 0; i < bytes.length; i++) {
+      const b = bytes[i];
+      if (b >= 32 && b <= 126) {
+        headerStr += String.fromCharCode(b);
+      } else {
+        headerStr += ' ';
+      }
+    }
+    const hLower = headerStr.toLowerCase();
+    if (hLower.includes('200mhz') || hLower.includes('flb200') || hLower.includes('flb-200') || hLower.includes('akula-200')) {
+      return 200;
+    }
+    if (hLower.includes('500mhz') || hLower.includes('flb500') || hLower.includes('flb-500') || hLower.includes('akula-500')) {
+      return 500;
+    }
+    if (hLower.includes('400mhz') || hLower.includes('flb400') || hLower.includes('flb-400') || hLower.includes('akula-400')) {
+      return 400;
+    }
+  }
+
+  // 3. Pulse / Wavelet period analysis from traces
+  const dtNs = numSamples > 0 ? timeWindowNs / numSamples : 0.175;
+  const bytesPerTrace = numSamples * 2;
+  const availableData = buffer.byteLength - cabecera;
+  if (availableData >= bytesPerTrace * 6 && dtNs > 0) {
+    const dataView = new DataView(buffer);
+    let estimatedFreqSum = 0;
+    let validEstimations = 0;
+
+    for (let tr = 2; tr <= 6; tr++) {
+      const traceOffset = cabecera + tr * bytesPerTrace;
+      let maxAbs = 0;
+      let maxSampleIdx = -1;
+      for (let s = 5; s < Math.min(numSamples, 140); s++) {
+        const val = Math.abs(dataView.getInt16(traceOffset + s * 2, true));
+        if (val > maxAbs) {
+          maxAbs = val;
+          maxSampleIdx = s;
+        }
+      }
+
+      if (maxSampleIdx > 5 && maxAbs > 400) {
+        let zBefore = maxSampleIdx;
+        while (zBefore > 0) {
+          const vCurrent = dataView.getInt16(traceOffset + zBefore * 2, true);
+          const vPrev = dataView.getInt16(traceOffset + (zBefore - 1) * 2, true);
+          if (vCurrent * vPrev <= 0) break;
+          zBefore--;
+        }
+
+        let zAfter = maxSampleIdx;
+        while (zAfter < Math.min(numSamples - 1, maxSampleIdx + 40)) {
+          const vCurrent = dataView.getInt16(traceOffset + zAfter * 2, true);
+          const vNext = dataView.getInt16(traceOffset + (zAfter + 1) * 2, true);
+          if (vCurrent * vNext <= 0) break;
+          zAfter++;
+        }
+
+        const halfCycleSamples = zAfter - zBefore;
+        if (halfCycleSamples >= 2) {
+          const fullCycleNs = halfCycleSamples * dtNs * 2.0;
+          if (fullCycleNs > 0) {
+            const freqMHz = 1000.0 / fullCycleNs;
+            estimatedFreqSum += freqMHz;
+            validEstimations++;
+          }
+        }
+      }
+    }
+
+    if (validEstimations > 0) {
+      const avgFreqMHz = estimatedFreqSum / validEstimations;
+      if (avgFreqMHz <= 290) return 200;
+      if (avgFreqMHz >= 460) return 500;
+      return 400;
+    }
+  }
+
+  // 4. Time Window Heuristic (Akula9000C operational protocol):
+  // 200 MHz is required for deep surveys (TWT >= 130 ns, e.g. 184 ns)
+  // 500 MHz is utilized for shallow high-res (TWT <= 55 ns)
+  // 400 MHz is the standard mid-depth antenna (60 - 120 ns)
+  if (timeWindowNs >= 130.0) {
+    return 200;
+  }
+  if (timeWindowNs <= 55.0) {
+    return 500;
+  }
+
+  return 400;
+}
+
+/**
  * Reads and decodes an Akula9000C / Geoscanners GSF binary file
  */
 export function extractGSFHeader(
@@ -221,6 +347,9 @@ export function extractGSFHeader(
 
   const dtFinal = twFinal / muestrasPorTraza;
 
+  // Auto-detect antenna frequency (200, 400, or 500 MHz) directly from profile file
+  const detectedAntennaFreq = detectAntennaFromGSF(buffer, filename, twFinal, muestrasPorTraza, cabecera);
+
   return {
     title: filename.replace(/\.[^/.]+$/, ''),
     version: 1.0,
@@ -228,7 +357,7 @@ export function extractGSFHeader(
     numSamples: muestrasPorTraza,
     sampleIntervalNs: dtFinal,
     timeWindowNs: twFinal,
-    antennaFreqMHz: 400,
+    antennaFreqMHz: detectedAntennaFreq,
     dielectricPermittivity: erFinal,
     traceDistanceStepM: dxFinal,
     tracesPerMeter,
