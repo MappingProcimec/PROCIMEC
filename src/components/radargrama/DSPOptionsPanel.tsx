@@ -544,7 +544,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         }`}
                       >
                         <Sparkles className="w-3 h-3 text-amber-300" />
-                        <span>Auto (Línea Sync)</span>
+                        <span>Auto (Primer Arribo)</span>
                       </button>
                       <button
                         onClick={() => updateOption('timeZeroMode', 'manual')}
@@ -559,48 +559,16 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       </button>
                     </div>
 
-                    {/* Auto Mode Controls (Línea Blanca Sync + Margen 6%) */}
+                    {/* Auto Mode Info Box (without extra sliders or percentages) */}
                     {(options.timeZeroMode || 'auto') === 'auto' && (
-                      <div className="bg-white p-2.5 rounded-xl border border-border space-y-2">
-                        <div className="flex justify-between items-center text-[11px]">
-                          <span className="font-semibold text-text-primary">Margen tras Línea Blanca:</span>
-                          <span className="font-mono text-amber-600 font-bold">
-                            +{(options.timeZeroMarginNs ?? (currentTwNs * 0.06)).toFixed(1)} ns ({options.timeZeroMarginNs != null ? ((options.timeZeroMarginNs / currentTwNs) * 100).toFixed(1) : '6.0'}%)
-                          </span>
-                        </div>
-
-                        <input
-                          type="range"
-                          min={0.0}
-                          max={Math.max(10.0, currentTwNs * 0.15)}
-                          step={0.1}
-                          value={options.timeZeroMarginNs ?? (currentTwNs * 0.06)}
-                          onChange={(e) => updateOption('timeZeroMarginNs', parseFloat(e.target.value))}
-                          className="w-full accent-amber-500 bg-gray-200 rounded cursor-pointer"
-                        />
-
-                        {/* Presets: 3%, 6% (Default), 8%, 10% */}
-                        <div className="grid grid-cols-4 gap-1 pt-1 text-[9px]">
-                          {[0.03, 0.06, 0.08, 0.10].map((pct) => {
-                            const valNs = parseFloat((currentTwNs * pct).toFixed(1));
-                            const isSelected = Math.abs((options.timeZeroMarginNs ?? (currentTwNs * 0.06)) - valNs) < 0.3;
-                            return (
-                              <button
-                                key={pct}
-                                onClick={() => updateOption('timeZeroMarginNs', valNs)}
-                                className={`py-1 rounded-lg font-mono border transition flex flex-col items-center justify-center ${
-                                  isSelected
-                                    ? 'bg-amber-500 text-white border-amber-500 font-bold shadow-xs'
-                                    : 'bg-gray-100 hover:bg-gray-200 text-text-secondary border-border'
-                                }`}
-                                title={`Margen ${pct * 100}% = ${valNs} ns`}
-                              >
-                                <span>{pct * 100}%</span>
-                                <span className="opacity-80">{valNs}ns</span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                      <div className="bg-white p-3 rounded-xl border border-border space-y-1 text-center">
+                        <p className="text-[11px] font-semibold text-primary flex items-center justify-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Detección Automática Activa</span>
+                        </p>
+                        <p className="text-[10px] text-text-muted leading-relaxed">
+                          Corta en la primera variación de amplitud (&gt;1000) posterior al pulso de sincronización.
+                        </p>
                       </div>
                     )}
 

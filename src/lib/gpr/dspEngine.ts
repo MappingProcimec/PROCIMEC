@@ -114,14 +114,14 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
     } else {
       // Auto-detection: Locate Akula hardware sync pulse (abrupt white line ~24,000 amp)
       const topLimit = Math.max(1, Math.floor(numSamples * 0.60));
-      const avgAbs = new Float32Array(topLimit);
+      const avgTrace = new Float32Array(topLimit);
 
       for (let s = 0; s < topLimit; s++) {
         let sum = 0;
         for (let t = 0; t < currentTraces; t++) {
-          sum += Math.abs(processed[t][s]);
+          sum += processed[t][s];
         }
-        avgAbs[s] = sum / currentTraces;
+        avgTrace[s] = sum / currentTraces;
       }
 
       // Find the sharpest abrupt jump or max peak (the white sync line)
@@ -129,9 +129,10 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
       let idxSpike = 0;
 
       for (let s = 1; s < topLimit - 1; s++) {
-        const jump = avgAbs[s] - avgAbs[s - 1];
-        if (avgAbs[s] > 4000 && jump > maxSpikeJump) {
-          maxSpikeJump = jump;
+        const absVal = Math.abs(avgTrace[s]);
+        const absJump = Math.abs(avgTrace[s] - avgTrace[s - 1]);
+        if (absVal > 4000 && absJump > maxSpikeJump) {
+          maxSpikeJump = absJump;
           idxSpike = s;
         }
       }
@@ -140,18 +141,25 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
       if (idxSpike === 0) {
         let maxVal = 0;
         for (let s = 0; s < topLimit; s++) {
-          if (avgAbs[s] > maxVal) {
-            maxVal = avgAbs[s];
+          if (Math.abs(avgTrace[s]) > maxVal) {
+            maxVal = Math.abs(avgTrace[s]);
             idxSpike = s;
           }
         }
       }
 
-      // Add margin of 6% of total file ns after the white sync line (or custom marginNs if specified)
-      const marginNs = options.timeZeroMarginNs != null ? options.timeZeroMarginNs : (twNs * 0.06);
-      const marginSamples = Math.round(marginNs / dtNs);
+      // Scan AFTER the pulse (from idxSpike + 2) for first sample with amplitude or variation > 1000
+      let idxFirstVar = idxSpike + 2;
+      for (let s = idxSpike + 2; s < numSamples - 1; s++) {
+        const val = Math.abs(avgTrace[s]);
+        const diff = Math.abs(avgTrace[s] - avgTrace[s - 1]);
+        if (val > 1000 || diff > 1000) {
+          idxFirstVar = s;
+          break;
+        }
+      }
 
-      idxShift = Math.min(numSamples - 10, idxSpike + marginSamples);
+      idxShift = Math.min(numSamples - 10, idxFirstVar);
     }
 
     if (idxShift > 0 && idxShift < numSamples - 1) {
