@@ -6,6 +6,7 @@
 
 import { GPRDataset, serializeGSF } from './gsfParser';
 import { DSPOptions, calculateVelocity } from './dspEngine';
+import { CORPORATE_LOGO_BASE64 } from './logoBase64';
 
 /**
  * Converts bipolar amplitude value [-1, 1] to RGB matching selected colormap palette
@@ -162,7 +163,20 @@ export function renderFullProfileCanvas(
   ctx.lineWidth = 1.5;
   ctx.strokeRect(padL, padT, plotW, plotH);
 
-  // 3. Header Texts (Well-spaced without any overlaps)
+  // 3. Header Texts & Corporate Logo
+  // Corporate Logo on Top-Right
+  try {
+    const logoImg = new Image();
+    logoImg.src = CORPORATE_LOGO_BASE64;
+    const logoH = 46;
+    const logoW = Math.round(logoH * (256 / 73)); // ~161px
+    const logoX = width - padR - logoW;
+    const logoY = 12;
+    ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
+  } catch (e) {
+    console.error('Error rendering logo on full profile canvas', e);
+  }
+
   // Line 1: Title
   ctx.fillStyle = '#0f172a';
   ctx.font = 'bold 16px sans-serif';
@@ -576,7 +590,18 @@ export async function exportTechnicalPDFReport(
     minute: '2-digit',
   });
   pdf.setTextColor(148, 163, 184);
-  pdf.text(`Fecha: ${dateStr}`, pageWidthMm - 80, 18);
+  pdf.text(`Fecha: ${dateStr}`, pageWidthMm - 145, 18);
+
+  // Corporate Logo on Top-Right of PDF Header Bar
+  try {
+    const logoPdfH = 14;
+    const logoPdfW = logoPdfH * (256 / 73); // ~49mm
+    const logoPdfX = pageWidthMm - marginMm - logoPdfW;
+    const logoPdfY = 5;
+    pdf.addImage(CORPORATE_LOGO_BASE64, 'PNG', logoPdfX, logoPdfY, logoPdfW, logoPdfH);
+  } catch (e) {
+    console.error('Error adding logo to PDF report', e);
+  }
 
   // Render Full Uncompressed Overview Canvas
   const fullCanvas = renderFullProfileCanvas(dataset, processedMatrix, options, palette, contrast, brightness);
@@ -791,6 +816,19 @@ export function renderPPTXProfileCanvas(
   ctx.lineWidth = 2;
   ctx.strokeRect(padL, padT, plotW, plotH);
 
+  // Corporate Logo on Top-Right
+  try {
+    const logoImg = new Image();
+    logoImg.src = CORPORATE_LOGO_BASE64;
+    const logoH = 50;
+    const logoW = Math.round(logoH * (256 / 73)); // ~175px
+    const logoX = width - padR - logoW;
+    const logoY = 15;
+    ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
+  } catch (e) {
+    console.error('Error rendering logo on PPTX canvas', e);
+  }
+
   // Title
   ctx.fillStyle = '#0f172a';
   ctx.font = 'bold 22px sans-serif';
@@ -934,6 +972,19 @@ export async function exportBatchPPTX(
       bold: true,
       color: 'FFFFFF',
     });
+
+    // Corporate Logo on Top-Right of Slide Header Bar
+    try {
+      slide.addImage({
+        data: CORPORATE_LOGO_BASE64,
+        x: 8.2,
+        y: 0.1,
+        w: 1.5,
+        h: 0.43,
+      });
+    } catch (e) {
+      console.error('Error adding logo to PPTX slide', e);
+    }
 
     // Render High-Resolution Canvas specifically scaled for PowerPoint
     const fullCanvas = renderPPTXProfileCanvas(ds, matrix, opt, palette, contrast, brightness);
