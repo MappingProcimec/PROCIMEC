@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GPRDataset } from '@/lib/gpr/gsfParser';
 import { calculateVelocity } from '@/lib/gpr/dspEngine';
 
-export type ColorPalette = 'seismic' | 'grayscale' | 'bone' | 'sepia' | 'jet';
+export type ColorPalette = 'grayscale' | 'seismic' | 'bone' | 'sepia' | 'jet';
 
 interface CanvasViewerProps {
   dataset: GPRDataset | null;
@@ -22,7 +22,7 @@ interface CanvasViewerProps {
 export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   dataset,
   processedMatrix,
-  palette = 'seismic',
+  palette = 'grayscale',
   contrast = 1.0,
   brightness = 0,
   dielectricPermittivity = 6.0,

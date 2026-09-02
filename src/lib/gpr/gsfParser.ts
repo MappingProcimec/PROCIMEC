@@ -7,7 +7,7 @@
 import { correlateFFT } from './fftCorrelation';
 
 export const C_LUZ_M_NS = 0.30;             // Speed of light in vacuum (m/ns)
-export const CABECERA_DEFAULT = 937;         // Standard Akula9000C header size (bytes)
+export const CABECERA_DEFAULT = 512;         // Standard default header size (512 bytes)
 export const DIELECTRICO_DEF = 6.0;          // Default relative permittivity (RDP)
 export const VENTANA_TIEMPO_NS_DEF = 90.0;   // Default time window in ns
 export const TRAZAS_POR_METRO_DEF = 112.0;   // Standard Geoscanners odometer (112 traces/m)
@@ -25,7 +25,7 @@ export interface GSFHeader {
   traceDistanceStepM: number;     // dx in meters (1/112 m = 0.00892857m)
   tracesPerMeter: number;         // Odometry calibration (default 112 or 111 tr/m)
   zeroOffsetNs: number;
-  byteOffsetData: number;         // 937 bytes
+  byteOffsetData: number;         // 512 bytes default
   traceHeaderBytes: number;       // 0 bytes (contiguous trace data)
   bytesPerSample: number;         // 2 bytes (Int16)
   dataType: 'int16';
@@ -268,7 +268,7 @@ export function buildDatasetFromHeader(
   const bytesPerTrace = header.numSamples * 2;
   const availableBytes = Math.max(0, totalBytes - header.byteOffsetData);
   const maxPossibleTraces = Math.floor(availableBytes / bytesPerTrace);
-  const numTraces = Math.min(header.numTraces || maxPossibleTraces, maxPossibleTraces);
+  const numTraces = maxPossibleTraces;
 
   for (let t = 0; t < numTraces; t++) {
     const traceStartOffset = header.byteOffsetData + t * bytesPerTrace;

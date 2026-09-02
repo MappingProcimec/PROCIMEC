@@ -33,8 +33,8 @@ export default function RadargramaWorkstationPage() {
   // DSP Options per dataset (map dataset ID -> options)
   const [dspOptionsMap, setDspOptionsMap] = useState<Record<string, DSPOptions>>({});
 
-  // Display Render parameters (default 'seismic' matching the Python visualizer)
-  const [palette, setPalette] = useState<ColorPalette>('seismic');
+  // Display Render parameters (default 'grayscale')
+  const [palette, setPalette] = useState<ColorPalette>('grayscale');
   const [contrast, setContrast] = useState<number>(1.0);
   const [brightness, setBrightness] = useState<number>(0);
   const [showHyperbolaTool, setShowHyperbolaTool] = useState<boolean>(false);
