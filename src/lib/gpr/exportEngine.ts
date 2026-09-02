@@ -79,6 +79,9 @@ export function renderFullProfileCanvas(
   const twNs = options.ventanaNs || dataset.header.timeWindowNs || 90.0;
   const velocity = calculateVelocity(options.dielectricPermittivity || 6.0);
   const depthMaxM = (velocity * twNs) / 2.0;
+  const antennaFreq = options.antennaFreqMHz || dataset.header.antennaFreqMHz || 400;
+  const lambdaM = (velocity * 1e9) / (antennaFreq * 1e6);
+  const lambdaQuarterCm = ((lambdaM / 4.0) * 100).toFixed(1);
 
   // Scale canvas width dynamically proportional to profile length (min 1800px)
   const MIN_WINDOW_M = 10.0;
@@ -187,7 +190,7 @@ export function renderFullProfileCanvas(
   ctx.font = '11.5px sans-serif';
   ctx.fillStyle = '#475569';
   ctx.fillText(
-    `εr = ${options.dielectricPermittivity.toFixed(1)} | v = ${velocity.toFixed(3)} m/ns | Ventana = ${twNs.toFixed(1)} ns | Prof. Máx = ${depthMaxM.toFixed(2)} m | Distancia Total = ${distTotalM.toFixed(2)} m (${numTraces} trazas)`,
+    `Antena: ${antennaFreq} MHz (λ/4: ${lambdaQuarterCm} cm) | εr = ${options.dielectricPermittivity.toFixed(1)} | v = ${velocity.toFixed(3)} m/ns | Ventana = ${twNs.toFixed(1)} ns | Prof. Máx = ${depthMaxM.toFixed(2)} m | Perfil: ${distTotalM.toFixed(2)} m (${numTraces} trazas)`,
     padL,
     48
   );
@@ -617,10 +620,15 @@ export async function exportTechnicalPDFReport(
   const panelX = marginMm + imgWidthMm + gapMm;
   let panelY = 30;
 
+  const antennaFreq = options.antennaFreqMHz || dataset.header.antennaFreqMHz || 400;
+  const lambdaM = (velocity * 1e9) / (antennaFreq * 1e6);
+  const lambdaQuarterCm = ((lambdaM / 4.0) * 100).toFixed(1);
+  const tracesPerMeter = dxM > 0 ? Math.round(1.0 / dxM) : 112;
+
   // Box 1: Metadata Summary
   pdf.setFillColor(248, 250, 252);
-  pdf.rect(panelX, panelY, panelWidthMm, 56, 'F');
-  pdf.rect(panelX, panelY, panelWidthMm, 56, 'S');
+  pdf.rect(panelX, panelY, panelWidthMm, 64, 'F');
+  pdf.rect(panelX, panelY, panelWidthMm, 64, 'S');
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(10.5);
@@ -628,21 +636,23 @@ export async function exportTechnicalPDFReport(
   pdf.text('Metadatos de Perfil', panelX + 5, panelY + 8);
 
   pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8.5);
+  pdf.setFontSize(8);
   pdf.setTextColor(51, 65, 85);
 
-  pdf.text(`Número de Trazas: ${numTraces}`, panelX + 5, panelY + 17);
-  pdf.text(`Muestras por Traza: ${numSamples}`, panelX + 5, panelY + 24);
-  pdf.text(`Distancia Total: ${totalDistM.toFixed(2)} m`, panelX + 5, panelY + 31);
-  pdf.text(`Ventana Temporal: ${twNs.toFixed(1)} ns`, panelX + 5, panelY + 38);
-  pdf.text(`Profundidad Est.: ${depthM} m`, panelX + 5, panelY + 45);
-  pdf.text(`Frec. Antena: ${dataset.header.antennaFreqMHz || 400} MHz`, panelX + 5, panelY + 52);
+  pdf.text(`Número de Trazas: ${numTraces}`, panelX + 5, panelY + 16);
+  pdf.text(`Muestras por Traza: ${numSamples}`, panelX + 5, panelY + 22);
+  pdf.text(`Distancia Total: ${totalDistM.toFixed(2)} m (${tracesPerMeter} tr/m)`, panelX + 5, panelY + 28);
+  pdf.text(`Ventana Temporal: ${twNs.toFixed(1)} ns`, panelX + 5, panelY + 34);
+  pdf.text(`Profundidad Est.: ${depthM} m`, panelX + 5, panelY + 40);
+  pdf.text(`Frecuencia Antena: ${antennaFreq} MHz (Akula9000C)`, panelX + 5, panelY + 46);
+  pdf.text(`Resolución Vert. (λ/4): ${lambdaQuarterCm} cm`, panelX + 5, panelY + 52);
+  pdf.text(`Velocidad v: ${velocity.toFixed(3)} m/ns (εr = ${(options.dielectricPermittivity || 6.0).toFixed(1)})`, panelX + 5, panelY + 58);
 
   // Box 2: Applied DSP Parameters (Truthful reporting based on Signal Mode)
-  panelY += 62;
+  panelY += 70;
   pdf.setFillColor(248, 250, 252);
-  pdf.rect(panelX, panelY, panelWidthMm, 80, 'F');
-  pdf.rect(panelX, panelY, panelWidthMm, 80, 'S');
+  pdf.rect(panelX, panelY, panelWidthMm, 76, 'F');
+  pdf.rect(panelX, panelY, panelWidthMm, 76, 'S');
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(10.5);
@@ -711,8 +721,17 @@ export async function exportTechnicalPDFReport(
 /**
  * Re-encodes and downloads the modified GSF binary file.
  */
-export function exportModifiedGSF(dataset: GPRDataset): void {
-  const binaryBuffer = serializeGSF(dataset);
+export function exportModifiedGSF(dataset: GPRDataset, options?: DSPOptions): void {
+  const dsToExport = { ...dataset };
+  if (options) {
+    dsToExport.header = {
+      ...dsToExport.header,
+      antennaFreqMHz: options.antennaFreqMHz || dsToExport.header.antennaFreqMHz || 400,
+      dielectricPermittivity: options.dielectricPermittivity || dsToExport.header.dielectricPermittivity || 6.0,
+      timeWindowNs: options.ventanaNs || dsToExport.header.timeWindowNs || 90.0,
+    };
+  }
+  const binaryBuffer = serializeGSF(dsToExport);
   const blob = new Blob([binaryBuffer], { type: 'application/octet-stream' });
   downloadBlob(blob, `${dataset.filename.replace(/\.[^/.]+$/, '')}_procesado.gsf`);
 }
@@ -829,6 +848,10 @@ export function renderPPTXProfileCanvas(
     console.error('Error rendering logo on PPTX canvas', e);
   }
 
+  const antennaFreq = options.antennaFreqMHz || dataset.header.antennaFreqMHz || 400;
+  const lambdaM = (velocity * 1e9) / (antennaFreq * 1e6);
+  const lambdaQuarterCm = ((lambdaM / 4.0) * 100).toFixed(1);
+
   // Title
   ctx.fillStyle = '#0f172a';
   ctx.font = 'bold 22px sans-serif';
@@ -839,7 +862,7 @@ export function renderPPTXProfileCanvas(
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#475569';
   ctx.fillText(
-    `εr = ${options.dielectricPermittivity.toFixed(1)} | v = ${velocity.toFixed(3)} m/ns | Ventana = ${twNs.toFixed(1)} ns | Prof. Máx = ${depthMaxM.toFixed(2)} m | Distancia Total = ${distTotalM.toFixed(2)} m (${numTraces} trazas)`,
+    `Antena: ${antennaFreq} MHz (λ/4: ${lambdaQuarterCm} cm) | εr = ${options.dielectricPermittivity.toFixed(1)} | v = ${velocity.toFixed(3)} m/ns | Ventana = ${twNs.toFixed(1)} ns | Prof. Máx = ${depthMaxM.toFixed(2)} m | Perfil: ${distTotalM.toFixed(2)} m (${numTraces} trazas)`,
     padL,
     62
   );
@@ -1006,6 +1029,9 @@ export async function exportBatchPPTX(
     const distM = (numTraces * dxM).toFixed(1);
     const vel = calculateVelocity(opt.dielectricPermittivity || 6.0);
     const isCrudo = opt.mode === 'crudo';
+    const antennaFreq = opt.antennaFreqMHz || ds.header.antennaFreqMHz || 400;
+    const lambdaM = (vel * 1e9) / (antennaFreq * 1e6);
+    const lambdaQuarterCm = ((lambdaM / 4.0) * 100).toFixed(1);
 
     const rows = [
       [
@@ -1015,7 +1041,8 @@ export async function exportBatchPPTX(
       [{ text: 'Número de Trazas' }, { text: `${numTraces}` }],
       [{ text: 'Muestras / Traza' }, { text: `${numSamples}` }],
       [{ text: 'Longitud Perfil' }, { text: `${distM} m` }],
-      [{ text: 'Frecuencia Antena' }, { text: `${ds.header.antennaFreqMHz || 400} MHz` }],
+      [{ text: 'Frecuencia Antena' }, { text: `${antennaFreq} MHz` }],
+      [{ text: 'Resolución Vert. (λ/4)' }, { text: `${lambdaQuarterCm} cm` }],
       [{ text: 'Permitividad ε_r' }, { text: `${(opt.dielectricPermittivity || 6.0).toFixed(1)}` }],
       [{ text: 'Velocidad v' }, { text: `${vel.toFixed(3)} m/ns` }],
       [{ text: 'Modo Señal' }, { text: `${isCrudo ? 'Dato Crudo' : 'Procesado DSP'}` }],

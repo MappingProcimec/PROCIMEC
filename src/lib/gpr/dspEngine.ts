@@ -61,6 +61,9 @@ export interface DSPOptions {
   // Advanced Migration
   enableMigration: boolean;
   migrationApertureTraces: number;
+
+  // Antenna Central Frequency (Standard: 200, 400, 500 MHz)
+  antennaFreqMHz?: number;
 }
 
 export const DEFAULT_DSP_OPTIONS: DSPOptions = {
@@ -96,7 +99,39 @@ export const DEFAULT_DSP_OPTIONS: DSPOptions = {
   skipFactor: 1,
   enableMigration: false,
   migrationApertureTraces: 10,
+  antennaFreqMHz: 400,
 };
+
+/**
+ * Calculates the free-space and medium wavelength lambda, Rayleigh vertical resolution limit (lambda / 4),
+ * and suggested dependent DSP parameters (IIR cutoffs, Dewow window) based on antenna frequency.
+ */
+export function calculateResolution(freqMHz: number = 400, permittivity: number = 6.0): {
+  velocityM_ns: number;
+  wavelengthM: number;
+  rayleighResolutionM: number;
+  recommendedDewowNs: number;
+  recommendedHpMHz: number;
+  recommendedLpMHz: number;
+} {
+  const v = calculateVelocity(permittivity); // m/ns
+  const fHz = freqMHz * 1e6;
+  const vM_s = v * 1e9;
+  const lambdaM = vM_s / fHz; // m
+  const rayleighM = lambdaM / 4.0;
+  const recommendedDewowNs = Math.max(1.5, parseFloat((2.0 * (1000 / freqMHz)).toFixed(1)));
+  const recommendedHpMHz = Math.round(freqMHz * 0.5);
+  const recommendedLpMHz = Math.round(freqMHz * 2.0);
+
+  return {
+    velocityM_ns: v,
+    wavelengthM: lambdaM,
+    rayleighResolutionM: rayleighM,
+    recommendedDewowNs,
+    recommendedHpMHz,
+    recommendedLpMHz,
+  };
+}
 
 /**
  * Calculates propagation velocity v in m/ns from dielectric constant epsilon_r

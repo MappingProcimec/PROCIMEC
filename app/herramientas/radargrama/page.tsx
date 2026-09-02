@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader, CABECERA_DEFAULT, DX_DEF, DIELECTRICO_DEF, VENTANA_TIEMPO_NS_DEF, TRAZAS_POR_METRO_DEF } from '@/lib/gpr/gsfParser';
-import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, GPRMacro } from '@/lib/gpr/dspEngine';
+import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, GPRMacro, calculateResolution, calculateVelocity } from '@/lib/gpr/dspEngine';
 import { CanvasViewer, ColorPalette } from '@/components/radargrama/CanvasViewer';
 import { DSPOptionsPanel } from '@/components/radargrama/DSPOptionsPanel';
 import { AScanInspectionModal } from '@/components/radargrama/AScanInspectionModal';
@@ -36,6 +36,10 @@ import {
   Zap,
   Download,
   ChevronDown,
+  Radio,
+  ShieldCheck,
+  CheckCircle2,
+  Info,
 } from 'lucide-react';
 
 export default function RadargramaWorkstationPage() {
@@ -68,6 +72,10 @@ export default function RadargramaWorkstationPage() {
   const [batchToast, setBatchToast] = useState<string | null>(null);
   const [showExportDropdown, setShowExportDropdown] = useState<boolean>(false);
   const exportDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Pre-Export Metadata Verification Modal State
+  const [pendingExportFormat, setPendingExportFormat] = useState<'jpg' | 'pdf' | 'gsf' | 'pptx' | null>(null);
+  const [exportAutoSyncFilters, setExportAutoSyncFilters] = useState<boolean>(true);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -313,45 +321,70 @@ export default function RadargramaWorkstationPage() {
     }));
   };
 
-  // Single JPG Export (Full Distance Profile 0m to Total Distance)
-  const handleExportJPG = async () => {
-    if (activeDataset && activeProcessedMatrix) {
-      await exportRadargramJPG(activeDataset, activeProcessedMatrix, activeOptions, palette, contrast, brightness);
-    }
-  };
+  // Execute export with verified profile metadata
+  const handleExecuteVerifiedExport = async () => {
+    if (!pendingExportFormat || !activeDataset || !activeProcessedMatrix) return;
+    const format = pendingExportFormat;
 
-  // Single PDF Technical Report Export (Full Distance Profile 0m to Total Distance)
-  const handleExportPDF = async () => {
-    if (activeDataset && activeProcessedMatrix) {
-      await exportTechnicalPDFReport(activeDataset, activeProcessedMatrix, activeOptions, palette, contrast, brightness);
+    let currentOpts = activeOptions;
+    if (exportAutoSyncFilters) {
+      const antennaFreq = activeOptions.antennaFreqMHz || activeDataset.header.antennaFreqMHz || 400;
+      const res = calculateResolution(antennaFreq, activeOptions.dielectricPermittivity);
+      currentOpts = {
+        ...activeOptions,
+        antennaFreqMHz: antennaFreq,
+        hpCutoffMHz: res.recommendedHpMHz,
+        lpCutoffMHz: res.recommendedLpMHz,
+        dewowWindowNs: res.recommendedDewowNs,
+      };
+      handleDSPOptionsChange(currentOpts);
     }
-  };
 
-  // Single GSF Binary Export
-  const handleExportGSF = () => {
-    if (activeDataset && activeProcessedMatrix) {
+    setPendingExportFormat(null);
+
+    if (format === 'jpg') {
+      await exportRadargramJPG(activeDataset, activeProcessedMatrix, currentOpts, palette, contrast, brightness);
+    } else if (format === 'pdf') {
+      await exportTechnicalPDFReport(activeDataset, activeProcessedMatrix, currentOpts, palette, contrast, brightness);
+    } else if (format === 'gsf') {
       const updatedDataset: GPRDataset = {
         ...activeDataset,
         processedMatrix: activeProcessedMatrix,
       };
-      exportModifiedGSF(updatedDataset);
+      exportModifiedGSF(updatedDataset, currentOpts);
+    } else if (format === 'pptx') {
+      const processedMatricesMap = new Map<string, Float32Array[]>();
+      const optionsMap = new Map<string, DSPOptions>();
+
+      datasets.forEach((ds) => {
+        const opts = dspOptionsMap[ds.id] || DEFAULT_DSP_OPTIONS;
+        const matrix = processRadargramDSP(ds, opts);
+        processedMatricesMap.set(ds.id, matrix);
+        optionsMap.set(ds.id, opts);
+      });
+
+      await exportBatchPPTX(datasets, processedMatricesMap, optionsMap, palette, contrast, brightness);
     }
   };
 
-  // Batch PPTX Export (Full Distance Profile 0m to Total Distance for all datasets)
-  const handleExportBatchPPTX = async () => {
-    if (datasets.length === 0) return;
-    const processedMatricesMap = new Map<string, Float32Array[]>();
-    const optionsMap = new Map<string, DSPOptions>();
-
-    datasets.forEach((ds) => {
-      const opts = dspOptionsMap[ds.id] || DEFAULT_DSP_OPTIONS;
-      const matrix = processRadargramDSP(ds, opts);
-      processedMatricesMap.set(ds.id, matrix);
-      optionsMap.set(ds.id, opts);
-    });
-
-    await exportBatchPPTX(datasets, processedMatricesMap, optionsMap, palette, contrast, brightness);
+  // Quick switch antenna frequency for active dataset and synchronize dependent filters
+  const handleSetExportAntennaFreq = (freq: number) => {
+    if (!activeDatasetId) return;
+    const res = calculateResolution(freq, activeOptions.dielectricPermittivity);
+    const updatedOpts: DSPOptions = {
+      ...activeOptions,
+      antennaFreqMHz: freq,
+      hpCutoffMHz: exportAutoSyncFilters ? res.recommendedHpMHz : activeOptions.hpCutoffMHz,
+      lpCutoffMHz: exportAutoSyncFilters ? res.recommendedLpMHz : activeOptions.lpCutoffMHz,
+      dewowWindowNs: exportAutoSyncFilters ? res.recommendedDewowNs : activeOptions.dewowWindowNs,
+    };
+    handleDSPOptionsChange(updatedOpts);
+    if (activeDataset) {
+      handleHeaderOverride({
+        ...activeDataset.header,
+        antennaFreqMHz: freq,
+      });
+    }
   };
 
   // Remove dataset
@@ -446,7 +479,7 @@ export default function RadargramaWorkstationPage() {
                     <button
                       onClick={() => {
                         setShowExportDropdown(false);
-                        handleExportJPG();
+                        setPendingExportFormat('jpg');
                       }}
                       className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-emerald-50 flex items-center gap-2.5 transition text-left"
                     >
@@ -460,7 +493,7 @@ export default function RadargramaWorkstationPage() {
                     <button
                       onClick={() => {
                         setShowExportDropdown(false);
-                        handleExportPDF();
+                        setPendingExportFormat('pdf');
                       }}
                       className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-red-50 flex items-center gap-2.5 transition text-left"
                     >
@@ -474,7 +507,7 @@ export default function RadargramaWorkstationPage() {
                     <button
                       onClick={() => {
                         setShowExportDropdown(false);
-                        handleExportGSF();
+                        setPendingExportFormat('gsf');
                       }}
                       className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-blue-50 flex items-center gap-2.5 transition text-left"
                     >
@@ -490,7 +523,7 @@ export default function RadargramaWorkstationPage() {
                     <button
                       onClick={() => {
                         setShowExportDropdown(false);
-                        handleExportBatchPPTX();
+                        setPendingExportFormat('pptx');
                       }}
                       className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-amber-50 flex items-center gap-2.5 transition text-left"
                     >
@@ -652,6 +685,200 @@ export default function RadargramaWorkstationPage() {
           onClose={() => setShowMacroModal(false)}
         />
       )}
+
+      {/* Modal: Pre-Export Metadata & Physical Parameter Verification */}
+      {pendingExportFormat && activeDataset && (() => {
+        const currentFreq = activeOptions.antennaFreqMHz || activeDataset.header.antennaFreqMHz || 400;
+        const res = calculateResolution(currentFreq, activeOptions.dielectricPermittivity);
+        const vel = calculateVelocity(activeOptions.dielectricPermittivity);
+        const tw = activeOptions.ventanaNs || activeDataset.header.timeWindowNs || 90.0;
+        const maxDepthM = (vel * tw) / 2.0;
+        const dxM = activeOptions.traceDistanceStepM || activeDataset.header.traceDistanceStepM || (1.0 / 112.0);
+        const tracesPerM = dxM > 0 ? Math.round(1.0 / dxM) : 112;
+        const totalDistM = (activeDataset.traces.length * dxM).toFixed(2);
+
+        const formatLabelMap = {
+          jpg: 'Imagen JPG de Alta Resolución',
+          pdf: 'Reporte Técnico PDF (Formato Bandera)',
+          gsf: 'Archivo Binario .GSF Procesado',
+          pptx: `Presentación PPTX (${datasets.length} diapositivas)`,
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-3xl shadow-2xl border border-border max-w-xl w-full overflow-hidden text-xs">
+              {/* Header Bar */}
+              <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-primary/20 text-sky-400 flex items-center justify-center font-bold">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-white">Verificación de Metadatos de Perfil</h3>
+                    <p className="text-[10px] text-slate-400">
+                      Garantía de parámetros geofísicos antes de exportar a <span className="text-sky-300 font-semibold">{formatLabelMap[pendingExportFormat]}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPendingExportFormat(null)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+                {/* 1. Profile Summary Card */}
+                <div className="p-3 bg-slate-50 rounded-2xl border border-border flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-text-muted block font-mono">Archivo Activo:</span>
+                    <strong className="text-text-primary text-xs font-mono truncate max-w-xs block">
+                      {activeDataset.filename}
+                    </strong>
+                  </div>
+                  <div className="text-right text-[11px] font-mono">
+                    <span className="text-text-muted">Longitud:</span> <strong>{totalDistM} m</strong>
+                    <span className="text-text-muted ml-2">Trazas:</span> <strong>{activeDataset.traces.length} ({tracesPerM} tr/m)</strong>
+                  </div>
+                </div>
+
+                {/* 2. Antenna Selection (200, 400, 500 MHz) */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                      <Radio className="w-3.5 h-3.5 text-primary" />
+                      <span>Frecuencia Central de Antena (PROCIMEC):</span>
+                    </label>
+                    <span className="text-[10px] font-mono font-bold text-primary bg-primary-50 px-2 py-0.5 rounded-full border border-primary-200">
+                      {currentFreq} MHz Seleccionada
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { freq: 200, label: '200 MHz', target: 'Estructuras Profundas (0-6m)', resCm: ((calculateResolution(200, activeOptions.dielectricPermittivity).rayleighResolutionM) * 100).toFixed(1) },
+                      { freq: 400, label: '400 MHz', target: 'Estándar Vial / Servicios (0-3.5m)', resCm: ((calculateResolution(400, activeOptions.dielectricPermittivity).rayleighResolutionM) * 100).toFixed(1) },
+                      { freq: 500, label: '500 MHz', target: 'Alta Resolución Pavimentos (0-2.2m)', resCm: ((calculateResolution(500, activeOptions.dielectricPermittivity).rayleighResolutionM) * 100).toFixed(1) },
+                    ].map((item) => (
+                      <button
+                        key={item.freq}
+                        onClick={() => handleSetExportAntennaFreq(item.freq)}
+                        className={`p-2.5 rounded-2xl border text-left transition flex flex-col justify-between ${
+                          currentFreq === item.freq
+                            ? 'bg-primary text-white border-primary shadow-sm'
+                            : 'bg-white text-text-secondary border-border hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center w-full">
+                          <span className="font-bold text-xs">{item.label}</span>
+                          {currentFreq === item.freq && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                        </div>
+                        <span className="text-[9px] opacity-85 mt-1 leading-tight">{item.target}</span>
+                        <div className="mt-2 pt-1 border-t border-current/20 text-[9px] font-mono opacity-90">
+                          Res. λ/4: {item.resCm} cm
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Physical Parameters & Rayleigh Resolution */}
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-amber-500/5 p-3 rounded-2xl border border-amber-400/30">
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Permitividad (εr):</span>
+                      <strong className="text-text-primary">{activeOptions.dielectricPermittivity.toFixed(1)}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Velocidad (v):</span>
+                      <strong className="text-text-primary">{vel.toFixed(3)} m/ns</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Ventana TWT:</span>
+                      <strong className="text-text-primary">{tw.toFixed(1)} ns</strong>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Profundidad Máx:</span>
+                      <strong className="text-purple-700">{maxDepthM.toFixed(2)} m</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Longitud Onda (λ):</span>
+                      <strong className="text-primary">{(res.wavelengthM * 100).toFixed(1)} cm</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-muted">Resolución Rayleigh:</span>
+                      <strong className="text-emerald-700 font-bold">{(res.rayleighResolutionM * 100).toFixed(1)} cm</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Dependent Processes & DSP Synchronization */}
+                <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-blue-950 text-xs flex items-center gap-1.5">
+                      <Info className="w-3.5 h-3.5 text-primary" />
+                      <span>Procesos Geofísicos Dependientes de la Antena:</span>
+                    </span>
+                    <span className="text-[9.5px] font-mono text-blue-700 bg-white px-2 py-0.5 rounded-full border border-blue-200">
+                      Sincronización Automática
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                    <div className="p-2 bg-white rounded-xl border border-blue-100">
+                      <span className="text-text-muted block font-medium">Filtro Pasa-Banda IIR:</span>
+                      <div className="font-mono text-primary font-bold mt-0.5">
+                        {res.recommendedHpMHz} - {res.recommendedLpMHz} MHz
+                      </div>
+                      <span className="text-[9px] text-text-muted">(Corte sugerido: 0.5fc - 2.0fc)</span>
+                    </div>
+
+                    <div className="p-2 bg-white rounded-xl border border-blue-100">
+                      <span className="text-text-muted block font-medium">Remoción DC Dewow:</span>
+                      <div className="font-mono text-amber-700 font-bold mt-0.5">
+                        {res.recommendedDewowNs} ns
+                      </div>
+                      <span className="text-[9px] text-text-muted">(Ventana: ~2.0 ciclos de antena)</span>
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 text-[11px] text-blue-900 cursor-pointer pt-1 font-medium select-none">
+                    <input
+                      type="checkbox"
+                      checked={exportAutoSyncFilters}
+                      onChange={(e) => setExportAutoSyncFilters(e.target.checked)}
+                      className="rounded border-blue-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                    />
+                    <span>Sincronizar y aplicar automáticamente estos parámetros DSP a la exportación</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-gray-50 border-t border-border flex items-center justify-between">
+                <button
+                  onClick={() => setPendingExportFormat(null)}
+                  className="btn btn-outline btn-sm px-4 py-2 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  onClick={handleExecuteVerifiedExport}
+                  className="btn btn-primary btn-sm px-5 py-2 font-bold flex items-center gap-2 shadow-glow cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Confirmar y Exportar {pendingExportFormat.toUpperCase()}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

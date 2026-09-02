@@ -921,6 +921,83 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                     }
                     return segments;
                   })()}
+
+                {/* 9. PIPES & UTILITIES (SEG STANDARD): Double concentric ring in Yellow variations */}
+                {detectionConfig?.pipeUtility.enabled &&
+                  detectionResults?.pipesUtilities.markers.map((m) => {
+                    const cx = getCanvasXFromDistM(m.xCenterM);
+                    const cy = getCanvasYFromTimeNs(m.timeNs);
+                    // Color variations of yellow:
+                    // Metallic -> Electric Yellow (#FFE600)
+                    // Plastic -> Amber Yellow (#FFB703)
+                    // Concrete -> Emerald / Lime Yellow (#D4E157)
+                    const pipeColor =
+                      m.pipeMaterial === 'Metálica (Acero / Conductor)'
+                        ? '#FFE600'
+                        : m.pipeMaterial === 'Plástica (PVC / PEAD)'
+                        ? '#FFB703'
+                        : '#D4E157';
+
+                    return (
+                      <g
+                        key={m.id}
+                        className="pointer-events-auto cursor-pointer"
+                        onMouseEnter={(e) => {
+                          setHoveredMarker(m);
+                          setTooltipPos({ x: e.clientX, y: e.clientY });
+                        }}
+                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                        onMouseLeave={() => setHoveredMarker(null)}
+                        onClick={() => setSelectedMarker(m)}
+                      >
+                        {/* Outer Glow / Dashed Target Ring */}
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r="13"
+                          fill="none"
+                          stroke={pipeColor}
+                          strokeWidth="1.8"
+                          strokeDasharray="2,2"
+                          className="opacity-90"
+                        />
+                        {/* Semi-transparent Middle Ring */}
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r="8.5"
+                          fill={pipeColor}
+                          fillOpacity="0.30"
+                          stroke={pipeColor}
+                          strokeWidth="2"
+                          className="hover:scale-110 transition-transform"
+                        />
+                        {/* Solid Inner Core */}
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r="3"
+                          fill={pipeColor}
+                          stroke="#000000"
+                          strokeWidth="0.8"
+                        />
+                        {/* Diameter Text Label */}
+                        <text
+                          x={cx + 15}
+                          y={cy + 4}
+                          fill={pipeColor}
+                          fontSize="9.5"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                          stroke="#000000"
+                          strokeWidth="0.6"
+                          paintOrder="stroke fill"
+                        >
+                          Ø{m.pipeDiameterMm}mm
+                        </text>
+                      </g>
+                    );
+                  })}
               </g>
             </svg>
           )}

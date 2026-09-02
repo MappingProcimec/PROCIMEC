@@ -21,7 +21,8 @@ export type AnomalyType =
   | 'diffuse_scattering'
   | 'joint_infiltration'
   | 'dielectric_shadow'
-  | 'thickness_variation';
+  | 'thickness_variation'
+  | 'pipe_utility';
 
 // 1. Bright Spot Config
 export interface BrightSpotConfig {
@@ -91,6 +92,16 @@ export interface ThicknessVariationConfig {
   deviationThresholdNs: number; // 0.5 - 3.0 ns, default 1.5 ns
 }
 
+// 9. Pipe & Buried Utility Config (SEG Standard - Society of Exploration Geophysicists)
+export interface PipeUtilityConfig {
+  enabled: boolean;
+  materialFilter: 'all' | 'metallic' | 'plastic' | 'concrete';
+  pipeContent: 'empty_gas' | 'water' | 'drainage';
+  minCoherenceR2: number; // 0.60 - 0.95, default 0.75
+  minDiameterMm: number; // default 50 mm
+  maxDepthM: number; // default 3.5 m
+}
+
 export interface DetectionConfig {
   brightSpot: BrightSpotConfig;
   hyperbola: HyperbolaConfig;
@@ -100,6 +111,7 @@ export interface DetectionConfig {
   jointInfiltration: JointInfiltrationConfig;
   dielectricShadow: DielectricShadowConfig;
   thicknessVariation: ThicknessVariationConfig;
+  pipeUtility: PipeUtilityConfig;
 }
 
 export const DEFAULT_DETECTION_CONFIG: DetectionConfig = {
@@ -155,6 +167,14 @@ export const DEFAULT_DETECTION_CONFIG: DetectionConfig = {
     rollingMeanWindowM: 2.0,
     deviationThresholdNs: 1.5,
   },
+  pipeUtility: {
+    enabled: false,
+    materialFilter: 'all',
+    pipeContent: 'empty_gas',
+    minCoherenceR2: 0.75,
+    minDiameterMm: 50,
+    maxDepthM: 3.5,
+  },
 };
 
 export interface CurvePoint {
@@ -193,6 +213,14 @@ export interface AnomalyMarker {
   measuredValues: Record<string, string | number>;
   // For anomaly 8 following curve
   curvePoints?: CurvePoint[];
+  // For anomaly 9 pipe utility (SEG Standard)
+  pipeMaterial?: 'Metálica (Acero / Conductor)' | 'Plástica (PVC / PEAD)' | 'Hormigón / Concreto';
+  pipeDiameterMm?: number;
+  pipeDiameterInches?: string;
+  wallThicknessMm?: number;
+  pipeContentLabel?: string;
+  coherenceR2?: number;
+  phaseInverted?: boolean;
 }
 
 export interface DetectionResults {
@@ -233,6 +261,13 @@ export interface DetectionResults {
     maxDeviationCm: number;
     markers: AnomalyMarker[];
   };
+  pipesUtilities: {
+    count: number;
+    metallicCount: number;
+    plasticCount: number;
+    concreteCount: number;
+    markers: AnomalyMarker[];
+  };
 }
 
 export const EMPTY_DETECTION_RESULTS: DetectionResults = {
@@ -244,4 +279,11 @@ export const EMPTY_DETECTION_RESULTS: DetectionResults = {
   jointInfiltrations: { count: 0, maxIdf: 0, markers: [] },
   dielectricShadows: { count: 0, maxAlphaDbM: 0, markers: [] },
   thicknessVariations: { count: 0, maxDeviationCm: 0, markers: [] },
+  pipesUtilities: {
+    count: 0,
+    metallicCount: 0,
+    plasticCount: 0,
+    concreteCount: 0,
+    markers: [],
+  },
 };

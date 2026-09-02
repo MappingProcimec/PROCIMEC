@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { DSPOptions, calculateVelocity, GainPoint } from '@/lib/gpr/dspEngine';
+import { DSPOptions, calculateVelocity, calculateResolution, GainPoint } from '@/lib/gpr/dspEngine';
 import { GSFHeader } from '@/lib/gpr/gsfParser';
 import { ColorPalette } from './CanvasViewer';
 import {
@@ -10,6 +10,7 @@ import {
   Palette,
   Crosshair,
   RefreshCw,
+  Radio,
   FileSpreadsheet,
   Ruler,
   FileCode,
@@ -314,6 +315,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     jointInfiltration: boolean;
     dielectricShadow: boolean;
     thicknessVariation: boolean;
+    pipeUtility: boolean;
   }>({
     brightSpot: false,
     hyperbola: false,
@@ -323,6 +325,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     jointInfiltration: false,
     dielectricShadow: false,
     thicknessVariation: false,
+    pipeUtility: false,
   });
 
   const toggleDetectionSection = (key: keyof typeof detectionOpenSections) => {
@@ -334,11 +337,13 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
   // Collapsible Accordion sections for Calibración view (ALL CONTRACTED BY DEFAULT!)
   const [openSections, setOpenSections] = useState<{
+    antenna: boolean;
     header: boolean;
     geometry: boolean;
     timezero: boolean;
     display: boolean;
   }>({
+    antenna: true, // Expandida por defecto para fácil configuración
     header: false,
     geometry: false,
     timezero: false,
@@ -387,6 +392,29 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
       ...header,
       [key]: value,
     });
+  };
+
+  const currentAntennaFreq = options.antennaFreqMHz || (header ? header.antennaFreqMHz : 400) || 400;
+  const resolutionInfo = calculateResolution(currentAntennaFreq, options.dielectricPermittivity);
+
+  const handleSelectAntenna = (freq: number, autoSyncFilters: boolean = true) => {
+    const res = calculateResolution(freq, options.dielectricPermittivity);
+    updateOption('antennaFreqMHz', freq);
+    if (header && onHeaderChange) {
+      onHeaderChange({
+        ...header,
+        antennaFreqMHz: freq,
+      });
+    }
+    if (autoSyncFilters) {
+      onChange({
+        ...options,
+        antennaFreqMHz: freq,
+        hpCutoffMHz: res.recommendedHpMHz,
+        lpCutoffMHz: res.recommendedLpMHz,
+        dewowWindowNs: res.recommendedDewowNs,
+      });
+    }
   };
 
   const currentVelocity = calculateVelocity(options.dielectricPermittivity);
@@ -523,6 +551,96 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         {/* ============================================================ */}
         {activeTab === 'calibracion' && (
           <div className="space-y-3">
+            {/* 0. ANTENA & FRECUENCIA CENTRAL (Akula9000C) */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
+              <button
+                onClick={() => toggleSection('antenna')}
+                className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
+              >
+                <div className="flex items-center gap-2 text-primary font-bold text-xs">
+                  <Radio className="w-4 h-4 text-primary" />
+                  <span>Antena & Frecuencia Central</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="badge-primary text-[10px] font-mono font-bold px-2 py-0.5">
+                    {currentAntennaFreq} MHz
+                  </span>
+                  {openSections.antenna ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" />
+                  )}
+                </div>
+              </button>
+
+              {openSections.antenna && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
+                  <p className="text-[10.5px] text-text-muted leading-relaxed">
+                    Determina la antena de adquisición. Afecta directamente el límite de resolución vertical de Rayleigh (λ/4), la penetración esperada y el rango de frecuencias de los filtros.
+                  </p>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-text-secondary block mb-1">
+                      Antenas PROCIMEC Disponibles:
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { freq: 200, label: '200 MHz', desc: 'Profunda (0-6m)' },
+                        { freq: 400, label: '400 MHz', desc: 'Estándar (0-3.5m)' },
+                        { freq: 500, label: '500 MHz', desc: 'Detalle (0-2.2m)' },
+                      ].map((item) => (
+                        <button
+                          key={item.freq}
+                          onClick={() => handleSelectAntenna(item.freq, true)}
+                          className={`py-2 px-1 rounded-xl text-xs border transition flex flex-col items-center justify-center text-center ${
+                            currentAntennaFreq === item.freq
+                              ? 'bg-primary text-white border-primary font-bold shadow-xs'
+                              : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                          }`}
+                        >
+                          <span className="font-bold">{item.label}</span>
+                          <span className="text-[8.5px] opacity-85 mt-0.5">{item.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Physical metrics for this antenna */}
+                  <div className="p-2.5 bg-white rounded-xl border border-border text-[10px] font-mono space-y-1.5">
+                    <div className="flex justify-between items-center text-text-secondary">
+                      <span>Longitud de Onda (λ = v/f):</span>
+                      <strong className="text-primary">{(resolutionInfo.wavelengthM * 100).toFixed(1)} cm</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-text-secondary">
+                      <span>Resolución Vert. Rayleigh (λ/4):</span>
+                      <strong className="text-emerald-600">{(resolutionInfo.rayleighResolutionM * 100).toFixed(1)} cm</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-text-secondary">
+                      <span>Banda IIR Recomendada:</span>
+                      <span className="text-text-primary font-bold">
+                        {resolutionInfo.recommendedHpMHz} - {resolutionInfo.recommendedLpMHz} MHz
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-text-secondary">
+                      <span>Ventana Dewow Recomendada:</span>
+                      <span className="text-text-primary font-bold">
+                        {resolutionInfo.recommendedDewowNs} ns
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Sync Filters Button */}
+                  <button
+                    onClick={() => handleSelectAntenna(currentAntennaFreq, true)}
+                    className="w-full py-1.5 px-2.5 bg-primary-50 hover:bg-primary-100 text-primary border border-primary-200 rounded-xl text-[11px] font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Sincronizar Filtros DSP con Antena ({currentAntennaFreq} MHz)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* 1. CABECERA & MUESTRAS (.GSF) */}
             {header && (
               <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
@@ -1083,6 +1201,21 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-border">
                     <span className="text-[10px] text-text-muted font-medium">Atenuación IIR:</span>
                     <span className="badge-primary text-[9px] px-2 py-0.5 font-bold">10 dB Predeterminada</span>
+                  </div>
+
+                  {/* Antenna Adapt Badge */}
+                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-sky-50 rounded-xl border border-sky-200 text-sky-900 text-[10.5px]">
+                    <span>Antena: <strong>{currentAntennaFreq} MHz</strong></span>
+                    <button
+                      onClick={() => {
+                        updateOption('hpCutoffMHz', resolutionInfo.recommendedHpMHz);
+                        updateOption('lpCutoffMHz', resolutionInfo.recommendedLpMHz);
+                      }}
+                      className="text-[10px] text-sky-700 hover:text-sky-900 underline font-semibold cursor-pointer"
+                      title="Aplicar cortes IIR recomendados para esta antena"
+                    >
+                      Ajustar a Antena ({resolutionInfo.recommendedHpMHz}-{resolutionInfo.recommendedLpMHz} MHz)
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -2459,6 +2592,197 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 </div>
               )}
             </div>
+
+            {/* ------------------------------------------------------------ */}
+            {/* ROW 9: TUBERÍAS Y SERVICIOS ENTERRADOS (SEG STANDARD)        */}
+            {/* ------------------------------------------------------------ */}
+            <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition">
+              <div className="p-3 flex items-center justify-between hover:bg-gray-100/60 transition">
+                <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
+                  <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-[11px] shadow-2xs">
+                    ⚡
+                  </div>
+                  <span>Tuberías y Servicios (SEG)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={localConfig.pipeUtility.enabled}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      updateDetection('pipeUtility', 'enabled', e.target.checked, true);
+                    }}
+                    className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer"
+                    title="Activar / Desactivar Detección de Tuberías"
+                  />
+                  <button
+                    onClick={() => toggleDetectionSection('pipeUtility')}
+                    className="p-1 hover:bg-gray-200 rounded text-text-secondary transition"
+                  >
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform ${
+                        detectionOpenSections.pipeUtility ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {detectionOpenSections.pipeUtility && (
+                <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-2 text-xs">
+                  {/* SEG Standard Header Badge */}
+                  <div className="px-2.5 py-1.5 bg-amber-500/10 border border-amber-400/40 rounded-xl text-amber-900 text-[11px] font-medium flex items-center justify-between">
+                    <span className="font-bold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                      SEG Standard
+                    </span>
+                    <span className="text-[10px] text-amber-700">Society of Exploration Geophysicists</span>
+                  </div>
+
+                  {/* Material Filter */}
+                  <div className="space-y-1">
+                    <label className="text-text-secondary font-medium text-[11px] block">
+                      Filtro de Material:
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      {([
+                        { id: 'all', label: 'Todos' },
+                        { id: 'metallic', label: '⚡ Metálicas' },
+                        { id: 'plastic', label: '🔸 PVC / PEAD' },
+                        { id: 'concrete', label: '🟢 Hormigón' },
+                      ] as const).map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => updateDetection('pipeUtility', 'materialFilter', m.id, true)}
+                          className={`py-1 px-2 rounded-lg border text-left font-medium transition ${
+                            localConfig.pipeUtility.materialFilter === m.id
+                              ? 'bg-amber-500 text-white border-amber-600 font-bold shadow-2xs'
+                              : 'bg-white text-text-primary border-border hover:bg-gray-100'
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Internal Content (Permittivity) */}
+                  <div className="space-y-1">
+                    <label className="text-text-secondary font-medium text-[11px] block">
+                      Fluido / Contenido Interior:
+                    </label>
+                    <div className="grid grid-cols-3 gap-1 text-[10.5px]">
+                      {([
+                        { id: 'empty_gas', label: 'Vacía / Gas', eps: 'ε=1' },
+                        { id: 'water', label: 'Agua', eps: 'ε=81' },
+                        { id: 'drainage', label: 'Drenaje', eps: 'ε=25' },
+                      ] as const).map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => updateDetection('pipeUtility', 'pipeContent', c.id, true)}
+                          className={`py-1 px-1.5 rounded-lg border text-center font-medium transition flex flex-col items-center ${
+                            localConfig.pipeUtility.pipeContent === c.id
+                              ? 'bg-primary text-white border-primary font-bold shadow-2xs'
+                              : 'bg-white text-text-primary border-border hover:bg-gray-100'
+                          }`}
+                        >
+                          <span className="truncate w-full">{c.label}</span>
+                          <span className="text-[9px] opacity-80">{c.eps}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Hyperbolic Coherence R² Slider */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-text-secondary text-[11px]">
+                      <span>Coherencia Hiperbólica SEG (R²):</span>
+                      <strong className="text-text-primary font-mono font-bold">
+                        {localConfig.pipeUtility.minCoherenceR2.toFixed(2)}
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.60"
+                      max="0.95"
+                      step="0.05"
+                      value={localConfig.pipeUtility.minCoherenceR2}
+                      onChange={(e) =>
+                        updateDetection('pipeUtility', 'minCoherenceR2', parseFloat(e.target.value))
+                      }
+                      className="w-full accent-amber-500"
+                    />
+                    <div className="flex justify-between text-[9px] text-text-muted">
+                      <span>0.60 (Permisivo)</span>
+                      <span>0.75 (Estándar SEG)</span>
+                      <span>0.95 (Estricto)</span>
+                    </div>
+                  </div>
+
+                  {/* Max Depth Slider */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-text-secondary text-[11px]">
+                      <span>Profundidad Máx. Exploración:</span>
+                      <strong className="text-text-primary font-mono font-bold">
+                        {localConfig.pipeUtility.maxDepthM.toFixed(1)} m
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min="1.0"
+                      max="5.0"
+                      step="0.2"
+                      value={localConfig.pipeUtility.maxDepthM}
+                      onChange={(e) =>
+                        updateDetection('pipeUtility', 'maxDepthM', parseFloat(e.target.value))
+                      }
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
+
+                  {/* Physics info */}
+                  <div className="p-2 bg-amber-50/70 rounded-xl border border-amber-200/80 text-[10.5px] text-amber-900 space-y-1 font-mono">
+                    <div className="font-bold flex items-center gap-1 text-amber-950">
+                      <span>Criterio Geofísico SEG (ASCE 38-02):</span>
+                    </div>
+                    <p className="text-[10px] text-amber-800 leading-tight">
+                      • Diámetro: D = c · Δt_solera / (2√ε_int)
+                      <br />• Metal: Inversión 180° (R ≈ -1.0) y ringing
+                      <br />• Plástico: Fase 0° (R &gt; 0, sin inversión)
+                    </p>
+                  </div>
+
+                  {/* Result badge */}
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs font-semibold">
+                    <span>Resultado:</span>
+                    <span>
+                      {detectionResults?.pipesUtilities
+                        ? `${detectionResults.pipesUtilities.count} tuberías (${detectionResults.pipesUtilities.metallicCount} met., ${detectionResults.pipesUtilities.plasticCount} plást.)`
+                        : '0 tuberías detectadas'}
+                    </span>
+                  </div>
+
+                  {/* Mini Legend with yellow variations */}
+                  <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-100/70 rounded-lg border border-border/70 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-primary flex-shrink-0">Leyenda:</span>
+                    <div className="flex items-center gap-2 flex-wrap text-[9.5px]">
+                      <span className="flex items-center gap-1 font-semibold text-amber-600">
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs inline-block" style={{ backgroundColor: '#FFE600' }} />
+                        Metal (Am. Eléctrico)
+                      </span>
+                      <span className="flex items-center gap-1 font-semibold text-amber-700">
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs inline-block" style={{ backgroundColor: '#FFB703' }} />
+                        PVC (Ámbar)
+                      </span>
+                      <span className="flex items-center gap-1 font-semibold text-lime-700">
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-white shadow-xs inline-block" style={{ backgroundColor: '#D4E157' }} />
+                        Hormigón (Am. Esmeralda)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -2520,6 +2844,14 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex justify-between">
                   <span>Velocidad (v):</span>
                   <span>{currentVelocity.toFixed(3)} m/ns</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Antena Central:</span>
+                  <span className="font-bold text-amber-700">{currentAntennaFreq} MHz</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Resolución Vert. (λ/4):</span>
+                  <span className="font-bold text-emerald-700">{(resolutionInfo.rayleighResolutionM * 100).toFixed(1)} cm</span>
                 </div>
               </div>
             )}
