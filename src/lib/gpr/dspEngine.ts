@@ -363,6 +363,8 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
     const attenFactor = Math.pow(10, -attenDb / 20.0); // 10dB attenuation factor = 0.316
 
     const fNyquistMHz = dtNs > 0 ? 500.0 / dtNs : 1000.0;
+    const normHp = Math.min(1.0, Math.max(0.01, hpMHz / fNyquistMHz));
+    const normLp = Math.min(1.0, Math.max(normHp, lpMHz / fNyquistMHz));
 
     for (let t = 0; t < currentTraces; t++) {
       const trace = processed[t];
@@ -379,7 +381,8 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
         const lowPassSample = (p2 + 2 * p1 + 3 * c + 2 * n1 + n2) / 9.0;
         const highPassSample = c - lowPassSample;
 
-        filtered[s] = lowPassSample * attenFactor + highPassSample;
+        const passWeight = normLp - normHp;
+        filtered[s] = (lowPassSample * normLp + highPassSample * normHp * attenFactor) * (1.0 + passWeight * 0.2);
       }
       processed[t] = filtered;
     }
