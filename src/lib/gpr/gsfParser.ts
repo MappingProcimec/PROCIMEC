@@ -138,15 +138,16 @@ export function detectarGeometriaGSF(
  * Robustly detects the antenna frequency (200, 400, or 500 MHz) used in a GSF profile:
  * 1. Filename explicit tags (regex matching 200, 400, 500, FLB200, etc.)
  * 2. Header ASCII scanning for antenna identifiers in Akula9000C hardware blocks
- * 3. Multi-trace Discrete Fourier Transform (DFT) spectral power distribution
- * 4. Physics of sampling interval dt (ns) and time window TWT (ns)
+ * 3. Physical exploration depth D_max and time window normalized by recorded RDP (epsilon_r)
+ * 4. Multi-trace Discrete Fourier Transform (DFT) spectral power distribution
  */
 export function detectAntennaFromGSF(
   buffer: ArrayBuffer,
   filename: string,
   timeWindowNs: number,
   numSamples: number,
-  cabecera: number = CABECERA_DEFAULT
+  cabecera: number = CABECERA_DEFAULT,
+  rdpRecorded: number = DIELECTRICO_DEF
 ): number {
   let score200 = 0;
   let score400 = 0;
@@ -183,23 +184,34 @@ export function detectAntennaFromGSF(
     if (/(400mhz|flb-?400|akula-?400|ant-?400)/i.test(hLower)) score400 += 40;
   }
 
-  // 3. Time Window and Sampling Rate Physics
-  const dtNs = numSamples > 0 && timeWindowNs > 0 ? timeWindowNs / numSamples : 0.175;
+  // 3. RDP-Normalized Physics: Exploration Depth D_max & TWT_norm9
+  // Compensates for any RDP (asphalt 4-6, concrete 6-7, soil 9, wet soil 16-25)
+  const effectiveRdp = rdpRecorded > 0 ? rdpRecorded : 9.0;
+  const velocityM_ns = C_LUZ_M_NS / Math.sqrt(effectiveRdp); // v = 0.30 / sqrt(RDP)
+  const maxDepthM = (velocityM_ns * timeWindowNs) / 2.0;
 
-  // Time window heuristics:
-  if (timeWindowNs >= 120.0) {
-    score200 += 35; // Deep survey (e.g. 184 ns = 9.2 m is characteristic of 200 MHz)
-  } else if (timeWindowNs <= 55.0) {
-    score500 += 35; // Very shallow high-res
+  // Normalized time window equivalent to reference RDP = 9.0 (v = 0.10 m/ns):
+  const twNormalizedToRdp9 = timeWindowNs * (3.0 / Math.sqrt(effectiveRdp));
+
+  // Depth-based and RDP-invariant classification:
+  // 200 MHz: Deep penetration (D >= 3.8 m or TWT_norm9 >= 115 ns)
+  // 400 MHz: Standard road/utilities (1.9 m <= D < 3.8 m or 55 ns <= TWT_norm9 < 115 ns)
+  // 500 MHz: High-res shallow (D < 1.9 m or TWT_norm9 < 55 ns)
+  if (maxDepthM >= 3.8 || twNormalizedToRdp9 >= 115.0) {
+    score200 += 40;
+  } else if (maxDepthM < 1.9 || twNormalizedToRdp9 < 55.0) {
+    score500 += 40;
   } else {
-    score400 += 25; // Standard 60-110 ns window
+    score400 += 35;
   }
 
-  // Sample interval heuristics:
-  if (dtNs >= 0.28) {
-    score200 += 20; // 200 MHz Nyquist sampling
-  } else if (dtNs <= 0.13) {
-    score500 += 20; // 500 MHz fine sampling
+  // Normalized sampling interval dt_norm9:
+  const dtNs = numSamples > 0 && timeWindowNs > 0 ? timeWindowNs / numSamples : 0.175;
+  const dtNorm9 = dtNs * (3.0 / Math.sqrt(effectiveRdp));
+  if (dtNorm9 >= 0.26) {
+    score200 += 20;
+  } else if (dtNorm9 <= 0.13) {
+    score500 += 20;
   } else {
     score400 += 15;
   }
@@ -369,8 +381,8 @@ export function extractGSFHeader(
 
   const dtFinal = twFinal / muestrasPorTraza;
 
-  // Auto-detect antenna frequency (200, 400, or 500 MHz) directly from profile file
-  const detectedAntennaFreq = detectAntennaFromGSF(buffer, filename, twFinal, muestrasPorTraza, cabecera);
+  // Auto-detect antenna frequency (200, 400, or 500 MHz) directly from profile file and recorded RDP
+  const detectedAntennaFreq = detectAntennaFromGSF(buffer, filename, twFinal, muestrasPorTraza, cabecera, erFinal);
 
   return {
     title: filename.replace(/\.[^/.]+$/, ''),
