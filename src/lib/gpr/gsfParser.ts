@@ -463,10 +463,10 @@ export function extractGSFHeader(
   const cuerpoBytes = Math.max(0, totalBytes - cabeceraFinal);
   const totalTrazas = Math.floor(cuerpoBytes / tamBloque);
 
-  // Time window calibration: Offset 66 stores Time Window (Two-Way Travel Time, TWT ns).
+  // Time window calibration: Offset 66 stores One-Way Time (OWT ns). Two-Way Travel Time (TWT ns) = OWT * 2.
   let twFinal = VENTANA_TIEMPO_NS_DEF;
   if (ventanaNsHdr && ventanaNsHdr > 0) {
-    twFinal = ventanaNsHdr;
+    twFinal = ventanaNsHdr * 2;
   }
 
   const erFinal = erHdr && erHdr > 0 ? erHdr : DIELECTRICO_DEF;
