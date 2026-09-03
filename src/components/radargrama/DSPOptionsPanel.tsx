@@ -585,9 +585,9 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     </label>
                     <div className="grid grid-cols-3 gap-1.5">
                       {[
-                        { freq: 200, label: '200 MHz', desc: 'Profunda (0-6m)' },
-                        { freq: 400, label: '400 MHz', desc: 'Estándar (0-3.5m)' },
-                        { freq: 500, label: '500 MHz', desc: 'Detalle (0-2.2m)' },
+                        { freq: 200, label: '200 MHz', desc: 'HP 100 — LP 400', depth: 'Profunda (0-6m)' },
+                        { freq: 400, label: '400 MHz', desc: 'HP 200 — LP 800', depth: 'Estándar (0-3.5m)' },
+                        { freq: 500, label: '500 MHz', desc: 'HP 250 — LP 1000', depth: 'Detalle (0-2.2m)' },
                       ].map((item) => (
                         <button
                           key={item.freq}
@@ -599,7 +599,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                           }`}
                         >
                           <span className="font-bold">{item.label}</span>
-                          <span className="text-[8.5px] opacity-85 mt-0.5">{item.desc}</span>
+                          <span className="text-[8px] font-mono opacity-90 mt-0.5 text-amber-500 font-semibold">{item.desc}</span>
+                          <span className="text-[7.5px] opacity-75">{item.depth}</span>
                         </button>
                       ))}
                     </div>
@@ -1213,19 +1214,45 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <span className="badge-primary text-[9px] px-2 py-0.5 font-bold">10 dB Predeterminada</span>
                   </div>
 
-                  {/* Antenna Adapt Badge */}
-                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-sky-50 rounded-xl border border-sky-200 text-sky-900 text-[10.5px]">
-                    <span>Antena: <strong>{currentAntennaFreq} MHz</strong></span>
-                    <button
-                      onClick={() => {
-                        updateOption('hpCutoffMHz', resolutionInfo.recommendedHpMHz);
-                        updateOption('lpCutoffMHz', resolutionInfo.recommendedLpMHz);
-                      }}
-                      className="text-[10px] text-sky-700 hover:text-sky-900 underline font-semibold cursor-pointer"
-                      title="Aplicar cortes IIR recomendados para esta antena"
-                    >
-                      Ajustar a Antena ({resolutionInfo.recommendedHpMHz}-{resolutionInfo.recommendedLpMHz} MHz)
-                    </button>
+                  {/* Antenna Adapt Badge & Preset Buttons */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between px-2.5 py-1.5 bg-sky-50 rounded-xl border border-sky-200 text-sky-900 text-[10.5px]">
+                      <span>Antena Activa: <strong>{currentAntennaFreq} MHz</strong></span>
+                      <button
+                        onClick={() => {
+                          updateOption('hpCutoffMHz', resolutionInfo.recommendedHpMHz);
+                          updateOption('lpCutoffMHz', resolutionInfo.recommendedLpMHz);
+                        }}
+                        className="text-[10px] text-sky-700 hover:text-sky-900 underline font-semibold cursor-pointer"
+                        title="Aplicar cortes IIR recomendados para esta antena"
+                      >
+                        Auto: {resolutionInfo.recommendedHpMHz} - {resolutionInfo.recommendedLpMHz} MHz
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        { label: '200 MHz', hp: 100, lp: 400 },
+                        { label: '400 MHz', hp: 200, lp: 800 },
+                        { label: '500 MHz', hp: 250, lp: 1000 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          onClick={() => {
+                            updateOption('hpCutoffMHz', preset.hp);
+                            updateOption('lpCutoffMHz', preset.lp);
+                          }}
+                          className={`py-1 rounded-lg text-[9px] font-mono border transition text-center ${
+                            (options.hpCutoffMHz === preset.hp && options.lpCutoffMHz === preset.lp)
+                              ? 'bg-sky-600 text-white border-sky-600 font-bold shadow-xs'
+                              : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                          }`}
+                        >
+                          <div className="font-bold">{preset.label}</div>
+                          <div className="text-[8px] opacity-85">{preset.hp}-{preset.lp}M</div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -1236,7 +1263,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       <input
                         type="number"
                         step="10"
-                        value={options.hpCutoffMHz || 100}
+                        value={options.hpCutoffMHz || 200}
                         onChange={(e) => updateOption('hpCutoffMHz', Math.max(1, parseFloat(e.target.value) || 100))}
                         className="input text-xs py-1 font-mono font-bold text-sky-700"
                       />

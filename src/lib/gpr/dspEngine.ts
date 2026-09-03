@@ -76,7 +76,7 @@ export const DEFAULT_DSP_OPTIONS: DSPOptions = {
   timeZeroMarginNs: undefined,
   bandpass: true,
   filterAttenuationDb: 10.0,
-  hpCutoffMHz: 100.0,
+  hpCutoffMHz: 200.0,
   lpCutoffMHz: 800.0,
   backgroundRemoval: true, // Encendido por defecto
   bkgRemovalPercent: 10.0,
@@ -104,7 +104,10 @@ export const DEFAULT_DSP_OPTIONS: DSPOptions = {
 
 /**
  * Calculates the free-space and medium wavelength lambda, Rayleigh vertical resolution limit (lambda / 4),
- * and suggested dependent DSP parameters (IIR cutoffs, Dewow window) based on antenna frequency.
+ * and suggested dependent DSP parameters (IIR cutoffs, Dewow window) based on antenna frequency:
+ * - Antena 200 MHz: HP = 100 MHz, LP = 400 MHz (Dewow = 3.0 ns)
+ * - Antena 400 MHz: HP = 200 MHz, LP = 800 MHz (Dewow = 2.0 ns)
+ * - Antena 500 MHz: HP = 250 MHz, LP = 1000 MHz (Dewow = 2.0 ns)
  */
 export function calculateResolution(freqMHz: number = 400, permittivity: number = 6.0): {
   velocityM_ns: number;
@@ -121,6 +124,7 @@ export function calculateResolution(freqMHz: number = 400, permittivity: number 
   const rayleighM = lambdaM / 4.0;
   // Remoción DC Dewow siempre es 2.0 o 3.0 ns según estándar geofísico de adquisición PROCIMEC
   const recommendedDewowNs = freqMHz <= 200 ? 3.0 : 2.0;
+  // Cortes IIR Pasa-Banda: HP = f*0.5, LP = f*2.0
   const recommendedHpMHz = Math.round(freqMHz * 0.5);
   const recommendedLpMHz = Math.round(freqMHz * 2.0);
 
