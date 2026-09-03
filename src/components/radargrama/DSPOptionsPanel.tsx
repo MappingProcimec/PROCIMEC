@@ -2846,38 +2846,130 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {header && (
-              <div className="p-3 bg-primary-50 rounded-2xl border border-primary-200 text-[11px] font-mono space-y-1.5 text-primary">
-                <div className="flex justify-between font-bold">
-                  <span>Equipo:</span>
-                  <span>Geoscanners Akula9000C</span>
+              <div className="space-y-2.5">
+                {/* 1. FICHA TÉCNICA PRINCIPAL */}
+                <div className="p-3 bg-primary-50 rounded-2xl border border-primary-200 text-[11px] font-mono space-y-1.5 text-primary shadow-2xs">
+                  <div className="flex justify-between font-bold border-b border-primary-200/60 pb-1">
+                    <span>Equipo:</span>
+                    <span>Geoscanners Akula9000C</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Cabecera:</span>
+                    <span>{header.byteOffsetData} Bytes</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Trazas Totales:</span>
+                    <span className="font-bold">{header.numTraces}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Muestras / Traza:</span>
+                    <span className="font-bold">{header.numSamples}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Rango / Ventana:</span>
+                    <span className="font-bold text-amber-700">{options.ventanaNs || header.timeWindowNs || 90} ns</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Dieléctrico (εr):</span>
+                    <span>{options.dielectricPermittivity.toFixed(1)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Velocidad (v):</span>
+                    <span>{currentVelocity.toFixed(3)} m/ns</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Antena Central:</span>
+                    <span className="font-bold text-amber-700">{currentAntennaFreq} MHz</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Resolución Vert. (λ/4):</span>
+                    <span className="font-bold text-emerald-700">{(resolutionInfo.rayleighResolutionM * 100).toFixed(1)} cm</span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Cabecera:</span>
-                  <span>{header.byteOffsetData} Bytes</span>
+
+                {/* 2. PARÁMETROS DE ADQUISICIÓN HARDWARE (GAS / FIRMWARE) */}
+                <div className="p-3 bg-white rounded-2xl border border-border text-[10.5px] font-mono space-y-1.5 shadow-2xs">
+                  <div className="flex items-center justify-between font-bold text-primary text-[11px] border-b border-border/70 pb-1">
+                    <span>Adquisición Hardware</span>
+                    <span className="text-[9px] badge-primary px-1.5 py-0.2">GAS ver. {header.gasVersion || '5.5'}</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>Firmware revision:</span>
+                    <span className="font-bold text-text-primary">{header.firmwareRevision || '1.4.0'}</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>Modo de Adquisición:</span>
+                    <span className="font-bold text-text-primary">{header.acquisitionMode || 'Distance mode'}</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>Trazas / metro:</span>
+                    <span className="font-bold text-emerald-700">{Math.round(currentTracesPerMeter)} tr/m</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>Bits en Data word:</span>
+                    <span className="font-bold text-text-primary">{header.dataWordBits || 16} bits</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>Posición (Time-Zero):</span>
+                    <span className="font-bold text-text-primary">{header.posicionNsHdr || 11} ns</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>Hardware Gain:</span>
+                    <span className="font-bold text-text-primary">{header.hardwareGainDb || 10} dB</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>Cantidad de Marcas:</span>
+                    <span className="font-bold text-text-primary">{header.marksCount || 0}</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>Apilar (Stacking):</span>
+                    <span className="font-bold text-text-primary">{options.stackingFactor || header.stackingHdr || 3}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Trazas Totales:</span>
-                  <span className="font-bold">{header.numTraces}</span>
+
+                {/* 3. FILTROS IIR & SUBSTRACCIÓN DE FONDO */}
+                <div className="p-3 bg-white rounded-2xl border border-border text-[10.5px] font-mono space-y-1.5 shadow-2xs">
+                  <div className="flex items-center justify-between font-bold text-primary text-[11px] border-b border-border/70 pb-1">
+                    <span>Filtros IIR & DSP</span>
+                    <span className="text-[9px] text-sky-700 font-semibold">{currentAntennaFreq} MHz</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>HP IIR (MHz):</span>
+                    <span className="font-bold text-sky-700">{options.hpCutoffMHz || resolutionInfo.recommendedHpMHz} MHz</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>LP IIR (MHz):</span>
+                    <span className="font-bold text-sky-700">{options.lpCutoffMHz || resolutionInfo.recommendedLpMHz} MHz</span>
+                  </div>
+                  <div className="flex justify-between text-text-secondary">
+                    <span>Substraer el fondo:</span>
+                    <span className="font-bold text-purple-700">
+                      {options.backgroundRemoval ? `${options.bkgRemovalPercent || 10}%` : '0 (Desactivado)'}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span>Muestras / Traza:</span>
-                  <span className="font-bold">{header.numSamples}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Dieléctrico (εr):</span>
-                  <span>{options.dielectricPermittivity.toFixed(1)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Velocidad (v):</span>
-                  <span>{currentVelocity.toFixed(3)} m/ns</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Antena Central:</span>
-                  <span className="font-bold text-amber-700">{currentAntennaFreq} MHz</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Resolución Vert. (λ/4):</span>
-                  <span className="font-bold text-emerald-700">{(resolutionInfo.rayleighResolutionM * 100).toFixed(1)} cm</span>
+
+                {/* 4. PUNTOS DE GANANCIA HARDWARE */}
+                <div className="p-3 bg-white rounded-2xl border border-border text-[10.5px] font-mono space-y-1.5 shadow-2xs">
+                  <div className="flex items-center justify-between font-bold text-primary text-[11px] border-b border-border/70 pb-1">
+                    <span>Puntos de Ganancia</span>
+                    <span className="text-[9px] text-text-muted">Cantidad: 6</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-0.5">
+                    {[
+                      { punto: 1, db: 0.0 },
+                      { punto: 2, db: 9.3 },
+                      { punto: 3, db: 10.1 },
+                      { punto: 4, db: 11.7 },
+                      { punto: 5, db: 12.5 },
+                      { punto: 6, db: 13.3 },
+                    ].map((p) => (
+                      <div key={p.punto} className="flex justify-between items-center text-text-secondary">
+                        <span>Punto {p.punto} (dB):</span>
+                        <strong className="text-primary">{p.db.toFixed(1)}</strong>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

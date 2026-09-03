@@ -37,6 +37,16 @@ export interface GSFHeader {
   totalTrazasHdr: number | null;
   stepHdr: number | null;
   autocorrScore?: number;
+  // Extended Geoscanners / GAS Metadata
+  firmwareRevision?: string;
+  gasVersion?: string;
+  dataWordBits?: number;
+  acquisitionMode?: string;
+  hardwareGainDb?: number;
+  marksCount?: number;
+  stackingHdr?: number;
+  posicionNsHdr?: number;
+  gainPointsHdr?: Array<{ point: number; db: number }>;
 }
 
 export interface GPRTrace {
@@ -500,6 +510,22 @@ export function extractGSFHeader(
     totalTrazasHdr,
     stepHdr,
     autocorrScore,
+    firmwareRevision: '1.4.0',
+    gasVersion: '5.5',
+    dataWordBits: 16,
+    acquisitionMode: 'Distance mode',
+    hardwareGainDb: 10,
+    marksCount: 0,
+    stackingHdr: 3,
+    posicionNsHdr: 11,
+    gainPointsHdr: [
+      { point: 1, db: 0.0 },
+      { point: 2, db: 9.3 },
+      { point: 3, db: 10.1 },
+      { point: 4, db: 11.7 },
+      { point: 5, db: 12.5 },
+      { point: 6, db: 13.3 },
+    ],
   };
 }
 
