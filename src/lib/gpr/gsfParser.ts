@@ -7,7 +7,7 @@
 import { correlateFFT } from './fftCorrelation';
 
 export const C_LUZ_M_NS = 0.30;             // Speed of light in vacuum (m/ns)
-export const CABECERA_DEFAULT = 512;         // Standard default header size (512 bytes)
+export const CABECERA_DEFAULT = 937;         // Standard Akula9000C header size (937 bytes)
 export const DIELECTRICO_DEF = 6.0;          // Default relative permittivity (RDP)
 export const VENTANA_TIEMPO_NS_DEF = 90.0;   // Default time window in ns
 export const TRAZAS_POR_METRO_DEF = 112.0;   // Standard Geoscanners odometer (112 traces/m)
@@ -25,7 +25,7 @@ export interface GSFHeader {
   traceDistanceStepM: number;     // dx in meters (1/112 m = 0.00892857m)
   tracesPerMeter: number;         // Odometry calibration (default 112 or 111 tr/m)
   zeroOffsetNs: number;
-  byteOffsetData: number;         // 512 bytes default
+  byteOffsetData: number;         // Header offset (937 or 512 bytes)
   traceHeaderBytes: number;       // 0 bytes (contiguous trace data)
   bytesPerSample: number;         // 2 bytes (Int16)
   dataType: 'int16';
@@ -132,6 +132,110 @@ export function detectarGeometriaGSF(
     muestrasPorTraza: bestLag,
     score: maxScore,
   };
+}
+
+/**
+ * Intelligent header size and geometry auto-detection for GSF files:
+ * Evaluates candidate header sizes (937, 512, 1024, 0) against hardware offsets and FFT autocorrelation.
+ */
+export function detectarCabeceraYGeometriaGSF(
+  buffer: ArrayBuffer,
+  cabeceraManual?: number,
+  manualSamples?: number,
+  muestrasHdr?: number | null,
+  totalTrazasHdr?: number | null
+): { cabecera: number; muestrasPorTraza: number; tamBloque: number; score: number } {
+  const totalBytes = buffer.byteLength;
+
+  // If user passed explicit cabeceraManual and manualSamples
+  if (cabeceraManual !== undefined && cabeceraManual !== null && manualSamples && manualSamples > 0) {
+    return {
+      cabecera: cabeceraManual,
+      muestrasPorTraza: manualSamples,
+      tamBloque: manualSamples * 2,
+      score: 1.0,
+    };
+  }
+
+  // Candidate header sizes in order of prevalence for Akula9000C and GPRSoft
+  const candidateHeaders = [937, 512, 1024, 0];
+
+  // 1. If user passed manualSamples but no explicit cabecera
+  if (manualSamples && manualSamples > 0) {
+    const bSize = manualSamples * 2;
+    for (const h of candidateHeaders) {
+      if (totalBytes > h && (totalBytes - h) % bSize === 0) {
+        return { cabecera: h, muestrasPorTraza: manualSamples, tamBloque: bSize, score: 1.0 };
+      }
+    }
+    const h = cabeceraManual !== undefined && cabeceraManual !== null ? cabeceraManual : (totalBytes >= 937 ? 937 : 512);
+    return { cabecera: h, muestrasPorTraza: manualSamples, tamBloque: bSize, score: 1.0 };
+  }
+
+  // 2. If user passed explicit cabeceraManual
+  if (cabeceraManual !== undefined && cabeceraManual !== null) {
+    if (muestrasHdr && (totalBytes - cabeceraManual) % (muestrasHdr * 2) === 0) {
+      return {
+        cabecera: cabeceraManual,
+        muestrasPorTraza: muestrasHdr,
+        tamBloque: muestrasHdr * 2,
+        score: 1.0,
+      };
+    }
+    const det = detectarGeometriaGSF(buffer, cabeceraManual);
+    return {
+      cabecera: cabeceraManual,
+      muestrasPorTraza: det.muestrasPorTraza,
+      tamBloque: det.tamBloque,
+      score: det.score,
+    };
+  }
+
+  // 3. Hardware Header Validation: Offset 84 (muestrasHdr) and Offset 344 (totalTrazasHdr)
+  if (muestrasHdr && muestrasHdr >= 100 && muestrasHdr <= 5000) {
+    const bSize = muestrasHdr * 2;
+
+    // Check if totalTrazasHdr matches exactly with any candidate header
+    if (totalTrazasHdr && totalTrazasHdr > 0) {
+      for (const h of candidateHeaders) {
+        if (totalBytes > h && Math.floor((totalBytes - h) / bSize) === totalTrazasHdr && (totalBytes - h) % bSize === 0) {
+          return { cabecera: h, muestrasPorTraza: muestrasHdr, tamBloque: bSize, score: 1.0 };
+        }
+      }
+    }
+
+    // Check exact divisibility for candidate headers
+    for (const h of candidateHeaders) {
+      if (totalBytes > h && (totalBytes - h) % bSize === 0) {
+        return { cabecera: h, muestrasPorTraza: muestrasHdr, tamBloque: bSize, score: 1.0 };
+      }
+    }
+  }
+
+  // 4. Multi-header FFT Autocorrelation Analysis across candidate header sizes
+  let bestResult = {
+    cabecera: totalBytes >= 937 ? 937 : 512,
+    muestrasPorTraza: muestrasHdr || 512,
+    tamBloque: (muestrasHdr || 512) * 2,
+    score: -Infinity,
+  };
+
+  for (const h of candidateHeaders) {
+    if (totalBytes <= h + 200) continue;
+    const det = detectarGeometriaGSF(buffer, h);
+    const isClean = (totalBytes - h) % det.tamBloque === 0;
+    const effectiveScore = det.score + (isClean ? 0.5 : 0);
+    if (effectiveScore > bestResult.score) {
+      bestResult = {
+        cabecera: h,
+        muestrasPorTraza: det.muestrasPorTraza,
+        tamBloque: det.tamBloque,
+        score: effectiveScore,
+      };
+    }
+  }
+
+  return bestResult;
 }
 
 /**
@@ -300,7 +404,7 @@ export function detectAntennaFromGSF(
 export function extractGSFHeader(
   buffer: ArrayBuffer,
   filename: string,
-  cabecera: number = CABECERA_DEFAULT,
+  cabecera?: number,
   manualSamples?: number
 ): GSFHeader {
   const dataView = new DataView(buffer);
@@ -315,7 +419,7 @@ export function extractGSFHeader(
   // Extract Akula9000C Hardware Header (Offsets 66, 84, 86, 344, 406)
   if (totalBytes >= 410) {
     try {
-      // Offset 66 (int16): Ventana / One-Way time
+      // Offset 66 (int16): Ventana de tiempo (ns)
       const vVal = dataView.getInt16(66, true);
       if (vVal >= 1 && vVal <= 1000) {
         ventanaNsHdr = vVal;
@@ -349,40 +453,29 @@ export function extractGSFHeader(
     }
   }
 
-  // Determine geometry (muestras por traza y total de trazas)
-  let muestrasPorTraza = 512;
-  let autocorrScore = 1.0;
-
-  if (manualSamples && manualSamples > 0) {
-    muestrasPorTraza = manualSamples;
-  } else if (muestrasHdr && (totalBytes - cabecera) % (muestrasHdr * 2) === 0) {
-    muestrasPorTraza = muestrasHdr;
-  } else {
-    const det = detectarGeometriaGSF(buffer, cabecera);
-    muestrasPorTraza = det.muestrasPorTraza;
-    autocorrScore = det.score;
-  }
+  // Determine geometry & header dynamically
+  const geom = detectarCabeceraYGeometriaGSF(buffer, cabecera, manualSamples, muestrasHdr, totalTrazasHdr);
+  const cabeceraFinal = geom.cabecera;
+  const muestrasPorTraza = geom.muestrasPorTraza;
+  const autocorrScore = geom.score;
 
   const tamBloque = muestrasPorTraza * 2;
-  const cuerpoBytes = Math.max(0, totalBytes - cabecera);
+  const cuerpoBytes = Math.max(0, totalBytes - cabeceraFinal);
   const totalTrazas = Math.floor(cuerpoBytes / tamBloque);
 
-  // Time window calibration: Offset 66 stores One-Way Time (OWT ns). Two-Way Travel Time (TWT ns) = OWT * 2.
+  // Time window calibration: Offset 66 stores Time Window (Two-Way Travel Time, TWT ns).
   let twFinal = VENTANA_TIEMPO_NS_DEF;
   if (ventanaNsHdr && ventanaNsHdr > 0) {
-    twFinal = ventanaNsHdr * 2;
+    twFinal = ventanaNsHdr;
   }
 
   const erFinal = erHdr && erHdr > 0 ? erHdr : DIELECTRICO_DEF;
-  
-  // Standard Odometry: 112 traces/meter (dx = 1/112 m)
-  const dxFinal = DX_DEF;
-  const tracesPerMeter = TRAZAS_POR_METRO_DEF;
-
+  const dxFinal = stepHdr && stepHdr > 0 ? stepHdr : DX_DEF;
+  const tracesPerMeter = dxFinal > 0 ? 1.0 / dxFinal : TRAZAS_POR_METRO_DEF;
   const dtFinal = twFinal / muestrasPorTraza;
 
   // Auto-detect antenna frequency (200, 400, or 500 MHz) directly from profile file and recorded RDP
-  const detectedAntennaFreq = detectAntennaFromGSF(buffer, filename, twFinal, muestrasPorTraza, cabecera, erFinal);
+  const detectedAntennaFreq = detectAntennaFromGSF(buffer, filename, twFinal, muestrasPorTraza, cabeceraFinal, erFinal);
 
   return {
     title: filename.replace(/\.[^/.]+$/, ''),
@@ -396,11 +489,11 @@ export function extractGSFHeader(
     traceDistanceStepM: dxFinal,
     tracesPerMeter,
     zeroOffsetNs: 0,
-    byteOffsetData: cabecera,
+    byteOffsetData: cabeceraFinal,
     traceHeaderBytes: 0,
     bytesPerSample: 2,
     dataType: 'int16',
-    headerSize: cabecera,
+    headerSize: cabeceraFinal,
     ventanaNsHdr,
     muestrasHdr,
     erHdr,

@@ -671,25 +671,35 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         <label className="text-[10px] font-semibold text-text-secondary">
                           Tamaño Cabecera de Archivo:
                         </label>
-                        <span className="text-[9px] text-emerald-600 font-medium">
-                          512 Bytes Predeterminado
+                        <span className="text-[9px] text-emerald-600 font-medium font-mono">
+                          Auto-detectado: {header.byteOffsetData ?? 937}B
                         </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {[512, 1024, 937].map((off) => (
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[937, 512, 1024, 0].map((off) => (
                           <button
                             key={off}
                             onClick={() => updateHeader('byteOffsetData', off)}
                             className={`py-1.5 rounded-xl text-xs font-mono border transition flex flex-col items-center justify-center ${
-                              (header.byteOffsetData || 512) === off
+                              (header.byteOffsetData ?? 937) === off
                                 ? 'bg-primary text-white border-primary font-bold shadow-xs'
                                 : 'bg-white text-text-secondary border-border hover:bg-gray-100'
                             }`}
                           >
-                            <span>{off} Bytes</span>
+                            <span>{off} B</span>
+                            {off === 937 && (
+                              <span className="text-[8px] font-sans font-normal opacity-90">
+                                Akula9000
+                              </span>
+                            )}
                             {off === 512 && (
                               <span className="text-[8px] font-sans font-normal opacity-90">
-                                Predeterminado
+                                Estándar
+                              </span>
+                            )}
+                            {off === 0 && (
+                              <span className="text-[8px] font-sans font-normal opacity-90">
+                                Sin cab.
                               </span>
                             )}
                           </button>
@@ -725,9 +735,9 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
                     <div className="p-2.5 bg-white rounded-xl border border-border text-[10px] font-mono space-y-1">
                       <div className="flex justify-between">
-                        <span className="text-text-muted">Offset 66 (OWT → TWT):</span>
+                        <span className="text-text-muted">Offset 66 (Ventana):</span>
                         <span className="text-primary font-bold">
-                          {header.ventanaNsHdr != null ? `${header.ventanaNsHdr} ns → ${header.timeWindowNs} ns` : 'N/A'}
+                          {header.ventanaNsHdr != null ? `${header.ventanaNsHdr} ns` : (header.timeWindowNs ? `${header.timeWindowNs} ns` : 'N/A')}
                         </span>
                       </div>
                       <div className="flex justify-between">
