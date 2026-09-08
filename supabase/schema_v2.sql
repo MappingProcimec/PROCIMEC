@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS role_forms (
 -- ─────────────────────────────────────────────────────────────
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS role_id     UUID REFERENCES roles(id)     ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS division_id UUID REFERENCES divisions(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS division_id UUID REFERENCES divisions(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS phone       TEXT;
 
 -- ─────────────────────────────────────────────────────────────
 -- ÍNDICES

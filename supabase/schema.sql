@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
   avatar_url TEXT,
+  phone TEXT,
   role TEXT CHECK (role IN ('admin', 'operator', 'pending', 'dibujo')) DEFAULT 'pending',
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()

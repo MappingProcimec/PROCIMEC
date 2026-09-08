@@ -21,6 +21,7 @@ interface FormOption { id: string; slug: string; name: string; description?: str
 interface UserDivisionRole { division_id: string; role_id: string | null }
 interface User {
   id: string; email: string; full_name: string; avatar_url?: string;
+  phone?: string | null;
   role: 'admin' | 'operator' | 'pending' | 'dibujo';
   role_id: string | null;
   roles: { id: string; name: string } | null;
@@ -265,6 +266,11 @@ function DivisionBlockCard({
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
+
   const [accessType, setAccessType] = useState<'admin' | 'pending' | 'division'>('division');
   const [editBlocks, setEditBlocks] = useState<DivisionBlock[]>([]);
   const [blocksReady, setBlocksReady] = useState(false);
@@ -345,6 +351,9 @@ export default function AdminUsersPage() {
       division_roles?: { division_id: string; role_id: string | null }[];
       tool_ids?: string[];
       form_ids?: string[];
+      full_name?: string;
+      email?: string;
+      phone?: string | null;
     }) => {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
@@ -366,6 +375,10 @@ export default function AdminUsersPage() {
 
   const openEdit = (user: User) => {
     setEditingUser(user);
+    setEditName(user.full_name || '');
+    setEditEmail(user.email || '');
+    setEditPhone(user.phone || '');
+    setValidationError(null);
     setAccessType(user.role === 'admin' ? 'admin' : user.role === 'pending' ? 'pending' : 'division');
     setEditBlocks([]);
     setBlocksReady(false);
@@ -382,28 +395,50 @@ export default function AdminUsersPage() {
 
   const handleSave = () => {
     if (!editingUser) return;
+
+    const trimmedName = editName.trim();
+    const trimmedEmail = editEmail.trim().toLowerCase();
+    const trimmedPhone = editPhone.trim();
+
+    if (!trimmedName) {
+      setValidationError('El nombre no puede estar vacío.');
+      return;
+    }
+
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setValidationError('Ingresa un correo electrónico válido.');
+      return;
+    }
+
+    setValidationError(null);
+
     const tool_ids = Array.from(selectedToolIds);
     const form_ids = Array.from(selectedFormIds);
 
+    const basePayload = {
+      id: editingUser.id,
+      full_name: trimmedName,
+      email: trimmedEmail,
+      phone: trimmedPhone || null,
+      tool_ids,
+      form_ids,
+    };
+
     if (accessType === 'admin') {
       updateMutation.mutate({
-        id: editingUser.id,
+        ...basePayload,
         role: 'admin',
         role_id: null,
         division_roles: [],
         project_ids: [],
-        tool_ids,
-        form_ids,
       });
     } else if (accessType === 'pending') {
       updateMutation.mutate({
-        id: editingUser.id,
+        ...basePayload,
         role: 'pending',
         role_id: null,
         division_roles: [],
         project_ids: [],
-        tool_ids,
-        form_ids,
       });
     } else {
       const valid = editBlocks.filter(b => b.divisionId);
@@ -412,13 +447,11 @@ export default function AdminUsersPage() {
       const primaryRole = roleOptions.find(r => r.id === valid[0]?.roleId);
       const sysRole = primaryRole ? deriveSystemRole(primaryRole.name) : 'operator';
       updateMutation.mutate({
-        id: editingUser.id,
+        ...basePayload,
         role: sysRole,
         role_id: valid[0]?.roleId || null,
         division_roles,
         project_ids,
-        tool_ids,
-        form_ids,
       });
     }
   };
@@ -569,7 +602,23 @@ export default function AdminUsersPage() {
                             <span className="badge bg-amber-400 text-white text-xs animate-pulse-soft">⏳ Aprobación pendiente</span>
                           )}
                         </div>
-                        <p className="text-xs text-text-muted">{user.email}</p>
+                        <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap">
+                          <span>{user.email}</span>
+                          {user.phone && (
+                            <>
+                              <span className="text-gray-300">•</span>
+                              <a
+                                href={`https://wa.me/${user.phone.replace(/[^0-9]/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded font-medium transition-colors"
+                                title="Abrir chat de WhatsApp"
+                              >
+                                <span>💬</span> {user.phone}
+                              </a>
+                            </>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <div className="relative inline-block text-left">
@@ -665,19 +714,89 @@ export default function AdminUsersPage() {
 
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
               {/* User info Card */}
-              <div className="flex items-center gap-3.5 pb-4 border-b border-border">
+              <div className="flex items-center gap-3.5 pb-3 border-b border-border">
                 {editingUser.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={editingUser.avatar_url} alt={editingUser.full_name} className="w-12 h-12 rounded-full border border-border flex-shrink-0" />
+                  <img src={editingUser.avatar_url} alt={editName || editingUser.full_name} className="w-12 h-12 rounded-full border border-border flex-shrink-0" />
                 ) : (
                   <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-primary font-bold text-lg">{editingUser.full_name.charAt(0)}</span>
+                    <span className="text-primary font-bold text-lg">{(editName || editingUser.full_name || 'U').charAt(0).toUpperCase()}</span>
                   </div>
                 )}
-                <div>
-                  <p className="font-bold text-text-primary text-sm sm:text-base">{editingUser.full_name}</p>
-                  <p className="text-xs text-text-muted">{editingUser.email}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-text-primary text-sm sm:text-base truncate">{editName || editingUser.full_name}</p>
+                  <p className="text-xs text-text-muted truncate">{editEmail || editingUser.email}</p>
                 </div>
+                <span className="text-[11px] font-semibold text-primary bg-primary-50 border border-primary/20 px-2 py-0.5 rounded-md flex-shrink-0">
+                  Modo Admin
+                </span>
+              </div>
+
+              {/* Información Personal y Contacto (Solo Admin) */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-xs text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>👤</span> Información del Usuario
+                  </label>
+                  <span className="text-[10px] text-text-muted bg-white px-2 py-0.5 rounded border border-border font-medium">Solo Admin</span>
+                </div>
+
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">
+                      Nombre <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={e => {
+                        setEditName(e.target.value);
+                        if (validationError) setValidationError(null);
+                      }}
+                      placeholder="Nombre del usuario"
+                      className="input text-xs w-full py-2 bg-white"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary mb-1">
+                        Correo <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={editEmail}
+                        onChange={e => {
+                          setEditEmail(e.target.value);
+                          if (validationError) setValidationError(null);
+                        }}
+                        placeholder="correo@ejemplo.com"
+                        className="input text-xs w-full py-2 bg-white"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary mb-1 flex items-center gap-1">
+                        <span>💬</span> WhatsApp
+                      </label>
+                      <input
+                        type="tel"
+                        value={editPhone}
+                        onChange={e => setEditPhone(e.target.value)}
+                        placeholder="Ej. +57 300 123 4567"
+                        className="input text-xs w-full py-2 bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {validationError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2 font-medium">
+                    ⚠️ {validationError}
+                  </p>
+                )}
               </div>
 
               {/* Access type buttons */}
