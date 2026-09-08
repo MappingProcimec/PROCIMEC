@@ -4,10 +4,11 @@ import { useFormStore } from '@/hooks/useFormStore';
 import { section1Schema, Section1Input } from '@/lib/validations';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { OperationalRow } from '@/types';
 import { useQuery } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
 
 const EQUIPMENT_OPTIONS = [
   { id: 'GPR', label: 'GPR' },
@@ -16,6 +17,7 @@ const EQUIPMENT_OPTIONS = [
   { id: 'Sonda', label: 'Sonda' },
   { id: 'Bosch D-tect 200 C', label: 'Bosch D-tect 200 C' },
   { id: 'Otro', label: 'Otro' },
+  { id: 'Ninguno', label: 'Ninguno' },
 ];
 
 const POSITIONING_OPTIONS = ['GNSS RTK', 'Estación Total', 'GPS Navegación', 'Cinta métrica', 'Sin posicionamiento'];
@@ -28,6 +30,7 @@ interface Step1Props {
 }
 
 export function Step1({ onNext }: Step1Props) {
+  const { data: session } = useSession();
   const { section1, updateSection1, projectId: storeProjectId, setProjectId } = useFormStore();
 
   const { data: projects = [] } = useQuery({
@@ -54,6 +57,8 @@ export function Step1({ onNext }: Step1Props) {
   const [globalMaxDepth, setGlobalMaxDepth] = useState<number | ''>(section1.global_max_depth);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
+  const defaultOperator = session?.user?.fullName || session?.user?.name || section1.operator_name || '';
+
   const {
     register,
     handleSubmit,
@@ -63,24 +68,40 @@ export function Step1({ onNext }: Step1Props) {
     resolver: zodResolver(section1Schema),
     defaultValues: {
       report_date: section1.report_date,
-      report_time: section1.report_time,
-      report_end_time: section1.report_end_time,
-      operator_name: section1.operator_name,
+      report_time: section1.report_time || '',
+      report_end_time: section1.report_end_time || '',
+      operator_name: defaultOperator,
       equipments_used: selectedEquipments,
-      positioning_equipment: section1.positioning_equipment,
+      positioning_equipment: section1.positioning_equipment || 'GNSS RTK',
       terrain_conditions: section1.terrain_conditions,
       weather_conditions: section1.weather_conditions,
       capture_method: section1.capture_method,
     },
   });
 
+  useEffect(() => {
+    const currentUserName = session?.user?.fullName || session?.user?.name || '';
+    if (currentUserName && (!section1.operator_name || section1.operator_name === '')) {
+      setValue('operator_name', currentUserName, { shouldValidate: true });
+      updateSection1({ operator_name: currentUserName });
+    }
+  }, [session, section1.operator_name, setValue, updateSection1]);
+
   const toggleEquipment = (eqId: string) => {
     let updated: string[];
-    if (selectedEquipments.includes(eqId)) {
-      if (selectedEquipments.length === 1) return; // Must keep at least one
-      updated = selectedEquipments.filter(e => e !== eqId);
+    if (eqId === 'Ninguno') {
+      updated = ['Ninguno'];
     } else {
-      updated = [...selectedEquipments, eqId];
+      const withoutNone = selectedEquipments.filter(e => e !== 'Ninguno');
+      if (withoutNone.includes(eqId)) {
+        if (withoutNone.length === 1) {
+          updated = ['Ninguno'];
+        } else {
+          updated = withoutNone.filter(e => e !== eqId);
+        }
+      } else {
+        updated = [...withoutNone, eqId];
+      }
     }
     setSelectedEquipments(updated);
     setValue('equipments_used', updated, { shouldValidate: true });
@@ -157,37 +178,40 @@ export function Step1({ onNext }: Step1Props) {
         )}
       </div>
 
-      {/* Date + Times */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="form-group">
-          <label className="label label-required">Fecha del levantamiento</label>
-          <input type="date" className={`input ${errors.report_date ? 'input-error' : ''}`} {...register('report_date')} />
-          {errors.report_date && <p className="error-msg">⚠ {errors.report_date.message}</p>}
-        </div>
-        <div className="form-group">
-          <label className="label label-required">Hora de inicio</label>
-          <input type="time" className={`input ${errors.report_time ? 'input-error' : ''}`} {...register('report_time')} />
-          {errors.report_time && <p className="error-msg">⚠ {errors.report_time.message}</p>}
-        </div>
-        <div className="form-group">
-          <label className="label">Hora final</label>
-          <input type="time" className="input" {...register('report_end_time')} />
-        </div>
+      {/* Date */}
+      <div className="form-group max-w-sm">
+        <label className="label label-required">Fecha del levantamiento</label>
+        <input type="date" className={`input ${errors.report_date ? 'input-error' : ''}`} {...register('report_date')} />
+        {errors.report_date && <p className="error-msg">⚠ {errors.report_date.message}</p>}
       </div>
 
       {/* Operator */}
       <div className="form-group">
-        <label className="label label-required">Operador responsable</label>
-        <input type="text" className={`input ${errors.operator_name ? 'input-error' : ''}`} placeholder="Nombre del operador" {...register('operator_name')} />
+        <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+          <label className="label label-required mb-0">Operador responsable</label>
+          <span className="text-[11px] text-primary font-medium bg-primary-50 px-2 py-0.5 rounded-md border border-primary/20 flex items-center gap-1">
+            <span>👤</span> Autocompletado con el usuario en sesión
+          </span>
+        </div>
+        <input
+          type="text"
+          className={`input font-medium text-text-primary ${errors.operator_name ? 'input-error' : ''}`}
+          placeholder="Nombre del operador"
+          {...register('operator_name')}
+        />
         {errors.operator_name && <p className="error-msg">⚠ {errors.operator_name.message}</p>}
       </div>
 
-      {/* Equipments Used (Multi-select) */}
+      {/* Equipo de Localización (Multi-select) */}
       <div className="form-group">
-        <label className="label label-required">Equipos utilizados (puedes seleccionar varios)</label>
+        <label className="label label-required">Equipo de localización</label>
+        <p className="text-xs text-text-muted -mt-1 mb-2.5">
+          Selecciona los equipos utilizados para localización subterránea, o marca <strong>Ninguno</strong> si en esta jornada solo se realizó posicionamiento.
+        </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           {EQUIPMENT_OPTIONS.map((eq) => {
             const isSelected = selectedEquipments.includes(eq.id);
+            const isNoneOption = eq.id === 'Ninguno';
             return (
               <button
                 key={eq.id}
@@ -195,13 +219,15 @@ export function Step1({ onNext }: Step1Props) {
                 onClick={() => toggleEquipment(eq.id)}
                 className={`py-2.5 px-3 rounded-xl border-2 text-xs font-semibold flex items-center justify-between transition-all ${
                   isSelected
-                    ? 'border-primary bg-primary-50 text-primary shadow-xs'
+                    ? isNoneOption
+                      ? 'border-amber-500 bg-amber-50 text-amber-900 shadow-xs'
+                      : 'border-primary bg-primary-50 text-primary shadow-xs'
                     : 'border-border text-text-secondary hover:border-gray-300'
                 }`}
               >
                 <span>{eq.label}</span>
                 {isSelected && (
-                  <svg className="w-4 h-4 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <svg className={`w-4 h-4 flex-shrink-0 ${isNoneOption ? 'text-amber-600' : 'text-primary'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
                 )}
@@ -212,9 +238,12 @@ export function Step1({ onNext }: Step1Props) {
         {errors.equipments_used && <p className="error-msg">⚠ {errors.equipments_used.message}</p>}
       </div>
 
-      {/* Positioning */}
+      {/* Equipo de Posicionamiento */}
       <div className="form-group">
         <label className="label label-required">Equipo de posicionamiento</label>
+        <p className="text-xs text-text-muted -mt-1 mb-2">
+          Selecciona el equipo de georreferenciación, o elige <strong>Sin posicionamiento</strong> si solo se ejecutó mapeo subterráneo.
+        </p>
         <select className={`select ${errors.positioning_equipment ? 'input-error' : ''}`} {...register('positioning_equipment')}>
           <option value="">Seleccionar equipo de posicionamiento...</option>
           {POSITIONING_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}

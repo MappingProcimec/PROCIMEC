@@ -119,8 +119,12 @@ export default function ProjectsPage() {
 }
 
 function ProjectCard({ project }: { project: Project }) {
+  const targetVal = project.target_metric_type === 'm2' ? project.target_m2 : project.target_ml;
+  const hasTarget = targetVal !== undefined && targetVal > 0;
+  const unitLabel = project.target_metric_type === 'm2' ? 'm²' : 'ML';
+
   return (
-    <div className="card-hover p-5 animate-slide-up">
+    <div className="card-hover p-5 animate-slide-up border border-border">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <div className="w-10 h-10 bg-primary-50 text-primary rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -130,7 +134,12 @@ function ProjectCard({ project }: { project: Project }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="badge badge-primary text-xs">{project.code}</span>
+              <span className="badge badge-primary text-xs font-mono font-bold">{project.cost_center || project.code}</span>
+              {project.contract_number && (
+                <span className="text-[11px] font-mono text-text-muted bg-gray-100 px-2 py-0.5 rounded">
+                  CTO: {project.contract_number}
+                </span>
+              )}
               {project.is_active ? (
                 <span className="badge badge-success text-xs">Activo</span>
               ) : (
@@ -153,7 +162,13 @@ function ProjectCard({ project }: { project: Project }) {
         )}
       </div>
 
-      <div className="flex items-center gap-1.5 text-xs text-text-muted mb-4">
+      {project.description && (
+        <p className="text-xs text-text-muted mb-3 line-clamp-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
+          {project.description}
+        </p>
+      )}
+
+      <div className="flex items-center gap-1.5 text-xs text-text-muted mb-3.5">
         <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
@@ -165,6 +180,70 @@ function ProjectCard({ project }: { project: Project }) {
             <span className="flex-shrink-0">Creado {format(new Date(project.created_at), 'MMM yyyy', { locale: es })}</span>
           </>
         )}
+      </div>
+
+      {/* Panel de Avance de Campo hacia el 100% */}
+      <div className="bg-slate-50 p-3 rounded-xl border border-border mb-4 space-y-2.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-bold text-text-primary flex items-center gap-1">
+            <span>🏁</span> Avance hacia el 100%:
+          </span>
+          <span className="font-extrabold text-primary">
+            {hasTarget ? `${(project.overall_progress_pct ?? 0).toFixed(0)}%` : 'Sin meta fijada'}
+          </span>
+        </div>
+
+        {hasTarget && (
+          <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                (project.overall_progress_pct ?? 0) >= 100 ? 'bg-emerald-500' : 'bg-primary'
+              }`}
+              style={{ width: `${Math.min(100, project.overall_progress_pct ?? 0)}%` }}
+            />
+          </div>
+        )}
+
+        {/* Los 2 medidores: Mapeo y Geolocalización */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          {/* Mapeo */}
+          <div className={`p-2 rounded-lg border text-xs ${
+            project.requires_mapping !== false
+              ? 'bg-white border-blue-200'
+              : 'bg-gray-100 border-gray-200 opacity-60'
+          }`}>
+            <div className="flex items-center justify-between font-semibold text-[11px] mb-0.5">
+              <span className="flex items-center gap-1">📡 Mapeo</span>
+              <span className="text-blue-700">
+                {project.requires_mapping !== false ? `${(project.mapping_progress_pct ?? 0).toFixed(0)}%` : 'N/A'}
+              </span>
+            </div>
+            <p className="text-[10px] text-text-muted truncate">
+              {project.requires_mapping !== false
+                ? `${project.target_metric_type === 'm2' ? (project.mapping_m2 ?? 0).toFixed(1) : (project.mapping_ml ?? 0).toFixed(1)} / ${targetVal || 0} ${unitLabel}`
+                : 'No requerido'}
+            </p>
+          </div>
+
+          {/* Geolocalización */}
+          <div className={`p-2 rounded-lg border text-xs ${
+            project.requires_positioning !== false
+              ? 'bg-white border-indigo-200'
+              : 'bg-gray-100 border-gray-200 opacity-60'
+          }`}>
+            <div className="flex items-center justify-between font-semibold text-[11px] mb-0.5">
+              <span className="flex items-center gap-1">🛰️ Geo</span>
+              <span className="text-indigo-700">
+                {project.requires_positioning !== false ? `${(project.positioning_progress_pct ?? 0).toFixed(0)}%` : 'N/A'}
+              </span>
+            </div>
+            <p className="text-[10px] text-text-muted truncate">
+              {project.requires_positioning !== false
+                ? `${project.target_metric_type === 'm2' ? (project.positioning_m2 ?? 0).toFixed(1) : (project.positioning_ml ?? 0).toFixed(1)} / ${targetVal || 0} ${unitLabel}`
+                : 'No requerido'}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Action buttons */}

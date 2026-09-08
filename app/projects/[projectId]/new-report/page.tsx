@@ -85,8 +85,9 @@ export default function NewReportPage() {
     if (projectId) {
       setProjectId(projectId);
     }
-    if (session?.user?.fullName && !section1.operator_name) {
-      updateSection1({ operator_name: session.user.fullName });
+    const currentUserName = session?.user?.fullName || session?.user?.name || '';
+    if (currentUserName && (!section1.operator_name || section1.operator_name === '')) {
+      updateSection1({ operator_name: currentUserName });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, session]);
@@ -229,10 +230,10 @@ export default function NewReportPage() {
         <div className="max-w-3xl mx-auto">
           <BackButton href={projectId ? `/projects/${projectId}` : '/admin/forms'} label={projectId ? 'Volver al proyecto' : 'Formularios'} />
           <h1 className="text-2xl sm:text-3xl font-bold text-white mt-2">
-            📍 Formulario de Campo GPR
+            📍 Formulario de Campo
           </h1>
           <p className="text-white/70 text-sm mt-1">
-            Reporte operacional de exploración, volumetría por tramos y medición GPR en campo
+            Reporte operacional de exploración, volumetría por tramos y medición en campo
           </p>
         </div>
       </div>

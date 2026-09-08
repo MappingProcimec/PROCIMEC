@@ -14,9 +14,11 @@ interface FieldReport {
   operator_name?: string;
   cad_priority?: string;
   status: string;
-  operational_summary: { ml?: number }[];
+  operational_summary: { ml?: number; m2?: number }[];
   docx_drive_url?: string;
   drive_session_folder_url?: string;
+  gpr_equipment?: string;
+  positioning_equipment?: string;
 }
 
 interface DrawingActivity {
@@ -38,6 +40,18 @@ interface Project {
   location: string;
   contract_number?: string;
   description?: string;
+  target_ml?: number;
+  target_m2?: number;
+  target_metric_type?: 'ml' | 'm2';
+  requires_mapping?: boolean;
+  requires_positioning?: boolean;
+  mapping_ml?: number;
+  mapping_m2?: number;
+  positioning_ml?: number;
+  positioning_m2?: number;
+  mapping_progress_pct?: number;
+  positioning_progress_pct?: number;
+  overall_progress_pct?: number;
   drive_folder_url?: string;
   is_active: boolean;
   created_at: string;
@@ -45,6 +59,7 @@ interface Project {
   field_reports_count?: number;
   drawing_count?: number;
   total_ml?: number;
+  total_m2?: number;
   total_drawing_hours?: number;
   field_reports?: FieldReport[];
   drawing_activities?: DrawingActivity[];
@@ -67,7 +82,60 @@ async function fetchDivisionOptions(): Promise<DivisionOption[]> {
   return (json.data ?? []).map((d: DivisionOption) => ({ id: d.id, name: d.name }));
 }
 
-type SortField = 'cost_center' | 'name' | 'client' | 'records' | 'metrics' | 'status' | 'date';
+type SortField = 'cost_center' | 'name' | 'client' | 'records' | 'progress' | 'metrics' | 'status' | 'date';
+
+function CircularProgress({
+  percentage,
+  size = 54,
+  strokeWidth = 5,
+  color = '#2563eb',
+  label,
+}: {
+  percentage: number;
+  size?: number;
+  strokeWidth?: number;
+  color?: string;
+  label?: string;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const validPct = Math.max(0, Math.min(100, percentage));
+  const offset = circumference - (validPct / 100) * circumference;
+
+  return (
+    <div className="relative inline-flex items-center justify-center flex-shrink-0" style={{ width: size, height: size }}>
+      <svg className="transform -rotate-90" width={size} height={size}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          className="text-gray-200"
+          strokeWidth={strokeWidth}
+          stroke="currentColor"
+          fill="transparent"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          fill="transparent"
+          className="transition-all duration-700 ease-out"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="text-[11px] font-bold text-text-primary leading-none">
+          {validPct.toFixed(0)}%
+        </span>
+        {label && <span className="text-[8px] text-text-muted leading-tight mt-0.5">{label}</span>}
+      </div>
+    </div>
+  );
+}
 
 export default function AdminProjectsPage() {
   const queryClient = useQueryClient();
@@ -92,12 +160,29 @@ export default function AdminProjectsPage() {
     location: '',
     contract_number: '',
     description: '',
+    target_ml: '',
+    target_m2: '',
+    target_metric_type: 'ml' as 'ml' | 'm2',
+    requires_mapping: true,
+    requires_positioning: true,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [selectedDivisions, setSelectedDivisions] = useState<Set<string>>(new Set());
 
   const [editProject, setEditProject] = useState<Project | null>(null);
-  const [editForm, setEditForm] = useState({ cost_center: '', name: '', client: '', location: '', contract_number: '', description: '' });
+  const [editForm, setEditForm] = useState({
+    cost_center: '',
+    name: '',
+    client: '',
+    location: '',
+    contract_number: '',
+    description: '',
+    target_ml: '',
+    target_m2: '',
+    target_metric_type: 'ml' as 'ml' | 'm2',
+    requires_mapping: true,
+    requires_positioning: true,
+  });
   const [editDivisions, setEditDivisions] = useState<Set<string>>(new Set());
 
   const { data: projects = [], isLoading } = useQuery({
@@ -110,6 +195,12 @@ export default function AdminProjectsPage() {
     queryFn: fetchDivisionOptions,
     enabled: showModal || !!editProject,
   });
+
+  // Mantener actualizado selectedProject si cambian los proyectos
+  const currentSelected = useMemo(() => {
+    if (!selectedProject) return null;
+    return projects.find((p) => p.id === selectedProject.id) || selectedProject;
+  }, [projects, selectedProject]);
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof form) => {
@@ -124,6 +215,11 @@ export default function AdminProjectsPage() {
           location: data.location,
           contract_number: data.contract_number,
           description: data.description,
+          target_ml: data.target_ml ? Number(data.target_ml) : 0,
+          target_m2: data.target_m2 ? Number(data.target_m2) : 0,
+          target_metric_type: data.target_metric_type,
+          requires_mapping: data.requires_mapping,
+          requires_positioning: data.requires_positioning,
           division_ids: Array.from(selectedDivisions),
         }),
       });
@@ -134,7 +230,19 @@ export default function AdminProjectsPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-projects'] });
       queryClient.invalidateQueries({ queryKey: ['admin-divisions'] });
       setShowModal(false);
-      setForm({ cost_center: '', name: '', client: '', location: '', contract_number: '', description: '' });
+      setForm({
+        cost_center: '',
+        name: '',
+        client: '',
+        location: '',
+        contract_number: '',
+        description: '',
+        target_ml: '',
+        target_m2: '',
+        target_metric_type: 'ml',
+        requires_mapping: true,
+        requires_positioning: true,
+      });
       setSelectedDivisions(new Set());
     },
   });
@@ -162,6 +270,11 @@ export default function AdminProjectsPage() {
       location: p.location,
       contract_number: p.contract_number ?? '',
       description: p.description ?? '',
+      target_ml: p.target_ml !== undefined && p.target_ml > 0 ? String(p.target_ml) : '',
+      target_m2: p.target_m2 !== undefined && p.target_m2 > 0 ? String(p.target_m2) : '',
+      target_metric_type: p.target_metric_type || 'ml',
+      requires_mapping: p.requires_mapping ?? true,
+      requires_positioning: p.requires_positioning ?? true,
     });
     setEditDivisions(new Set((p.divisions ?? []).map((d) => d.id)));
   };
@@ -181,6 +294,11 @@ export default function AdminProjectsPage() {
           location: editForm.location.trim(),
           contract_number: editForm.contract_number.trim() || null,
           description: editForm.description.trim() || null,
+          target_ml: editForm.target_ml ? Number(editForm.target_ml) : 0,
+          target_m2: editForm.target_m2 ? Number(editForm.target_m2) : 0,
+          target_metric_type: editForm.target_metric_type,
+          requires_mapping: editForm.requires_mapping,
+          requires_positioning: editForm.requires_positioning,
           division_ids: Array.from(editDivisions),
         }),
       });
@@ -274,6 +392,10 @@ export default function AdminProjectsPage() {
           valA = a.report_count ?? 0;
           valB = b.report_count ?? 0;
           break;
+        case 'progress':
+          valA = a.overall_progress_pct ?? 0;
+          valB = b.overall_progress_pct ?? 0;
+          break;
         case 'metrics':
           valA = (a.total_ml ?? 0) + (a.total_drawing_hours ?? 0);
           valB = (b.total_ml ?? 0) + (b.total_drawing_hours ?? 0);
@@ -352,7 +474,7 @@ export default function AdminProjectsPage() {
               <div className="text-xs text-text-muted px-4 py-1.5 bg-gray-50/50 border-b border-border sm:hidden flex items-center justify-between">
                 <span>👈 Desliza horizontalmente para ver todas las columnas y acciones 👉</span>
               </div>
-              <table className="table-base w-full min-w-[960px]">
+              <table className="table-base w-full min-w-[1020px]">
                 <thead>
                   {/* Fila de Títulos con Ordenamiento */}
                   <tr className="bg-gray-50 border-b border-border text-xs text-text-secondary select-none">
@@ -384,12 +506,24 @@ export default function AdminProjectsPage() {
                       </div>
                     </th>
                     <th className="hidden lg:table-cell py-3 px-4 text-left">Divisiones</th>
+                    
+                    {/* Nueva Columna: Avance de Campo hacia el 100% */}
+                    <th
+                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-center transition-colors min-w-[170px]"
+                      onClick={() => handleSort('progress')}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>Avance de Campo</span>
+                        {getSortIcon('progress')}
+                      </div>
+                    </th>
+
                     <th
                       className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-center transition-colors"
                       onClick={() => handleSort('records')}
                     >
                       <div className="flex items-center justify-center gap-1">
-                        <span>Registros Totales</span>
+                        <span>Registros</span>
                         {getSortIcon('records')}
                       </div>
                     </th>
@@ -446,6 +580,7 @@ export default function AdminProjectsPage() {
                     <td className="hidden lg:table-cell p-2"></td>
                     <td className="p-2"></td>
                     <td className="p-2"></td>
+                    <td className="p-2"></td>
                     <td className="p-2">
                       <select
                         value={filterStatus}
@@ -473,7 +608,7 @@ export default function AdminProjectsPage() {
                 <tbody>
                   {filteredAndSortedProjects.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-text-muted text-sm">
+                      <td colSpan={9} className="py-8 text-center text-text-muted text-sm">
                         No se encontraron proyectos con los filtros aplicados.
                       </td>
                     </tr>
@@ -485,6 +620,9 @@ export default function AdminProjectsPage() {
                       const ml = p.total_ml ?? 0;
                       const drawingHours = p.total_drawing_hours ?? 0;
                       const ccDisplay = p.cost_center || p.code || '—';
+
+                      const targetVal = p.target_metric_type === 'm2' ? p.target_m2 : p.target_ml;
+                      const hasTarget = targetVal !== undefined && targetVal > 0;
 
                       return (
                         <tr
@@ -506,9 +644,15 @@ export default function AdminProjectsPage() {
                                 {p.name}
                                 <span className="text-xs text-primary font-normal opacity-0 group-hover:opacity-100">🔍</span>
                               </p>
-                              <p className="text-xs text-text-muted">
-                                {format(new Date(p.created_at), 'dd/MM/yyyy', { locale: es })}
-                              </p>
+                              <div className="flex items-center gap-2 text-xs text-text-muted mt-0.5">
+                                <span>{format(new Date(p.created_at), 'dd/MM/yyyy', { locale: es })}</span>
+                                {p.contract_number && (
+                                  <>
+                                    <span>·</span>
+                                    <span className="font-mono text-[11px] text-gray-500">CTO: {p.contract_number}</span>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="text-sm font-medium">{p.client}</td>
@@ -522,6 +666,59 @@ export default function AdminProjectsPage() {
                               }
                             </div>
                           </td>
+
+                          {/* Celda Avance de Campo (Mapeo vs Geolocalización) */}
+                          <td className="text-center whitespace-nowrap px-3">
+                            <div className="flex flex-col items-center gap-1.5">
+                              {/* Barra general */}
+                              {hasTarget ? (
+                                <div className="w-full max-w-[140px]">
+                                  <div className="flex items-center justify-between text-[11px] mb-1">
+                                    <span className="font-bold text-primary">{(p.overall_progress_pct ?? 0).toFixed(0)}%</span>
+                                    <span className="text-[10px] text-text-muted">
+                                      {targetVal} {p.target_metric_type?.toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                                    <div
+                                      className="bg-primary h-full rounded-full transition-all duration-500"
+                                      style={{ width: `${Math.min(100, p.overall_progress_pct ?? 0)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 italic bg-gray-100 px-2 py-0.5 rounded-full">
+                                  Sin meta definida
+                                </span>
+                              )}
+
+                              {/* Mini píldoras de Mapeo y Geolocalización */}
+                              <div className="flex items-center gap-1.5 text-[10px]">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5 ${
+                                    p.requires_mapping !== false
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                      : 'bg-gray-100 text-gray-400 line-through'
+                                  }`}
+                                  title={p.requires_mapping !== false ? `Mapeo: ${(p.mapping_progress_pct ?? 0).toFixed(0)}%` : 'No requiere mapeo'}
+                                >
+                                  📡 {p.requires_mapping !== false ? `${(p.mapping_progress_pct ?? 0).toFixed(0)}%` : 'N/A'}
+                                </span>
+
+                                <span
+                                  className={`px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5 ${
+                                    p.requires_positioning !== false
+                                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                      : 'bg-gray-100 text-gray-400 line-through'
+                                  }`}
+                                  title={p.requires_positioning !== false ? `Geolocalización: ${(p.positioning_progress_pct ?? 0).toFixed(0)}%` : 'No requiere geolocalización'}
+                                >
+                                  🛰️ {p.requires_positioning !== false ? `${(p.positioning_progress_pct ?? 0).toFixed(0)}%` : 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
                           <td className="text-center whitespace-nowrap">
                             <div className="flex flex-col items-center gap-1">
                               <span className="font-bold text-sm text-text-primary">{totalRecords}</span>
@@ -600,99 +797,315 @@ export default function AdminProjectsPage() {
         </div>
       </div>
 
-      {/* ── Modal de Detalle de Registros del Proyecto ─────────────────────── */}
-      {selectedProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="card w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up shadow-2xl">
+      {/* ── Modal de Detalle Completo del Proyecto (Ficha, Metas, Gráficos y Registros) ─────────────────────── */}
+      {currentSelected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="card w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-slide-up shadow-2xl border border-border">
+            
             {/* Modal Header */}
-            <div className="bg-primary text-white px-6 py-5 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-white/20 text-white font-mono text-xs px-2 py-0.5 rounded-md font-bold">
-                    C.C.: {selectedProject.cost_center || selectedProject.code || '—'}
+            <div className="bg-primary text-white px-6 py-5 flex items-start justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="bg-white/20 text-white font-mono text-xs px-2.5 py-0.5 rounded-md font-bold">
+                    C.C.: {currentSelected.cost_center || currentSelected.code || '—'}
                   </span>
-                  <span className="text-xs text-white/80">{selectedProject.client} — {selectedProject.location}</span>
+                  <span className="text-xs text-white/80">{currentSelected.client} · {currentSelected.location}</span>
+                  {currentSelected.contract_number && (
+                    <span className="bg-white/10 text-white text-[11px] px-2 py-0.5 rounded border border-white/20 font-mono">
+                      Contrato: {currentSelected.contract_number}
+                    </span>
+                  )}
+                  <span className={`badge text-[11px] ${currentSelected.is_active ? 'bg-emerald-500 text-white' : 'bg-gray-500 text-white'}`}>
+                    {currentSelected.is_active ? 'Proyecto Activo' : 'Inactivo'}
+                  </span>
                 </div>
-                <h2 className="text-xl font-bold mt-1 text-white">{selectedProject.name}</h2>
+                <h2 className="text-2xl font-extrabold text-white tracking-tight">{currentSelected.name}</h2>
               </div>
-              <button
-                onClick={() => setSelectedProject(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-lg font-bold"
-              >
-                ×
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openEdit(currentSelected)}
+                  className="btn-sm bg-white/15 hover:bg-white/25 text-white text-xs px-3 py-1.5 rounded-lg border border-white/20 flex items-center gap-1.5 transition-all"
+                >
+                  <span>✏️</span> Editar Proyecto y Metas
+                </button>
+                <button
+                  onClick={() => setSelectedProject(null)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-lg font-bold"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Ficha Descriptiva y Metas del Proyecto */}
+            <div className="bg-slate-50 border-b border-border px-6 py-4">
+              {currentSelected.description && (
+                <div className="mb-4 bg-white p-3 rounded-xl border border-gray-200 text-xs text-text-secondary leading-relaxed">
+                  <span className="font-bold text-text-primary block mb-0.5">📌 Objeto / Descripción del Proyecto:</span>
+                  {currentSelected.description}
+                </div>
+              )}
+
+              {/* ── LOS 2 GRÁFICOS DE PROGRESO DE CAMPO (Mapeo vs Geolocalización) ── */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* GRÁFICO 1: Mapeo / Localización Subterránea */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  currentSelected.requires_mapping !== false
+                    ? 'bg-white border-blue-200 shadow-xs'
+                    : 'bg-gray-100/70 border-gray-300 opacity-60'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-base">📡</span>
+                        <h4 className="font-bold text-sm text-text-primary truncate">Localización Subterránea / Mapeo</h4>
+                      </div>
+                      
+                      {currentSelected.requires_mapping !== false ? (
+                        <>
+                          <p className="text-xs text-text-muted mb-2">
+                            GPR, Radiodetección (RD), PPR, Sondas y equipos geofísicos
+                          </p>
+                          <div className="space-y-1">
+                            <div className="flex items-baseline justify-between text-xs">
+                              <span className="text-text-muted">Metraje ejecutado:</span>
+                              <span className="font-bold text-blue-700 text-sm">
+                                {currentSelected.target_metric_type === 'm2'
+                                  ? `${(currentSelected.mapping_m2 ?? 0).toFixed(1)} m²`
+                                  : `${(currentSelected.mapping_ml ?? 0).toFixed(1)} ML`}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline justify-between text-xs">
+                              <span className="text-text-muted">Meta programada:</span>
+                              <span className="font-medium text-text-primary">
+                                {currentSelected.target_metric_type === 'm2'
+                                  ? `${currentSelected.target_m2 || 0} m²`
+                                  : `${currentSelected.target_ml || 0} ML`}
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="py-2">
+                          <span className="badge badge-gray text-xs">No requerido en este proyecto</span>
+                          <p className="text-xs text-text-muted mt-1">Este proyecto no computa avance de exploración subterránea.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {currentSelected.requires_mapping !== false && (
+                      <CircularProgress
+                        percentage={currentSelected.mapping_progress_pct ?? 0}
+                        color="#2563eb"
+                        label="Mapeo"
+                      />
+                    )}
+                  </div>
+
+                  {currentSelected.requires_mapping !== false && (
+                    <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px]">
+                      <span className="text-text-muted">Estado de cobertura:</span>
+                      <span className={`font-semibold ${
+                        (currentSelected.mapping_progress_pct ?? 0) >= 100
+                          ? 'text-emerald-700'
+                          : (currentSelected.mapping_progress_pct ?? 0) > 0
+                          ? 'text-blue-700'
+                          : 'text-amber-700'
+                      }`}>
+                        {(currentSelected.mapping_progress_pct ?? 0) >= 100
+                          ? '✅ 100% Completado'
+                          : (currentSelected.mapping_progress_pct ?? 0) > 0
+                          ? `⏳ ${(currentSelected.mapping_progress_pct ?? 0).toFixed(1)}% ejecutado`
+                          : '⚠️ Pendiente por iniciar'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* GRÁFICO 2: Geolocalización / Posicionamiento */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  currentSelected.requires_positioning !== false
+                    ? 'bg-white border-indigo-200 shadow-xs'
+                    : 'bg-gray-100/70 border-gray-300 opacity-60'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-base">🛰️</span>
+                        <h4 className="font-bold text-sm text-text-primary truncate">Geolocalización / Posicionamiento</h4>
+                      </div>
+
+                      {currentSelected.requires_positioning !== false ? (
+                        <>
+                          <p className="text-xs text-text-muted mb-2">
+                            GNSS RTK, Estación Total, GPS Topográfico y amarre
+                          </p>
+                          <div className="space-y-1">
+                            <div className="flex items-baseline justify-between text-xs">
+                              <span className="text-text-muted">Metraje georreferenciado:</span>
+                              <span className="font-bold text-indigo-700 text-sm">
+                                {currentSelected.target_metric_type === 'm2'
+                                  ? `${(currentSelected.positioning_m2 ?? 0).toFixed(1)} m²`
+                                  : `${(currentSelected.positioning_ml ?? 0).toFixed(1)} ML`}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline justify-between text-xs">
+                              <span className="text-text-muted">Meta programada:</span>
+                              <span className="font-medium text-text-primary">
+                                {currentSelected.target_metric_type === 'm2'
+                                  ? `${currentSelected.target_m2 || 0} m²`
+                                  : `${currentSelected.target_ml || 0} ML`}
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="py-2">
+                          <span className="badge badge-gray text-xs">No requerido en este proyecto</span>
+                          <p className="text-xs text-text-muted mt-1">Este proyecto no computa avance de georreferenciación.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {currentSelected.requires_positioning !== false && (
+                      <CircularProgress
+                        percentage={currentSelected.positioning_progress_pct ?? 0}
+                        color="#4f46e5"
+                        label="Geo"
+                      />
+                    )}
+                  </div>
+
+                  {currentSelected.requires_positioning !== false && (
+                    <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px]">
+                      <span className="text-text-muted">Estado de cobertura:</span>
+                      <span className={`font-semibold ${
+                        (currentSelected.positioning_progress_pct ?? 0) >= 100
+                          ? 'text-emerald-700'
+                          : (currentSelected.positioning_progress_pct ?? 0) > 0
+                          ? 'text-indigo-700'
+                          : 'text-amber-700'
+                      }`}>
+                        {(currentSelected.positioning_progress_pct ?? 0) >= 100
+                          ? '✅ 100% Completado'
+                          : (currentSelected.positioning_progress_pct ?? 0) > 0
+                          ? `⏳ ${(currentSelected.positioning_progress_pct ?? 0).toFixed(1)}% ejecutado`
+                          : '⚠️ Pendiente por iniciar'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Barra de Progreso Global del Proyecto */}
+              <div className="mt-4 bg-white p-3 rounded-xl border border-gray-200">
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-text-primary">
+                    <span>🏁 Progreso General del Proyecto:</span>
+                    <span className="text-primary font-extrabold text-sm">{(currentSelected.overall_progress_pct ?? 0).toFixed(1)}%</span>
+                  </div>
+                  <span className="text-[11px] text-text-muted">
+                    {currentSelected.requires_mapping && currentSelected.requires_positioning
+                      ? 'Promedio de Mapeo y Geolocalización'
+                      : currentSelected.requires_mapping
+                      ? 'Basado en Mapeo Subterráneo'
+                      : currentSelected.requires_positioning
+                      ? 'Basado en Geolocalización'
+                      : 'Sin requerimientos activos'}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden border border-gray-200">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      (currentSelected.overall_progress_pct ?? 0) >= 100
+                        ? 'bg-emerald-500'
+                        : 'bg-primary'
+                    }`}
+                    style={{ width: `${Math.min(100, currentSelected.overall_progress_pct ?? 0)}%` }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Modal Stats & Filters */}
-            <div className="bg-gray-50 border-b border-border px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-white border-b border-border px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-6">
                 <div>
                   <div className="text-xs text-text-muted">Total Registros</div>
-                  <div className="text-lg font-bold text-text-primary">{selectedProject.report_count ?? 0}</div>
+                  <div className="text-base font-bold text-text-primary">{currentSelected.report_count ?? 0}</div>
                 </div>
                 <div className="border-l border-border pl-6">
                   <div className="text-xs text-text-muted">Campo (ML)</div>
-                  <div className="text-lg font-bold text-primary">{(selectedProject.total_ml ?? 0).toFixed(1)} ml</div>
+                  <div className="text-base font-bold text-primary">{(currentSelected.total_ml ?? 0).toFixed(1)} ml</div>
                 </div>
                 <div className="border-l border-border pl-6">
                   <div className="text-xs text-text-muted">Dibujo (Horas)</div>
-                  <div className="text-lg font-bold text-amber-700">{(selectedProject.total_drawing_hours ?? 0).toFixed(1)} h</div>
+                  <div className="text-base font-bold text-amber-700">{(currentSelected.total_drawing_hours ?? 0).toFixed(1)} h</div>
                 </div>
               </div>
 
               {/* Tabs */}
-              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-border">
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-border">
                 <button
                   onClick={() => setDetailFilter('all')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    detailFilter === 'all' ? 'bg-primary text-white' : 'text-text-secondary hover:bg-gray-100'
+                    detailFilter === 'all' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:bg-white'
                   }`}
                 >
-                  Todos ({selectedProject.report_count ?? 0})
+                  Todos ({currentSelected.report_count ?? 0})
                 </button>
                 <button
                   onClick={() => setDetailFilter('campo')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    detailFilter === 'campo' ? 'bg-blue-600 text-white' : 'text-text-secondary hover:bg-gray-100'
+                    detailFilter === 'campo' ? 'bg-blue-600 text-white shadow-xs' : 'text-text-secondary hover:bg-white'
                   }`}
                 >
-                  📍 Campo ({selectedProject.field_reports_count ?? 0})
+                  📍 Campo ({currentSelected.field_reports_count ?? 0})
                 </button>
                 <button
                   onClick={() => setDetailFilter('dibujo')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    detailFilter === 'dibujo' ? 'bg-amber-600 text-white' : 'text-text-secondary hover:bg-gray-100'
+                    detailFilter === 'dibujo' ? 'bg-amber-600 text-white shadow-xs' : 'text-text-secondary hover:bg-white'
                   }`}
                 >
-                  ✏️ Dibujo ({selectedProject.drawing_count ?? 0})
+                  ✏️ Dibujo ({currentSelected.drawing_count ?? 0})
                 </button>
               </div>
             </div>
 
             {/* Modal Body: Tabla de Registros */}
-            <div className="p-6 overflow-y-auto flex-1">
+            <div className="p-6 overflow-y-auto flex-1 bg-surface">
               {(() => {
-                const fieldList = (selectedProject.field_reports || []).map((r) => {
+                const fieldList = (currentSelected.field_reports || []).map((r) => {
                   const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
                   const ml = rows.reduce((s, row) => s + (Number(row.ml) || 0), 0);
+                  const m2 = rows.reduce((s, row) => s + (Number(row.m2) || 0), 0);
+                  
+                  const isLoc = (r.gpr_equipment || '').trim().toLowerCase() !== 'ninguno' && (r.gpr_equipment || '').trim().length > 0;
+                  const isPos = (r.positioning_equipment || '').trim().toLowerCase() !== 'sin posicionamiento' && (r.positioning_equipment || '').trim().length > 0;
+
                   return {
                     id: `campo-${r.id}`,
                     area: 'campo' as const,
                     date: r.report_date || '',
                     responsible: r.operator_name || '—',
-                    detail: `${ml.toFixed(1)} ml`,
+                    detail: `${ml.toFixed(1)} ml${m2 > 0 ? ` · ${m2.toFixed(1)} m²` : ''}`,
+                    equipmentInfo: `${isLoc ? '📡 Mapeo' : ''}${isLoc && isPos ? ' + ' : ''}${isPos ? '🛰️ Geo' : ''}`,
                     statusOrType: r.status === 'submitted' ? 'Enviado' : r.status === 'reviewed' ? 'Revisado' : 'Borrador',
                     docxUrl: r.docx_drive_url,
                     driveUrl: r.drive_session_folder_url,
                   };
                 });
 
-                const drawingList = (selectedProject.drawing_activities || []).map((a) => ({
+                const drawingList = (currentSelected.drawing_activities || []).map((a) => ({
                   id: `dibujo-${a.id}`,
                   area: 'dibujo' as const,
                   date: a.activity_date || '',
                   responsible: a.responsible || '—',
                   detail: `${Number(a.hours_worked).toFixed(1)} h (${a.software})`,
+                  equipmentInfo: '—',
                   statusOrType: a.is_rework ? 'Reproceso' : 'Normal',
                   docxUrl: undefined,
                   driveUrl: undefined,
@@ -709,14 +1122,15 @@ export default function AdminProjectsPage() {
                 }
 
                 return (
-                  <div className="overflow-x-auto border border-border rounded-xl">
-                    <table className="table-base w-full min-w-[600px]">
+                  <div className="overflow-x-auto border border-border rounded-xl bg-white shadow-xs">
+                    <table className="table-base w-full min-w-[700px]">
                       <thead>
                         <tr>
                           <th>Fecha</th>
                           <th>Área</th>
                           <th>Responsable</th>
-                          <th>Detalle</th>
+                          <th>Metraje / Horas</th>
+                          <th>Frente de Trabajo</th>
                           <th>Estado / Tipo</th>
                           <th>Acciones</th>
                         </tr>
@@ -734,6 +1148,11 @@ export default function AdminProjectsPage() {
                             </td>
                             <td className="text-sm font-medium text-text-primary">{item.responsible}</td>
                             <td className="font-semibold text-primary text-sm">{item.detail}</td>
+                            <td>
+                              <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
+                                {item.equipmentInfo}
+                              </span>
+                            </td>
                             <td>
                               <span className={`badge text-xs ${
                                 item.statusOrType === 'Enviado' || item.statusOrType === 'Normal' ? 'badge-success' :
@@ -773,12 +1192,12 @@ export default function AdminProjectsPage() {
         </div>
       )}
 
-      {/* Modal Editar Proyecto */}
+      {/* ── Modal Editar Proyecto ────────────────────────────────────────── */}
       {editProject && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="card w-full max-w-xl max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
             <div className="sticky top-0 bg-white px-5 py-4 border-b border-border flex items-center justify-between z-10">
-              <h3 className="font-bold text-text-primary">Editar Proyecto</h3>
+              <h3 className="font-bold text-text-primary text-base">Editar Proyecto y Metas</h3>
               <button onClick={() => setEditProject(null)} className="btn-icon btn-ghost">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -827,6 +1246,80 @@ export default function AdminProjectsPage() {
                   />
                 </div>
               </div>
+
+              {/* Sección de Metas y Alcance del Proyecto */}
+              <div className="p-4 rounded-xl bg-primary-50/50 border border-primary-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs text-primary-900 flex items-center gap-1.5">
+                    <span>🎯</span> Metas de Cumplimiento (Alcance)
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-text-muted">Métrica principal:</span>
+                    <select
+                      value={editForm.target_metric_type}
+                      onChange={(e) => setEditForm({ ...editForm, target_metric_type: e.target.value as 'ml' | 'm2' })}
+                      className="text-xs px-2 py-1 rounded border border-gray-300 bg-white font-semibold"
+                    >
+                      <option value="ml">Metros Lineales (ML)</option>
+                      <option value="m2">Área (m²)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="form-group">
+                    <label className="label text-xs">Meta en Metros Lineales (ML)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={editForm.target_ml}
+                      onChange={(e) => setEditForm({ ...editForm, target_ml: e.target.value })}
+                      className="input text-sm"
+                      placeholder="Ej: 1500"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="label text-xs">Meta en Área (m²)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={editForm.target_m2}
+                      onChange={(e) => setEditForm({ ...editForm, target_m2: e.target.value })}
+                      className="input text-sm"
+                      placeholder="Ej: 5000"
+                    />
+                  </div>
+                </div>
+
+                {/* Requerimientos del proyecto */}
+                <div className="pt-2 border-t border-primary-100/70 space-y-2">
+                  <span className="text-[11px] font-bold text-text-secondary block">Frentes requeridos para computar el 100%:</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={editForm.requires_mapping}
+                        onChange={(e) => setEditForm({ ...editForm, requires_mapping: e.target.checked })}
+                        className="rounded text-primary"
+                      />
+                      <span className="text-xs text-text-primary font-medium">📡 Requiere Mapeo Subterráneo</span>
+                    </label>
+
+                    <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={editForm.requires_positioning}
+                        onChange={(e) => setEditForm({ ...editForm, requires_positioning: e.target.checked })}
+                        className="rounded text-primary"
+                      />
+                      <span className="text-xs text-text-primary font-medium">🛰️ Requiere Geolocalización</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="label">Número de contrato</label>
                 <input
@@ -880,12 +1373,12 @@ export default function AdminProjectsPage() {
         </div>
       )}
 
-      {/* Modal Crear Proyecto */}
+      {/* ── Modal Crear Proyecto ─────────────────────────────────────────── */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="card w-full max-w-xl max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
             <div className="sticky top-0 bg-white px-5 py-4 border-b border-border flex items-center justify-between z-10">
-              <h3 className="font-bold text-text-primary">Nuevo Proyecto</h3>
+              <h3 className="font-bold text-text-primary text-base">Nuevo Proyecto</h3>
               <button onClick={() => { setShowModal(false); setSelectedDivisions(new Set()); }} className="btn-icon btn-ghost">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -944,6 +1437,79 @@ export default function AdminProjectsPage() {
                 </div>
               </div>
 
+              {/* Metas del Proyecto */}
+              <div className="p-4 rounded-xl bg-primary-50/50 border border-primary-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs text-primary-900 flex items-center gap-1.5">
+                    <span>🎯</span> Metas de Cumplimiento (Alcance)
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-text-muted">Métrica principal:</span>
+                    <select
+                      value={form.target_metric_type}
+                      onChange={(e) => setForm({ ...form, target_metric_type: e.target.value as 'ml' | 'm2' })}
+                      className="text-xs px-2 py-1 rounded border border-gray-300 bg-white font-semibold"
+                    >
+                      <option value="ml">Metros Lineales (ML)</option>
+                      <option value="m2">Área (m²)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="form-group">
+                    <label className="label text-xs">Meta en Metros Lineales (ML)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={form.target_ml}
+                      onChange={(e) => setForm({ ...form, target_ml: e.target.value })}
+                      placeholder="Ej: 1500"
+                      className="input text-sm"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="label text-xs">Meta en Área (m²)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={form.target_m2}
+                      onChange={(e) => setForm({ ...form, target_m2: e.target.value })}
+                      placeholder="Ej: 5000"
+                      className="input text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Requerimientos del proyecto */}
+                <div className="pt-2 border-t border-primary-100/70 space-y-2">
+                  <span className="text-[11px] font-bold text-text-secondary block">Frentes requeridos para computar el 100%:</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={form.requires_mapping}
+                        onChange={(e) => setForm({ ...form, requires_mapping: e.target.checked })}
+                        className="rounded text-primary"
+                      />
+                      <span className="text-xs text-text-primary font-medium">📡 Requiere Mapeo Subterráneo</span>
+                    </label>
+
+                    <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={form.requires_positioning}
+                        onChange={(e) => setForm({ ...form, requires_positioning: e.target.checked })}
+                        className="rounded text-primary"
+                      />
+                      <span className="text-xs text-text-primary font-medium">🛰️ Requiere Geolocalización</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="label">Número de contrato (opcional)</label>
                 <input
@@ -960,7 +1526,7 @@ export default function AdminProjectsPage() {
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Detalles adicionales..."
+                  placeholder="Detalles u objeto del proyecto..."
                   rows={2}
                   className="input"
                 />

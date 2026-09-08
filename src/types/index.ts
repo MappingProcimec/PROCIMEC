@@ -23,6 +23,18 @@ export interface Project {
   location: string;
   contract_number?: string;
   description?: string;
+  target_ml?: number;
+  target_m2?: number;
+  target_metric_type?: 'ml' | 'm2';
+  requires_mapping?: boolean;
+  requires_positioning?: boolean;
+  mapping_ml?: number;
+  mapping_m2?: number;
+  positioning_ml?: number;
+  positioning_m2?: number;
+  mapping_progress_pct?: number;
+  positioning_progress_pct?: number;
+  overall_progress_pct?: number;
   drive_folder_id?: string;
   drive_folder_url?: string;
   is_active: boolean;
