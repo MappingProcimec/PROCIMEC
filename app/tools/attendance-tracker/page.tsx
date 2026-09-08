@@ -7,12 +7,12 @@ import { Navbar } from '@/components/layout/Navbar';
 import { generateAttendancePDF } from '@/lib/attendancePdfGenerator';
 import type { AttendanceRecord, FieldTrip } from '@/types';
 
-// Coordenadas de referencia Oficina Mapping Ingeniería / PROCIMEC (Bogotá, Colombia)
+// Coordenadas de referencia Oficina Mapping Ingeniería / PROCIMEC (Barranquilla, Colombia)
 const OFFICE_COORDS = {
-  lat: 4.6782,
-  lng: -74.0585,
+  lat: 11.016140,
+  lng: -74.828108,
   name: 'Oficina Principal (Mapping / PROCIMEC)',
-  radiusMeters: 250, // Radio de tolerancia de geocerca
+  radiusMeters: 500, // Radio de tolerancia de geocerca (500 metros)
 };
 
 function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
