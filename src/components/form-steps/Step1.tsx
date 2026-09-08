@@ -54,7 +54,6 @@ export function Step1({ onNext }: Step1Props) {
       : [{ id: uuidv4(), sector: '', ml: '', m2: '', max_depth_m: '', observations: '' }]
   );
 
-  const [globalMaxDepth, setGlobalMaxDepth] = useState<number | ''>(section1.global_max_depth);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   const defaultOperator = session?.user?.fullName || session?.user?.name || section1.operator_name || '';
@@ -134,11 +133,14 @@ export function Step1({ onNext }: Step1Props) {
       return;
     }
 
+    const rowDepths = rows.map(r => Number(r.max_depth_m) || 0).filter(d => d > 0);
+    const computedGlobalMax = rowDepths.length > 0 ? Math.max(...rowDepths) : '';
+
     updateSection1({
       ...data,
       equipments_used: selectedEquipments,
       operational_summary: rows,
-      global_max_depth: globalMaxDepth,
+      global_max_depth: computedGlobalMax,
     });
     onNext();
   };
@@ -425,20 +427,6 @@ export function Step1({ onNext }: Step1Props) {
           </svg>
           Agregar tramo / sector
         </button>
-      </div>
-
-      {/* Global max depth */}
-      <div className="form-group">
-        <label className="label">Profundidad máxima global alcanzada (m)</label>
-        <div className="relative max-w-xs">
-          <input type="number" min="0" step="0.01" className="input pl-4 pr-10"
-            placeholder="0.00"
-            value={globalMaxDepth}
-            onChange={e => setGlobalMaxDepth(e.target.value === '' ? '' : Number(e.target.value))}
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-sm font-medium">m</span>
-        </div>
-        <p className="text-xs text-text-muted mt-1">Profundidad máxima alcanzada en todo el levantamiento</p>
       </div>
 
       {/* Navigation */}
