@@ -147,7 +147,7 @@ export default function AdminProjectsPage() {
   const [filterCostCenter, setFilterCostCenter] = useState('');
   const [filterName, setFilterName] = useState('');
   const [filterClient, setFilterClient] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('active');
 
   // Ordenamiento
   const [sortField, setSortField] = useState<SortField>('name');
@@ -416,13 +416,13 @@ export default function AdminProjectsPage() {
     });
   }, [projects, filterCostCenter, filterName, filterClient, filterStatus, sortField, sortOrder]);
 
-  const hasActiveFilters = filterCostCenter || filterName || filterClient || filterStatus !== 'all';
+  const hasActiveFilters = filterCostCenter || filterName || filterClient || filterStatus !== 'active';
 
   const clearFilters = () => {
     setFilterCostCenter('');
     setFilterName('');
     setFilterClient('');
-    setFilterStatus('all');
+    setFilterStatus('active');
   };
 
   return (
