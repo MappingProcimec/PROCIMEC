@@ -88,6 +88,30 @@ export async function GET(req: NextRequest) {
       });
   }
 
+  // ── Herramientas Universales (Acceso general para todo colaborador) ──
+  try {
+    const { data: universalToolsData } = await supabase
+      .from('tools')
+      .select('id, slug, name, category')
+      .or('is_universal.eq.true,category.eq.universal')
+      .not('slug', 'in', '("forms-area","projects-area")');
+
+    if (universalToolsData && universalToolsData.length > 0) {
+      const toolMap = new Map<string, Tool>();
+      // 1. Herramientas del rol
+      tools.forEach((t) => toolMap.set(t.id, t));
+      // 2. Herramientas universales
+      universalToolsData.forEach((t) => {
+        if (!toolMap.has(t.id)) {
+          toolMap.set(t.id, t as Tool);
+        }
+      });
+      tools = Array.from(toolMap.values());
+    }
+  } catch {
+    // Continuar con tools del rol si falla
+  }
+
   // ── Herramientas y Formularios asignados específicamente a este usuario ──
   try {
     const { data: userToolsData } = await supabase

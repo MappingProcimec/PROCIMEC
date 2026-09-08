@@ -39,7 +39,39 @@ async function fetchAdminRoles(): Promise<AdminRole[]> {
   return ((await res.json()).data ?? []).map((r: AdminRole) => ({ id: r.id, name: r.name }));
 }
 
-const GENERAL_TOOL_SLUGS = ['dynamic-dashboard', 'internal-chat', 'meeting-transcriber', 'org-chart-ai'];
+/**
+ * Automatización para clasificación de herramientas (Admin):
+ * - Herramientas Generales: Herramientas con acceso universal (is_universal o categoría 'universal')
+ *   o de administración (categoría 'admin' / 'administracion').
+ * - Herramientas de Rol: Herramientas técnicas de especialidad (GPR, CAD, etc.).
+ */
+export function isGeneralTool(tool: { category?: string; is_universal?: boolean }): boolean {
+  return (
+    Boolean(tool.is_universal) ||
+    tool.category === 'universal' ||
+    tool.category === 'admin' ||
+    tool.category === 'administracion' ||
+    tool.category === 'administration'
+  );
+}
+
+export function isRoleTool(tool: { category?: string; is_universal?: boolean }): boolean {
+  return !isGeneralTool(tool);
+}
+
+const TOOL_SPECIFIC_ICON: Record<string, string> = {
+  'attendance-tracker': '⏱️',
+  'internal-chat': '💬',
+  'meeting-transcriber': '🎙️',
+  'org-chart-ai': '🏢',
+  'dynamic-dashboard': '🌐',
+  'cad-productivity-board': '📊',
+  'txt-dwg-viewer': '📐',
+  'docx-generator': '📄',
+  'backup-script-gen': '💾',
+  'gis-viewer': '🗺️',
+  'gsf-processor': '📡',
+};
 
 const TOOL_CATEGORY_ICON: Record<string, string> = {
   gpr: '📡',
@@ -47,6 +79,21 @@ const TOOL_CATEGORY_ICON: Record<string, string> = {
   admin: '⚙️',
   universal: '🌐',
 };
+
+function getToolIcon(tool: { slug?: string; category?: string }): string {
+  if (tool.slug && TOOL_SPECIFIC_ICON[tool.slug]) {
+    return TOOL_SPECIFIC_ICON[tool.slug];
+  }
+  if (tool.category && TOOL_CATEGORY_ICON[tool.category]) {
+    return TOOL_CATEGORY_ICON[tool.category];
+  }
+  return '🔧';
+}
+
+function getToolHref(tool: { slug: string }): string {
+  if (tool.slug === 'dynamic-dashboard') return '/dashboard';
+  return `/tools/${tool.slug}`;
+}
 
 export function Navbar() {
   const { data: session } = useSession();
@@ -287,8 +334,8 @@ export function Navbar() {
                           </svg>
                         </button>
                         {expanded.has('tools') && assignedTools.map(tool => (
-                          <Link key={tool.id} href={`/tools/${tool.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                            <span>{TOOL_CATEGORY_ICON[tool.category] ?? '🔧'}</span>
+                          <Link key={tool.id} href={getToolHref(tool)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                            <span>{getToolIcon(tool)}</span>
                             <span className="truncate">{tool.name}</span>
                           </Link>
                         ))}
@@ -345,8 +392,8 @@ export function Navbar() {
                     ))}
                     <div className="border-t border-border my-1" />
 
-                    {/* Herramientas generales */}
-                    {adminTools.filter((t: Tool) => GENERAL_TOOL_SLUGS.includes(t.slug)).length > 0 && (
+                    {/* Herramientas generales (Universales o Administrativas) */}
+                    {adminTools.filter(isGeneralTool).length > 0 && (
                       <>
                         <button onClick={() => toggleSection('admin-general')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
                           <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Herramientas generales</p>
@@ -354,17 +401,17 @@ export function Navbar() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                           </svg>
                         </button>
-                        {expanded.has('admin-general') && adminTools.filter((t: Tool) => GENERAL_TOOL_SLUGS.includes(t.slug)).map((tool: Tool) => (
-                          <Link key={tool.id} href={`/tools/${tool.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                            <span>{TOOL_CATEGORY_ICON[tool.category] ?? '🔧'}</span>
+                        {expanded.has('admin-general') && adminTools.filter(isGeneralTool).map((tool: Tool) => (
+                          <Link key={tool.id} href={getToolHref(tool)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                            <span>{getToolIcon(tool)}</span>
                             <span className="truncate">{tool.name}</span>
                           </Link>
                         ))}
                       </>
                     )}
 
-                    {/* Herramientas de rol */}
-                    {adminTools.filter((t: Tool) => !GENERAL_TOOL_SLUGS.includes(t.slug)).length > 0 && (
+                    {/* Herramientas de rol (Técnicas / Especialidad) */}
+                    {adminTools.filter(isRoleTool).length > 0 && (
                       <>
                         <button onClick={() => toggleSection('admin-rol')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
                           <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Herramientas de rol</p>
@@ -372,9 +419,9 @@ export function Navbar() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                           </svg>
                         </button>
-                        {expanded.has('admin-rol') && adminTools.filter((t: Tool) => !GENERAL_TOOL_SLUGS.includes(t.slug)).map((tool: Tool) => (
-                          <Link key={tool.id} href={`/tools/${tool.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                            <span>{TOOL_CATEGORY_ICON[tool.category] ?? '🔧'}</span>
+                        {expanded.has('admin-rol') && adminTools.filter(isRoleTool).map((tool: Tool) => (
+                          <Link key={tool.id} href={getToolHref(tool)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
+                            <span>{getToolIcon(tool)}</span>
                             <span className="truncate">{tool.name}</span>
                           </Link>
                         ))}
