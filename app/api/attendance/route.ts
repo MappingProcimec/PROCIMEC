@@ -52,9 +52,10 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const startDate = searchParams.get('startDate');
-  const endDate = searchParams.get('endDate');
-  const targetUserId = (role === 'admin' && searchParams.get('userId')) ? searchParams.get('userId') : userId;
+  const startDate = searchParams.get('startDate') || searchParams.get('from');
+  const endDate = searchParams.get('endDate') || searchParams.get('to');
+  const queryUserId = searchParams.get('userId');
+  const isAdmin = role === 'admin';
 
   const todayStr = getTodayColombiaDate();
   const supabase = createAdminClient();
@@ -84,8 +85,12 @@ export async function GET(req: NextRequest) {
       .select('*, users(id, full_name, email, role)')
       .order('date', { ascending: false });
 
-    if (targetUserId) {
-      historyQuery = historyQuery.eq('user_id', targetUserId);
+    if (isAdmin) {
+      if (queryUserId && queryUserId !== 'all') {
+        historyQuery = historyQuery.eq('user_id', queryUserId);
+      }
+    } else {
+      historyQuery = historyQuery.eq('user_id', userId);
     }
 
     if (startDate) {
@@ -96,16 +101,40 @@ export async function GET(req: NextRequest) {
       historyQuery = historyQuery.lte('date', endDate);
     }
 
-    const { data: historyData, error: historyErr } = await historyQuery.limit(100);
+    const { data: historyData, error: historyErr } = await historyQuery.limit(200);
 
     if (historyErr) {
       throw historyErr;
     }
 
+    // 3. Si es Admin, obtener el estado de hoy de todo el equipo y la lista de colaboradores
+    let teamToday: unknown[] = [];
+    let activeUsers: unknown[] = [];
+
+    if (isAdmin) {
+      const [teamTodayRes, activeUsersRes] = await Promise.all([
+        supabase
+          .from('attendance_records')
+          .select('*, users(id, full_name, email, role)')
+          .eq('date', todayStr),
+        supabase
+          .from('users')
+          .select('id, full_name, email, role')
+          .eq('is_active', true)
+          .neq('role', 'pending')
+          .order('full_name', { ascending: true }),
+      ]);
+      teamToday = teamTodayRes.data ?? [];
+      activeUsers = activeUsersRes.data ?? [];
+    }
+
     return NextResponse.json({
       today: todayData ?? null,
       history: historyData ?? [],
+      teamToday,
+      activeUsers,
       currentDate: todayStr,
+      isAdmin,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Error al consultar asistencia';

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useMemo } from 'react';
@@ -543,10 +544,6 @@ export default function AdminUsersPage() {
                 })
                 .map(user => {
                   const badge = userDisplayBadge(user);
-                  const effective = getUserEffectiveToolsAndForms(user, roleOptions);
-                  const toolsCount = effective.toolCount;
-                  const formsCount = effective.formCount;
-                  const projsCount = user.user_projects?.length ?? 0;
 
                   return (
                     <div key={user.id} className={`p-4 sm:p-5 flex items-start gap-4 transition-colors ${
@@ -570,33 +567,18 @@ export default function AdminUsersPage() {
                           )}
                         </div>
                         <p className="text-xs text-text-muted">{user.email}</p>
-
-                        {/* Metadatos de asignación del usuario (Proyectos, Herramientas, Formularios) */}
-                        {user.role !== 'pending' && user.role !== 'admin' && (
-                          <div className="flex items-center gap-2.5 text-xs text-text-muted mt-1.5 flex-wrap">
-                            <span className="inline-flex items-center gap-1 font-medium">
-                              📁 {projsCount} proyecto{projsCount !== 1 ? 's' : ''}
-                            </span>
-                            {toolsCount > 0 && (
-                              <>
-                                <span className="text-gray-300">•</span>
-                                <span className="inline-flex items-center gap-1 text-primary font-semibold">
-                                  ⏱️ {toolsCount} herramienta{toolsCount !== 1 ? 's' : ''} asignada{toolsCount !== 1 ? 's' : ''}
-                                </span>
-                              </>
-                            )}
-                            {formsCount > 0 && (
-                              <>
-                                <span className="text-gray-300">•</span>
-                                <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
-                                  📝 {formsCount} formulario{formsCount !== 1 ? 's' : ''} asignado{formsCount !== 1 ? 's' : ''}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        )}
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+                        {user.role !== 'pending' && (
+                          <Link
+                            href={`/tools/attendance-tracker?userId=${user.id}`}
+                            className="btn-sm btn-outline text-xs flex items-center gap-1 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
+                            title="Ver registro de asistencia de este colaborador"
+                          >
+                            <span>⏱️</span>
+                            <span>Asistencia</span>
+                          </Link>
+                        )}
                         <button onClick={() => openEdit(user)} className="btn-sm btn-outline text-xs">✏️ Editar</button>
                         <button
                           onClick={() => toggleActive(user)}

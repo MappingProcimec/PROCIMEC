@@ -331,9 +331,9 @@ export default function AdminToolsAndFormsPage() {
                             >
                               {style.label}
                             </span>
-                            {tool.is_universal && (
+                            {tool.is_universal && tool.category !== 'universal' && (
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
-                                Universal
+                                Acceso Universal
                               </span>
                             )}
                           </div>
