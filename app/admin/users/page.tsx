@@ -2,10 +2,17 @@
 
 import { Navbar } from '@/components/layout/Navbar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface DivisionOption { id: string; name: string }
-interface RoleOption { id: string; name: string; division_id: string | null; divisions?: { name: string } | null }
+interface RoleOption {
+  id: string;
+  name: string;
+  division_id: string | null;
+  divisions?: { name: string } | null;
+  role_tools?: { tools: { id: string; slug?: string; name?: string; category?: string } }[];
+  role_forms?: { forms: { id: string; slug?: string; name?: string } }[];
+}
 interface ProjectOption { id: string; code?: string; cost_center?: string; name: string; is_active?: boolean; divisions?: { id: string }[] }
 interface ToolOption { id: string; slug: string; name: string; category: string; is_universal: boolean }
 interface FormOption { id: string; slug: string; name: string; description?: string; steps_count?: number }
@@ -66,6 +73,60 @@ const TOOL_CATEGORY_STYLES: Record<string, { label: string; icon: string; bg: st
   admin: { label: 'Administración', icon: '⚙️', bg: 'bg-purple-50 border-purple-200', text: 'text-purple-700' },
   universal: { label: 'Universal', icon: '🌐', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
 };
+
+// ── Helpers para resolver herramientas y formularios del rol ──────────────────
+function getUserRoleIds(user: User, roleOptions: RoleOption[]): string[] {
+  const ids = new Set<string>();
+  if (user.role_id) ids.add(user.role_id);
+  (user.user_division_roles ?? []).forEach(udr => {
+    if (udr.role_id) ids.add(udr.role_id);
+  });
+  if (ids.size === 0 && user.role && user.role !== 'admin' && user.role !== 'pending') {
+    const match = roleOptions.find(r =>
+      r.name.toLowerCase() === user.role.toLowerCase() ||
+      (user.role === 'operator' && r.name.toLowerCase().includes('operador')) ||
+      (user.role === 'dibujo' && r.name.toLowerCase().includes('dibujo'))
+    );
+    if (match) ids.add(match.id);
+  }
+  return Array.from(ids);
+}
+
+function getToolsAndFormsFromRoles(roleIds: string[], roleOptions: RoleOption[]) {
+  const toolIds = new Set<string>();
+  const formIds = new Set<string>();
+
+  roleIds.forEach(rid => {
+    const r = roleOptions.find(opt => opt.id === rid);
+    if (r) {
+      (r.role_tools ?? []).forEach(rt => {
+        if (rt.tools?.id) toolIds.add(rt.tools.id);
+      });
+      (r.role_forms ?? []).forEach(rf => {
+        if (rf.forms?.id) formIds.add(rf.forms.id);
+      });
+    }
+  });
+
+  return { toolIds, formIds };
+}
+
+function getUserEffectiveToolsAndForms(user: User, roleOptions: RoleOption[]) {
+  const roleIds = getUserRoleIds(user, roleOptions);
+  const { toolIds, formIds } = getToolsAndFormsFromRoles(roleIds, roleOptions);
+
+  // Unir herramientas asignadas individualmente
+  (user.user_tools ?? []).forEach(ut => toolIds.add(ut.tool_id));
+  // Unir formularios asignados individualmente
+  (user.user_forms ?? []).forEach(uf => formIds.add(uf.form_id));
+
+  return {
+    toolCount: toolIds.size,
+    formCount: formIds.size,
+    toolIds,
+    formIds,
+  };
+}
 
 // ── DivisionBlockCard ─────────────────────────────────────────────────────────
 function DivisionBlockCard({
@@ -218,17 +279,17 @@ export default function AdminUsersPage() {
 
   const { data, isLoading } = useQuery({ queryKey: ['admin-users'], queryFn: fetchAll });
 
-  const users: User[] = data?.users ?? [];
-  const allProjects: ProjectOption[] = data?.projects ?? [];
-  const roleOptions: RoleOption[] = data?.roles ?? [];
-  const divisions: DivisionOption[] = data?.divisions ?? [];
-  const allTools: ToolOption[] = data?.tools ?? [];
-  const allForms: FormOption[] = data?.forms ?? [];
+  const users: User[] = useMemo(() => data?.users ?? [], [data?.users]);
+  const allProjects: ProjectOption[] = useMemo(() => data?.projects ?? [], [data?.projects]);
+  const roleOptions: RoleOption[] = useMemo(() => data?.roles ?? [], [data?.roles]);
+  const divisions: DivisionOption[] = useMemo(() => data?.divisions ?? [], [data?.divisions]);
+  const allTools: ToolOption[] = useMemo(() => data?.tools ?? [], [data?.tools]);
+  const allForms: FormOption[] = useMemo(() => data?.forms ?? [], [data?.forms]);
 
   const projectsForDiv = (divId: string) =>
     allProjects.filter(p => (p.divisions ?? []).some(d => d.id === divId));
 
-  // Initialize blocks when data and user are ready
+  // Initialize blocks and sync role tools/forms when data and user are ready
   useEffect(() => {
     if (!editingUser || accessType !== 'division' || blocksReady) return;
     if (!roleOptions.length || !allProjects.length) return;
@@ -263,6 +324,11 @@ export default function AdminUsersPage() {
     } else {
       setEditBlocks([{ divisionId: '', roleId: '', projectIds: new Set() }]);
     }
+
+    // Pre-cargar herramientas y formularios (del rol + individuales)
+    const effective = getUserEffectiveToolsAndForms(editingUser, roleOptions);
+    setSelectedToolIds(prev => prev.size > 0 ? prev : new Set(effective.toolIds));
+    setSelectedFormIds(prev => prev.size > 0 ? prev : new Set(effective.formIds));
 
     setBlocksReady(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -301,13 +367,10 @@ export default function AdminUsersPage() {
     setBlocksReady(false);
     setSectionTab('division');
 
-    // Cargar herramientas asignadas al usuario específico
-    const toolIds = new Set((user.user_tools ?? []).map(ut => ut.tool_id));
-    setSelectedToolIds(toolIds);
-
-    // Cargar formularios asignados al usuario específico
-    const formIds = new Set((user.user_forms ?? []).map(uf => uf.form_id));
-    setSelectedFormIds(formIds);
+    // Pre-cargar las herramientas y formularios que YA tiene asignados (por su rol + asignaciones individuales)
+    const effective = getUserEffectiveToolsAndForms(user, roleOptions);
+    setSelectedToolIds(new Set(effective.toolIds));
+    setSelectedFormIds(new Set(effective.formIds));
 
     setToolSearch('');
     setFormSearch('');
@@ -368,8 +431,24 @@ export default function AdminUsersPage() {
       divisionId: divId, roleId: '', projectIds: new Set(divProjs.map(p => p.id)),
     } : b));
   };
-  const onRoleChange = (i: number, roleId: string) =>
+
+  // Al cambiar de rol, fusionar automáticamente las herramientas y formularios correspondientes
+  const onRoleChange = (i: number, roleId: string) => {
     setEditBlocks(prev => prev.map((b, idx) => idx === i ? { ...b, roleId } : b));
+    if (roleId) {
+      const { toolIds: newToolIds, formIds: newFormIds } = getToolsAndFormsFromRoles([roleId], roleOptions);
+      setSelectedToolIds(prev => {
+        const next = new Set(prev);
+        newToolIds.forEach(id => next.add(id));
+        return next;
+      });
+      setSelectedFormIds(prev => {
+        const next = new Set(prev);
+        newFormIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
 
   const onToggleProject = (blockIndex: number, projId: string) =>
     setEditBlocks(prev => prev.map((b, idx) => {
@@ -414,6 +493,24 @@ export default function AdminUsersPage() {
     (f.description && f.description.toLowerCase().includes(formSearch.toLowerCase()))
   );
 
+  // Permisos otorgados por el rol activo en el modal
+  const currentModalRoleIds = useMemo(() => {
+    const fromBlocks = editBlocks.map(b => b.roleId).filter(Boolean);
+    if (fromBlocks.length > 0) return fromBlocks;
+    if (editingUser) return getUserRoleIds(editingUser, roleOptions);
+    return [];
+  }, [editBlocks, editingUser, roleOptions]);
+
+  const currentRolePermissions = useMemo(() => {
+    return getToolsAndFormsFromRoles(currentModalRoleIds, roleOptions);
+  }, [currentModalRoleIds, roleOptions]);
+
+  // Función para restablecer exactamente a las herramientas de su rol
+  const handleResetToRoleDefaults = () => {
+    setSelectedToolIds(new Set(currentRolePermissions.toolIds));
+    setSelectedFormIds(new Set(currentRolePermissions.formIds));
+  };
+
   return (
     <div className="min-h-screen bg-surface">
       <Navbar />
@@ -446,8 +543,9 @@ export default function AdminUsersPage() {
                 })
                 .map(user => {
                   const badge = userDisplayBadge(user);
-                  const toolsCount = user.user_tools?.length ?? 0;
-                  const formsCount = user.user_forms?.length ?? 0;
+                  const effective = getUserEffectiveToolsAndForms(user, roleOptions);
+                  const toolsCount = effective.toolCount;
+                  const formsCount = effective.formCount;
                   const projsCount = user.user_projects?.length ?? 0;
 
                   return (
@@ -473,10 +571,10 @@ export default function AdminUsersPage() {
                         </div>
                         <p className="text-xs text-text-muted">{user.email}</p>
 
-                        {/* Metadatos de asignación del usuario */}
+                        {/* Metadatos de asignación del usuario (Proyectos, Herramientas, Formularios) */}
                         {user.role !== 'pending' && user.role !== 'admin' && (
                           <div className="flex items-center gap-2.5 text-xs text-text-muted mt-1.5 flex-wrap">
-                            <span className="inline-flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1 font-medium">
                               📁 {projsCount} proyecto{projsCount !== 1 ? 's' : ''}
                             </span>
                             {toolsCount > 0 && (
@@ -610,7 +708,7 @@ export default function AdminUsersPage() {
                       }`}
                     >
                       <span>⏱️ Herramientas</span>
-                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
                         selectedToolIds.size > 0 ? 'bg-primary-100 text-primary' : 'bg-gray-200 text-gray-600'
                       }`}>
                         {selectedToolIds.size}
@@ -626,7 +724,7 @@ export default function AdminUsersPage() {
                       }`}
                     >
                       <span>📝 Formularios</span>
-                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
                         selectedFormIds.size > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
                       }`}>
                         {selectedFormIds.size}
@@ -671,18 +769,19 @@ export default function AdminUsersPage() {
                         </button>
                       )}
 
-                      {/* Atajo visual a herramientas y formularios */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs flex items-center justify-between">
+                      {/* Atajo visual a herramientas y formularios con conteo activo */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs flex items-center justify-between">
                         <div>
-                          <p className="font-semibold text-slate-800">Herramientas y Formularios individuales:</p>
-                          <p className="text-slate-500 text-[11px] mt-0.5">
-                            {selectedToolIds.size} herramienta(s) y {selectedFormIds.size} formulario(s) asignados a este usuario
+                          <p className="font-bold text-slate-800">Herramientas y Formularios asignados:</p>
+                          <p className="text-slate-600 text-xs mt-0.5">
+                            <span className="font-semibold text-primary">{selectedToolIds.size} herramienta(s)</span> y{' '}
+                            <span className="font-semibold text-emerald-700">{selectedFormIds.size} formulario(s)</span> habilitados
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setSectionTab('tools')}
-                          className="px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary-50 rounded-lg border border-primary/30 transition-colors"
+                          className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary-50 rounded-lg border border-primary/30 transition-colors shadow-sm bg-white"
                         >
                           Personalizar →
                         </button>
@@ -690,19 +789,28 @@ export default function AdminUsersPage() {
                     </div>
                   )}
 
-                  {/* PESTAÑA 2: HERRAMIENTAS ASIGNADAS (SOLO A ESTE USUARIO) */}
+                  {/* PESTAÑA 2: HERRAMIENTAS ASIGNADAS */}
                   {sectionTab === 'tools' && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                            Herramientas Específicas del Usuario
+                            Herramientas del Usuario
                           </h4>
                           <p className="text-[11px] text-text-muted">
-                            Asigna herramientas exclusivas solo a {editingUser.full_name} ({selectedToolIds.size}/{allTools.length})
+                            Asignadas a {editingUser.full_name} ({selectedToolIds.size}/{allTools.length})
                           </p>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs">
+                        <div className="flex items-center gap-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={handleResetToRoleDefaults}
+                            className="text-indigo-600 hover:underline font-semibold"
+                            title="Restablecer a las herramientas otorgadas por su rol"
+                          >
+                            🔄 Según su rol
+                          </button>
+                          <span className="text-gray-300">|</span>
                           <button
                             type="button"
                             onClick={() => setSelectedToolIds(new Set(allTools.map(t => t.id)))}
@@ -742,6 +850,7 @@ export default function AdminUsersPage() {
                         ) : (
                           filteredTools.map(tool => {
                             const isChecked = selectedToolIds.has(tool.id);
+                            const isGrantedByRole = currentRolePermissions.toolIds.has(tool.id);
                             const catStyle = TOOL_CATEGORY_STYLES[tool.category] ?? {
                               label: tool.category, icon: '⚙️', bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700',
                             };
@@ -761,11 +870,16 @@ export default function AdminUsersPage() {
                                 />
                                 <span className="text-base flex-shrink-0">{catStyle.icon}</span>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-xs font-semibold text-text-primary truncate">{tool.name}</span>
                                     <span className={`px-1.5 py-0.2 rounded border text-[10px] font-medium ${catStyle.bg} ${catStyle.text}`}>
                                       {catStyle.label}
                                     </span>
+                                    {isGrantedByRole && (
+                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                        ✓ En su rol
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </label>
@@ -776,19 +890,28 @@ export default function AdminUsersPage() {
                     </div>
                   )}
 
-                  {/* PESTAÑA 3: FORMULARIOS ASIGNADOS (SOLO A ESTE USUARIO) */}
+                  {/* PESTAÑA 3: FORMULARIOS ASIGNADOS */}
                   {sectionTab === 'forms' && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                            Formularios Específicos del Usuario
+                            Formularios del Usuario
                           </h4>
                           <p className="text-[11px] text-text-muted">
-                            Asigna formularios operativos solo a {editingUser.full_name} ({selectedFormIds.size}/{allForms.length})
+                            Asignados a {editingUser.full_name} ({selectedFormIds.size}/{allForms.length})
                           </p>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs">
+                        <div className="flex items-center gap-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={handleResetToRoleDefaults}
+                            className="text-indigo-600 hover:underline font-semibold"
+                            title="Restablecer a los formularios otorgados por su rol"
+                          >
+                            🔄 Según su rol
+                          </button>
+                          <span className="text-gray-300">|</span>
                           <button
                             type="button"
                             onClick={() => setSelectedFormIds(new Set(allForms.map(f => f.id)))}
@@ -828,6 +951,7 @@ export default function AdminUsersPage() {
                         ) : (
                           filteredForms.map(form => {
                             const isChecked = selectedFormIds.has(form.id);
+                            const isGrantedByRole = currentRolePermissions.formIds.has(form.id);
 
                             return (
                               <label
@@ -843,7 +967,14 @@ export default function AdminUsersPage() {
                                   className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 mt-0.5"
                                 />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-text-primary">{form.name}</p>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-xs font-semibold text-text-primary">{form.name}</p>
+                                    {isGrantedByRole && (
+                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                        ✓ En su rol
+                                      </span>
+                                    )}
+                                  </div>
                                   {form.description && (
                                     <p className="text-[11px] text-text-muted mt-0.5">{form.description}</p>
                                   )}
