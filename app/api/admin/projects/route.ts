@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { createProjectFolder } from '@/lib/drive';
 import { createAdminClient } from '@/lib/supabase';
 import { createProjectSchema } from '@/lib/validations';
+import { fetchAllRows } from '@/lib/supabase-pagination';
 
 interface OperationalSummaryRow {
   ml?: number;
@@ -60,13 +61,13 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // 2. Actividades de dibujo
-  const { data: drawingActivities } = await supabase
-    .from('drawing_activities')
-    .select('id, project_name, hours_worked, responsible, activity_date, software, is_rework')
-    .range(0, 49999);
-
-  const activities: DrawingActivity[] = drawingActivities || [];
+  // 2. Actividades de dibujo (recorrer todos los registros sin límite de 1000)
+  const activities = await fetchAllRows<DrawingActivity>(async (from, to) => {
+    return await supabase
+      .from('drawing_activities')
+      .select('id, project_name, hours_worked, responsible, activity_date, software, is_rework')
+      .range(from, to);
+  });
 
   // 3. Agrupar actividades por project_name exacto
   const drawingByProject = new Map<string, DrawingActivity[]>();

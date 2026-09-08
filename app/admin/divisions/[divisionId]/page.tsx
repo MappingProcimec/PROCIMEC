@@ -401,24 +401,27 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
               )}
             </div>
 
-            {/* Estadísticas */}
-            {(stats?.total_reports ?? 0) > 0 && (
+            {((stats?.total_reports ?? 0) > 0 || (stats?.total_drawing_hours ?? 0) > 0) && (
               <div className="card shadow-xl border border-border overflow-hidden">
                 <div className="px-5 py-4 border-b border-border bg-gray-50">
                   <h2 className="font-bold text-text-primary">Estadísticas de la División</h2>
                 </div>
-                <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">{stats?.total_reports}</div>
+                    <div className="text-2xl font-bold text-primary">{stats?.total_field_reports ?? 0}</div>
                     <div className="text-xs text-text-muted mt-0.5">Reportes de campo</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-primary">{(stats?.total_ml ?? 0).toFixed(0)} ml</div>
                     <div className="text-xs text-text-muted mt-0.5">Total ML ejecutados</div>
                   </div>
-                  <div className="text-center col-span-2 sm:col-span-1">
+                  <div className="text-center">
                     <div className="text-2xl font-bold text-accent">{(stats?.total_drawing_hours ?? 0).toFixed(1)} h</div>
                     <div className="text-xs text-text-muted mt-0.5">Horas CAD totales</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-accent">{stats?.total_drawing_records ?? 0}</div>
+                    <div className="text-xs text-text-muted mt-0.5">Registros de dibujo</div>
                   </div>
                 </div>
               </div>

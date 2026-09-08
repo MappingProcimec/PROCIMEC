@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { createClient } from '@supabase/supabase-js';
 import { isKnownAdmin } from '@/lib/admin-emails';
+import { fetchAllRows } from '@/lib/supabase-pagination';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -94,36 +95,41 @@ export async function GET(req: NextRequest) {
 
   const email = token.email as string | undefined;
 
-  let query = supabase
-    .from('drawing_activities')
-    .select('*')
-    .order('activity_date', { ascending: false })
-    .range(0, 49999);
+  if (role === 'dibujo' && userId && email) {
+    // Vincular en segundo plano los registros importados sin user_id que le pertenecen a este correo
+    supabase
+      .from('drawing_activities')
+      .update({ user_id: userId })
+      .is('user_id', null)
+      .ilike('responsible', email)
+      .then(({ error: syncErr }) => {
+        if (syncErr) console.error('Error auto-syncing drawing user_id:', syncErr);
+      });
+  }
 
-  if (role === 'dibujo') {
-    if (userId && email) {
-      query = query.or(`user_id.eq.${userId},responsible.ilike.${email}`);
-      // Vincular en segundo plano los registros importados sin user_id que le pertenecen a este correo
-      supabase
+  try {
+    const data = await fetchAllRows(async (from, to) => {
+      let query = supabase
         .from('drawing_activities')
-        .update({ user_id: userId })
-        .is('user_id', null)
-        .ilike('responsible', email)
-        .then(({ error: syncErr }) => {
-          if (syncErr) console.error('Error auto-syncing drawing user_id:', syncErr);
-        });
-    } else if (userId) {
-      query = query.eq('user_id', userId);
-    } else if (email) {
-      query = query.ilike('responsible', email);
-    }
+        .select('*')
+        .order('activity_date', { ascending: false });
+
+      if (role === 'dibujo') {
+        if (userId && email) {
+          query = query.or(`user_id.eq.${userId},responsible.ilike.${email}`);
+        } else if (userId) {
+          query = query.eq('user_id', userId);
+        } else if (email) {
+          query = query.ilike('responsible', email);
+        }
+      }
+
+      return await query.range(from, to);
+    });
+
+    return NextResponse.json(data);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error al obtener actividades';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const { data, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(data);
 }

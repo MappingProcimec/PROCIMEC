@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/supabase-pagination';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -137,11 +138,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const drawingHoursByName: Record<string, number> = {};
     const drawingCountByName: Record<string, number> = {};
     if (projectNames.length > 0) {
-      const { data: drawings } = await supabase
-        .from('drawing_activities')
-        .select('project_name, hours_worked')
-        .in('project_name', projectNames);
-      (drawings ?? []).forEach((d: { project_name: string; hours_worked: number }) => {
+      const drawings = await fetchAllRows<{ project_name: string; hours_worked: number }>(async (from, to) => {
+        return await supabase
+          .from('drawing_activities')
+          .select('project_name, hours_worked')
+          .in('project_name', projectNames)
+          .range(from, to);
+      });
+      (drawings ?? []).forEach((d) => {
         drawingHoursByName[d.project_name] = (drawingHoursByName[d.project_name] ?? 0) + (Number(d.hours_worked) || 0);
         drawingCountByName[d.project_name] = (drawingCountByName[d.project_name] ?? 0) + 1;
       });
@@ -228,11 +232,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const drawingLogs: Record<string, unknown>[] = [];
   if (projectNames.length > 0) {
-    const { data: daData } = await supabase
-      .from('drawing_activities')
-      .select('id, activity_date, responsible, project_name, hours_worked, software, is_rework, created_at')
-      .in('project_name', projectNames)
-      .order('activity_date', { ascending: false });
+    const daData = await fetchAllRows<RawDrawingActivity>(async (from, to) => {
+      return await supabase
+        .from('drawing_activities')
+        .select('id, activity_date, responsible, project_name, hours_worked, software, is_rework, created_at')
+        .in('project_name', projectNames)
+        .order('activity_date', { ascending: false })
+        .range(from, to);
+    });
 
     ((daData as unknown as RawDrawingActivity[]) ?? []).forEach((da) => {
       drawingLogs.push({

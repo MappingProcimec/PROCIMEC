@@ -196,7 +196,11 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
 
 // --- Main Page ---
 export default function FormPage({ params }: { params: { formSlug: string } }) {
-  if (params.formSlug === 'nueva-actividad') {
+  if (
+    params.formSlug === 'nueva-actividad' ||
+    params.formSlug === 'cad-register-form' ||
+    params.formSlug === 'cad-register'
+  ) {
     return <CadRegisterFormPage />;
   }
 
