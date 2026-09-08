@@ -249,7 +249,8 @@ export type ToolSlug =
   | 'internal-chat'
   | 'meeting-transcriber'
   | 'org-chart-ai'
-  | 'dynamic-dashboard';
+  | 'dynamic-dashboard'
+  | 'attendance-tracker';
 
 export interface Tool {
   id: string;
@@ -300,3 +301,36 @@ export type DrawingActivity = {
   rework_observations?: string;
   user_id?: string;
 };
+
+// ─── Attendance Control (Control de Asistencia y Jornada) ────────────────────────
+export interface FieldTrip {
+  id: string;
+  time: string;
+  destination: string;
+  location?: string;
+  notes?: string;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  user_id: string;
+  date: string;
+  check_in_time: string | null;
+  check_in_location: string | null;
+  check_in_is_office: boolean;
+  check_out_time: string | null;
+  check_out_location: string | null;
+  check_out_is_office: boolean;
+  total_hours: number;
+  status: 'checked_in' | 'field_trip' | 'completed';
+  field_trips: FieldTrip[];
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  users?: {
+    id: string;
+    email: string;
+    full_name: string;
+    role?: string;
+  };
+}

@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react';
 interface DivisionOption { id: string; name: string }
 interface RoleOption { id: string; name: string; division_id: string | null; divisions?: { name: string } | null }
 interface ProjectOption { id: string; code?: string; cost_center?: string; name: string; is_active?: boolean; divisions?: { id: string }[] }
+interface ToolOption { id: string; slug: string; name: string; category: string; is_universal: boolean }
+interface FormOption { id: string; slug: string; name: string; description?: string; steps_count?: number }
 
 interface UserDivisionRole { division_id: string; role_id: string | null }
 interface User {
@@ -17,22 +19,28 @@ interface User {
   is_active: boolean; created_at: string;
   user_projects?: { project_id: string }[];
   user_division_roles?: UserDivisionRole[];
+  user_tools?: { tool_id: string }[];
+  user_forms?: { form_id: string }[];
 }
 
 interface DivisionBlock { divisionId: string; roleId: string; projectIds: Set<string> }
 
 async function fetchAll() {
-  const [usersRes, projectsRes, rolesRes, divisionsRes] = await Promise.all([
+  const [usersRes, projectsRes, rolesRes, divisionsRes, toolsRes, formsRes] = await Promise.all([
     fetch('/api/admin/users'),
     fetch('/api/admin/projects'),
     fetch('/api/admin/roles'),
     fetch('/api/admin/divisions'),
+    fetch('/api/admin/tools'),
+    fetch('/api/admin/forms'),
   ]);
   return {
     users: (await usersRes.json()).data ?? [],
     projects: (await projectsRes.json()).data ?? [],
     roles: (await rolesRes.json()).data ?? [],
     divisions: (await divisionsRes.json()).data ?? [],
+    tools: (await toolsRes.json()).data ?? [],
+    forms: (await formsRes.json()).data ?? [],
   };
 }
 
@@ -51,6 +59,13 @@ function userDisplayBadge(user: User) {
   if (user.roles) return { label: user.roles.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
   return { label: user.role === 'dibujo' ? 'Dibujo' : 'Operador', badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
 }
+
+const TOOL_CATEGORY_STYLES: Record<string, { label: string; icon: string; bg: string; text: string }> = {
+  gpr: { label: 'GPR / Geofísica', icon: '📡', bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
+  cad: { label: 'CAD / BIM', icon: '✏️', bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+  admin: { label: 'Administración', icon: '⚙️', bg: 'bg-purple-50 border-purple-200', text: 'text-purple-700' },
+  universal: { label: 'Universal', icon: '🌐', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+};
 
 // ── DivisionBlockCard ─────────────────────────────────────────────────────────
 function DivisionBlockCard({
@@ -192,12 +207,23 @@ export default function AdminUsersPage() {
   const [editBlocks, setEditBlocks] = useState<DivisionBlock[]>([]);
   const [blocksReady, setBlocksReady] = useState(false);
 
+  // Pestaña activa dentro del modal de edición
+  const [sectionTab, setSectionTab] = useState<'division' | 'tools' | 'forms'>('division');
+
+  // Herramientas y Formularios asignados al usuario específico
+  const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
+  const [selectedFormIds, setSelectedFormIds] = useState<Set<string>>(new Set());
+  const [toolSearch, setToolSearch] = useState('');
+  const [formSearch, setFormSearch] = useState('');
+
   const { data, isLoading } = useQuery({ queryKey: ['admin-users'], queryFn: fetchAll });
 
   const users: User[] = data?.users ?? [];
   const allProjects: ProjectOption[] = data?.projects ?? [];
   const roleOptions: RoleOption[] = data?.roles ?? [];
   const divisions: DivisionOption[] = data?.divisions ?? [];
+  const allTools: ToolOption[] = data?.tools ?? [];
+  const allForms: FormOption[] = data?.forms ?? [];
 
   const projectsForDiv = (divId: string) =>
     allProjects.filter(p => (p.divisions ?? []).some(d => d.id === divId));
@@ -247,6 +273,8 @@ export default function AdminUsersPage() {
       id: string; role?: string; role_id?: string | null;
       is_active?: boolean; project_ids?: string[];
       division_roles?: { division_id: string; role_id: string | null }[];
+      tool_ids?: string[];
+      form_ids?: string[];
     }) => {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
@@ -257,9 +285,12 @@ export default function AdminUsersPage() {
       if (!res.ok) throw new Error(json.error || 'Error al actualizar usuario');
       return json;
     },
-    onSuccess: () => {
+    onSuccess: (resData) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setEditingUser(null);
+      if (resData?.warning) {
+        alert(resData.warning);
+      }
     },
   });
 
@@ -268,14 +299,45 @@ export default function AdminUsersPage() {
     setAccessType(user.role === 'admin' ? 'admin' : user.role === 'pending' ? 'pending' : 'division');
     setEditBlocks([]);
     setBlocksReady(false);
+    setSectionTab('division');
+
+    // Cargar herramientas asignadas al usuario específico
+    const toolIds = new Set((user.user_tools ?? []).map(ut => ut.tool_id));
+    setSelectedToolIds(toolIds);
+
+    // Cargar formularios asignados al usuario específico
+    const formIds = new Set((user.user_forms ?? []).map(uf => uf.form_id));
+    setSelectedFormIds(formIds);
+
+    setToolSearch('');
+    setFormSearch('');
   };
 
   const handleSave = () => {
     if (!editingUser) return;
+    const tool_ids = Array.from(selectedToolIds);
+    const form_ids = Array.from(selectedFormIds);
+
     if (accessType === 'admin') {
-      updateMutation.mutate({ id: editingUser.id, role: 'admin', role_id: null, division_roles: [], project_ids: [] });
+      updateMutation.mutate({
+        id: editingUser.id,
+        role: 'admin',
+        role_id: null,
+        division_roles: [],
+        project_ids: [],
+        tool_ids,
+        form_ids,
+      });
     } else if (accessType === 'pending') {
-      updateMutation.mutate({ id: editingUser.id, role: 'pending', role_id: null, division_roles: [], project_ids: [] });
+      updateMutation.mutate({
+        id: editingUser.id,
+        role: 'pending',
+        role_id: null,
+        division_roles: [],
+        project_ids: [],
+        tool_ids,
+        form_ids,
+      });
     } else {
       const valid = editBlocks.filter(b => b.divisionId);
       const division_roles = valid.map(b => ({ division_id: b.divisionId, role_id: b.roleId || null }));
@@ -288,6 +350,8 @@ export default function AdminUsersPage() {
         role_id: valid[0]?.roleId || null,
         division_roles,
         project_ids,
+        tool_ids,
+        form_ids,
       });
     }
   };
@@ -315,8 +379,40 @@ export default function AdminUsersPage() {
       return { ...b, projectIds: next };
     }));
 
+  // Toggle de herramienta específica
+  const onToggleTool = (toolId: string) => {
+    setSelectedToolIds(prev => {
+      const next = new Set(prev);
+      if (next.has(toolId)) next.delete(toolId); else next.add(toolId);
+      return next;
+    });
+  };
+
+  // Toggle de formulario específico
+  const onToggleForm = (formId: string) => {
+    setSelectedFormIds(prev => {
+      const next = new Set(prev);
+      if (next.has(formId)) next.delete(formId); else next.add(formId);
+      return next;
+    });
+  };
+
   const usedDivisionIds = editBlocks.map(b => b.divisionId).filter(Boolean);
   const pendingCount = users.filter(u => u.role === 'pending').length;
+
+  // Filtrado de herramientas por búsqueda
+  const filteredTools = allTools.filter(t =>
+    t.name.toLowerCase().includes(toolSearch.toLowerCase()) ||
+    t.slug.toLowerCase().includes(toolSearch.toLowerCase()) ||
+    (t.category && t.category.toLowerCase().includes(toolSearch.toLowerCase()))
+  );
+
+  // Filtrado de formularios por búsqueda
+  const filteredForms = allForms.filter(f =>
+    f.name.toLowerCase().includes(formSearch.toLowerCase()) ||
+    f.slug.toLowerCase().includes(formSearch.toLowerCase()) ||
+    (f.description && f.description.toLowerCase().includes(formSearch.toLowerCase()))
+  );
 
   return (
     <div className="min-h-screen bg-surface">
@@ -350,6 +446,10 @@ export default function AdminUsersPage() {
                 })
                 .map(user => {
                   const badge = userDisplayBadge(user);
+                  const toolsCount = user.user_tools?.length ?? 0;
+                  const formsCount = user.user_forms?.length ?? 0;
+                  const projsCount = user.user_projects?.length ?? 0;
+
                   return (
                     <div key={user.id} className={`p-4 sm:p-5 flex items-start gap-4 transition-colors ${
                       user.role === 'pending' ? 'bg-amber-50' : !user.is_active ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'
@@ -372,10 +472,30 @@ export default function AdminUsersPage() {
                           )}
                         </div>
                         <p className="text-xs text-text-muted">{user.email}</p>
+
+                        {/* Metadatos de asignación del usuario */}
                         {user.role !== 'pending' && user.role !== 'admin' && (
-                          <p className="text-xs text-text-muted mt-1">
-                            {user.user_projects?.length ?? 0} proyecto{user.user_projects?.length !== 1 ? 's' : ''} asignado{user.user_projects?.length !== 1 ? 's' : ''}
-                          </p>
+                          <div className="flex items-center gap-2.5 text-xs text-text-muted mt-1.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1">
+                              📁 {projsCount} proyecto{projsCount !== 1 ? 's' : ''}
+                            </span>
+                            {toolsCount > 0 && (
+                              <>
+                                <span className="text-gray-300">•</span>
+                                <span className="inline-flex items-center gap-1 text-primary font-semibold">
+                                  ⏱️ {toolsCount} herramienta{toolsCount !== 1 ? 's' : ''} asignada{toolsCount !== 1 ? 's' : ''}
+                                </span>
+                              </>
+                            )}
+                            {formsCount > 0 && (
+                              <>
+                                <span className="text-gray-300">•</span>
+                                <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
+                                  📝 {formsCount} formulario{formsCount !== 1 ? 's' : ''} asignado{formsCount !== 1 ? 's' : ''}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         )}
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
@@ -399,9 +519,13 @@ export default function AdminUsersPage() {
       {/* ── Edit modal ──────────────────────────────────────────────────────── */}
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="card w-full max-w-lg animate-slide-up max-h-[92vh] flex flex-col">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
-              <h3 className="font-bold text-text-primary">Editar Usuario</h3>
+          <div className="card w-full max-w-xl animate-slide-up max-h-[92vh] flex flex-col shadow-2xl">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
+              <div>
+                <h3 className="font-bold text-text-primary text-base">Editar Usuario</h3>
+                <p className="text-xs text-text-muted">Configura accesos, proyectos, herramientas y formularios de este usuario</p>
+              </div>
               <button onClick={() => setEditingUser(null)} className="btn-icon btn-ghost">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -409,34 +533,36 @@ export default function AdminUsersPage() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4 overflow-y-auto flex-1">
-              {/* User info */}
-              <div className="flex items-center gap-3 pb-3 border-b border-border">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* User info Card */}
+              <div className="flex items-center gap-3.5 pb-4 border-b border-border">
                 {editingUser.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={editingUser.avatar_url} alt={editingUser.full_name} className="w-10 h-10 rounded-full" />
+                  <img src={editingUser.avatar_url} alt={editingUser.full_name} className="w-12 h-12 rounded-full border border-border flex-shrink-0" />
                 ) : (
-                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                    <span className="text-primary font-bold">{editingUser.full_name.charAt(0)}</span>
+                  <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-primary font-bold text-lg">{editingUser.full_name.charAt(0)}</span>
                   </div>
                 )}
                 <div>
-                  <p className="font-semibold text-text-primary">{editingUser.full_name}</p>
+                  <p className="font-bold text-text-primary text-sm sm:text-base">{editingUser.full_name}</p>
                   <p className="text-xs text-text-muted">{editingUser.email}</p>
                 </div>
               </div>
 
-              {/* Access type */}
+              {/* Access type buttons */}
               <div className="form-group">
-                <label className="label font-semibold text-sm mb-2 block">Tipo de acceso</label>
+                <label className="label font-semibold text-xs text-text-secondary uppercase tracking-wider mb-2 block">
+                  Tipo de acceso
+                </label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['admin', 'pending', 'division'] as const).map(t => (
                     <button key={t} type="button"
                       onClick={() => setAccessType(t)}
-                      className={`py-2 px-2 rounded-xl border-2 text-xs font-medium transition-all ${
+                      className={`py-2.5 px-3 rounded-xl border-2 text-xs font-semibold transition-all ${
                         accessType === t
-                          ? 'border-primary bg-primary text-white'
-                          : 'border-border text-text-secondary hover:border-primary/40'
+                          ? 'border-primary bg-primary text-white shadow-sm'
+                          : 'border-border text-text-secondary hover:border-primary/40 bg-white'
                       }`}>
                       {t === 'admin' ? '🔑 Administrador' : t === 'pending' ? '⏳ Pendiente' : '🏢 División'}
                     </button>
@@ -444,41 +570,293 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              {/* Division blocks */}
-              {accessType === 'division' && (
-                <div className="space-y-3">
-                  {!blocksReady && (
-                    <div className="text-xs text-text-muted animate-pulse text-center py-2">Cargando asignaciones...</div>
-                  )}
-                  {blocksReady && editBlocks.map((block, i) => (
-                    <DivisionBlockCard
-                      key={i}
-                      block={block}
-                      blockIndex={i}
-                      divisions={divisions}
-                      roleOptions={roleOptions}
-                      allProjects={allProjects}
-                      usedDivisionIds={usedDivisionIds}
-                      canRemove={editBlocks.length > 1}
-                      onDivisionChange={onDivisionChange}
-                      onRoleChange={onRoleChange}
-                      onToggleProject={onToggleProject}
-                      onRemove={removeBlock}
-                    />
-                  ))}
+              {/* Contenido según tipo de acceso */}
+              {accessType === 'admin' && (
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800 space-y-1">
+                  <p className="font-bold">🔑 Acceso Total de Administrador</p>
+                  <p>Este usuario cuenta con permisos ilimitados sobre todos los proyectos, herramientas y formularios de la plataforma PROCIMEC.</p>
+                </div>
+              )}
 
-                  {blocksReady && (
+              {accessType === 'pending' && (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 space-y-1">
+                  <p className="font-bold">⏳ Estado Pendiente de Aprobación</p>
+                  <p>El usuario no tendrá acceso a ninguna división, herramienta ni formulario hasta que se apruebe su rol.</p>
+                </div>
+              )}
+
+              {accessType === 'division' && (
+                <div className="space-y-4">
+                  {/* Selector de Pestañas: División vs Herramientas vs Formularios */}
+                  <div className="flex border-b border-border gap-1 bg-gray-50/70 p-1 rounded-xl">
                     <button
                       type="button"
-                      onClick={addBlock}
-                      disabled={usedDivisionIds.length >= divisions.length}
-                      className="w-full py-2.5 border-2 border-dashed border-border rounded-xl text-xs text-text-muted hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                      onClick={() => setSectionTab('division')}
+                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                        sectionTab === 'division'
+                          ? 'bg-white text-primary shadow-sm border border-border'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                      </svg>
-                      + Otra división
+                      <span>🏢 División & Proyectos</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setSectionTab('tools')}
+                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                        sectionTab === 'tools'
+                          ? 'bg-white text-primary shadow-sm border border-border'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                    >
+                      <span>⏱️ Herramientas</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        selectedToolIds.size > 0 ? 'bg-primary-100 text-primary' : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {selectedToolIds.size}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSectionTab('forms')}
+                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                        sectionTab === 'forms'
+                          ? 'bg-white text-primary shadow-sm border border-border'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                    >
+                      <span>📝 Formularios</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        selectedFormIds.size > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {selectedFormIds.size}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* PESTAÑA 1: DIVISIÓN, PROYECTOS Y ROL */}
+                  {sectionTab === 'division' && (
+                    <div className="space-y-3">
+                      {!blocksReady && (
+                        <div className="text-xs text-text-muted animate-pulse text-center py-4">Cargando asignaciones...</div>
+                      )}
+                      {blocksReady && editBlocks.map((block, i) => (
+                        <DivisionBlockCard
+                          key={i}
+                          block={block}
+                          blockIndex={i}
+                          divisions={divisions}
+                          roleOptions={roleOptions}
+                          allProjects={allProjects}
+                          usedDivisionIds={usedDivisionIds}
+                          canRemove={editBlocks.length > 1}
+                          onDivisionChange={onDivisionChange}
+                          onRoleChange={onRoleChange}
+                          onToggleProject={onToggleProject}
+                          onRemove={removeBlock}
+                        />
+                      ))}
+
+                      {blocksReady && (
+                        <button
+                          type="button"
+                          onClick={addBlock}
+                          disabled={usedDivisionIds.length >= divisions.length}
+                          className="w-full py-2.5 border-2 border-dashed border-border rounded-xl text-xs text-text-muted hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                          </svg>
+                          + Otra división
+                        </button>
+                      )}
+
+                      {/* Atajo visual a herramientas y formularios */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-slate-800">Herramientas y Formularios individuales:</p>
+                          <p className="text-slate-500 text-[11px] mt-0.5">
+                            {selectedToolIds.size} herramienta(s) y {selectedFormIds.size} formulario(s) asignados a este usuario
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSectionTab('tools')}
+                          className="px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary-50 rounded-lg border border-primary/30 transition-colors"
+                        >
+                          Personalizar →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PESTAÑA 2: HERRAMIENTAS ASIGNADAS (SOLO A ESTE USUARIO) */}
+                  {sectionTab === 'tools' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-text-primary uppercase tracking-wide">
+                            Herramientas Específicas del Usuario
+                          </h4>
+                          <p className="text-[11px] text-text-muted">
+                            Asigna herramientas exclusivas solo a {editingUser.full_name} ({selectedToolIds.size}/{allTools.length})
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedToolIds(new Set(allTools.map(t => t.id)))}
+                            className="text-primary hover:underline font-semibold"
+                          >
+                            Todas
+                          </button>
+                          <span className="text-gray-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedToolIds(new Set())}
+                            className="text-text-muted hover:text-error hover:underline font-medium"
+                          >
+                            Ninguna
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Buscador de herramientas */}
+                      <div className="relative">
+                        <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                        </svg>
+                        <input
+                          type="text"
+                          value={toolSearch}
+                          onChange={e => setToolSearch(e.target.value)}
+                          placeholder="Buscar herramienta por nombre o categoría..."
+                          className="input pl-7 py-1.5 text-xs"
+                        />
+                      </div>
+
+                      {/* Lista de herramientas */}
+                      <div className="border border-border rounded-xl max-h-64 overflow-y-auto divide-y divide-border bg-white">
+                        {filteredTools.length === 0 ? (
+                          <p className="px-3 py-4 text-xs text-text-muted text-center">No se encontraron herramientas</p>
+                        ) : (
+                          filteredTools.map(tool => {
+                            const isChecked = selectedToolIds.has(tool.id);
+                            const catStyle = TOOL_CATEGORY_STYLES[tool.category] ?? {
+                              label: tool.category, icon: '⚙️', bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700',
+                            };
+
+                            return (
+                              <label
+                                key={tool.id}
+                                className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors ${
+                                  isChecked ? 'bg-primary-50/30' : ''
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => onToggleTool(tool.id)}
+                                  className="rounded text-primary focus:ring-primary w-4 h-4"
+                                />
+                                <span className="text-base flex-shrink-0">{catStyle.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-text-primary truncate">{tool.name}</span>
+                                    <span className={`px-1.5 py-0.2 rounded border text-[10px] font-medium ${catStyle.bg} ${catStyle.text}`}>
+                                      {catStyle.label}
+                                    </span>
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PESTAÑA 3: FORMULARIOS ASIGNADOS (SOLO A ESTE USUARIO) */}
+                  {sectionTab === 'forms' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-xs font-bold text-text-primary uppercase tracking-wide">
+                            Formularios Específicos del Usuario
+                          </h4>
+                          <p className="text-[11px] text-text-muted">
+                            Asigna formularios operativos solo a {editingUser.full_name} ({selectedFormIds.size}/{allForms.length})
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFormIds(new Set(allForms.map(f => f.id)))}
+                            className="text-primary hover:underline font-semibold"
+                          >
+                            Todos
+                          </button>
+                          <span className="text-gray-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFormIds(new Set())}
+                            className="text-text-muted hover:text-error hover:underline font-medium"
+                          >
+                            Ninguno
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Buscador de formularios */}
+                      <div className="relative">
+                        <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                        </svg>
+                        <input
+                          type="text"
+                          value={formSearch}
+                          onChange={e => setFormSearch(e.target.value)}
+                          placeholder="Buscar formulario..."
+                          className="input pl-7 py-1.5 text-xs"
+                        />
+                      </div>
+
+                      {/* Lista de formularios */}
+                      <div className="border border-border rounded-xl max-h-64 overflow-y-auto divide-y divide-border bg-white">
+                        {filteredForms.length === 0 ? (
+                          <p className="px-3 py-4 text-xs text-text-muted text-center">No se encontraron formularios</p>
+                        ) : (
+                          filteredForms.map(form => {
+                            const isChecked = selectedFormIds.has(form.id);
+
+                            return (
+                              <label
+                                key={form.id}
+                                className={`flex items-start gap-3 px-3.5 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors ${
+                                  isChecked ? 'bg-emerald-50/40' : ''
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => onToggleForm(form.id)}
+                                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 mt-0.5"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-text-primary">{form.name}</p>
+                                  {form.description && (
+                                    <p className="text-[11px] text-text-muted mt-0.5">{form.description}</p>
+                                  )}
+                                </div>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
+                                  {form.slug}
+                                </span>
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -490,7 +868,8 @@ export default function AdminUsersPage() {
               )}
             </div>
 
-            <div className="flex gap-3 p-5 border-t border-border flex-shrink-0">
+            {/* Modal Footer */}
+            <div className="flex gap-3 p-5 border-t border-border flex-shrink-0 bg-gray-50/50 rounded-b-2xl">
               <button onClick={() => setEditingUser(null)} className="btn-ghost flex-1">Cancelar</button>
               <button onClick={handleSave} disabled={updateMutation.isPending} className="btn-primary flex-1">
                 {updateMutation.isPending

@@ -88,6 +88,47 @@ export async function GET(req: NextRequest) {
       });
   }
 
+  // ── Herramientas y Formularios asignados específicamente a este usuario ──
+  try {
+    const { data: userToolsData } = await supabase
+      .from('user_tools')
+      .select('tools(id, slug, name, category)')
+      .eq('user_id', dbUser.id);
+
+    if (userToolsData && userToolsData.length > 0) {
+      const specificTools = userToolsData
+        .map((ut) => (ut as unknown as { tools: Tool | null }).tools)
+        .filter((t): t is Tool => t !== null);
+
+      const toolMap = new Map<string, Tool>();
+      tools.forEach((t) => toolMap.set(t.id, t));
+      specificTools.forEach((t) => toolMap.set(t.id, t));
+      tools = Array.from(toolMap.values());
+    }
+  } catch {
+    // Si la tabla no existe aún, continuar con tools del rol
+  }
+
+  try {
+    const { data: userFormsData } = await supabase
+      .from('user_forms')
+      .select('forms(id, slug, name)')
+      .eq('user_id', dbUser.id);
+
+    if (userFormsData && userFormsData.length > 0) {
+      const specificForms = userFormsData
+        .map((uf) => (uf as unknown as { forms: Form | null }).forms)
+        .filter((f): f is Form => f !== null);
+
+      const formMap = new Map<string, Form>();
+      forms.forEach((f) => formMap.set(f.id, f));
+      specificForms.forEach((f) => formMap.set(f.id, f));
+      forms = Array.from(formMap.values());
+    }
+  } catch {
+    // Si la tabla no existe aún, continuar con forms del rol
+  }
+
   const { data: cadActivity } = await supabase
     .from('cad_activities')
     .select('id, date, phase, projects(name, cost_center)')

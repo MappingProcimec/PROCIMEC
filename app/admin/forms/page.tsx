@@ -95,6 +95,12 @@ const TOOL_META: Record<string, { icon: string; description: string; tag: string
     tag: 'Universal',
     path: '/dashboard',
   },
+  'attendance-tracker': {
+    icon: '⏱️',
+    description: 'Control de asistencia diaria con geolocalización, verificación de oficina/campo, registro de salidas intermedias y exportación de reportes PDF.',
+    tag: 'Control / Asistencia',
+    path: '/tools/attendance-tracker',
+  },
 };
 
 const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string; text: string }> = {
