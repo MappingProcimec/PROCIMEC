@@ -66,7 +66,7 @@ CREATE TRIGGER trigger_attendance_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_attendance_updated_at();
 
--- Registrar la herramienta en la tabla tools si no existe
+-- Registrar la herramienta en la tabla tools si no existe (no universal, asignable por usuario o rol)
 INSERT INTO tools (slug, name, category, is_universal)
-VALUES ('attendance-tracker', 'Control de Asistencia y Jornada', 'universal', true)
+VALUES ('attendance-tracker', 'Control de Asistencia y Jornada', 'admin', false)
 ON CONFLICT (slug) DO NOTHING;

@@ -40,6 +40,29 @@ async function getUserFromToken(token: { email?: string | null; role?: string; u
   return { user: null, role, userId };
 }
 
+async function userHasAttendanceAccess(userId: string, role?: string): Promise<boolean> {
+  if (role === 'admin') return true;
+
+  const supabase = createAdminClient();
+  const { data: tool } = await supabase
+    .from('tools')
+    .select('id')
+    .eq('slug', 'attendance-tracker')
+    .maybeSingle();
+
+  if (!tool) return false;
+
+  // Debe estar explícitamente asignada en user_tools (marcada en Editar Usuario)
+  const { data: ut } = await supabase
+    .from('user_tools')
+    .select('user_id')
+    .eq('user_id', userId)
+    .eq('tool_id', tool.id)
+    .maybeSingle();
+
+  return Boolean(ut);
+}
+
 export async function GET(req: NextRequest) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   if (!token) {
@@ -49,6 +72,11 @@ export async function GET(req: NextRequest) {
   const { role, userId } = await getUserFromToken(token);
   if (!userId) {
     return NextResponse.json({ error: 'Usuario no registrado en el sistema' }, { status: 400 });
+  }
+
+  const hasAccess = await userHasAttendanceAccess(userId, role);
+  if (!hasAccess) {
+    return NextResponse.json({ error: 'No tienes permisos para acceder al Control de Asistencia.' }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);
@@ -148,9 +176,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
-  const { userId } = await getUserFromToken(token);
+  const { role, userId } = await getUserFromToken(token);
   if (!userId) {
     return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 400 });
+  }
+
+  const hasAccess = await userHasAttendanceAccess(userId, role);
+  if (!hasAccess) {
+    return NextResponse.json({ error: 'No tienes permisos para registrar asistencia.' }, { status: 403 });
   }
 
   const body = await req.json();

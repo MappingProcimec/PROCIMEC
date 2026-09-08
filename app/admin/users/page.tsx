@@ -121,14 +121,10 @@ function getToolsAndFormsFromRoles(roleIds: string[], roleOptions: RoleOption[])
   return { toolIds, formIds };
 }
 
-function getUserEffectiveToolsAndForms(user: User, roleOptions: RoleOption[]) {
-  const roleIds = getUserRoleIds(user, roleOptions);
-  const { toolIds, formIds } = getToolsAndFormsFromRoles(roleIds, roleOptions);
-
-  // Unir herramientas asignadas individualmente
-  (user.user_tools ?? []).forEach(ut => toolIds.add(ut.tool_id));
-  // Unir formularios asignados individualmente
-  (user.user_forms ?? []).forEach(uf => formIds.add(uf.form_id));
+function getUserEffectiveToolsAndForms(user: User) {
+  // Las herramientas y formularios son estrictamente los que están asignados al usuario en user_tools y user_forms
+  const toolIds = new Set<string>((user.user_tools ?? []).map(ut => ut.tool_id));
+  const formIds = new Set<string>((user.user_forms ?? []).map(uf => uf.form_id));
 
   return {
     toolCount: toolIds.size,
@@ -374,8 +370,8 @@ export default function AdminUsersPage() {
       setEditBlocks([{ divisionId: '', roleId: '', projectIds: new Set() }]);
     }
 
-    // Pre-cargar herramientas y formularios (del rol + individuales)
-    const effective = getUserEffectiveToolsAndForms(editingUser, roleOptions);
+    // Pre-cargar herramientas y formularios asignados individualmente
+    const effective = getUserEffectiveToolsAndForms(editingUser);
     setSelectedToolIds(prev => prev.size > 0 ? prev : new Set(effective.toolIds));
     setSelectedFormIds(prev => prev.size > 0 ? prev : new Set(effective.formIds));
 
@@ -423,8 +419,8 @@ export default function AdminUsersPage() {
     setBlocksReady(false);
     setSectionTab('division');
 
-    // Pre-cargar las herramientas y formularios que YA tiene asignados (por su rol + asignaciones individuales)
-    const effective = getUserEffectiveToolsAndForms(user, roleOptions);
+    // Pre-cargar exactamente las herramientas y formularios que YA tiene asignados
+    const effective = getUserEffectiveToolsAndForms(user);
     setSelectedToolIds(new Set(effective.toolIds));
     setSelectedFormIds(new Set(effective.formIds));
 

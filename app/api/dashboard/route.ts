@@ -70,100 +70,76 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (effectiveRoleId) {
-    const [roleResult, toolsResult, formsResult, projectsResult] = await Promise.all([
-      supabase.from('roles').select('id, name').eq('id', effectiveRoleId).single(),
-      supabase.from('role_tools').select('tools(id, slug, name, category)').eq('role_id', effectiveRoleId),
-      supabase.from('role_forms').select('forms(id, slug, name)').eq('role_id', effectiveRoleId),
-      supabase.from('role_projects').select('projects(id, cost_center, name, client)').eq('role_id', effectiveRoleId),
+  if (dbUser.role === 'admin') {
+    if (roleIdParam) {
+      // Modo previsualización de rol para administrador
+      const [roleResult, toolsResult, formsResult, projectsResult] = await Promise.all([
+        supabase.from('roles').select('id, name').eq('id', roleIdParam).single(),
+        supabase.from('role_tools').select('tools(id, slug, name, category)').eq('role_id', roleIdParam),
+        supabase.from('role_forms').select('forms(id, slug, name)').eq('role_id', roleIdParam),
+        supabase.from('role_projects').select('projects(id, cost_center, name, client)').eq('role_id', roleIdParam),
+      ]);
+
+      role = roleResult.data as { id: string; name: string } | null;
+      tools = (toolsResult.data ?? [])
+        .map((rt) => (rt as unknown as { tools: Tool | null }).tools)
+        .filter((t): t is Tool => t !== null);
+      forms = (formsResult.data ?? [])
+        .map((rf) => (rf as unknown as { forms: Form | null }).forms)
+        .filter((f): f is Form => f !== null);
+      projects = (projectsResult.data ?? [])
+        .map((rp) => (rp as unknown as { projects: Project | null }).projects)
+        .filter((p): p is Project => p !== null)
+        .map((p) => {
+          const cc = p.cost_center || p.code || '';
+          return { ...p, cost_center: cc, code: cc };
+        });
+    } else {
+      // Administrador: acceso completo a todas las herramientas, formularios y proyectos activos
+      const [allToolsRes, allFormsRes, allProjectsRes] = await Promise.all([
+        supabase.from('tools').select('id, slug, name, category').not('slug', 'in', '("forms-area","projects-area")'),
+        supabase.from('forms').select('id, slug, name'),
+        supabase.from('projects').select('id, cost_center, code, name, client').eq('is_active', true),
+      ]);
+
+      tools = (allToolsRes.data ?? []) as Tool[];
+      forms = (allFormsRes.data ?? []) as Form[];
+      projects = ((allProjectsRes.data ?? []) as unknown as Project[]).map((p) => {
+        const cc = p.cost_center || p.code || '';
+        return { ...p, cost_center: cc, code: cc };
+      });
+    }
+  } else if (dbUser.role === 'pending') {
+    // Usuario pendiente: sin acceso
+    tools = [];
+    forms = [];
+    projects = [];
+  } else {
+    // Colaborador: Las herramientas y formularios son ÚNICAMENTE las asignadas explícitamente en "Editar Usuario" (user_tools y user_forms)
+    const [userToolsRes, userFormsRes, userProjectsRes, roleRes] = await Promise.all([
+      supabase.from('user_tools').select('tools(id, slug, name, category)').eq('user_id', dbUser.id),
+      supabase.from('user_forms').select('forms(id, slug, name)').eq('user_id', dbUser.id),
+      supabase.from('user_projects').select('projects(id, cost_center, code, name, client)').eq('user_id', dbUser.id),
+      effectiveRoleId ? supabase.from('roles').select('id, name').eq('id', effectiveRoleId).single() : Promise.resolve({ data: null }),
     ]);
 
-    role = roleResult.data as { id: string; name: string } | null;
+    role = roleRes.data as { id: string; name: string } | null;
 
-    tools = (toolsResult.data ?? [])
-      .map((rt) => (rt as unknown as { tools: Tool | null }).tools)
+    tools = (userToolsRes.data ?? [])
+      .map((ut) => (ut as unknown as { tools: Tool | null }).tools)
       .filter((t): t is Tool => t !== null);
 
-    forms = (formsResult.data ?? [])
-      .map((rf) => (rf as unknown as { forms: Form | null }).forms)
+    forms = (userFormsRes.data ?? [])
+      .map((uf) => (uf as unknown as { forms: Form | null }).forms)
       .filter((f): f is Form => f !== null);
 
-    projects = (projectsResult.data ?? [])
-      .map((rp) => (rp as unknown as { projects: Project | null }).projects)
+    projects = (userProjectsRes.data ?? [])
+      .map((up) => (up as unknown as { projects: Project | null }).projects)
       .filter((p): p is Project => p !== null)
       .map((p) => {
         const cc = p.cost_center || p.code || '';
-        return {
-          ...p,
-          cost_center: cc,
-          code: cc,
-        };
+        return { ...p, cost_center: cc, code: cc };
       });
-  }
-
-  // ── Herramientas Universales (Acceso general para todo colaborador) ──
-  try {
-    const { data: universalToolsData } = await supabase
-      .from('tools')
-      .select('id, slug, name, category')
-      .or('is_universal.eq.true,category.eq.universal')
-      .not('slug', 'in', '("forms-area","projects-area")');
-
-    if (universalToolsData && universalToolsData.length > 0) {
-      const toolMap = new Map<string, Tool>();
-      // 1. Herramientas del rol
-      tools.forEach((t) => toolMap.set(t.id, t));
-      // 2. Herramientas universales
-      universalToolsData.forEach((t) => {
-        if (!toolMap.has(t.id)) {
-          toolMap.set(t.id, t as Tool);
-        }
-      });
-      tools = Array.from(toolMap.values());
-    }
-  } catch {
-    // Continuar con tools del rol si falla
-  }
-
-  // ── Herramientas y Formularios asignados específicamente a este usuario ──
-  try {
-    const { data: userToolsData } = await supabase
-      .from('user_tools')
-      .select('tools(id, slug, name, category)')
-      .eq('user_id', dbUser.id);
-
-    if (userToolsData && userToolsData.length > 0) {
-      const specificTools = userToolsData
-        .map((ut) => (ut as unknown as { tools: Tool | null }).tools)
-        .filter((t): t is Tool => t !== null);
-
-      const toolMap = new Map<string, Tool>();
-      tools.forEach((t) => toolMap.set(t.id, t));
-      specificTools.forEach((t) => toolMap.set(t.id, t));
-      tools = Array.from(toolMap.values());
-    }
-  } catch {
-    // Si la tabla no existe aún, continuar con tools del rol
-  }
-
-  try {
-    const { data: userFormsData } = await supabase
-      .from('user_forms')
-      .select('forms(id, slug, name)')
-      .eq('user_id', dbUser.id);
-
-    if (userFormsData && userFormsData.length > 0) {
-      const specificForms = userFormsData
-        .map((uf) => (uf as unknown as { forms: Form | null }).forms)
-        .filter((f): f is Form => f !== null);
-
-      const formMap = new Map<string, Form>();
-      forms.forEach((f) => formMap.set(f.id, f));
-      specificForms.forEach((f) => formMap.set(f.id, f));
-      forms = Array.from(formMap.values());
-    }
-  } catch {
-    // Si la tabla no existe aún, continuar con forms del rol
   }
 
   const { data: cadActivity } = await supabase

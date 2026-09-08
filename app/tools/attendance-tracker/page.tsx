@@ -137,9 +137,9 @@ function AttendanceTrackerContent() {
   const [filterMode, setFilterMode] = useState<'quincena' | 'mes' | 'custom'>('quincena');
   const [filterFrom, setFilterFrom] = useState<string>(getFortnightRange().from);
   const [filterTo, setFilterTo] = useState<string>(getFortnightRange().to);
-
   // Notificaciones
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [unauthorized, setUnauthorized] = useState<boolean>(false);
 
   // Reloj en tiempo real
   useEffect(() => {
@@ -209,6 +209,10 @@ function AttendanceTrackerContent() {
     try {
       setLoadingToday(true);
       const res = await fetch('/api/attendance');
+      if (res.status === 403) {
+        setUnauthorized(true);
+        return;
+      }
       if (res.ok) {
         const json = await res.json();
         setTodayRecord(json.today ?? null);
@@ -228,6 +232,10 @@ function AttendanceTrackerContent() {
       setLoadingHistory(true);
       const targetQuery = employeeId !== 'all' ? `&userId=${encodeURIComponent(employeeId)}` : '&userId=all';
       const res = await fetch(`/api/attendance?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${targetQuery}`);
+      if (res.status === 403) {
+        setUnauthorized(true);
+        return;
+      }
       if (res.ok) {
         const json = await res.json();
         setHistoryRecords(json.history ?? json.records ?? []);
@@ -472,6 +480,28 @@ function AttendanceTrackerContent() {
       return null;
     }
   }, [todayRecord, currentTime]);
+
+  if (unauthorized) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navbar />
+        <div className="max-w-md mx-auto px-4 py-20 text-center">
+          <div className="bg-white border border-border rounded-2xl p-8 shadow-card">
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+              ⏱️
+            </div>
+            <h2 className="text-xl font-bold text-text-primary mb-2">Herramienta no asignada</h2>
+            <p className="text-sm text-text-muted mb-6 leading-relaxed">
+              No tienes acceso asignado al <strong>Control de Asistencia y Jornada</strong>. Para poder utilizarlo, un administrador debe marcar y habilitar esta herramienta en tu usuario desde la Gestión de Usuarios.
+            </p>
+            <Link href="/dashboard" className="btn-primary px-5 py-2.5 text-sm font-semibold rounded-xl inline-flex items-center gap-2">
+              ← Volver al Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
