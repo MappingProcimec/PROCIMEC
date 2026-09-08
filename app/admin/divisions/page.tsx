@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -174,6 +174,7 @@ function ProjectChecklist({
 
 // ── page ─────────────────────────────────────────────────────────────────────
 export default function AdminDivisionsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   // Create modal
@@ -379,8 +380,14 @@ export default function AdminDivisionsPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {divisions.map((d) => (
-                    <tr key={d.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-5 py-4 font-semibold text-text-primary">{d.name}</td>
+                    <tr
+                      key={d.id}
+                      onClick={() => router.push(`/admin/divisions/${d.id}`)}
+                      className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
+                    >
+                      <td className="px-5 py-4 font-semibold text-text-primary group-hover:text-primary transition-colors">
+                        {d.name}
+                      </td>
                       <td className="px-5 py-4 text-text-muted hidden sm:table-cell">
                         {d.description || <span className="italic text-gray-300">—</span>}
                       </td>
@@ -393,17 +400,14 @@ export default function AdminDivisionsPage() {
                       <td className="px-5 py-4 text-center">
                         <span className="badge badge-primary text-xs">{d.role_count}</span>
                       </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-3">
+                      <td className="px-5 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end">
                           <button
                             onClick={() => openEdit(d)}
-                            className="text-text-muted text-xs font-semibold hover:text-primary transition-colors"
+                            className="btn-sm btn-outline text-xs px-2.5 py-1 flex items-center gap-1 hover:bg-gray-100 rounded-lg shadow-2xs font-medium text-text-primary transition-colors"
                           >
                             ✏️ Editar
                           </button>
-                          <Link href={`/admin/divisions/${d.id}`} className="text-primary text-xs font-semibold hover:underline">
-                            Gestionar →
-                          </Link>
                         </div>
                       </td>
                     </tr>

@@ -269,6 +269,9 @@ export default function AdminUsersPage() {
   const [editBlocks, setEditBlocks] = useState<DivisionBlock[]>([]);
   const [blocksReady, setBlocksReady] = useState(false);
 
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [confirmDeactivateUser, setConfirmDeactivateUser] = useState<User | null>(null);
+
   // Pestaña activa dentro del modal de edición
   const [sectionTab, setSectionTab] = useState<'division' | 'tools' | 'forms'>('division');
 
@@ -531,7 +534,7 @@ export default function AdminUsersPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 -mt-10 pb-20">
-        <div className="card overflow-hidden">
+        <div className="card overflow-visible">
           {isLoading ? (
             <div className="p-8 text-center text-text-muted">Cargando usuarios...</div>
           ) : (
@@ -546,7 +549,7 @@ export default function AdminUsersPage() {
                   const badge = userDisplayBadge(user);
 
                   return (
-                    <div key={user.id} className={`p-4 sm:p-5 flex items-start gap-4 transition-colors ${
+                    <div key={user.id} className={`p-4 sm:p-5 flex items-center gap-4 transition-colors ${
                       user.role === 'pending' ? 'bg-amber-50' : !user.is_active ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'
                     }`}>
                       {user.avatar_url ? (
@@ -568,25 +571,72 @@ export default function AdminUsersPage() {
                         </div>
                         <p className="text-xs text-text-muted">{user.email}</p>
                       </div>
-                      <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
-                        {user.role !== 'pending' && (
-                          <Link
-                            href={`/tools/attendance-tracker?userId=${user.id}`}
-                            className="btn-sm btn-outline text-xs flex items-center gap-1 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors"
-                            title="Ver registro de asistencia de este colaborador"
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="relative inline-block text-left">
+                          <button
+                            onClick={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
+                            className="btn-sm btn-outline text-xs px-2.5 py-1.5 flex items-center gap-1.5 hover:bg-gray-100 rounded-lg shadow-2xs font-medium text-text-primary"
                           >
-                            <span>⏱️</span>
-                            <span>Asistencia</span>
-                          </Link>
-                        )}
-                        <button onClick={() => openEdit(user)} className="btn-sm btn-outline text-xs">✏️ Editar</button>
-                        <button
-                          onClick={() => toggleActive(user)}
-                          disabled={updateMutation.isPending}
-                          className={`btn-sm text-xs ${user.is_active ? 'btn-ghost text-error' : 'btn-outline'}`}
-                        >
-                          {user.is_active ? 'Desactivar' : 'Activar'}
-                        </button>
+                            <span>⚙️ Acciones</span>
+                            <span className="text-[9px] text-text-muted">▼</span>
+                          </button>
+
+                          {openMenuId === user.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-20 cursor-default"
+                                onClick={() => setOpenMenuId(null)}
+                              />
+                              <div className="absolute right-0 mt-1 w-52 bg-white rounded-xl shadow-xl border border-border py-1.5 z-30 animate-slide-up origin-top-right">
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    openEdit(user);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
+                                >
+                                  <span>✏️</span> Editar usuario y roles
+                                </button>
+
+                                {user.role !== 'pending' && (
+                                  <Link
+                                    href={`/tools/attendance-tracker?userId=${user.id}`}
+                                    onClick={() => setOpenMenuId(null)}
+                                    className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
+                                    title="Ver registro de asistencia de este colaborador"
+                                  >
+                                    <span>⏱️</span> Ver asistencia
+                                  </Link>
+                                )}
+
+                                <div className="border-t border-gray-100 my-1" />
+
+                                {user.is_active ? (
+                                  <button
+                                    onClick={() => {
+                                      setOpenMenuId(null);
+                                      setConfirmDeactivateUser(user);
+                                    }}
+                                    className="w-full text-left px-3.5 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 font-semibold transition-colors"
+                                  >
+                                    <span>🚫</span> Desactivar usuario
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setOpenMenuId(null);
+                                      toggleActive(user);
+                                    }}
+                                    disabled={updateMutation.isPending}
+                                    className="w-full text-left px-3.5 py-2 text-xs text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 font-semibold transition-colors"
+                                  >
+                                    <span>✅</span> Activar usuario
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -988,6 +1038,46 @@ export default function AdminUsersPage() {
                 {updateMutation.isPending
                   ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Guardando...</>
                   : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Confirmar Desactivación de Usuario ───────────────────── */}
+      {confirmDeactivateUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="card w-full max-w-md p-6 bg-white rounded-2xl shadow-2xl space-y-4 border border-border animate-slide-up">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl font-bold">
+              ⚠️
+            </div>
+            <div className="text-center space-y-1.5">
+              <h3 className="text-lg font-bold text-text-primary">¿Desactivar este usuario?</h3>
+              <p className="text-xs text-text-secondary">
+                Estás a punto de desactivar a{' '}
+                <span className="font-bold text-text-primary">{confirmDeactivateUser.full_name}</span>{' '}
+                ({confirmDeactivateUser.email}).
+              </p>
+              <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 text-left leading-relaxed">
+                ℹ️ <strong>Nota:</strong> El colaborador perderá inmediatamente el acceso y no podrá iniciar sesión en PROCIMEC hasta que sea reactivado por un administrador.
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setConfirmDeactivateUser(null)}
+                className="btn-ghost flex-1 text-xs py-2.5 rounded-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  toggleActive(confirmDeactivateUser);
+                  setConfirmDeactivateUser(null);
+                }}
+                disabled={updateMutation.isPending}
+                className="flex-1 text-xs py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50"
+              >
+                {updateMutation.isPending ? 'Desactivando...' : 'Sí, desactivar'}
               </button>
             </div>
           </div>
