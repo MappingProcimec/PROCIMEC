@@ -46,6 +46,19 @@ export async function GET(req: NextRequest) {
   // Resolve effective role_id
   let effectiveRoleId: string | null = (dbUser.role === 'admin' && roleIdParam) ? roleIdParam : (dbUser.role_id ?? null);
 
+  if (!effectiveRoleId) {
+    const { data: udr } = await supabase
+      .from('user_division_roles')
+      .select('role_id')
+      .eq('user_id', dbUser.id)
+      .not('role_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    if (udr?.role_id) {
+      effectiveRoleId = udr.role_id;
+    }
+  }
+
   if (!effectiveRoleId && dbUser.role) {
     const { data: matchedRole } = await supabase
       .from('roles')

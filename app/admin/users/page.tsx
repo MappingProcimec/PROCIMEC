@@ -62,10 +62,18 @@ const SYSTEM_BADGE: Record<string, string> = {
   admin: 'badge-primary', pending: 'badge-warning', operator: 'badge-accent', dibujo: 'badge-success',
 };
 
-function userDisplayBadge(user: User) {
+function userDisplayBadge(user: User, roleOptions: RoleOption[] = []) {
   if (user.role === 'admin') return { label: 'Administrador', badge: 'badge-primary' };
   if (user.role === 'pending') return { label: 'Pendiente', badge: 'badge-warning' };
-  if (user.roles) return { label: user.roles.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+  if (user.roles?.name) return { label: user.roles.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+
+  // Buscar en user_division_roles si no está directo en user.roles
+  const udrRoleId = user.user_division_roles?.find(udr => udr.role_id)?.role_id;
+  if (udrRoleId) {
+    const foundRole = roleOptions.find(r => r.id === udrRoleId);
+    if (foundRole) return { label: foundRole.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+  }
+
   return { label: user.role === 'dibujo' ? 'Dibujo' : 'Operador', badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
 }
 
@@ -148,7 +156,10 @@ function DivisionBlockCard({
   const filtered = search
     ? divProjects.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || ((p.cost_center || p.code || '').toLowerCase().includes(search.toLowerCase())))
     : divProjects;
-  const divRoles = roleOptions.filter(r => r.division_id === block.divisionId);
+  // Roles específicos de esta división y roles globales (sin división asignada, ej. HSEQ)
+  const divSpecificRoles = roleOptions.filter(r => r.division_id === block.divisionId);
+  const globalRoles = roleOptions.filter(r => !r.division_id);
+  const availableRoles = [...divSpecificRoles, ...globalRoles];
 
   return (
     <div className="border border-border rounded-xl p-4 space-y-3 bg-gray-50/40">
@@ -250,10 +261,23 @@ function DivisionBlockCard({
               className="select text-sm"
             >
               <option value="">— Seleccionar rol —</option>
-              {divRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              {divSpecificRoles.length > 0 && (
+                <optgroup label="Roles de la división">
+                  {divSpecificRoles.map(r => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {globalRoles.length > 0 && (
+                <optgroup label="Roles globales (todas las divisiones)">
+                  {globalRoles.map(r => (
+                    <option key={r.id} value={r.id}>🌐 {r.name} (Global)</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
-            {divRoles.length === 0 && (
-              <p className="text-xs text-text-muted mt-1">Esta división no tiene roles asignados.</p>
+            {availableRoles.length === 0 && (
+              <p className="text-xs text-text-muted mt-1">Esta división no tiene roles asignados ni roles globales disponibles.</p>
             )}
           </div>
         </>
@@ -329,7 +353,22 @@ export default function AdminUsersPage() {
           projectIds: new Set(selected.length > 0 ? selected : divProjs.map(p => p.id)),
         }]);
       } else {
-        setEditBlocks([{ divisionId: '', roleId: '', projectIds: new Set() }]);
+        // Rol global: intentar inferir la división de sus proyectos si tiene alguno
+        let inferredDivId = '';
+        if (userProjIds.size > 0) {
+          const firstProj = allProjects.find(p => userProjIds.has(p.id));
+          if (firstProj?.divisions && firstProj.divisions.length > 0) {
+            inferredDivId = firstProj.divisions[0].id;
+          }
+        }
+        const divProjs = inferredDivId ? projectsForDiv(inferredDivId) : [];
+        const selected = divProjs.filter(p => userProjIds.has(p.id)).map(p => p.id);
+
+        setEditBlocks([{
+          divisionId: inferredDivId,
+          roleId: editingUser.role_id,
+          projectIds: new Set(selected.length > 0 ? selected : (inferredDivId ? divProjs.map(p => p.id) : [])),
+        }]);
       }
     } else {
       setEditBlocks([{ divisionId: '', roleId: '', projectIds: new Set() }]);
@@ -444,12 +483,13 @@ export default function AdminUsersPage() {
       const valid = editBlocks.filter(b => b.divisionId);
       const division_roles = valid.map(b => ({ division_id: b.divisionId, role_id: b.roleId || null }));
       const project_ids = Array.from(new Set(valid.flatMap(b => Array.from(b.projectIds))));
-      const primaryRole = roleOptions.find(r => r.id === valid[0]?.roleId);
+      const primaryRoleId = valid.map(b => b.roleId).find(Boolean) || null;
+      const primaryRole = roleOptions.find(r => r.id === primaryRoleId);
       const sysRole = primaryRole ? deriveSystemRole(primaryRole.name) : 'operator';
       updateMutation.mutate({
         ...basePayload,
         role: sysRole,
-        role_id: valid[0]?.roleId || null,
+        role_id: primaryRoleId,
         division_roles,
         project_ids,
       });
@@ -464,9 +504,16 @@ export default function AdminUsersPage() {
 
   const onDivisionChange = (i: number, divId: string) => {
     const divProjs = projectsForDiv(divId);
-    setEditBlocks(prev => prev.map((b, idx) => idx === i ? {
-      divisionId: divId, roleId: '', projectIds: new Set(divProjs.map(p => p.id)),
-    } : b));
+    setEditBlocks(prev => prev.map((b, idx) => {
+      if (idx !== i) return b;
+      const currentRole = roleOptions.find(r => r.id === b.roleId);
+      const keepRole = currentRole && (!currentRole.division_id || currentRole.division_id === divId);
+      return {
+        divisionId: divId,
+        roleId: keepRole ? b.roleId : '',
+        projectIds: new Set(divProjs.map(p => p.id)),
+      };
+    }));
   };
 
   // Al cambiar de rol, fusionar automáticamente las herramientas y formularios correspondientes
@@ -579,7 +626,7 @@ export default function AdminUsersPage() {
                   return 0;
                 })
                 .map(user => {
-                  const badge = userDisplayBadge(user);
+                  const badge = userDisplayBadge(user, roleOptions);
 
                   return (
                     <div key={user.id} className={`p-4 sm:p-5 flex items-center gap-4 transition-colors ${
@@ -604,6 +651,22 @@ export default function AdminUsersPage() {
                         </div>
                         <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap">
                           <span>{user.email}</span>
+                          {user.user_division_roles && user.user_division_roles.length > 0 && (
+                            <>
+                              <span className="text-gray-300">•</span>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {Array.from(new Set(user.user_division_roles.map(udr => udr.division_id))).map(divId => {
+                                  const divName = divisions.find(d => d.id === divId)?.name;
+                                  if (!divName) return null;
+                                  return (
+                                    <span key={divId} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                      🏢 {divName}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
                           {user.phone && (
                             <>
                               <span className="text-gray-300">•</span>

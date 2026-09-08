@@ -165,11 +165,14 @@ export default function NewRolePage() {
                   onChange={(e) => setDivisionId(e.target.value)}
                   className="input"
                 >
-                  <option value="">Sin división (global)</option>
+                  <option value="">🌐 Sin división (Global — aplicable a todas las divisiones)</option>
                   {divisions.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
+                <p className="text-xs text-text-muted mt-1">
+                  Los roles globales pueden seleccionarse para usuarios en cualquier división (Ingeniería, Mapping u otras divisiones futuras).
+                </p>
               </div>
 
               {error && <p className="error-msg">⚠️ {error}</p>}

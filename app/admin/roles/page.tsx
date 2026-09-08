@@ -91,8 +91,10 @@ export default function AdminRolesPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <h3 className="font-bold text-text-primary">{role.name}</h3>
-                    {role.divisions && (
+                    {role.divisions ? (
                       <p className="text-xs text-text-muted mt-0.5">{role.divisions.name}</p>
+                    ) : (
+                      <p className="text-xs text-primary font-medium mt-0.5">🌐 Global (Todas las divisiones)</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
