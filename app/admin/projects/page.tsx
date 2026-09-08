@@ -142,6 +142,8 @@ export default function AdminProjectsPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [detailFilter, setDetailFilter] = useState<'all' | 'campo' | 'dibujo'>('all');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [confirmDeactivateProject, setConfirmDeactivateProject] = useState<Project | null>(null);
 
   // Filtros de encabezado
   const [filterCostCenter, setFilterCostCenter] = useState('');
@@ -750,40 +752,71 @@ export default function AdminProjectsPage() {
                               {p.is_active ? 'Activo' : 'Inactivo'}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-1.5">
+                          <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="relative inline-block text-left">
                               <button
-                                onClick={() => {
-                                  setSelectedProject(p);
-                                  setDetailFilter('all');
-                                }}
-                                className="btn-sm btn-outline text-xs px-2.5 py-1 flex items-center gap-1"
+                                onClick={() => setOpenMenuId(openMenuId === p.id ? null : p.id)}
+                                className="btn-sm btn-outline text-xs px-2.5 py-1 flex items-center gap-1 hover:bg-gray-100 rounded-lg shadow-2xs font-medium text-text-primary"
                               >
-                                🔍 Ver
+                                <span>⚙️ Acciones</span>
+                                <span className="text-[9px] text-text-muted">▼</span>
                               </button>
-                              <button
-                                onClick={() => openEdit(p)}
-                                className="btn-sm btn-outline text-xs px-2.5 py-1"
-                              >
-                                ✏️ Editar
-                              </button>
-                              {p.drive_folder_url && (
-                                <a
-                                  href={p.drive_folder_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="btn-sm btn-ghost text-xs px-2.5 py-1"
-                                  title="Abrir Drive"
-                                >
-                                  Drive
-                                </a>
+
+                              {openMenuId === p.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-20 cursor-default"
+                                    onClick={() => setOpenMenuId(null)}
+                                  />
+                                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-border py-1.5 z-30 animate-slide-up origin-top-right">
+                                    <button
+                                      onClick={() => {
+                                        setOpenMenuId(null);
+                                        openEdit(p);
+                                      }}
+                                      className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
+                                    >
+                                      <span>✏️</span> Editar proyecto y metas
+                                    </button>
+
+                                    {p.drive_folder_url && (
+                                      <a
+                                        href={p.drive_folder_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => setOpenMenuId(null)}
+                                        className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
+                                      >
+                                        <span>📁</span> Abrir carpeta en Drive
+                                      </a>
+                                    )}
+
+                                    <div className="border-t border-gray-100 my-1" />
+
+                                    {p.is_active ? (
+                                      <button
+                                        onClick={() => {
+                                          setOpenMenuId(null);
+                                          setConfirmDeactivateProject(p);
+                                        }}
+                                        className="w-full text-left px-3.5 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 font-semibold transition-colors"
+                                      >
+                                        <span>🚫</span> Desactivar proyecto
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          setOpenMenuId(null);
+                                          toggleMutation.mutate({ id: p.id, is_active: true });
+                                        }}
+                                        className="w-full text-left px-3.5 py-2 text-xs text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 font-semibold transition-colors"
+                                      >
+                                        <span>✅</span> Activar proyecto
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
                               )}
-                              <button
-                                onClick={() => toggleMutation.mutate({ id: p.id, is_active: !p.is_active })}
-                                className={`btn-sm text-xs px-2.5 py-1 ${p.is_active ? 'btn-ghost text-error' : 'btn-outline'}`}
-                              >
-                                {p.is_active ? 'Desactivar' : 'Activar'}
-                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1568,6 +1601,46 @@ export default function AdminProjectsPage() {
                   {createMutation.isPending ? 'Creando...' : 'Crear Proyecto'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Confirmar Desactivación de Proyecto ───────────────────── */}
+      {confirmDeactivateProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="card w-full max-w-md p-6 bg-white rounded-2xl shadow-2xl space-y-4 border border-border animate-slide-up">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl font-bold">
+              ⚠️
+            </div>
+            <div className="text-center space-y-1.5">
+              <h3 className="text-lg font-bold text-text-primary">¿Desactivar este proyecto?</h3>
+              <p className="text-xs text-text-secondary">
+                Estás a punto de desactivar{' '}
+                <span className="font-bold text-text-primary">{confirmDeactivateProject.name}</span>{' '}
+                ({confirmDeactivateProject.cost_center || confirmDeactivateProject.code || 'Sin C.C.'}).
+              </p>
+              <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 text-left leading-relaxed">
+                ℹ️ <strong>Nota:</strong> El proyecto pasará a estado inactivo y no aparecerá disponible para que los operadores creen nuevos reportes de campo ni registros de dibujo hasta que sea reactivado.
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setConfirmDeactivateProject(null)}
+                className="btn-ghost flex-1 text-xs py-2.5 rounded-xl"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  toggleMutation.mutate({ id: confirmDeactivateProject.id, is_active: false });
+                  setConfirmDeactivateProject(null);
+                }}
+                disabled={toggleMutation.isPending}
+                className="flex-1 text-xs py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50"
+              >
+                {toggleMutation.isPending ? 'Desactivando...' : 'Sí, desactivar'}
+              </button>
             </div>
           </div>
         </div>
