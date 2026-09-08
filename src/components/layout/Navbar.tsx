@@ -164,7 +164,7 @@ export function Navbar() {
               { href: '/admin/projects', label: 'Proyectos' },
               { href: '/admin/roles', label: 'Roles' },
               { href: '/admin/users', label: 'Usuarios' },
-              { href: '/admin/forms', label: 'Formularios' },
+              { href: '/admin/forms', label: 'Herramientas y Formularios' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
@@ -328,7 +328,7 @@ export function Navbar() {
                       { href: '/admin/projects',  label: 'Proyectos',  icon: '🏗️' },
                       { href: '/admin/roles',     label: 'Roles',      icon: '🔑' },
                       { href: '/admin/users',     label: 'Usuarios',   icon: '👥' },
-                      { href: '/admin/forms',     label: 'Formularios', icon: '📋' },
+                      { href: '/admin/forms',     label: 'Herramientas y Formularios', icon: '🛠️' },
                     ].map(({ href, label, icon }) => (
                       <Link
                         key={href}
