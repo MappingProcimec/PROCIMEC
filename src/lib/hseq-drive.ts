@@ -386,14 +386,39 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
     const worksheet = workbook.worksheets.find((ws) => ws.rowCount > 5) || workbook.worksheets[0];
     if (!worksheet) return { leftColumnItems: [], fullTextSummary: '' };
 
+    // 1. Detección dinámica de la fila de inicio y la columna donde comienza la matriz de marcas
+    let detectedHeaderRow = 0;
+    let matrixStartCol = 6; // Por defecto columna F (después de A, B, C, D, E)
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (detectedHeaderRow === 0 && rowNumber <= 25) {
+        row.eachCell((cell, colNumber) => {
+          const text = (cell.text || String(cell.value || '')).trim().toUpperCase();
+          // Si encontramos cabeceras típicas de columnas de inspección
+          if (/^(ÍTEM|ITEM|DESCRIPCIÓN|DESCRIPCION|ASPECTO|ELEMENTO|ACTIVIDAD|CRITERIO|CONDICIÓN|CONDICION)/.test(text)) {
+            detectedHeaderRow = rowNumber;
+          }
+          // Si encontramos dónde inician los días o marcas (LUNES, SI, NO, CUMPLE)
+          if (/^(LUNES|SI|CUMPLE|BUENO|CONFORME)/.test(text) && colNumber > 1) {
+            if (colNumber < matrixStartCol || matrixStartCol === 6) {
+              matrixStartCol = colNumber;
+            }
+          }
+        });
+      }
+    });
+
+    // Si no se detectó una fila de cabecera explícita, comenzar en fila 9
+    const startRow = detectedHeaderRow > 0 ? detectedHeaderRow + 1 : 9;
+
     const detectedLeftItems: string[] = [];
     const allLines: string[] = [];
 
     worksheet.eachRow((row, rowNumber) => {
-      // Ignorar cabeceras del documento: extraer únicamente de la fila 10 para abajo
-      if (rowNumber < 10) return;
+      // Omitir cabeceras del documento
+      if (rowNumber < startRow) return;
 
-      const leftColTexts: string[] = [];
+      const candidateTexts: string[] = [];
       const allRowTexts: string[] = [];
 
       row.eachCell((cell, colNumber) => {
@@ -415,19 +440,19 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
         const trimmed = val.trim();
         if (trimmed.length > 2) {
           allRowTexts.push(trimmed);
-          // Columnas A (1), B (2), C (3), D (4) hasta la columna E (5)
-          if (colNumber <= 5 && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
-            if (!/^(si|no|na|n\/a|x)$/i.test(trimmed)) {
-              leftColTexts.push(trimmed);
+          // Tomar celdas ubicadas antes de la columna de verificación o de marcas de días
+          if (colNumber < matrixStartCol && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
+            if (!/^(si|no|na|n\/a|x|c|nc)$/i.test(trimmed)) {
+              candidateTexts.push(trimmed);
             }
           }
         }
       });
 
-      // 1. Obtener valores únicos de la fila en columnas A a E (elimina duplicados causados por celdas combinadas)
+      // 2. Extraer textos únicos limpios de la fila
       const uniqueTexts = Array.from(
         new Set(
-          leftColTexts.map((t) =>
+          candidateTexts.map((t) =>
             t
               .replace(/\{\{[^}]*\}\}/g, '')
               .replace(/\[[^\]]*\]/g, '')
@@ -439,24 +464,23 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
         (t) =>
           t.length > 3 &&
           !/^[\d\.\,\-\s]+$/.test(t) &&
-          !/^(si|no|na|n\/a|x|item|ítem|código|codigo|versión|version|fecha|proyecto|localizador|responsable|cliente|semana|mes|año|firma|observaciones|notas|convenciones|marque con una x|marque|estado|conforme)$/i.test(
+          !/^(si|no|na|n\/a|x|c|nc|item|ítem|código|codigo|versión|version|fecha|proyecto|localizador|responsable|cliente|semana|mes|año|firma|observaciones|notas|convenciones|marque con una x|marque|estado|conforme)$/i.test(
             t
           )
       );
 
       if (uniqueTexts.length === 0) return;
 
-      // Si todos los valores únicos son una sola palabra genérica de categoría (como "EQUIPOS", "DRONE", "VEHICULO"), omitir fila de encabezado
+      // Omitir títulos de sección de una sola palabra corta
       if (uniqueTexts.length === 1 && uniqueTexts[0].length < 18 && !uniqueTexts[0].includes(' ')) {
         return;
       }
 
-      // La pregunta/ítem de inspección real es la descripción más completa y detallada de la fila
+      // Tomar la descripción técnica más larga y detallada de la fila
       const sortedByDetail = [...uniqueTexts].sort((a, b) => b.length - a.length);
       const mainQuestion = sortedByDetail[0];
 
       if (mainQuestion && mainQuestion.length > 8) {
-        // Limpiar numeración o prefijos "1. ", "1 - "
         const cleanedItem = mainQuestion.replace(/^[0-9]+[\.\-\)\s]+/, '').trim();
         if (!detectedLeftItems.includes(cleanedItem)) {
           detectedLeftItems.push(cleanedItem);
@@ -469,9 +493,10 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
     });
 
     return {
-      leftColumnItems: detectedLeftItems.slice(0, 30),
-      fullTextSummary: allLines.slice(0, 45).join('\n'),
+      leftColumnItems: detectedLeftItems.slice(0, 35),
+      fullTextSummary: allLines.slice(0, 50).join('\n'),
     };
+
   } catch (err) {
     console.warn(`No se pudo extraer texto de la plantilla ${templateFileId}:`, err);
     return { leftColumnItems: [], fullTextSummary: '' };
