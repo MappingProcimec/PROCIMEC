@@ -30,10 +30,10 @@ const FORM_CONFIGS: Record<string, FormConfig> = {
       },
       {
         key: 'operator_name',
-        label: 'Operador / Responsable de campo',
+        label: 'Localizador / Responsable de campo',
         type: 'text',
         required: true,
-        placeholder: 'Nombre completo del operador',
+        placeholder: 'Nombre completo del localizador',
       },
       {
         key: 'cad_priority',

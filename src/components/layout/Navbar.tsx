@@ -232,7 +232,7 @@ export function Navbar() {
         <div className="flex items-center gap-2">
           {divisionName && <DivisionBadge divisionName={divisionName} />}
           <span className={`hidden sm:inline-flex badge text-xs ${isAdmin ? 'badge-primary' : 'badge-accent'}`}>
-            {isAdmin ? 'Admin' : (dashData?.role?.name ?? legacyRole ?? 'Operador')}
+            {isAdmin ? 'Admin' : (dashData?.role?.name ?? legacyRole ?? 'Localizador')}
           </span>
 
           {/* Avatar dropdown */}

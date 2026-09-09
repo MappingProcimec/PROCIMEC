@@ -21,7 +21,7 @@ export const section1Schema = z.object({
   report_date: z.string().min(1, 'La fecha es requerida'),
   report_time: z.string().optional(),
   report_end_time: z.string().optional(),
-  operator_name: z.string().min(1, 'El nombre del operador es requerido'),
+  operator_name: z.string().min(1, 'El nombre del localizador es requerido'),
   equipments_used: z.array(z.string()).min(1, 'Selecciona al menos un equipo o Ninguno'),
   positioning_equipment: z.string().min(1, 'El equipo de posicionamiento es requerido'),
   terrain_conditions: z.string().min(1, 'El tipo de terreno es requerido'),

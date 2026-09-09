@@ -64,6 +64,6 @@ Antes de persistir cualquier registro en Supabase, el backend debe aplicar el si
    - En reportes de campo (`field_reports`), `created_by` se asigna al `user.id` y `operator_name` a `user.full_name`.
 
 3. **Valores Predeterminados del Negocio:**
-   - Actividades CAD/BIM: `hours_worked = 8.5` por defecto (no preguntar al operador a menos que él indique otra cifra).
+   - Actividades CAD/BIM: `hours_worked = 8.5` por defecto (no preguntar al colaborador a menos que él indique otra cifra).
    - Reportes de Campo GPR: `cad_priority = 'Media'`, `capture_method = 'Rueda odómetro'`, `weather_conditions = 'Despejado'`.
    - Fecha de reporte: si no se especifica, se asigna automáticamente la fecha actual local (`CURRENT_DATE`).

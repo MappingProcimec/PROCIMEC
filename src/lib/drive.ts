@@ -17,7 +17,7 @@ function getServiceAccountAuth() {
 
 // ─── Auth: Admin OAuth — usa el refresh_token del admin para subir archivos ──
 // Los archivos quedan en el Drive de mapping.procimec2024@gmail.com,
-// sin importar qué operador esté usando la app.
+// sin importar qué localizador esté usando la app.
 async function getAdminOAuthClient() {
   // Opción 1: refresh_token directo en variable de entorno (recomendado en Vercel)
   const refreshToken = process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN;

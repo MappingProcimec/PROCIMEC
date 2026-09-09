@@ -1621,7 +1621,7 @@ export default function AdminProjectsPage() {
                 ({confirmDeactivateProject.cost_center || confirmDeactivateProject.code || 'Sin C.C.'}).
               </p>
               <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 text-left leading-relaxed">
-                ℹ️ <strong>Nota:</strong> El proyecto pasará a estado inactivo y no aparecerá disponible para que los operadores creen nuevos reportes de campo ni registros de dibujo hasta que sea reactivado.
+                ℹ️ <strong>Nota:</strong> El proyecto pasará a estado inactivo y no aparecerá disponible para que los localizadores creen nuevos reportes de campo ni registros de dibujo hasta que sea reactivado.
               </div>
             </div>
             <div className="flex gap-3 pt-2">

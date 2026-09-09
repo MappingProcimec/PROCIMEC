@@ -187,10 +187,10 @@ export function Step1({ onNext }: Step1Props) {
         {errors.report_date && <p className="error-msg">⚠ {errors.report_date.message}</p>}
       </div>
 
-      {/* Operator */}
+      {/* Locator */}
       <div className="form-group">
         <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
-          <label className="label label-required mb-0">Operador responsable</label>
+          <label className="label label-required mb-0">Localizador responsable</label>
           <span className="text-[11px] text-primary font-medium bg-primary-50 px-2 py-0.5 rounded-md border border-primary/20 flex items-center gap-1">
             <span>👤</span> Autocompletado con el usuario en sesión
           </span>
@@ -198,7 +198,7 @@ export function Step1({ onNext }: Step1Props) {
         <input
           type="text"
           className={`input font-medium text-text-primary ${errors.operator_name ? 'input-error' : ''}`}
-          placeholder="Nombre del operador"
+          placeholder="Nombre del localizador"
           {...register('operator_name')}
         />
         {errors.operator_name && <p className="error-msg">⚠ {errors.operator_name.message}</p>}

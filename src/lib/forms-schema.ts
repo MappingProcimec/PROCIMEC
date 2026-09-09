@@ -142,7 +142,7 @@ export const PROCIMEC_FORM_CATALOG: Record<string, CanonicalFormDefinition> = {
       },
       {
         key: 'operator_name',
-        label: 'Operador responsable',
+        label: 'Localizador responsable',
         type: 'text',
         required: true,
       },

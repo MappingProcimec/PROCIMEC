@@ -74,7 +74,7 @@ function userDisplayBadge(user: User, roleOptions: RoleOption[] = []) {
     if (foundRole) return { label: foundRole.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
   }
 
-  return { label: user.role === 'dibujo' ? 'Dibujo' : 'Operador', badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+  return { label: user.role === 'dibujo' ? 'Dibujo' : 'Localizador', badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
 }
 
 const TOOL_CATEGORY_STYLES: Record<string, { label: string; icon: string; bg: string; text: string }> = {
@@ -94,7 +94,7 @@ function getUserRoleIds(user: User, roleOptions: RoleOption[]): string[] {
   if (ids.size === 0 && user.role && user.role !== 'admin' && user.role !== 'pending') {
     const match = roleOptions.find(r =>
       r.name.toLowerCase() === user.role.toLowerCase() ||
-      (user.role === 'operator' && r.name.toLowerCase().includes('operador')) ||
+      (user.role === 'operator' && (r.name.toLowerCase().includes('localizador') || r.name.toLowerCase().includes('operador'))) ||
       (user.role === 'dibujo' && r.name.toLowerCase().includes('dibujo'))
     );
     if (match) ids.add(match.id);

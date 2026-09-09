@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 
 -- ─────────────────────────────────────────────────────────────
--- TABLA: user_projects (asignación operador ↔ proyecto)
+-- TABLA: user_projects (asignación localizador ↔ proyecto)
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_projects (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,

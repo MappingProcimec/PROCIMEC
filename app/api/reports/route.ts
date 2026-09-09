@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       try {
         const { sessionFolder, rawGprFolder, gpsFolder, photosFolder } = await createSessionFolder(
           parentDriveFolderId,
-          reportData.operator_name || session.user.name || 'Operador',
+          reportData.operator_name || session.user.name || 'Localizador',
           new Date()
         );
         sessionFolderId = sessionFolder.id;

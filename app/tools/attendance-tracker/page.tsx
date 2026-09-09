@@ -401,7 +401,7 @@ function AttendanceTrackerContent() {
         const emp = activeUsersList.find((u) => u.id === selectedEmployeeId);
         if (emp) {
           targetName = emp.full_name;
-          targetRole = emp.role || 'Operador';
+          targetRole = emp.role || 'Localizador';
           targetEmail = emp.email;
         }
       } else {

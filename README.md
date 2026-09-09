@@ -18,7 +18,7 @@ Aplicación web progresiva (PWA) mobile-first para que el equipo de campo de Map
 - ✅ **Genera reporte Word (.docx)** automáticamente con soporte de facturación
 - ✅ **Panel de administración** con gestión de proyectos y usuarios
 - ✅ **Soporte offline** con guardado de borrador en localStorage
-- ✅ **Roles**: Admin, Operador, Pendiente
+- ✅ **Roles**: Admin, Localizador, Pendiente
 
 ---
 
@@ -189,13 +189,13 @@ gpr-field-reporter/
 | Rol | Acceso |
 |-----|--------|
 | `admin` | Dashboard completo, gestión de proyectos y usuarios, todos los registros |
-| `operator` | Solo proyectos asignados, crear registros, descargar sus reportes |
+| `operator` (Localizador) | Solo proyectos asignados, crear registros, descargar sus reportes |
 | `pending` | Pantalla de espera — sin acceso hasta aprobación del admin |
 
 **Flujo de onboarding:**
 1. Usuario hace login con Google → rol `pending` automáticamente
 2. Admin ve el usuario en "Gestión de Usuarios" con badge naranja de "Aprobación pendiente"
-3. Admin asigna rol `operator` + proyectos
+3. Admin asigna rol Localizador (`operator`) + proyectos
 4. Usuario puede iniciar sesión normalmente
 
 ---

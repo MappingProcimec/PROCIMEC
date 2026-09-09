@@ -372,7 +372,7 @@ export default function AdminToolsAndFormsPage() {
                   <span>📋</span> Catálogo de Formularios Operativos
                 </h2>
                 <p className="text-xs text-text-muted mt-0.5">
-                  Formatos de captura de datos para operadores de campo y modeladores de oficina
+                  Formatos de captura de datos para localizadores de campo y modeladores de oficina
                 </p>
               </div>
               <span className="badge badge-primary text-xs flex-shrink-0">

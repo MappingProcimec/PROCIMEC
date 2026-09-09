@@ -40,7 +40,7 @@ export default function ProjectsPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-2 mb-2">
             <span className="badge bg-accent/20 text-accent border border-accent/30 text-xs">
-              {session?.user?.role === 'admin' ? '⭐ Administrador' : '🔧 Operador'}
+              {session?.user?.role === 'admin' ? '⭐ Administrador' : '🔧 Localizador'}
             </span>
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">
