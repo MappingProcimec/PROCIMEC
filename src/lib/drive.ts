@@ -26,15 +26,7 @@ async function getAdminOAuthClient() {
     // Opción 2: leer desde Supabase (cuando el admin hizo login y se guardó ahí)
     const { createAdminClient } = await import('./supabase');
     const supabase = createAdminClient();
-    const adminEmail = process.env.GOOGLE_DRIVE_ADMIN_EMAIL;
-
-    if (!adminEmail) {
-      throw new Error(
-        'No hay refresh_token disponible. ' +
-        'Configura GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN en Vercel o ' +
-        'el admin debe hacer login una vez para generarlo.'
-      );
-    }
+    const adminEmail = process.env.GOOGLE_DRIVE_ADMIN_EMAIL || 'mapping.procimec2024@gmail.com';
 
     const { data, error } = await supabase
       .from('users')

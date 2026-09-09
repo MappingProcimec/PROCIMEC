@@ -101,8 +101,11 @@ export default function HseqReportFormPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [generatedPdfResult, setGeneratedPdfResult] = useState<{
     fileName: string;
+    excelFileName?: string;
     webViewLink?: string;
     pdfBase64?: string;
+    excelBase64?: string;
+    driveError?: string | null;
   } | null>(null);
 
   // 1. Asignar automáticamente el nombre del usuario logueado como Localizador responsable
@@ -195,13 +198,11 @@ export default function HseqReportFormPage() {
     }
   };
 
-  const shouldBeRecordingRef = useRef(false);
-  const baseVoiceNotesRef = useRef('');
-  const sessionTranscriptRef = useRef('');
+  const isRecordingRef = useRef(false);
 
-  // Reconocimiento de Voz continuo sin duplicación y sin cortes
+  // Reconocimiento de Voz continuo sin duplicación de palabras y activación con un solo clic
   const stopListening = useCallback(() => {
-    shouldBeRecordingRef.current = false;
+    isRecordingRef.current = false;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -234,62 +235,58 @@ export default function HseqReportFormPage() {
       const recognition = new SpeechRecognition();
       recognition.lang = 'es-CO';
       recognition.continuous = true;
-      recognition.interimResults = true;
+      recognition.interimResults = false; // Solo oraciones definitivas para evitar repeticiones de palabras
 
-      shouldBeRecordingRef.current = true;
-      baseVoiceNotesRef.current = voiceNotes.trim();
-      sessionTranscriptRef.current = '';
+      isRecordingRef.current = true;
 
       recognition.onstart = () => {
         setIsRecording(true);
       };
 
-      // Reemplazar limpiamente la transcripción de la sesión actual sin duplicar palabras
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognition.onresult = (event: any) => {
-        let currentFull = '';
-        for (let i = 0; i < event.results.length; i++) {
-          currentFull += event.results[i][0].transcript + ' ';
+        let newTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            newTranscript += event.results[i][0].transcript + ' ';
+          }
         }
-        currentFull = currentFull.trim();
+        newTranscript = newTranscript.trim();
 
-        if (currentFull) {
-          sessionTranscriptRef.current = currentFull;
-          const base = baseVoiceNotesRef.current;
-          setVoiceNotes(base ? `${base} ${currentFull}` : currentFull);
+        if (newTranscript) {
+          setVoiceNotes((prev) => {
+            const trimmedPrev = prev.trim();
+            return trimmedPrev ? `${trimmedPrev} ${newTranscript}` : newTranscript;
+          });
         }
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognition.onerror = (err: any) => {
-        // Ignorar pausas breves de silencio
-        if (err.error === 'no-speech' && shouldBeRecordingRef.current) {
+        if (err.error === 'no-speech' && isRecordingRef.current) {
           return;
         }
+        if (err.error === 'aborted') {
+          return;
+        }
+        console.warn('SpeechRecognition aviso:', err.error);
       };
 
       recognition.onend = () => {
-        // Auto-reiniciar si el usuario sigue hablando para evitar que se corte por pausas
-        if (shouldBeRecordingRef.current) {
-          if (sessionTranscriptRef.current) {
-            const base = baseVoiceNotesRef.current;
-            baseVoiceNotesRef.current = base
-              ? `${base} ${sessionTranscriptRef.current}`.trim()
-              : sessionTranscriptRef.current.trim();
-            sessionTranscriptRef.current = '';
-          }
+        // Reiniciar si el usuario sigue en modo grabación para que no se corte por silencios
+        if (isRecordingRef.current) {
           try {
             recognition.start();
           } catch {
             setTimeout(() => {
-              if (shouldBeRecordingRef.current) {
+              if (isRecordingRef.current) {
                 try {
                   recognition.start();
                 } catch {
                   // Ignorar
                 }
               }
-            }, 250);
+            }, 300);
           }
         } else {
           setIsRecording(false);
@@ -301,12 +298,12 @@ export default function HseqReportFormPage() {
     } catch (err) {
       console.error('Error al inicializar reconocimiento de voz:', err);
       setIsRecording(false);
-      shouldBeRecordingRef.current = false;
+      isRecordingRef.current = false;
     }
-  }, [voiceNotes]);
+  }, []);
 
   const toggleRecording = () => {
-    if (isRecording) {
+    if (isRecordingRef.current || isRecording) {
       stopListening();
     } else {
       startListening();
@@ -315,7 +312,7 @@ export default function HseqReportFormPage() {
 
   useEffect(() => {
     return () => {
-      shouldBeRecordingRef.current = false;
+      isRecordingRef.current = false;
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -341,8 +338,8 @@ export default function HseqReportFormPage() {
     const dayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
     const currentDay = dayNames[dateObj.getDay()] || 'LUNES';
 
-    // Para la matriz semanal en el Excel (.xlsx), estampar 'SI' en las filas estándar de verificación del día
-    const matrixItems = [11, 12, 13, 14, 15].map((fila) => ({
+    // Para la matriz semanal en el Excel (.xlsx), estampar 'SI' en los ítems de verificación del día (filas 10 a 45)
+    const matrixItems = Array.from({ length: 35 }, (_, i) => i + 10).map((fila) => ({
       fila,
       dia: currentDay,
       estado: 'SI' as const,
@@ -371,8 +368,11 @@ export default function HseqReportFormPage() {
 
       setGeneratedPdfResult({
         fileName: data.fileName,
+        excelFileName: data.excelFileName,
         webViewLink: data.webViewLink,
         pdfBase64: data.pdfBase64,
+        excelBase64: data.excelBase64,
+        driveError: data.driveError || null,
       });
       setSubmissionSuccess(true);
     } catch (err: unknown) {
@@ -403,6 +403,31 @@ export default function HseqReportFormPage() {
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error('Error al descargar PDF local:', e);
+    }
+  };
+
+  const downloadLocalExcel = () => {
+    if (!generatedPdfResult?.excelBase64) return;
+    try {
+      const byteCharacters = atob(generatedPdfResult.excelBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = generatedPdfResult.excelFileName || `${generatedPdfResult.fileName.replace(/\.pdf$/i, '')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Error al descargar Excel local:', e);
     }
   };
 
@@ -489,6 +514,12 @@ export default function HseqReportFormPage() {
               </p>
             </div>
 
+            {generatedPdfResult.driveError && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-2.5 rounded-xl text-center">
+                ⚠️ <strong>Aviso Google Drive:</strong> {generatedPdfResult.driveError} (Los archivos quedaron generados para descarga local directa).
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               {generatedPdfResult.pdfBase64 && (
                 <button
@@ -497,6 +528,16 @@ export default function HseqReportFormPage() {
                   className="btn bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-sm transition-all"
                 >
                   <span>⬇️</span> Descargar PDF Oficial
+                </button>
+              )}
+
+              {generatedPdfResult.excelBase64 && (
+                <button
+                  type="button"
+                  onClick={downloadLocalExcel}
+                  className="btn bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-sm transition-all"
+                >
+                  <span>📊</span> Descargar Excel Oficial (.xlsx)
                 </button>
               )}
 
@@ -728,33 +769,21 @@ export default function HseqReportFormPage() {
                     4. Notas y Observaciones de Inspección en Campo
                   </label>
                   <p className="text-[11px] text-text-muted">
-                    Responde aquí a las preguntas guía (mantén presionado para hablar o haz clic para alternar).
+                    Responde aquí a las preguntas guía (haz un solo clic en el micrófono para hablar y otro para finalizar).
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  onTouchStart={(e) => {
-                    // Soporte presionar y mantener en móvil
-                    if (!isRecording) {
-                      e.preventDefault();
-                      startListening();
-                    }
-                  }}
-                  onTouchEnd={(e) => {
-                    if (isRecording) {
-                      e.preventDefault();
-                      stopListening();
-                    }
-                  }}
-                  className={`text-xs px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 border transition-all select-none ${
+                  className={`text-xs px-3.5 py-2 rounded-xl font-semibold flex items-center gap-2 border transition-all cursor-pointer select-none ${
                     isRecording
-                      ? 'bg-red-500 text-white border-red-600 animate-pulse shadow-sm'
+                      ? 'bg-red-500 hover:bg-red-600 text-white border-red-600 animate-pulse shadow-md'
                       : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100 active:bg-teal-200'
                   }`}
-                  title="Toca para alternar o mantén presionado para hablar"
+                  title={isRecording ? 'Haz clic para detener el dictado' : 'Haz un clic para comenzar a dictar'}
                 >
-                  <span>{isRecording ? '⏹ Detener Dictado' : '🎙️ Mantén o Toca para Dictar'}</span>
+                  <span className={`w-2 h-2 rounded-full ${isRecording ? 'bg-white animate-ping' : 'bg-teal-600'}`} />
+                  <span>{isRecording ? '⏹ Detener Dictado (Grabando...)' : '🎙️ Dictar con Micrófono'}</span>
                 </button>
               </div>
 

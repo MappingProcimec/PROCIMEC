@@ -54,9 +54,14 @@ export async function POST(req: NextRequest) {
       ok: true,
       fileId: result.fileId,
       fileName: result.fileName,
+      excelFileName: result.excelFileName,
       webViewLink: result.webViewLink,
       pdfBase64: result.pdfBase64,
-      message: 'Evidencia PDF generada y guardada en la Carpeta General de EVIDENCIAS',
+      excelBase64: result.excelBase64,
+      driveError: result.driveError || null,
+      message: result.webViewLink
+        ? 'Evidencia oficial guardada con éxito en la Carpeta General de EVIDENCIAS de Google Drive'
+        : `Evidencia generada para descarga local (Aviso Drive: ${result.driveError || 'Sin acceso remoto'})`,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error inesperado generando la evidencia PDF';
