@@ -25,9 +25,23 @@ let lastScanTimestamp = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de caché
 
 async function getDriveClient(): Promise<drive_v3.Drive> {
-  // 1. Token directo en variables de entorno (si está configurado)
-  const refreshToken = process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN;
+  // 1. Service Account (Cuenta de Servicio: no expira nunca y tiene acceso estable y directo)
+  const base64Key = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY;
+  if (base64Key) {
+    try {
+      const credentials = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf-8'));
+      const auth = new google.auth.GoogleAuth({
+        credentials,
+        scopes: ['https://www.googleapis.com/auth/drive'],
+      });
+      return google.drive({ version: 'v3', auth });
+    } catch (err) {
+      console.warn('Error iniciando cliente Drive con Service Account:', err);
+    }
+  }
 
+  // 2. Token directo en variables de entorno (si está configurado)
+  const refreshToken = process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN;
   if (refreshToken) {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
@@ -38,8 +52,7 @@ async function getDriveClient(): Promise<drive_v3.Drive> {
     return google.drive({ version: 'v3', auth: oauth2Client });
   }
 
-  // 2. Leer refresh_token del admin en Supabase (mapping.procimec2024@gmail.com)
-  // Es la cuenta propietaria de las carpetas de Drive de PROCIMEC
+  // 3. Fallback a Supabase
   try {
     const { createAdminClient } = await import('./supabase');
     const supabase = createAdminClient();
@@ -64,17 +77,6 @@ async function getDriveClient(): Promise<drive_v3.Drive> {
     console.warn('Error intentando obtener token de Supabase para HSEQ Drive:', err);
   }
 
-  // 3. Fallback a Service Account (para lectura)
-  const base64Key = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY;
-  if (base64Key) {
-    const credentials = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf-8'));
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    });
-    return google.drive({ version: 'v3', auth });
-  }
-
   throw new Error(
     'No hay credenciales configuradas para Google Drive.'
   );
@@ -83,18 +85,24 @@ async function getDriveClient(): Promise<drive_v3.Drive> {
 // ─── Extracción limpia de código y título ────────────────────────────────────
 function parseFormatName(rawName: string): { code: string; title: string } {
   const withoutExt = rawName.replace(/\.(xlsx|xls|gdoc|gsheet)$/i, '').trim();
-  const match = withoutExt.match(/^(FOR-[A-Z0-9\-_]+)(.*)$/i);
-
-  if (match) {
-    const code = match[1].trim().toUpperCase();
-    const title = match[2]
+  // Formato tipo FOR-HSEQ-001 o FOR-001
+  const codeMatch = withoutExt.match(/^(FOR-[A-Za-z0-9\-_]+)(.*)$/i);
+  if (codeMatch && codeMatch[2]?.trim()) {
+    const code = codeMatch[1].trim().toUpperCase();
+    const title = codeMatch[2]
       .replace(/^[\s\-_]+/, '')
       .replace(/[\s\-_]+v\d+.*$/i, '')
       .trim();
     return { code, title: title || code };
   }
 
-  return { code: 'FOR-HSEQ', title: withoutExt };
+  // Formato tipo "FOR-Inspección pre-operacional Drone"
+  const cleanTitle = withoutExt.replace(/^FOR-[\s\-_]*/i, '').trim();
+  const words = cleanTitle.split(/[\s\-_]+/);
+  const codeWords = words.slice(0, 2).map((w) => w.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  const code = codeWords.length > 0 ? `FOR-${codeWords.join('-')}` : 'FOR-HSEQ';
+
+  return { code, title: cleanTitle };
 }
 
 // ─── Exploración Recursiva de Carpetas en Drive ──────────────────────────────
