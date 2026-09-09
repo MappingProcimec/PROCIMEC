@@ -139,6 +139,17 @@ export default function EvidenceBoardToolPage() {
                 Consolidado centralizado de evidencias en formato PDF generadas por los <strong className="text-amber-300 font-semibold">Localizadores</strong> en campo y almacenadas en la Carpeta General de Google Drive.
               </p>
             </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href="https://drive.google.com/drive/folders/18kLylRhxxQG7hfMgie9ByHCE6AfdDhrv"
+                target="_blank"
+                rel="noreferrer"
+                className="btn bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+              >
+                <span>📁</span> Abrir EVIDENCIAS en Drive ↗
+              </a>
+            </div>
           </div>
         </div>
       </div>

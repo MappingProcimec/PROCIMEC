@@ -2,11 +2,38 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 
+interface HseqTemplateOption {
+  id: string;
+  name: string;
+  code: string;
+  title: string;
+  folderName: string;
+  folderId: string;
+  mimeType: string;
+  webViewLink?: string;
+}
+
+interface TemplatesApiResponse {
+  ok: boolean;
+  count: number;
+  folderId: string;
+  templates: HseqTemplateOption[];
+  source: 'google_drive' | 'fallback';
+  warning?: string;
+}
+
+async function fetchTemplates(refresh = false): Promise<TemplatesApiResponse> {
+  const res = await fetch(`/api/hseq/templates${refresh ? '?refresh=true' : ''}`);
+  if (!res.ok) throw new Error('Error al consultar plantillas en Google Drive');
+  return res.json();
+}
+
 export default function HseqReportFormPage() {
-  const [formatCode, setFormatCode] = useState('FOR-HSEQ-012');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [projectName, setProjectName] = useState('Gasoducto Central - Tramo Norte');
   const [locatorName, setLocatorName] = useState('Localizador de Campo');
   const [inspectionDate, setInspectionDate] = useState(new Date().toISOString().split('T')[0]);
@@ -14,6 +41,23 @@ export default function HseqReportFormPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
+
+  // Consulta de plantillas vivas desde Google Drive
+  const {
+    data: templatesData,
+    isLoading: isLoadingTemplates,
+    isFetching: isFetchingTemplates,
+    refetch: refetchTemplates,
+  } = useQuery({
+    queryKey: ['hseq-templates'],
+    queryFn: () => fetchTemplates(false),
+  });
+
+  const templates = templatesData?.templates ?? [];
+
+  // Seleccionar automáticamente la primera plantilla si no hay ninguna seleccionada
+  const activeTemplate =
+    templates.find((t) => t.id === selectedTemplateId) || templates[0] || null;
 
   const toggleRecording = () => {
     if (!isRecording) {
@@ -70,23 +114,34 @@ export default function HseqReportFormPage() {
 
       <div className="max-w-3xl mx-auto px-4 -mt-6 pb-20 space-y-6">
 
-        {/* Notice: En Construcción */}
+        {/* Notice: En Construcción & Drive Connection Status */}
         <div className="card border-2 border-amber-300/80 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 shadow-sm p-5">
           <div className="flex items-start gap-3.5">
             <span className="text-2xl flex-shrink-0">🚧</span>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded">
                   Formulario en Construcción
                 </span>
                 <span className="text-xs text-amber-700 font-medium">
-                  Integración directa con exportación a PDF en Google Drive
+                  Fase 1: Conexión con carpeta de formatos de Google Drive
                 </span>
               </div>
               <p className="text-xs text-text-secondary mt-1 leading-relaxed">
-                Este formulario es el punto de captura oficial para el <strong>Localizador</strong> en campo.
-                La información no se almacena en tablas redundantes: se plasma directamente en la plantilla oficial y genera la evidencia final en PDF.
+                Este formulario lee directamente las plantillas <code className="bg-amber-100 text-amber-900 px-1 py-0.5 rounded font-mono text-[11px]">FOR-*.xlsx</code> de la carpeta raíz oficial de HSEQ. Los datos se inyectan en la plantilla y generan el PDF final en la Carpeta General de Evidencias.
               </p>
+
+              {/* Status Badge */}
+              <div className="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t border-amber-200/60 text-xs">
+                <span className="inline-flex items-center gap-1 font-semibold text-teal-800 bg-teal-100/70 px-2 py-0.5 rounded-md">
+                  📁 Raíz: 24. Procedimientos y formatos
+                </span>
+                <span className="text-text-muted text-[11px]">
+                  {isLoadingTemplates
+                    ? 'Escaneando subcarpetas en Google Drive...'
+                    : `${templates.length} formatos FOR-* detectados`}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -109,9 +164,10 @@ export default function HseqReportFormPage() {
             </div>
 
             <div className="bg-white rounded-xl border border-emerald-200 p-4 text-xs space-y-1.5 text-text-secondary">
-              <p>📄 <strong>Archivo:</strong> EVIDENCIA_{formatCode}_PROYECTO_{inspectionDate}.pdf</p>
+              <p>📄 <strong>Archivo:</strong> EVIDENCIA_{activeTemplate?.code || 'FOR-HSEQ'}_PROYECTO_{inspectionDate}.pdf</p>
+              <p>📋 <strong>Formato Base:</strong> {activeTemplate?.title || activeTemplate?.name}</p>
               <p>📍 <strong>Localizador:</strong> {locatorName}</p>
-              <p>📁 <strong>Destino:</strong> Google Drive / Carpeta General de Evidencias</p>
+              <p>📁 <strong>Destino:</strong> Google Drive / EVIDENCIAS</p>
               <p>🔒 <strong>Integridad:</strong> Formato cerrado de solo lectura (inmutable para auditoría HSEQ).</p>
             </div>
 
@@ -139,30 +195,62 @@ export default function HseqReportFormPage() {
         {/* Form Body */}
         {!submissionSuccess && (
           <form onSubmit={handleSubmit} className="card border border-border p-6 bg-white shadow-sm space-y-5">
-            <div className="border-b border-border pb-3">
-              <h2 className="text-base font-bold text-text-primary">
-                Datos de Campo — Localizador Responsable
-              </h2>
-              <p className="text-xs text-text-muted mt-0.5">
-                Selecciona la plantilla correspondiente y registra las condiciones observadas.
-              </p>
+            <div className="border-b border-border pb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base font-bold text-text-primary">
+                  Datos de Campo — Localizador Responsable
+                </h2>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Selecciona la plantilla correspondiente y registra las condiciones observadas.
+                </p>
+              </div>
+
+              {/* Botón para forzar actualización de plantillas desde Drive */}
+              <button
+                type="button"
+                onClick={() => refetchTemplates()}
+                disabled={isFetchingTemplates}
+                className="text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors disabled:opacity-50"
+                title="Escanear Google Drive nuevamente en busca de nuevos formatos FOR-"
+              >
+                <span className={isFetchingTemplates ? 'animate-spin' : ''}>🔄</span>
+                {isFetchingTemplates ? 'Buscando...' : 'Sincronizar Drive'}
+              </button>
             </div>
 
-            {/* Select Format */}
+            {/* Select Format (Live from Drive) */}
             <div>
               <label className="text-xs font-bold text-text-primary uppercase tracking-wide block mb-1.5">
-                Formato HSEQ <span className="text-red-500">*</span>
+                Formato HSEQ (Plantilla en Google Drive) <span className="text-red-500">*</span>
               </label>
-              <select
-                value={formatCode}
-                onChange={(e) => setFormatCode(e.target.value)}
-                className="w-full text-xs px-3 py-2.5 rounded-xl border border-border bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
-              >
-                <option value="FOR-HSEQ-012">FOR-HSEQ-012 — Inspección Preoperacional de Alturas</option>
-                <option value="FOR-HSEQ-005">FOR-HSEQ-005 — Lista de Chequeo y Dotación de EPP</option>
-                <option value="FOR-HSEQ-021">FOR-HSEQ-021 — Permiso de Trabajo Seguro en Vía / Campo</option>
-                <option value="FOR-HSEQ-008">FOR-HSEQ-008 — Inspección Preoperacional de Vehículo y Equipo</option>
-              </select>
+
+              {isLoadingTemplates ? (
+                <div className="h-10 bg-gray-100 rounded-xl animate-pulse flex items-center px-3 text-xs text-text-muted">
+                  Cargando formatos de Google Drive...
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <select
+                    value={selectedTemplateId || (activeTemplate?.id ?? '')}
+                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                    required
+                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-border bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  >
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.code} — {t.title} {t.folderName !== 'Raíz Formatos' ? `(Carpeta: ${t.folderName})` : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  {activeTemplate && (
+                    <div className="flex items-center justify-between text-[11px] text-text-muted px-1">
+                      <span>📁 Subcarpeta: <strong>{activeTemplate.folderName}</strong></span>
+                      <span className="font-mono text-[10px] text-teal-700">{activeTemplate.name}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Project & Date */}
