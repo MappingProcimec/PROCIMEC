@@ -74,7 +74,7 @@ async function fetchActiveProjects(): Promise<ProjectOption[]> {
 export default function HseqReportFormPage() {
   const { data: session } = useSession();
 
-  // Estados del Formulario
+  // Estados del Formulario (Opción 1 inicia estrictamente en NINGUNO)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [projectName, setProjectName] = useState('');
@@ -86,7 +86,7 @@ export default function HseqReportFormPage() {
   });
   const [voiceNotes, setVoiceNotes] = useState('');
 
-  // Párrafo orientador generado con IA
+  // Párrafo orientador generado con IA a partir de la plantilla seleccionada
   const [guidanceParagraph, setGuidanceParagraph] = useState<string>('');
   const [isLoadingGuidance, setIsLoadingGuidance] = useState<boolean>(false);
 
@@ -142,19 +142,23 @@ export default function HseqReportFormPage() {
 
   const templates = templatesData?.templates ?? [];
 
-  // Plantilla activa seleccionada
+  // Plantilla activa seleccionada (SOLO cuando el usuario selecciona una, no por defecto)
   const activeTemplate =
-    templates.find((t) => t.id === selectedTemplateId) || templates[0] || null;
+    templates.find((t) => t.id === selectedTemplateId) || null;
 
-  // Función para solicitar pautas a la IA según el formato
+  // Función para solicitar a la IA que tome y analice el formato seleccionado
   const loadGuidanceForTemplate = useCallback(async (template: HseqTemplateOption | null) => {
-    if (!template) return;
+    if (!template) {
+      setGuidanceParagraph('');
+      return;
+    }
     setIsLoadingGuidance(true);
     try {
       const res = await fetch('/api/hseq/guidance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          templateFileId: template.id,
           code: template.code,
           title: template.title,
           folderName: template.folderName,
@@ -177,16 +181,13 @@ export default function HseqReportFormPage() {
     }
   }, []);
 
-  // Cargar las pautas cuando el activeTemplate esté disponible por primera vez o cambie
-  useEffect(() => {
-    if (activeTemplate && !guidanceParagraph) {
-      loadGuidanceForTemplate(activeTemplate);
-    }
-  }, [activeTemplate, guidanceParagraph, loadGuidanceForTemplate]);
-
-  // Manejador del cambio de formato
+  // Manejador del cambio de formato (cuando el usuario selecciona en la lista 1)
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplateId(templateId);
+    if (!templateId) {
+      setGuidanceParagraph('');
+      return;
+    }
     const target = templates.find((t) => t.id === templateId) || null;
     if (target) {
       loadGuidanceForTemplate(target);
@@ -276,6 +277,11 @@ export default function HseqReportFormPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedTemplateId || !activeTemplate) {
+      setSubmitError('Por favor seleccione un formato HSEQ en el paso 1 antes de generar la evidencia.');
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -296,8 +302,8 @@ export default function HseqReportFormPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          templateFileId: activeTemplate?.id || 'fallback-012',
-          templateCode: activeTemplate?.code || 'FOR-HSEQ',
+          templateFileId: activeTemplate.id,
+          templateCode: activeTemplate.code,
           projectName: projectName || 'Proyecto Activo',
           locatorName: locatorName || 'Localizador',
           inspectionDate,
@@ -343,7 +349,7 @@ export default function HseqReportFormPage() {
             <span>🛡️</span> Formulario de Inspección HSEQ
           </h1>
           <p className="text-xs text-text-muted mt-1">
-            Diligenciamiento guiado con IA para Localizadores. Consulta plantillas oficiales de Google Drive y genera copias directas en PDF en la carpeta de Evidencias.
+            Diligenciamiento de inspección con análisis IA por formato. Consulta plantillas oficiales de Google Drive y genera copias directas en PDF en la carpeta de Evidencias.
           </p>
         </div>
 
@@ -425,6 +431,8 @@ export default function HseqReportFormPage() {
                 onClick={() => {
                   setSubmissionSuccess(false);
                   setGeneratedPdfResult(null);
+                  setSelectedTemplateId('');
+                  setGuidanceParagraph('');
                   setVoiceNotes('');
                 }}
                 className="btn bg-gray-100 hover:bg-gray-200 text-text-primary text-xs font-semibold px-4 py-2 rounded-xl"
@@ -442,7 +450,7 @@ export default function HseqReportFormPage() {
               </div>
             )}
 
-            {/* Template Selector */}
+            {/* 1. Selector de Plantilla (Inicia en Ninguno) */}
             <div>
               <label className="text-xs font-bold text-text-primary uppercase tracking-wide block mb-1.5">
                 1. Formato HSEQ (Plantilla en Google Drive) <span className="text-red-500">*</span>
@@ -455,11 +463,12 @@ export default function HseqReportFormPage() {
               ) : (
                 <div className="space-y-1">
                   <select
-                    value={selectedTemplateId || (activeTemplate?.id ?? '')}
+                    value={selectedTemplateId}
                     onChange={(e) => handleTemplateChange(e.target.value)}
                     required
                     className="w-full text-xs px-3 py-2.5 rounded-xl border border-border bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
                   >
+                    <option value="">-- Ninguno (Seleccione un formato para analizar) --</option>
                     {templates.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.code} — {t.title} {t.folderName !== 'Raíz Formatos' ? `(Carpeta: ${t.folderName})` : ''}
@@ -467,17 +476,21 @@ export default function HseqReportFormPage() {
                     ))}
                   </select>
 
-                  {activeTemplate && (
+                  {activeTemplate ? (
                     <div className="flex items-center justify-between text-[11px] text-text-muted px-1">
                       <span>📁 Subcarpeta: <strong>{activeTemplate.folderName}</strong></span>
                       <span className="font-mono text-[10px] text-teal-700">{activeTemplate.name}</span>
                     </div>
+                  ) : (
+                    <p className="text-[11px] text-text-muted px-1">
+                      Elige el formato de la lista para que la IA extraiga los ítems y genere las preguntas guía de verificación.
+                    </p>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Project & Date Selection */}
+            {/* 2. Project & Date Selection */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Projects Dropdown */}
               <div>
@@ -552,55 +565,77 @@ export default function HseqReportFormPage() {
               </div>
             </div>
 
-            {/* 3. Pautas y Preguntas Guía con IA según Formato */}
+            {/* 3. Pautas y Preguntas Guía con IA generadas a partir del Formato Seleccionado */}
             <div className="space-y-3 pt-2 border-t border-border">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                      3. Preguntas Guía para la Inspección ({activeTemplate?.code || 'Checklist'})
+                      3. Preguntas Guía para la Inspección {activeTemplate ? `(${activeTemplate.code})` : ''}
                     </h3>
-                    <span className="inline-flex items-center gap-1 text-[10px] bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full font-semibold">
-                      <span>✨ Generadas con IA</span>
-                    </span>
+                    {activeTemplate && (
+                      <span className="inline-flex items-center gap-1 text-[10px] bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full font-semibold">
+                        <span>✨ Analizado con IA</span>
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-text-muted mt-0.5">
-                    Lee atentamente el siguiente párrafo con preguntas orientadoras y responde mediante audio o texto en el recuadro inferior.
+                    {activeTemplate
+                      ? 'Lee atentamente las preguntas extraídas y generadas por la IA para este formato, y responde a continuación mediante audio o texto:'
+                      : 'Seleccione un formato en el punto 1 para que la Inteligencia Artificial analice el documento y genere las preguntas de inspección correspondientes.'}
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => loadGuidanceForTemplate(activeTemplate)}
-                  disabled={isLoadingGuidance}
-                  className="text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 self-start sm:self-auto disabled:opacity-50"
-                  title="Regenerar pautas de inspección con Inteligencia Artificial"
-                >
-                  <span>{isLoadingGuidance ? '⏳' : '🔄'}</span>
-                  <span>{isLoadingGuidance ? 'Generando...' : 'Regenerar Pauta'}</span>
-                </button>
+                {activeTemplate && (
+                  <button
+                    type="button"
+                    onClick={() => loadGuidanceForTemplate(activeTemplate)}
+                    disabled={isLoadingGuidance}
+                    className="text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 self-start sm:self-auto disabled:opacity-50"
+                    title="Regenerar pautas analizando nuevamente el formato con IA"
+                  >
+                    <span>{isLoadingGuidance ? '⏳' : '🔄'}</span>
+                    <span>{isLoadingGuidance ? 'Analizando...' : 'Regenerar Pauta'}</span>
+                  </button>
+                )}
               </div>
 
-              {/* Párrafo Guía Unificado */}
-              <div className="relative rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/40 p-4 shadow-sm">
-                {isLoadingGuidance ? (
+              {/* Contenedor del Párrafo Guía */}
+              {!selectedTemplateId ? (
+                <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/70 p-6 text-center space-y-2">
+                  <span className="text-2xl block">📋</span>
+                  <p className="text-xs font-bold text-text-primary">
+                    1. Primero seleccione un formato de inspección arriba
+                  </p>
+                  <p className="text-[11px] text-text-muted max-w-sm mx-auto">
+                    Al elegir un formato en el <strong>Paso 1</strong>, la Inteligencia Artificial examinará la plantilla oficial en Google Drive para generar el párrafo con las preguntas orientadoras correspondientes.
+                  </p>
+                </div>
+              ) : isLoadingGuidance ? (
+                <div className="relative rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/40 p-5 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-teal-900">
+                    <span className="animate-spin text-sm">⚙️</span>
+                    <span>Descargando y analizando plantilla <strong>{activeTemplate?.name}</strong> con Gemini AI...</span>
+                  </div>
                   <div className="space-y-2 animate-pulse py-1">
                     <div className="h-3.5 bg-teal-200/60 rounded w-11/12" />
                     <div className="h-3.5 bg-teal-200/60 rounded w-full" />
                     <div className="h-3.5 bg-teal-200/60 rounded w-4/5" />
                   </div>
-                ) : (
+                </div>
+              ) : (
+                <div className="relative rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/40 p-4 shadow-sm">
                   <div className="flex items-start gap-2.5">
                     <span className="text-base mt-0.5 flex-shrink-0">📋</span>
                     <p className="text-xs text-text-primary leading-relaxed font-normal">
-                      {guidanceParagraph || (activeTemplate ? getFallbackGuidanceParagraph(activeTemplate.code, activeTemplate.title) : 'Seleccione un formato para ver las preguntas guía.')}
+                      {guidanceParagraph || (activeTemplate ? getFallbackGuidanceParagraph(activeTemplate.code, activeTemplate.title) : '')}
                     </p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
-            {/* Voice & Custom Notes Field */}
+            {/* 4. Voice & Custom Notes Field */}
             <div className="space-y-2 pt-2 border-t border-border">
               <div className="flex items-center justify-between">
                 <div>
@@ -658,7 +693,7 @@ export default function HseqReportFormPage() {
                 </Link>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !selectedTemplateId}
                   className="btn bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-5 py-2 rounded-xl shadow-sm flex items-center gap-1.5 disabled:opacity-50 transition-all"
                 >
                   {isSubmitting ? (

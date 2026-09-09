@@ -362,3 +362,58 @@ export async function generateHseqEvidencePdf(params: {
     }
   }
 }
+
+// ─── Extracción de texto y preguntas reales de la plantilla Excel ─────────────
+export async function extractTemplateTextSummary(templateFileId: string): Promise<string> {
+  try {
+    const drive = await getDriveClient();
+    const downloadRes = await drive.files.get(
+      { fileId: templateFileId, alt: 'media' },
+      { responseType: 'arraybuffer' }
+    );
+    const templateBuffer = Buffer.from(downloadRes.data as ArrayBuffer);
+
+    const ExcelJS = await import('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    // @ts-expect-error ExcelJS buffer load
+    await workbook.xlsx.load(templateBuffer);
+
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) return '';
+
+    const lines: string[] = [];
+    worksheet.eachRow((row) => {
+      const rowTexts: string[] = [];
+      row.eachCell((cell) => {
+        let val = '';
+        if (typeof cell.value === 'string') {
+          val = cell.value;
+        } else if (cell.value && typeof cell.value === 'object') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (Array.isArray((cell.value as any).richText)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            val = (cell.value as any).richText.map((r: any) => r.text).join(' ');
+          } else {
+            val = cell.text || '';
+          }
+        } else if (cell.value !== null && cell.value !== undefined) {
+          val = String(cell.value);
+        }
+
+        const trimmed = val.trim();
+        if (trimmed.length > 2 && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
+          rowTexts.push(trimmed);
+        }
+      });
+
+      if (rowTexts.length > 0) {
+        lines.push(`• ${rowTexts.join(' | ')}`);
+      }
+    });
+
+    return lines.slice(0, 50).join('\n');
+  } catch (err) {
+    console.warn(`No se pudo extraer texto de la plantilla ${templateFileId}:`, err);
+    return '';
+  }
+}

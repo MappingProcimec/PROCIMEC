@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { extractTemplateTextSummary } from '@/lib/hseq-drive';
 
 // Respuestas de respaldo de alta calidad según temática del formato
 function getFallbackGuidance(code: string, title: string): string {
@@ -37,17 +38,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
+  let templateFileId = '';
   let code = '';
   let title = '';
   let folderName = '';
 
   try {
     const body = await req.json();
+    templateFileId = body.templateFileId || '';
     code = body.code || '';
     title = body.title || '';
     folderName = body.folderName || '';
   } catch {
-    // Body vacío o malformado
+    // Body vacío
+  }
+
+  if (!code && !title && !templateFileId) {
+    return NextResponse.json(
+      { error: 'Debe especificar el formato a analizar' },
+      { status: 400 }
+    );
+  }
+
+  // 1. Extraer el contenido real de la plantilla Excel desde Google Drive
+  let extractedExcelText = '';
+  if (templateFileId && !templateFileId.startsWith('fallback-')) {
+    try {
+      extractedExcelText = await extractTemplateTextSummary(templateFileId);
+    } catch (extractErr) {
+      console.warn('No se pudo extraer texto del Excel de Drive:', extractErr);
+    }
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -55,27 +75,35 @@ export async function POST(req: NextRequest) {
   if (!apiKey) {
     return NextResponse.json({
       paragraph: getFallbackGuidance(code, title),
-      source: 'fallback_rule',
+      source: 'fallback_no_key',
     });
   }
 
   try {
-    const prompt = `Actúa como un especialista senior en HSEQ (Seguridad, Salud en el Trabajo, Medio Ambiente y Calidad) de la empresa de ingeniería PROCIMEC.
-El Localizador en campo va a diligenciar la inspección correspondiente al formato:
-- Código de formato: "${code || 'FOR-HSEQ'}"
-- Título o tema: "${title || 'Inspección en Campo'}"
-- Carpeta de referencia: "${folderName || 'General'}"
+    const excelContextSection = extractedExcelText
+      ? `\nHemos leído e inspeccionado el archivo Excel oficial de la plantilla desde Google Drive. Los ítems, preguntas y criterios reales extraídos son:\n"""\n${extractedExcelText}\n"""\nUtiliza ESTOS ÍTEMS REALES como base primordial para formular las preguntas del párrafo.`
+      : '';
 
-Tu tarea es redactar UN SOLO PÁRRAFO continuo y fluido que contenga una serie de preguntas clave de verificación que el Localizador debe responder en su dictado por voz o por escrito.
-Reglas estrictas de formato:
+    const prompt = `Actúa como un especialista senior en HSEQ (Seguridad, Salud en el Trabajo, Medio Ambiente y Calidad) de PROCIMEC.
+El Localizador en campo ha seleccionado el siguiente formato de inspección oficial:
+- Código del formato: "${code || 'FOR-HSEQ'}"
+- Título o tema: "${title || 'Inspección de Seguridad'}"
+- Carpeta en Google Drive: "${folderName || 'General'}"
+${excelContextSection}
+
+Tu tarea:
+Analizar la temática y contenido de este formato y redactar UN SOLO PÁRRAFO continuo y fluido que contenga una serie de preguntas de verificación e inspección directamente pertinentes a este formato específico.
+El Localizador leerá este párrafo y responderá de viva voz o por escrito.
+
+Reglas estrictas de redacción:
 1. Debe ser exactamente UN SOLO PÁRRAFO de texto corrido.
-2. Comienza con una frase orientadora como: "Durante la inspección en campo para este formato de [Tema], verifique y responda detalladamente: ..."
-3. Integra entre 4 y 6 preguntas directas y concretas sobre condiciones del entorno, equipos, EPP, riesgos críticos y cumplimiento de seguridad aplicables a este formato.
-4. NO uses viñetas, guiones, listas numeradas ni saltos de línea.
-5. NO incluyas introducciones como "Aquí tienes el párrafo" ni saludos. Devuelve única y exclusivamente el párrafo de texto.`;
+2. Inicia con una frase orientadora: "Durante la inspección en campo para este formato de ${title || code}, verifique y responda detalladamente: ..."
+3. Formula entre 4 y 6 preguntas claras, técnicas y concretas basadas en los riesgos y puntos de control propios de este formato.
+4. NO uses viñetas, guiones, asteriscos, listas numeradas ni saltos de línea.
+5. NO incluyas saludos ni introducciones previas. Devuelve únicamente el párrafo final redactado.`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 7000);
+    const timeoutId = setTimeout(() => controller.abort(), 9000);
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
@@ -90,8 +118,8 @@ Reglas estrictas de formato:
           },
         ],
         generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 350,
+          temperature: 0.2,
+          maxOutputTokens: 400,
         },
       }),
     });
@@ -99,10 +127,10 @@ Reglas estrictas de formato:
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      console.warn('Gemini API respondió con status:', res.status);
+      console.warn('Gemini API status:', res.status);
       return NextResponse.json({
         paragraph: getFallbackGuidance(code, title),
-        source: 'fallback_api_error',
+        source: 'fallback_gemini_error',
       });
     }
 
@@ -110,20 +138,20 @@ Reglas estrictas de formato:
     const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
     if (rawText && rawText.length > 40) {
-      // Limpiar posibles saltos de línea para garantizar un solo párrafo fluido
       const cleanParagraph = rawText.replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim();
       return NextResponse.json({
         paragraph: cleanParagraph,
-        source: 'gemini_ai',
+        source: 'gemini_ai_analyzed',
+        hasExcelContext: Boolean(extractedExcelText),
       });
     }
 
     return NextResponse.json({
       paragraph: getFallbackGuidance(code, title),
-      source: 'fallback_empty',
+      source: 'fallback_empty_response',
     });
   } catch (err) {
-    console.error('Error al llamar a Gemini AI para pautas HSEQ:', err);
+    console.error('Error al generar pautas con Gemini AI:', err);
     return NextResponse.json({
       paragraph: getFallbackGuidance(code, title),
       source: 'fallback_exception',
