@@ -82,6 +82,47 @@ async function getDriveClient(): Promise<drive_v3.Drive> {
   );
 }
 
+// ─── Cliente Google Drive para Subida (prioriza OAuth para cuota de usuario) ─
+async function getUploadDriveClient(): Promise<drive_v3.Drive> {
+  const refreshToken = process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN;
+  if (refreshToken) {
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      (process.env.NEXTAUTH_URL || 'http://localhost:3000') + '/api/auth/callback/google'
+    );
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+    return google.drive({ version: 'v3', auth: oauth2Client });
+  }
+
+  try {
+    const { createAdminClient } = await import('./supabase');
+    const supabase = createAdminClient();
+    const adminEmail = process.env.GOOGLE_DRIVE_ADMIN_EMAIL || 'mapping.procimec2024@gmail.com';
+
+    const { data } = await supabase
+      .from('users')
+      .select('drive_refresh_token')
+      .eq('email', adminEmail)
+      .single();
+
+    if (data?.drive_refresh_token) {
+      const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        (process.env.NEXTAUTH_URL || 'http://localhost:3000') + '/api/auth/callback/google'
+      );
+      oauth2Client.setCredentials({ refresh_token: data.drive_refresh_token });
+      return google.drive({ version: 'v3', auth: oauth2Client });
+    }
+  } catch (err) {
+    console.warn('Aviso obteniendo token admin de Supabase para subida:', err);
+  }
+
+  // Fallback a Service Account
+  return getDriveClient();
+}
+
 // ─── Extracción limpia de código y título ────────────────────────────────────
 function parseFormatName(rawName: string): { code: string; title: string } {
   const withoutExt = rawName.replace(/\.(xlsx|xls|gdoc|gsheet)$/i, '').trim();
@@ -371,8 +412,10 @@ export async function generateHseqEvidencePdf(params: {
 
   // 3. Subir a Google Drive en la carpeta de EVIDENCIAS
   try {
+    const uploadDrive = await getUploadDriveClient();
+
     // 3a. Subir como Google Spreadsheet (convierte el .xlsx manteniendo formato oficial exacto)
-    const evidenceSheet = await drive.files.create({
+    const evidenceSheet = await uploadDrive.files.create({
       requestBody: {
         name: titleBase,
         parents: [HSEQ_EVIDENCE_FOLDER_ID],
@@ -393,7 +436,7 @@ export async function generateHseqEvidencePdf(params: {
     if (uploadedFileId) {
       // Dar permisos de lectura pública/empresa
       try {
-        await drive.permissions.create({
+        await uploadDrive.permissions.create({
           fileId: uploadedFileId,
           requestBody: { role: 'reader', type: 'anyone' },
         });
@@ -403,7 +446,7 @@ export async function generateHseqEvidencePdf(params: {
 
       // 3b. Exportar como PDF nativo de Google Drive (renderizado idéntico a la plantilla)
       try {
-        const exportRes = await drive.files.export(
+        const exportRes = await uploadDrive.files.export(
           {
             fileId: uploadedFileId,
             mimeType: 'application/pdf',
@@ -417,7 +460,7 @@ export async function generateHseqEvidencePdf(params: {
 
       // 3c. También guardar el archivo .xlsx directo en la carpeta de EVIDENCIAS
       try {
-        await drive.files.create({
+        await uploadDrive.files.create({
           requestBody: {
             name: excelFileName,
             parents: [HSEQ_EVIDENCE_FOLDER_ID],
@@ -434,7 +477,11 @@ export async function generateHseqEvidencePdf(params: {
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    driveError = message;
+    if (message.includes('storage quota') || message.includes('invalid_grant')) {
+      driveError = 'El token de Google Drive ha expirado. Por favor, cierra sesión y vuelve a iniciar sesión con Google (mapping.procimec2024@gmail.com) para autorizar la subida automática a Drive.';
+    } else {
+      driveError = message;
+    }
     console.error('Error subiendo evidencia a Google Drive:', err);
   }
 

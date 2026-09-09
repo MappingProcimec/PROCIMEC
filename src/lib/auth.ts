@@ -10,10 +10,10 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          prompt: 'select_account',
+          prompt: 'consent select_account',
           access_type: 'offline',
           response_type: 'code',
-          scope: 'openid email profile',
+          scope: 'openid email profile https://www.googleapis.com/auth/drive',
         },
       },
     }),
