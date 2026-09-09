@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { drive_v3, google } from 'googleapis';
 
 export const HSEQ_TEMPLATES_FOLDER_ID =
@@ -252,15 +253,39 @@ export const DAY_COLUMN_MAP: Record<string, Record<'SI' | 'NO' | 'NA', string>> 
   DOMINGO:   { SI: 'W', NO: 'X', NA: 'Y' },
 };
 
+// ─── Lector seguro de texto en celdas (evita error null.toString en celdas combinadas de ExcelJS)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getCellSafeText(cell: any): string {
+  try {
+    if (!cell) return '';
+    const v = cell.value;
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    if (typeof v === 'object') {
+      if (Array.isArray(v.richText)) {
+        return v.richText.map((r: any) => (r && r.text ? String(r.text) : '')).join('');
+      }
+      if (v.text && typeof v.text === 'string') return v.text;
+      if (v.result !== undefined && v.result !== null) return String(v.result);
+      return '';
+    }
+    return '';
+  } catch {
+    return '';
+  }
+}
+
 // ─── Inyección de Datos y Marcas 'X' en Buffer de Excel (.xlsx) ──────────────
 export async function injectDataIntoExcelBuffer(
   templateBuffer: Buffer,
   textPlaceholders: Record<string, string>,
   matrixItems: InspectionMatrixItem[] = []
 ): Promise<Buffer> {
-  const ExcelJS = await import('exceljs');
+  const ExcelJSModule = await import('exceljs');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule;
   const workbook = new ExcelJS.Workbook();
-  // @ts-expect-error ExcelJS buffer load
   await workbook.xlsx.load(templateBuffer);
 
   const worksheet = workbook.worksheets[0];
@@ -274,8 +299,8 @@ export async function injectDataIntoExcelBuffer(
   // 1. Reemplazo directo de marcadores entre corchetes [TAG] o {{TAG}}
   const entries = Object.entries(textPlaceholders);
   if (entries.length > 0) {
-    worksheet.eachRow((row) => {
-      row.eachCell((cell) => {
+    worksheet.eachRow((row: any) => {
+      row.eachCell((cell: any) => {
         if (cell.value && typeof cell.value === 'string') {
           let updated = cell.value;
           for (const [tag, val] of entries) {
@@ -292,39 +317,39 @@ export async function injectDataIntoExcelBuffer(
   }
 
   // 2. Si las celdas tienen títulos estándar sin corchetes (ej. "FECHA:", "PROYECTO:"), escribir en celda contigua
-  worksheet.eachRow((row, rowNumber) => {
-    row.eachCell((cell, colNumber) => {
-      const cellText = (cell.text || '').trim().toUpperCase();
+  worksheet.eachRow((row: any, rowNumber: number) => {
+    row.eachCell((cell: any, colNumber: number) => {
+      const cellText = getCellSafeText(cell).trim().toUpperCase();
 
       if (fechaVal && (cellText === 'FECHA:' || cellText === 'FECHA' || cellText.startsWith('FECHA DE'))) {
         const nextCell = row.getCell(colNumber + 1);
-        if (!nextCell.value || String(nextCell.value).trim() === '') {
+        if (!getCellSafeText(nextCell).trim()) {
           nextCell.value = fechaVal;
         }
       }
 
       if (proyectoVal && (cellText === 'PROYECTO:' || cellText === 'PROYECTO' || cellText.startsWith('NOMBRE DEL PROYECTO'))) {
         const nextCell = row.getCell(colNumber + 1);
-        if (!nextCell.value || String(nextCell.value).trim() === '') {
+        if (!getCellSafeText(nextCell).trim()) {
           nextCell.value = proyectoVal;
         }
       }
 
       if (respVal && (cellText === 'RESPONSABLE:' || cellText === 'RESPONSABLE' || cellText === 'OPERADOR:' || cellText === 'LOCALIZADOR:')) {
         const nextCell = row.getCell(colNumber + 1);
-        if (!nextCell.value || String(nextCell.value).trim() === '') {
+        if (!getCellSafeText(nextCell).trim()) {
           nextCell.value = respVal;
         }
       }
 
       if (obsVal && (cellText === 'OBSERVACIONES:' || cellText === 'OBSERVACIONES' || cellText === 'NOTAS:')) {
         const nextCell = row.getCell(colNumber + 1);
-        if (!nextCell.value || String(nextCell.value).trim() === '') {
+        if (!getCellSafeText(nextCell).trim()) {
           nextCell.value = obsVal;
         } else {
           const rowBelow = worksheet.getRow(rowNumber + 1);
           const cellBelow = rowBelow.getCell(colNumber);
-          if (!cellBelow.value || String(cellBelow.value).trim() === '') {
+          if (!getCellSafeText(cellBelow).trim()) {
             cellBelow.value = obsVal;
           }
         }
@@ -572,39 +597,27 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
     );
     const templateBuffer = Buffer.from(downloadRes.data as ArrayBuffer);
 
-    const ExcelJS = await import('exceljs');
+    const ExcelJSModule = await import('exceljs');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule;
     const workbook = new ExcelJS.Workbook();
-    // @ts-expect-error ExcelJS buffer load
     await workbook.xlsx.load(templateBuffer);
 
-    const worksheet = workbook.worksheets.find((ws) => ws.rowCount > 5) || workbook.worksheets[0];
+    const worksheet = workbook.worksheets.find((ws: any) => ws.rowCount > 5) || workbook.worksheets[0];
     if (!worksheet) return { leftColumnItems: [], fullTextSummary: '' };
 
     const detectedLeftItems: string[] = [];
     const allLines: string[] = [];
 
-    worksheet.eachRow((row, rowNumber) => {
+    worksheet.eachRow((row: any, rowNumber: number) => {
       // Iniciar de la fila 10 para abajo
       if (rowNumber < 10) return;
 
       const candidateTexts: string[] = [];
       const allRowTexts: string[] = [];
 
-      row.eachCell((cell, colNumber) => {
-        let val = '';
-        if (typeof cell.value === 'string') {
-          val = cell.value;
-        } else if (cell.value && typeof cell.value === 'object') {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (Array.isArray((cell.value as any).richText)) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            val = (cell.value as any).richText.map((r: any) => r.text).join(' ');
-          } else {
-            val = cell.text || '';
-          }
-        } else if (cell.value !== null && cell.value !== undefined) {
-          val = String(cell.value);
-        }
+      row.eachCell((cell: any, colNumber: number) => {
+        const val = getCellSafeText(cell);
 
         const trimmed = val.trim();
         if (trimmed.length > 2) {
