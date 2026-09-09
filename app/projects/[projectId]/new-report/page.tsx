@@ -86,8 +86,8 @@ export default function NewReportPage() {
       setProjectId(projectId);
     }
     const currentUserName = session?.user?.fullName || session?.user?.name || '';
-    if (currentUserName && (!section1.operator_name || section1.operator_name === '')) {
-      updateSection1({ operator_name: currentUserName });
+    if (currentUserName && (!section1.localizador_name && !section1.operator_name)) {
+      updateSection1({ localizador_name: currentUserName, operator_name: currentUserName });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, session]);
@@ -110,7 +110,8 @@ export default function NewReportPage() {
         report_date: store.section1.report_date,
         report_time: store.section1.report_time,
         report_end_time: store.section1.report_end_time || null,
-        operator_name: store.section1.operator_name,
+        localizador_name: store.section1.localizador_name || store.section1.operator_name,
+        operator_name: store.section1.localizador_name || store.section1.operator_name,
         equipments_used: store.section1.equipments_used,
         gpr_equipment: store.section1.equipments_used.join(', '),
         positioning_equipment: store.section1.positioning_equipment,

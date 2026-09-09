@@ -1,6 +1,6 @@
 // ─── Auth & Users ─────────────────────────────────────────────────────────────
 
-export type UserRole = 'admin' | 'operator' | 'pending' | 'dibujo';
+export type UserRole = 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo';
 
 export interface AppUser {
   id: string;
@@ -79,6 +79,7 @@ export interface FieldReport {
   report_end_time?: string;
 
   // Section 1
+  localizador_name?: string;
   operator_name?: string;
   equipments_used?: string[];
   gpr_equipment?: string;
@@ -143,7 +144,8 @@ export interface Section1Data {
   report_date: string;
   report_time: string;
   report_end_time: string;
-  operator_name: string;
+  localizador_name: string;
+  operator_name?: string;
   equipments_used: string[];
   positioning_equipment: string;
   terrain_conditions: string;
@@ -241,7 +243,8 @@ export interface DriveFile {
 export interface DashboardStats {
   totalML: number;
   totalReports: number;
-  activeOperators: number;
+  activeLocators?: number;
+  activeOperators?: number;
   activeProjects: number;
 }
 

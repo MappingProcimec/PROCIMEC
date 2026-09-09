@@ -15,7 +15,7 @@ export default function LoginPage() {
     if (status === 'authenticated') {
       const role = session?.user?.role;
       if (role === 'admin') router.replace('/admin/dashboard');
-      else if (role === 'operator') router.replace('/projects');
+      else if (role === 'operator' || role === 'localizador') router.replace('/projects');
       else if (role === 'dibujo') router.replace('/dibujo');
       else router.replace('/pending');
     }

@@ -56,7 +56,7 @@ export function Step1({ onNext }: Step1Props) {
 
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
-  const defaultOperator = session?.user?.fullName || session?.user?.name || section1.operator_name || '';
+  const defaultOperator = session?.user?.fullName || session?.user?.name || section1.localizador_name || section1.operator_name || '';
 
   const {
     register,
@@ -69,6 +69,7 @@ export function Step1({ onNext }: Step1Props) {
       report_date: section1.report_date,
       report_time: section1.report_time || '',
       report_end_time: section1.report_end_time || '',
+      localizador_name: defaultOperator,
       operator_name: defaultOperator,
       equipments_used: selectedEquipments,
       positioning_equipment: section1.positioning_equipment || 'GNSS RTK',
@@ -80,11 +81,12 @@ export function Step1({ onNext }: Step1Props) {
 
   useEffect(() => {
     const currentUserName = session?.user?.fullName || session?.user?.name || '';
-    if (currentUserName && (!section1.operator_name || section1.operator_name === '')) {
-      setValue('operator_name', currentUserName, { shouldValidate: true });
-      updateSection1({ operator_name: currentUserName });
+    if (currentUserName && (!section1.localizador_name && !section1.operator_name)) {
+      setValue('localizador_name', currentUserName, { shouldValidate: true });
+      setValue('operator_name', currentUserName);
+      updateSection1({ localizador_name: currentUserName, operator_name: currentUserName });
     }
-  }, [session, section1.operator_name, setValue, updateSection1]);
+  }, [session, section1.localizador_name, section1.operator_name, setValue, updateSection1]);
 
   const toggleEquipment = (eqId: string) => {
     let updated: string[];
@@ -138,6 +140,8 @@ export function Step1({ onNext }: Step1Props) {
 
     updateSection1({
       ...data,
+      localizador_name: data.localizador_name,
+      operator_name: data.localizador_name,
       equipments_used: selectedEquipments,
       operational_summary: rows,
       global_max_depth: computedGlobalMax,
@@ -197,11 +201,11 @@ export function Step1({ onNext }: Step1Props) {
         </div>
         <input
           type="text"
-          className={`input font-medium text-text-primary ${errors.operator_name ? 'input-error' : ''}`}
+          className={`input font-medium text-text-primary ${errors.localizador_name ? 'input-error' : ''}`}
           placeholder="Nombre del localizador"
-          {...register('operator_name')}
+          {...register('localizador_name')}
         />
-        {errors.operator_name && <p className="error-msg">⚠ {errors.operator_name.message}</p>}
+        {errors.localizador_name && <p className="error-msg">⚠ {errors.localizador_name.message}</p>}
       </div>
 
       {/* Equipo de Localización (Multi-select) */}

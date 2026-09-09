@@ -22,8 +22,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/pending', request.url));
   }
 
-  // Operator trying to access admin
-  if (role === 'operator' && pathname.startsWith('/admin')) {
+  // Operator / Localizador trying to access admin
+  if ((role === 'operator' || role === 'localizador') && pathname.startsWith('/admin')) {
     return NextResponse.redirect(new URL('/projects', request.url));
   }
 

@@ -22,7 +22,7 @@ interface UserDivisionRole { division_id: string; role_id: string | null }
 interface User {
   id: string; email: string; full_name: string; avatar_url?: string;
   phone?: string | null;
-  role: 'admin' | 'operator' | 'pending' | 'dibujo';
+  role: 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo';
   role_id: string | null;
   roles: { id: string; name: string } | null;
   is_active: boolean; created_at: string;
@@ -53,13 +53,13 @@ async function fetchAll() {
   };
 }
 
-function deriveSystemRole(roleName: string): 'operator' | 'dibujo' {
+function deriveSystemRole(roleName: string): 'localizador' | 'operator' | 'dibujo' {
   const n = roleName.toLowerCase();
-  return n.includes('dibujo') || n.includes('cad') ? 'dibujo' : 'operator';
+  return n.includes('dibujo') || n.includes('cad') ? 'dibujo' : 'localizador';
 }
 
 const SYSTEM_BADGE: Record<string, string> = {
-  admin: 'badge-primary', pending: 'badge-warning', operator: 'badge-accent', dibujo: 'badge-success',
+  admin: 'badge-primary', pending: 'badge-warning', operator: 'badge-accent', localizador: 'badge-accent', dibujo: 'badge-success',
 };
 
 function userDisplayBadge(user: User, roleOptions: RoleOption[] = []) {
@@ -94,7 +94,7 @@ function getUserRoleIds(user: User, roleOptions: RoleOption[]): string[] {
   if (ids.size === 0 && user.role && user.role !== 'admin' && user.role !== 'pending') {
     const match = roleOptions.find(r =>
       r.name.toLowerCase() === user.role.toLowerCase() ||
-      (user.role === 'operator' && (r.name.toLowerCase().includes('localizador') || r.name.toLowerCase().includes('operador'))) ||
+      ((user.role === 'operator' || user.role === 'localizador') && (r.name.toLowerCase().includes('localizador') || r.name.toLowerCase().includes('operador'))) ||
       (user.role === 'dibujo' && r.name.toLowerCase().includes('dibujo'))
     );
     if (match) ids.add(match.id);

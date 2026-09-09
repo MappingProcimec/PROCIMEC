@@ -126,7 +126,7 @@ export async function createProjectFolder(
 // ─── Create session folder ────────────────────────────────────────────────────
 export async function createSessionFolder(
   projectFolderId: string,
-  operatorLastName: string,
+  locatorLastName: string,
   datetime: Date
 ): Promise<{ sessionFolder: DriveFolder; rawGprFolder: DriveFolder; gpsFolder: DriveFolder; photosFolder: DriveFolder }> {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -134,12 +134,12 @@ export async function createSessionFolder(
   const dateStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
   const timeStr = `${pad(d.getHours())}${pad(d.getMinutes())}`;
 
-  const cleanOperator = operatorLastName
+  const cleanLocator = locatorLastName
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9]/g, '_');
 
-  const sessionFolderName = `${dateStr}_${timeStr}_${cleanOperator}`;
+  const sessionFolderName = `${dateStr}_${timeStr}_${cleanLocator}`;
 
   const sessionFolder = await createFolder(sessionFolderName, projectFolderId);
 

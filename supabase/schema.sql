@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
   full_name TEXT NOT NULL,
   avatar_url TEXT,
   phone TEXT,
-  role TEXT CHECK (role IN ('admin', 'operator', 'pending', 'dibujo')) DEFAULT 'pending',
+  role TEXT CHECK (role IN ('admin', 'localizador', 'operator', 'pending', 'dibujo')) DEFAULT 'pending',
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS field_reports (
   report_time TIME,
 
   -- PASO 1: Datos del operativo
-  operator_name TEXT,
+  localizador_name TEXT,
   gpr_equipment TEXT,
   antenna_frequency TEXT,
   capture_method TEXT,

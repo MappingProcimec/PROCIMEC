@@ -1,14 +1,26 @@
 -- ==============================================================================
--- Migración 013: Renombrar rol 'Operador' a 'Localizador'
--- y actualizar etiqueta en catálogo de formularios.
+-- Migración 013: Renombrar rol 'Operador' a 'Localizador', 
+-- columna operator_name a localizador_name y actualizar esquema de formularios.
 -- ==============================================================================
 
--- 1. Actualizar el nombre del rol en la tabla roles
+-- 1. Renombrar rol en la tabla roles
 UPDATE roles
 SET name = 'Localizador'
 WHERE name = 'Operador';
 
--- 2. Actualizar la etiqueta del campo operator_name en el schema del formulario GPR
+-- 2. Renombrar columna en la tabla de reportes
+ALTER TABLE field_reports 
+RENAME COLUMN operator_name TO localizador_name;
+
+-- 3. Actualizar el constraint de roles de usuario
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check 
+CHECK (role IN ('admin', 'localizador', 'operator', 'pending', 'dibujo'));
+
+-- 4. Migrar los usuarios existentes con rol 'operator' a 'localizador'
+UPDATE users SET role = 'localizador' WHERE role = 'operator';
+
+-- 5. Actualizar la clave y etiqueta en el JSON del formulario de campo GPR
 UPDATE forms
 SET schema = jsonb_set(
   schema,
@@ -17,7 +29,11 @@ SET schema = jsonb_set(
     SELECT jsonb_agg(
       CASE 
         WHEN field->>'key' = 'operator_name' 
-        THEN jsonb_set(field, '{label}', '"Localizador responsable"')
+        THEN jsonb_set(
+          jsonb_set(field, '{key}', '"localizador_name"'),
+          '{label}',
+          '"Localizador responsable"'
+        )
         ELSE field 
       END
     )
@@ -25,7 +41,3 @@ SET schema = jsonb_set(
   )
 )
 WHERE slug = 'gpr-field-form';
-
--- 3. (Opcional) Si se desea actualizar el constraint histórico de la tabla users:
--- ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
--- ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'operator', 'pending', 'dibujo', 'localizador'));

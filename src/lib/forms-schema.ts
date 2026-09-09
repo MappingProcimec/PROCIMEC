@@ -141,7 +141,7 @@ export const PROCIMEC_FORM_CATALOG: Record<string, CanonicalFormDefinition> = {
         default: 'CURRENT_DATE',
       },
       {
-        key: 'operator_name',
+        key: 'localizador_name',
         label: 'Localizador responsable',
         type: 'text',
         required: true,

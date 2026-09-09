@@ -229,7 +229,7 @@ export async function generateFieldReportDocx({
     new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
-        twoColRow('Localizador Responsable', report.operator_name || '—'),
+        twoColRow('Localizador Responsable', report.localizador_name || report.operator_name || '—'),
         twoColRow('Equipos Utilizados', equipmentsText),
         twoColRow('Equipo de Posicionamiento', report.positioning_equipment || '—'),
         twoColRow('Método de Captura', report.capture_method || '—'),
@@ -417,7 +417,7 @@ export async function generateFieldReportDocx({
             new TableCell({
               children: [
                 new Paragraph({ children: [boldRun('Localizador Responsable:', 22)], spacing: { after: 60 } }),
-                new Paragraph({ children: [normalRun(report.operator_name || '—', 20)] }),
+                new Paragraph({ children: [normalRun(report.localizador_name || report.operator_name || '—', 20)] }),
                 new Paragraph({ children: [normalRun('', 20)], spacing: { after: 250 } }),
                 new Paragraph({ children: [normalRun('Firma: ________________________________', 20)] }),
                 new Paragraph({ children: [normalRun(`Fecha: ${reportDate}`, 20)], spacing: { after: 150 } }),

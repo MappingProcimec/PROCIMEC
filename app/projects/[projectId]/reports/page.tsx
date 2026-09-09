@@ -132,7 +132,7 @@ export default function ReportsPage() {
                       {report.report_date ? format(new Date(report.report_date + 'T00:00:00'), "dd 'de' MMMM yyyy", { locale: es }) : '—'}
                       {report.report_time ? ` · ${report.report_time}` : ''}
                     </p>
-                    <p className="text-xs text-text-muted mt-0.5">{report.operator_name} · {report.gpr_equipment}</p>
+                    <p className="text-xs text-text-muted mt-0.5">{report.localizador_name || report.operator_name} · {report.gpr_equipment}</p>
 
                     <div className="flex gap-3 mt-2 text-xs">
                       <span className="font-semibold text-primary">{ml.toFixed(1)} ML</span>

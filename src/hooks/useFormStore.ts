@@ -10,6 +10,7 @@ const defaultSection1: Section1Data = {
   report_date: format(new Date(), 'yyyy-MM-dd'),
   report_time: format(new Date(), 'HH:mm'),
   report_end_time: '',
+  localizador_name: '',
   operator_name: '',
   equipments_used: ['GPR'],
   positioning_equipment: '',

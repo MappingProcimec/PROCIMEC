@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 // POST /api/reports — Create field report record + create Drive session folders
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || !['admin', 'operator'].includes(session.user.role || '')) {
+  if (!session || !['admin', 'localizador', 'operator'].includes(session.user.role || '')) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       try {
         const { sessionFolder, rawGprFolder, gpsFolder, photosFolder } = await createSessionFolder(
           parentDriveFolderId,
-          reportData.operator_name || session.user.name || 'Localizador',
+          reportData.localizador_name || reportData.operator_name || session.user.name || 'Localizador',
           new Date()
         );
         sessionFolderId = sessionFolder.id;
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
         created_by: session.user.id,
         report_date: reportData.report_date,
         report_time: formattedTime,
-        operator_name: reportData.operator_name,
+        localizador_name: reportData.localizador_name || reportData.operator_name || session.user.name,
         gpr_equipment: formattedEquipments,
         positioning_equipment: reportData.positioning_equipment,
         terrain_conditions: reportData.terrain_conditions,
