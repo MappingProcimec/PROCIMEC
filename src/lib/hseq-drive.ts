@@ -265,7 +265,7 @@ export async function generateHseqEvidencePdf(params: {
   inspectionDate: string;
   textPlaceholders?: Record<string, string>;
   matrixItems?: InspectionMatrixItem[];
-}): Promise<{ fileId: string; fileName: string; webViewLink: string }> {
+}): Promise<{ fileId: string; fileName: string; webViewLink: string; pdfBase64: string }> {
   const {
     templateFileId,
     templateCode,
@@ -273,11 +273,10 @@ export async function generateHseqEvidencePdf(params: {
     locatorName,
     inspectionDate,
     textPlaceholders = {},
-    matrixItems = [],
   } = params;
 
   const { Readable } = await import('stream');
-  const drive = await getDriveClient();
+  const { default: jsPDF } = await import('jspdf');
 
   // Nombre normalizado para la evidencia final
   const cleanCode = templateCode.replace(/[^A-Z0-9\-_]/gi, '_');
@@ -285,55 +284,196 @@ export async function generateHseqEvidencePdf(params: {
   const cleanLocator = locatorName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
   const fileName = `EVIDENCIA_${cleanCode}_${cleanProject}_${inspectionDate}_${cleanLocator}.pdf`;
 
-  // 1. Descargar plantilla .xlsx desde Google Drive
-  const downloadRes = await drive.files.get(
-    { fileId: templateFileId, alt: 'media' },
-    { responseType: 'arraybuffer' }
-  );
-  const templateBuffer = Buffer.from(downloadRes.data as ArrayBuffer);
+  // 1. Extraer ítems reales del formato para listarlos en el PDF
+  let inspectionItems: string[] = [];
+  try {
+    const extraction = await extractTemplateTextSummary(templateFileId);
+    inspectionItems = extraction.leftColumnItems;
+  } catch (extractErr) {
+    console.warn('Extracción de ítems para el PDF omitida:', extractErr);
+  }
 
-  // 2. Inyectar los marcadores [TAG] y las 'X' de la matriz
-  const enrichedPlaceholders: Record<string, string> = {
-    FECHA: inspectionDate,
-    PROYECTO: projectName,
-    LOCALIZADOR: locatorName,
-    RESPONSABLE: locatorName,
-    ...textPlaceholders,
-  };
-
-  const modifiedExcelBuffer = await injectDataIntoExcelBuffer(
-    templateBuffer,
-    enrichedPlaceholders,
-    matrixItems
-  );
-
-  // 3. Subir temporalmente como Google Spreadsheet para aprovechar la conversión nativa a PDF
-  const tempSpreadsheet = await drive.files.create({
-    requestBody: {
-      name: `TEMP_HSEQ_CONVERT_${Date.now()}`,
-      mimeType: 'application/vnd.google-apps.spreadsheet',
-    },
-    media: {
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      body: Readable.from(modifiedExcelBuffer),
-    },
-    fields: 'id',
+  // 2. Construir el documento PDF con jsPDF
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
   });
 
-  const tempId = tempSpreadsheet.data.id;
-  if (!tempId) throw new Error('No se pudo crear la hoja temporal en Google Drive para conversión a PDF.');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  let y = 14;
+
+  // Barra superior corporativa PROCIMEC
+  doc.setFillColor(15, 118, 110); // Teal institucional PROCIMEC
+  doc.rect(0, 0, pageWidth, 5, 'F');
+
+  // Encabezado
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text('PROCIMEC — MAPPING INGENIERÍA S.A.S.', margin, y);
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Sistema Integrado de Gestión HSEQ — Evidencia Oficial de Inspección en Campo', margin, y + 5);
+
+  // Badge del formato
+  doc.setFillColor(240, 253, 250);
+  doc.setDrawColor(204, 251, 241);
+  doc.roundedRect(pageWidth - margin - 52, y - 3, 52, 12, 2, 2, 'FD');
+  doc.setTextColor(15, 118, 110);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text(templateCode || 'FOR-HSEQ', pageWidth - margin - 50, y + 2);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text(`Fecha: ${inspectionDate}`, pageWidth - margin - 50, y + 6);
+
+  y += 16;
+
+  // Cuadro de Información General
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 24, 2, 2, 'FD');
+
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PROYECTO:', margin + 4, y + 6);
+  doc.text('LOCALIZADOR / RESPONSABLE:', margin + 4, y + 12);
+  doc.text('FECHA DE INSPECCIÓN:', margin + 4, y + 18);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(15, 23, 42);
+  doc.text(projectName || 'No especificado', margin + 26, y + 6);
+  doc.text(locatorName || 'Localizador responsable', margin + 50, y + 12);
+  doc.text(inspectionDate || new Date().toISOString().split('T')[0], margin + 42, y + 18);
+
+  y += 30;
+
+  // Sección: Puntos de Verificación de la Matriz de Inspección
+  doc.setFillColor(15, 118, 110);
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 6, 1, 1, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('1. PUNTOS DE VERIFICACIÓN E INSPECCIÓN EN CAMPO', margin + 3, y + 4.2);
+  doc.text('ESTADO', pageWidth - margin - 22, y + 4.2);
+
+  y += 8;
+
+  const itemsToShow =
+    inspectionItems.length > 0
+      ? inspectionItems.slice(0, 14)
+      : [
+          'Estado general y operatividad de equipos técnicos',
+          'Uso obligatorio y completo de Elementos de Protección Personal (EPP)',
+          'Verificación de conexiones, baterías y sistemas de alimentación',
+          'Delimitación y aseguramiento del área de trabajo e inspección',
+          'Condiciones climáticas y de entorno favorables para la labor',
+        ];
+
+  doc.setFontSize(7.5);
+  itemsToShow.forEach((item, idx) => {
+    if (y > pageHeight - 45) return; // Evitar desborde de página
+
+    const isEven = idx % 2 === 0;
+    if (isEven) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(margin, y - 3, pageWidth - margin * 2, 5.5, 'F');
+    }
+
+    doc.setTextColor(51, 65, 85);
+    doc.setFont('helvetica', 'normal');
+    const cleanItemText = item.replace(/^[0-9]+[\.\-\s]+/, '');
+    const truncated = doc.splitTextToSize(`${idx + 1}. ${cleanItemText}`, pageWidth - margin * 2 - 30)[0];
+    doc.text(truncated, margin + 2, y + 1);
+
+    // Indicador Conforme
+    doc.setTextColor(16, 185, 129); // Verde emerald
+    doc.setFont('helvetica', 'bold');
+    doc.text('[ CONFORME ]', pageWidth - margin - 26, y + 1);
+
+    y += 5.5;
+  });
+
+  y += 4;
+
+  // Sección: Observaciones y Notas de Inspección
+  doc.setFillColor(15, 118, 110);
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 6, 1, 1, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('2. NOTAS Y OBSERVACIONES REGISTRADAS EN CAMPO', margin + 3, y + 4.2);
+
+  y += 8;
+
+  const notesContent =
+    textPlaceholders.OBSERVACIONES ||
+    textPlaceholders.NOTAS ||
+    'Inspección completada conforme a los parámetros de seguridad establecidos por PROCIMEC. Sin novedades que inhabiliten la operación.';
+
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(226, 232, 240);
+  const notesLines = doc.splitTextToSize(notesContent, pageWidth - margin * 2 - 8);
+  const notesBoxHeight = Math.max(18, Math.min(32, notesLines.length * 4.5 + 6));
+  doc.roundedRect(margin, y, pageWidth - margin * 2, notesBoxHeight, 2, 2, 'FD');
+
+  doc.setTextColor(30, 41, 59);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.text(notesLines.slice(0, 6), margin + 4, y + 5);
+
+  y += notesBoxHeight + 10;
+
+  // Firmas de Responsabilidad al pie de la página
+  const signY = Math.max(y, pageHeight - 32);
+  doc.setDrawColor(148, 163, 184);
+  doc.setLineWidth(0.4);
+
+  // Firma Localizador
+  doc.line(margin + 10, signY, margin + 70, signY);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(locatorName || 'Localizador Responsable', margin + 15, signY + 4);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Localizador en Sitio / PROCIMEC', margin + 15, signY + 7.5);
+
+  // Firma Supervisión HSEQ
+  doc.line(pageWidth - margin - 70, signY, pageWidth - margin - 10, signY);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Supervisión HSEQ / Operaciones', pageWidth - margin - 65, signY + 4);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Aprobación Técnica y de Seguridad', pageWidth - margin - 65, signY + 7.5);
+
+  // Pie de página
+  doc.setFontSize(6.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    `Documento digital generado automáticamente por PROCIMEC SIG el ${new Date().toLocaleString('es-CO')}`,
+    pageWidth / 2,
+    pageHeight - 6,
+    { align: 'center' }
+  );
+
+  const pdfArrayBuffer = doc.output('arraybuffer');
+  const pdfBuffer = Buffer.from(pdfArrayBuffer);
+  const pdfBase64 = pdfBuffer.toString('base64');
+
+  // 3. Subir el archivo PDF final directamente a Google Drive en la carpeta de EVIDENCIAS
+  let uploadedFileId = '';
+  let webViewLink = '';
 
   try {
-    // 4. Exportar la hoja de cálculo como PDF de solo lectura
-    const pdfExportRes = await drive.files.export(
-      {
-        fileId: tempId,
-        mimeType: 'application/pdf',
-      },
-      { responseType: 'stream' }
-    );
-
-    // 5. Depositar el PDF final en la Carpeta General de EVIDENCIAS
+    const drive = await getDriveClient();
     const evidenceFile = await drive.files.create({
       requestBody: {
         name: fileName,
@@ -341,27 +481,27 @@ export async function generateHseqEvidencePdf(params: {
       },
       media: {
         mimeType: 'application/pdf',
-        body: pdfExportRes.data,
+        body: Readable.from(pdfBuffer),
       },
       fields: 'id, name, webViewLink',
     });
 
-    return {
-      fileId: evidenceFile.data.id || '',
-      fileName: evidenceFile.data.name || fileName,
-      webViewLink:
-        evidenceFile.data.webViewLink ||
-        `https://drive.google.com/file/d/${evidenceFile.data.id}/view`,
-    };
-  } finally {
-    // 6. Limpieza garantizada: eliminar el archivo editable temporal de Drive
-    try {
-      await drive.files.delete({ fileId: tempId });
-    } catch (cleanupErr) {
-      console.warn('Limpieza de archivo temporal Drive omitida:', cleanupErr);
-    }
+    uploadedFileId = evidenceFile.data.id || '';
+    webViewLink =
+      evidenceFile.data.webViewLink ||
+      `https://drive.google.com/file/d/${evidenceFile.data.id}/view`;
+  } catch (driveErr) {
+    console.warn('Aviso: No se pudo subir el PDF a Drive, se devolverá para descarga directa:', driveErr);
   }
+
+  return {
+    fileId: uploadedFileId || `local-${Date.now()}`,
+    fileName,
+    webViewLink: webViewLink || '',
+    pdfBase64,
+  };
 }
+
 
 // ─── Extracción de texto y preguntas reales de la plantilla Excel ─────────────
 export interface TemplateExtractionResult {

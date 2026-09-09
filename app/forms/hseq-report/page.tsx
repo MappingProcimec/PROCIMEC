@@ -102,6 +102,7 @@ export default function HseqReportFormPage() {
   const [generatedPdfResult, setGeneratedPdfResult] = useState<{
     fileName: string;
     webViewLink?: string;
+    pdfBase64?: string;
   } | null>(null);
 
   // 1. Asignar automáticamente el nombre del usuario logueado como Localizador responsable
@@ -194,8 +195,13 @@ export default function HseqReportFormPage() {
     }
   };
 
-  // Reconocimiento de Voz nativo del navegador (SpeechRecognition / webkitSpeechRecognition)
+  const shouldBeRecordingRef = useRef(false);
+  const baseVoiceNotesRef = useRef('');
+  const sessionTranscriptRef = useRef('');
+
+  // Reconocimiento de Voz continuo sin duplicación y sin cortes
   const stopListening = useCallback(() => {
+    shouldBeRecordingRef.current = false;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -216,35 +222,78 @@ export default function HseqReportFormPage() {
       return;
     }
 
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch {
+        // Ignorar
+      }
+    }
+
     try {
       const recognition = new SpeechRecognition();
       recognition.lang = 'es-CO';
       recognition.continuous = true;
       recognition.interimResults = true;
 
+      shouldBeRecordingRef.current = true;
+      baseVoiceNotesRef.current = voiceNotes.trim();
+      sessionTranscriptRef.current = '';
+
       recognition.onstart = () => {
         setIsRecording(true);
       };
 
+      // Reemplazar limpiamente la transcripción de la sesión actual sin duplicar palabras
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recognition.onresult = (event: any) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            transcript += event.results[i][0].transcript + ' ';
-          }
+        let currentFull = '';
+        for (let i = 0; i < event.results.length; i++) {
+          currentFull += event.results[i][0].transcript + ' ';
         }
-        if (transcript.trim()) {
-          setVoiceNotes((prev) => (prev ? `${prev.trim()} ${transcript.trim()}` : transcript.trim()));
+        currentFull = currentFull.trim();
+
+        if (currentFull) {
+          sessionTranscriptRef.current = currentFull;
+          const base = baseVoiceNotesRef.current;
+          setVoiceNotes(base ? `${base} ${currentFull}` : currentFull);
         }
       };
 
-      recognition.onerror = () => {
-        setIsRecording(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onerror = (err: any) => {
+        // Ignorar pausas breves de silencio
+        if (err.error === 'no-speech' && shouldBeRecordingRef.current) {
+          return;
+        }
       };
 
       recognition.onend = () => {
-        setIsRecording(false);
+        // Auto-reiniciar si el usuario sigue hablando para evitar que se corte por pausas
+        if (shouldBeRecordingRef.current) {
+          if (sessionTranscriptRef.current) {
+            const base = baseVoiceNotesRef.current;
+            baseVoiceNotesRef.current = base
+              ? `${base} ${sessionTranscriptRef.current}`.trim()
+              : sessionTranscriptRef.current.trim();
+            sessionTranscriptRef.current = '';
+          }
+          try {
+            recognition.start();
+          } catch {
+            setTimeout(() => {
+              if (shouldBeRecordingRef.current) {
+                try {
+                  recognition.start();
+                } catch {
+                  // Ignorar
+                }
+              }
+            }, 250);
+          }
+        } else {
+          setIsRecording(false);
+        }
       };
 
       recognitionRef.current = recognition;
@@ -252,8 +301,9 @@ export default function HseqReportFormPage() {
     } catch (err) {
       console.error('Error al inicializar reconocimiento de voz:', err);
       setIsRecording(false);
+      shouldBeRecordingRef.current = false;
     }
-  }, []);
+  }, [voiceNotes]);
 
   const toggleRecording = () => {
     if (isRecording) {
@@ -265,6 +315,7 @@ export default function HseqReportFormPage() {
 
   useEffect(() => {
     return () => {
+      shouldBeRecordingRef.current = false;
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -321,6 +372,7 @@ export default function HseqReportFormPage() {
       setGeneratedPdfResult({
         fileName: data.fileName,
         webViewLink: data.webViewLink,
+        pdfBase64: data.pdfBase64,
       });
       setSubmissionSuccess(true);
     } catch (err: unknown) {
@@ -328,6 +380,29 @@ export default function HseqReportFormPage() {
       setSubmitError(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const downloadLocalPdf = () => {
+    if (!generatedPdfResult?.pdfBase64) return;
+    try {
+      const byteCharacters = atob(generatedPdfResult.pdfBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = generatedPdfResult.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Error al descargar PDF local:', e);
     }
   };
 
@@ -415,14 +490,24 @@ export default function HseqReportFormPage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              {generatedPdfResult.pdfBase64 && (
+                <button
+                  type="button"
+                  onClick={downloadLocalPdf}
+                  className="btn bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-sm transition-all"
+                >
+                  <span>⬇️</span> Descargar PDF Oficial
+                </button>
+              )}
+
               {generatedPdfResult.webViewLink && (
                 <a
                   href={generatedPdfResult.webViewLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm"
+                  className="btn bg-white hover:bg-gray-50 text-teal-800 border border-teal-300 text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-sm transition-all"
                 >
-                  <span>📄</span> Abrir PDF en Google Drive
+                  <span>📄</span> Ver en Google Drive
                 </a>
               )}
 
@@ -435,7 +520,7 @@ export default function HseqReportFormPage() {
                   setGuidanceParagraph('');
                   setVoiceNotes('');
                 }}
-                className="btn bg-gray-100 hover:bg-gray-200 text-text-primary text-xs font-semibold px-4 py-2 rounded-xl"
+                className="btn bg-gray-100 hover:bg-gray-200 text-text-primary text-xs font-semibold px-4 py-2.5 rounded-xl"
               >
                 + Diligenciar Otra Inspección
               </button>
@@ -643,26 +728,40 @@ export default function HseqReportFormPage() {
                     4. Notas y Observaciones de Inspección en Campo
                   </label>
                   <p className="text-[11px] text-text-muted">
-                    Responde aquí a las preguntas guía del punto anterior (puedes dictar por voz o escribir).
+                    Responde aquí a las preguntas guía (mantén presionado para hablar o haz clic para alternar).
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  className={`text-xs px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 border transition-all ${
+                  onTouchStart={(e) => {
+                    // Soporte presionar y mantener en móvil
+                    if (!isRecording) {
+                      e.preventDefault();
+                      startListening();
+                    }
+                  }}
+                  onTouchEnd={(e) => {
+                    if (isRecording) {
+                      e.preventDefault();
+                      stopListening();
+                    }
+                  }}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 border transition-all select-none ${
                     isRecording
                       ? 'bg-red-500 text-white border-red-600 animate-pulse shadow-sm'
-                      : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
+                      : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100 active:bg-teal-200'
                   }`}
+                  title="Toca para alternar o mantén presionado para hablar"
                 >
-                  <span>{isRecording ? '⏹ Detener Dictado' : '🎙️ Dictar por Voz'}</span>
+                  <span>{isRecording ? '⏹ Detener Dictado' : '🎙️ Mantén o Toca para Dictar'}</span>
                 </button>
               </div>
 
               {isRecording && (
                 <div className="flex items-center gap-2 text-[11px] text-red-600 font-medium px-2 animate-pulse">
                   <span className="w-2 h-2 rounded-full bg-red-600" />
-                  <span>Escuchando micrófono... Habla de forma clara respondiendo a las pautas de inspección.</span>
+                  <span>Escuchando micrófono continuamente... Habla de forma clara respondiendo a las pautas de inspección.</span>
                 </div>
               )}
 

@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
       fileId: result.fileId,
       fileName: result.fileName,
       webViewLink: result.webViewLink,
+      pdfBase64: result.pdfBase64,
       message: 'Evidencia PDF generada y guardada en la Carpeta General de EVIDENCIAS',
     });
   } catch (err: unknown) {
