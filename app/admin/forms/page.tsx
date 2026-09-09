@@ -101,12 +101,6 @@ const TOOL_META: Record<string, { icon: string; description: string; tag: string
     tag: 'Control / Asistencia',
     path: '/tools/attendance-tracker',
   },
-  'hseq-formats': {
-    icon: '🦺',
-    description: 'Gestión inteligente de formatos HSEQ con IA: plantillas en Google Drive y llenado guiado por voz para Localizadores con exportación a PDF.',
-    tag: 'HSEQ / Calidad y Seguridad',
-    path: '/tools/hseq-formats',
-  },
   'evidence-board': {
     icon: '📋',
     description: 'Tablero centralizado de evidencias HSEQ en PDF almacenadas en Google Drive, con filtros por localizador, proyecto y fecha.',

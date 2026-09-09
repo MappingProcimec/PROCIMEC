@@ -1,6 +1,7 @@
 -- ==============================================================================
--- Migración 014: Registrar categoría HSEQ, herramientas y formularios HSEQ
--- y asegurar la nomenclatura oficial del rol 'Localizador'.
+-- Migración 014: Registrar categoría HSEQ, Tablero de Evidencias y Formulario HSEQ.
+-- Nota: En Supabase SQL Editor, si el enum aún no tiene 'hseq', ejecutar primero:
+-- ALTER TYPE tool_category ADD VALUE IF NOT EXISTS 'hseq';
 -- ==============================================================================
 
 -- 1. Extender ENUM tool_category con valor 'hseq'
@@ -10,15 +11,11 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
--- 2. Registrar herramientas HSEQ en la tabla tools
+-- 2. Limpiar herramienta redundante si existiera
+DELETE FROM tools WHERE slug = 'hseq-formats';
+
+-- 3. Registrar herramienta: Tablero de Evidencias HSEQ
 INSERT INTO tools (slug, name, description, category, is_universal) VALUES
-  (
-    'hseq-formats',
-    'Gestión y Llenado HSEQ con IA',
-    'Asistente inteligente para la configuración de plantillas HSEQ (rol HSEQ) y llenado ágil guiado por voz/formulario (rol Localizador) con exportación directa a PDF.',
-    'hseq',
-    false
-  ),
   (
     'evidence-board',
     'Tablero de Evidencias HSEQ',
@@ -31,11 +28,11 @@ ON CONFLICT (slug) DO UPDATE SET
   description = EXCLUDED.description,
   category = EXCLUDED.category;
 
--- 3. Registrar formulario de inspección HSEQ en la tabla forms
+-- 4. Registrar formulario: Formulario de Inspección HSEQ
 INSERT INTO forms (slug, name, description, steps_count, has_attachments) VALUES
   (
     'hseq-report',
-    'Formulario de Inspección HSEQ (con IA)',
+    'Formulario de Inspección HSEQ',
     'Formulario de campo HSEQ para Localizadores con soporte de dictado por voz y generación directa de PDF en Google Drive.',
     2,
     true

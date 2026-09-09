@@ -266,7 +266,6 @@ export type ToolSlug =
   | 'org-chart-ai'
   | 'dynamic-dashboard'
   | 'attendance-tracker'
-  | 'hseq-formats'
   | 'evidence-board';
 
 export interface Tool {

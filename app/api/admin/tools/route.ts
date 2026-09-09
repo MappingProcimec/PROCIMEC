@@ -24,15 +24,6 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const tools = (data ?? []) as { id: string; slug: string; name: string; category: string; is_universal: boolean }[];
   const slugs = new Set(tools.map((t) => t.slug));
-  if (!slugs.has('hseq-formats')) {
-    tools.push({
-      id: 'hseq-formats-synthetic',
-      slug: 'hseq-formats',
-      name: 'Gestión y Llenado HSEQ con IA',
-      category: 'hseq',
-      is_universal: false,
-    });
-  }
   if (!slugs.has('evidence-board')) {
     tools.push({
       id: 'evidence-board-synthetic',

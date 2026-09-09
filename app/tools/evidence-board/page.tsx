@@ -140,21 +140,6 @@ export default function EvidenceBoardToolPage() {
                 Consolidado centralizado de evidencias en formato PDF generadas por los <strong className="text-amber-300 font-semibold">Localizadores</strong> en campo y almacenadas en la Carpeta General de Google Drive.
               </p>
             </div>
-
-            <div className="flex items-center gap-2.5">
-              <Link
-                href="/tools/hseq-formats"
-                className="btn bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5"
-              >
-                <span>🦺</span> Asistente IA HSEQ
-              </Link>
-              <Link
-                href="/forms/hseq-report"
-                className="btn bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold px-3.5 py-2 rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
-              >
-                <span>✍️</span> Nuevo Formulario
-              </Link>
-            </div>
           </div>
         </div>
       </div>

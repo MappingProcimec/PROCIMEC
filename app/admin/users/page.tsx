@@ -647,36 +647,6 @@ export default function AdminUsersPage() {
                         </div>
                         <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap">
                           <span>{user.email}</span>
-                          {user.user_division_roles && user.user_division_roles.length > 0 && (
-                            <>
-                              <span className="text-gray-300">•</span>
-                              <div className="flex items-center gap-1 flex-wrap">
-                                {Array.from(new Set(user.user_division_roles.map(udr => udr.division_id))).map(divId => {
-                                  const divName = divisions.find(d => d.id === divId)?.name;
-                                  if (!divName) return null;
-                                  return (
-                                    <span key={divId} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                                      🏢 {divName}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            </>
-                          )}
-                          {user.phone && (
-                            <>
-                              <span className="text-gray-300">•</span>
-                              <a
-                                href={`https://wa.me/${user.phone.replace(/[^0-9]/g, '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded font-medium transition-colors"
-                                title="Abrir chat de WhatsApp"
-                              >
-                                <span>💬</span> {user.phone}
-                              </a>
-                            </>
-                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">

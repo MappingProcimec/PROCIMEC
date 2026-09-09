@@ -18,12 +18,12 @@ export default function HseqReportFormPage() {
   const toggleRecording = () => {
     if (!isRecording) {
       setIsRecording(true);
-      // Simulate speech-to-text recording
+      // Simular captura de dictado por voz
       setTimeout(() => {
         setVoiceNotes((prev) =>
           prev
-            ? `${prev}\nInspección completada por el Localizador. Equipos de protección en regla, condiciones de terreno seguras y sin novedades de riesgo crítico.`
-            : 'Inspección completada por el Localizador. Equipos de protección en regla, condiciones de terreno seguras y sin novedades de riesgo crítico.'
+            ? `${prev}\nInspección completada por el Localizador. Equipos de protección verificados, condiciones de terreno seguras y sin novedades de riesgo crítico.`
+            : 'Inspección completada por el Localizador. Equipos de protección verificados, condiciones de terreno seguras y sin novedades de riesgo crítico.'
         );
         setIsRecording(false);
       }, 2500);
@@ -48,38 +48,22 @@ export default function HseqReportFormPage() {
       <div className="page-hero">
         <div className="max-w-3xl mx-auto">
           <BackButton href="/dashboard" label="Volver al Panel" />
-          <div className="flex flex-wrap items-center justify-between gap-4 mt-3">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="badge bg-teal-500/20 text-teal-200 border border-teal-400/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                  HSEQ / Calidad y Seguridad
-                </span>
-                <span className="badge bg-amber-500/20 text-amber-200 border border-amber-400/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                  Rol: Localizador
-                </span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2">
-                <span>✍️</span> Formulario de Inspección HSEQ (con IA)
-              </h1>
-              <p className="text-white/80 text-sm mt-1 max-w-xl">
-                Diligenciamiento asistido por voz para el <strong className="text-amber-300 font-semibold">Localizador</strong>. Los datos completan la plantilla en Google Drive y se exportan automáticamente a un PDF inalterable.
-              </p>
+          <div className="mt-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="badge bg-teal-500/20 text-teal-200 border border-teal-400/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
+                HSEQ / Calidad y Seguridad
+              </span>
+              <span className="badge bg-amber-500/20 text-amber-200 border border-amber-400/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
+                Rol: Localizador
+              </span>
             </div>
-
-            <div className="flex items-center gap-2">
-              <Link
-                href="/tools/hseq-formats"
-                className="btn bg-white/10 hover:bg-white/20 text-white border border-white/20 text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
-              >
-                🦺 Asistente HSEQ
-              </Link>
-              <Link
-                href="/tools/evidence-board"
-                className="btn bg-teal-500 hover:bg-teal-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
-              >
-                📋 Tablero Evidencias
-              </Link>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2">
+              <span>✍️</span> Formulario de Inspección HSEQ
+            </h1>
+            <p className="text-white/80 text-sm mt-1 max-w-xl">
+              Diligenciamiento de inspección de campo para el <strong className="text-amber-300 font-semibold">Localizador</strong>.
+              Genera automáticamente la evidencia en PDF y la deposita en la Carpeta General.
+            </p>
           </div>
         </div>
       </div>
@@ -100,7 +84,8 @@ export default function HseqReportFormPage() {
                 </span>
               </div>
               <p className="text-xs text-text-secondary mt-1 leading-relaxed">
-                Este formulario representa la interfaz simplificada que el <strong>Localizador</strong> utilizará en campo. La información no se almacena en tablas redundantes: se inyecta en la plantilla oficial y genera la evidencia final en PDF.
+                Este formulario es el punto de captura oficial para el <strong>Localizador</strong> en campo.
+                La información no se almacena en tablas redundantes: se plasma directamente en la plantilla oficial y genera la evidencia final en PDF.
               </p>
             </div>
           </div>
@@ -115,10 +100,10 @@ export default function HseqReportFormPage() {
               </div>
               <div>
                 <h3 className="font-bold text-emerald-900 text-sm">
-                  ¡Evidencia HSEQ Generada y Exportada a PDF con Éxito!
+                  ¡Evidencia HSEQ Generada y Guardada en PDF con Éxito!
                 </h3>
                 <p className="text-xs text-emerald-700">
-                  El PDF ha sido depositado en la Carpeta General de Evidencias y vinculado al Tablero.
+                  El archivo PDF ha sido depositado en la Carpeta General de Evidencias.
                 </p>
               </div>
             </div>
@@ -126,16 +111,16 @@ export default function HseqReportFormPage() {
             <div className="bg-white rounded-xl border border-emerald-200 p-4 text-xs space-y-1.5 text-text-secondary">
               <p>📄 <strong>Archivo:</strong> EVIDENCIA_{formatCode}_PROYECTO_{inspectionDate}.pdf</p>
               <p>📍 <strong>Localizador:</strong> {locatorName}</p>
-              <p>📁 <strong>Ubicación:</strong> Google Drive / PROCIMEC_EVIDENCIAS_GENERAL</p>
+              <p>📁 <strong>Destino:</strong> Google Drive / Carpeta General de Evidencias</p>
               <p>🔒 <strong>Integridad:</strong> Formato cerrado de solo lectura (inmutable para auditoría HSEQ).</p>
             </div>
 
             <div className="flex items-center gap-3 pt-2">
               <Link
-                href="/tools/evidence-board"
+                href="/dashboard"
                 className="btn bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-sm"
               >
-                Ver en Tablero de Evidencias →
+                Volver a Mi Panel
               </Link>
               <button
                 type="button"
@@ -145,7 +130,7 @@ export default function HseqReportFormPage() {
                 }}
                 className="btn bg-gray-100 hover:bg-gray-200 text-text-secondary text-xs font-semibold px-4 py-2 rounded-xl"
               >
-                Nuevo Diligenciamiento
+                Diligenciar otro formulario
               </button>
             </div>
           </div>
@@ -159,14 +144,14 @@ export default function HseqReportFormPage() {
                 Datos de Campo — Localizador Responsable
               </h2>
               <p className="text-xs text-text-muted mt-0.5">
-                Selecciona la plantilla de Google Drive y registra las condiciones observadas.
+                Selecciona la plantilla correspondiente y registra las condiciones observadas.
               </p>
             </div>
 
             {/* Select Format */}
             <div>
               <label className="text-xs font-bold text-text-primary uppercase tracking-wide block mb-1.5">
-                Formato HSEQ (Plantilla en Google Drive) <span className="text-red-500">*</span>
+                Formato HSEQ <span className="text-red-500">*</span>
               </label>
               <select
                 value={formatCode}
@@ -226,11 +211,11 @@ export default function HseqReportFormPage() {
               </div>
             </div>
 
-            {/* AI Voice Dictation Field */}
+            {/* Voice / Notes Field */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                  Dictado por Voz / Notas de Inspección (IA Gemini)
+                  Notas y Observaciones de Inspección en Campo
                 </label>
                 <button
                   type="button"
@@ -249,11 +234,11 @@ export default function HseqReportFormPage() {
                 rows={4}
                 value={voiceNotes}
                 onChange={(e) => setVoiceNotes(e.target.value)}
-                placeholder="El Localizador puede dictar por audio o escribir libremente: estado de arneses, equipo de protección, condiciones de clima, hallazgos..."
+                placeholder="El Localizador puede dictar por audio o escribir: estado de arneses, equipo de protección, condiciones de clima, hallazgos..."
                 className="w-full text-xs p-3 rounded-xl border border-border focus:ring-2 focus:ring-teal-500 focus:outline-none leading-relaxed"
               />
               <p className="text-[11px] text-text-muted">
-                ✨ La Inteligencia Artificial interpretará el texto para ubicar las respuestas en cada casilla de la plantilla en Google Drive.
+                El sistema procesa las notas para completar los campos de la plantilla correspondiente.
               </p>
             </div>
 

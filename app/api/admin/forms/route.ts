@@ -28,7 +28,7 @@ export async function GET() {
     normalized.push({
       id: 'hseq-report-synthetic',
       slug: 'hseq-report',
-      name: 'Formulario de Inspección HSEQ (con IA)',
+      name: 'Formulario de Inspección HSEQ',
       description: 'Formulario de campo HSEQ para Localizadores con soporte de dictado por voz y generación directa de PDF en Google Drive.',
       steps_count: 2,
       has_attachments: true,
