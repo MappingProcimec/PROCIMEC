@@ -27,9 +27,9 @@ const nextConfig = {
       { protocol: 'https', hostname: 'drive.google.com' },
     ],
   },
-  // Required for googleapis on server
+  // Required for googleapis and exceljs on server
   experimental: {
-    serverComponentsExternalPackages: ['googleapis', 'google-auth-library'],
+    serverComponentsExternalPackages: ['googleapis', 'google-auth-library', 'exceljs'],
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {

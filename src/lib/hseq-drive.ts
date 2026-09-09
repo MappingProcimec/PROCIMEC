@@ -182,3 +182,183 @@ export async function scanHseqTemplates(forceRefresh = false): Promise<HseqTempl
 
   return results;
 }
+
+// ─── Mapeo Oficial de Columnas por Día (Checklist Semanal) ───────────────────
+export interface InspectionMatrixItem {
+  fila: number;
+  dia: string;
+  estado: 'SI' | 'NO' | 'NA';
+}
+
+export const DAY_COLUMN_MAP: Record<string, Record<'SI' | 'NO' | 'NA', string>> = {
+  LUNES:     { SI: 'E', NO: 'F', NA: 'G' },
+  MARTES:    { SI: 'H', NO: 'I', NA: 'J' },
+  MIERCOLES: { SI: 'K', NO: 'L', NA: 'M' },
+  'MIÉRCOLES': { SI: 'K', NO: 'L', NA: 'M' },
+  JUEVES:    { SI: 'N', NO: 'O', NA: 'P' },
+  VIERNES:   { SI: 'Q', NO: 'R', NA: 'S' },
+  SABADO:    { SI: 'T', NO: 'U', NA: 'V' },
+  'SÁBADO':  { SI: 'T', NO: 'U', NA: 'V' },
+  DOMINGO:   { SI: 'W', NO: 'X', NA: 'Y' },
+};
+
+// ─── Inyección de Datos y Marcas 'X' en Buffer de Excel (.xlsx) ──────────────
+export async function injectDataIntoExcelBuffer(
+  templateBuffer: Buffer,
+  textPlaceholders: Record<string, string>,
+  matrixItems: InspectionMatrixItem[] = []
+): Promise<Buffer> {
+  const ExcelJS = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  // @ts-expect-error ExcelJS buffer load
+  await workbook.xlsx.load(templateBuffer);
+
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) throw new Error('El archivo Excel de plantilla no contiene hojas de trabajo válidas.');
+
+  // 1. Reemplazar marcadores entre corchetes [TAG] o {{TAG}}
+  const entries = Object.entries(textPlaceholders);
+  if (entries.length > 0) {
+    worksheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        if (cell.value && typeof cell.value === 'string') {
+          let updated = cell.value;
+          for (const [tag, val] of entries) {
+            const regexBracket = new RegExp(`\\[${tag}\\]`, 'gi');
+            const regexCurly = new RegExp(`\\{\\{${tag}\\}\\}`, 'gi');
+            updated = updated.replace(regexBracket, val).replace(regexCurly, val);
+          }
+          if (updated !== cell.value) {
+            cell.value = updated;
+          }
+        }
+      });
+    });
+  }
+
+  // 2. Inyectar 'X' en la matriz semanal según el día y estado
+  for (const item of matrixItems) {
+    const fila = item.fila;
+    const diaNorm = (item.dia || '').trim().toUpperCase();
+    const estadoNorm = (item.estado || '').trim().toUpperCase() as 'SI' | 'NO' | 'NA';
+
+    const dayMap = DAY_COLUMN_MAP[diaNorm];
+    if (dayMap && dayMap[estadoNorm]) {
+      const colLetter = dayMap[estadoNorm];
+      const targetCell = `${colLetter}${fila}`;
+      const cell = worksheet.getCell(targetCell);
+      cell.value = 'X';
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    }
+  }
+
+  const outputBuffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(outputBuffer);
+}
+
+// ─── Generación de Evidencia y Conversión en Vuelo a PDF ─────────────────────
+export async function generateHseqEvidencePdf(params: {
+  templateFileId: string;
+  templateCode: string;
+  projectName: string;
+  locatorName: string;
+  inspectionDate: string;
+  textPlaceholders?: Record<string, string>;
+  matrixItems?: InspectionMatrixItem[];
+}): Promise<{ fileId: string; fileName: string; webViewLink: string }> {
+  const {
+    templateFileId,
+    templateCode,
+    projectName,
+    locatorName,
+    inspectionDate,
+    textPlaceholders = {},
+    matrixItems = [],
+  } = params;
+
+  const { Readable } = await import('stream');
+  const drive = await getDriveClient();
+
+  // Nombre normalizado para la evidencia final
+  const cleanCode = templateCode.replace(/[^A-Z0-9\-_]/gi, '_');
+  const cleanProject = projectName.replace(/[^a-zA-Z0-9\-_]/g, '_').substring(0, 30);
+  const cleanLocator = locatorName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+  const fileName = `EVIDENCIA_${cleanCode}_${cleanProject}_${inspectionDate}_${cleanLocator}.pdf`;
+
+  // 1. Descargar plantilla .xlsx desde Google Drive
+  const downloadRes = await drive.files.get(
+    { fileId: templateFileId, alt: 'media' },
+    { responseType: 'arraybuffer' }
+  );
+  const templateBuffer = Buffer.from(downloadRes.data as ArrayBuffer);
+
+  // 2. Inyectar los marcadores [TAG] y las 'X' de la matriz
+  const enrichedPlaceholders: Record<string, string> = {
+    FECHA: inspectionDate,
+    PROYECTO: projectName,
+    LOCALIZADOR: locatorName,
+    RESPONSABLE: locatorName,
+    ...textPlaceholders,
+  };
+
+  const modifiedExcelBuffer = await injectDataIntoExcelBuffer(
+    templateBuffer,
+    enrichedPlaceholders,
+    matrixItems
+  );
+
+  // 3. Subir temporalmente como Google Spreadsheet para aprovechar la conversión nativa a PDF
+  const tempSpreadsheet = await drive.files.create({
+    requestBody: {
+      name: `TEMP_HSEQ_CONVERT_${Date.now()}`,
+      mimeType: 'application/vnd.google-apps.spreadsheet',
+    },
+    media: {
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      body: Readable.from(modifiedExcelBuffer),
+    },
+    fields: 'id',
+  });
+
+  const tempId = tempSpreadsheet.data.id;
+  if (!tempId) throw new Error('No se pudo crear la hoja temporal en Google Drive para conversión a PDF.');
+
+  try {
+    // 4. Exportar la hoja de cálculo como PDF de solo lectura
+    const pdfExportRes = await drive.files.export(
+      {
+        fileId: tempId,
+        mimeType: 'application/pdf',
+      },
+      { responseType: 'stream' }
+    );
+
+    // 5. Depositar el PDF final en la Carpeta General de EVIDENCIAS
+    const evidenceFile = await drive.files.create({
+      requestBody: {
+        name: fileName,
+        parents: [HSEQ_EVIDENCE_FOLDER_ID],
+      },
+      media: {
+        mimeType: 'application/pdf',
+        body: pdfExportRes.data,
+      },
+      fields: 'id, name, webViewLink',
+    });
+
+    return {
+      fileId: evidenceFile.data.id || '',
+      fileName: evidenceFile.data.name || fileName,
+      webViewLink:
+        evidenceFile.data.webViewLink ||
+        `https://drive.google.com/file/d/${evidenceFile.data.id}/view`,
+    };
+  } finally {
+    // 6. Limpieza garantizada: eliminar el archivo editable temporal de Drive
+    try {
+      await drive.files.delete({ fileId: tempId });
+    } catch (cleanupErr) {
+      console.warn('Limpieza de archivo temporal Drive omitida:', cleanupErr);
+    }
+  }
+}
