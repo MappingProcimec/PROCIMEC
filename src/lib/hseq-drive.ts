@@ -383,7 +383,7 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
     // @ts-expect-error ExcelJS buffer load
     await workbook.xlsx.load(templateBuffer);
 
-    const worksheet = workbook.worksheets[0];
+    const worksheet = workbook.worksheets.find((ws) => ws.rowCount > 5) || workbook.worksheets[0];
     if (!worksheet) return { leftColumnItems: [], fullTextSummary: '' };
 
     const detectedLeftItems: string[] = [];
@@ -412,9 +412,12 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
         const trimmed = val.trim();
         if (trimmed.length > 2) {
           allRowTexts.push(trimmed);
-          // Las columnas de preguntas de inspección están en la izquierda (columnas 1 a 4, antes de los días que inician en E=5)
-          if (colNumber <= 4 && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
-            leftColTexts.push(trimmed);
+          // Columnas A (1), B (2), C (3), D (4) hasta la columna E (5)
+          if (colNumber <= 5 && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
+            // Excluir si es únicamente marca SI/NO/NA
+            if (!/^(si|no|na|n\/a)$/i.test(trimmed)) {
+              leftColTexts.push(trimmed);
+            }
           }
         }
       });
@@ -422,8 +425,8 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
       const leftCombined = leftColTexts.join(' - ').trim();
       // Filtrar cabeceras institucionales que no son preguntas de la matriz
       if (
-        leftCombined.length > 6 &&
-        !/^(código|codigo|versión|version|fecha|proyecto|localizador|responsable|cliente|semana|mes|año|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|firma|observaciones|notas|convenciones|si|no|na|n\/a|item|ítem|descripcion|descripción)$/i.test(leftCombined)
+        leftCombined.length > 5 &&
+        !/^(código|codigo|versión|version|fecha|proyecto|localizador|responsable|cliente|semana|mes|año|firma|observaciones|notas|convenciones|item|ítem|descripcion|descripción)$/i.test(leftCombined)
       ) {
         detectedLeftItems.push(leftCombined);
       }
