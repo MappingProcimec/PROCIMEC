@@ -181,6 +181,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   type RawFieldReport = {
     id: string;
     report_date?: string;
+    localizador_name?: string;
     operator_name?: string;
     status?: string;
     operational_summary?: { ml?: number }[];
@@ -205,7 +206,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (allProjectIds.length > 0) {
     const { data: frData } = await supabase
       .from('field_reports')
-      .select('id, report_date, operator_name, status, operational_summary, docx_drive_url, drive_session_folder_url, project_id, created_at, projects(name, cost_center)')
+      .select('id, report_date, localizador_name, status, operational_summary, docx_drive_url, drive_session_folder_url, project_id, created_at, projects(name, cost_center)')
       .in('project_id', allProjectIds)
       .order('report_date', { ascending: false });
 
@@ -221,7 +222,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         form_name: 'Formulario Campo GPR',
         project_name: pName,
         project_code: pCode,
-        operator_name: fr.operator_name || '—',
+        operator_name: fr.localizador_name || fr.operator_name || '—',
         detail: `${totalML} ml`,
         status: fr.status || 'Enviado',
         url: fr.docx_drive_url || fr.drive_session_folder_url || null,

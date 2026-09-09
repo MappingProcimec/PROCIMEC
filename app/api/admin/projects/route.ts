@@ -14,6 +14,7 @@ interface FieldReport {
   id: string;
   operational_summary: OperationalSummaryRow[];
   report_date?: string;
+  localizador_name?: string;
   operator_name?: string;
   cad_priority?: string;
   status?: string;
@@ -126,7 +127,7 @@ export async function GET() {
   // 1. Proyectos con sus field_reports
   const { data: dbProjects, error } = await supabase
     .from('projects')
-    .select('*, field_reports(id, operational_summary, report_date, operator_name, cad_priority, status, docx_drive_url, drive_session_folder_url, gpr_equipment, positioning_equipment)')
+    .select('*, field_reports(id, operational_summary, report_date, localizador_name, cad_priority, status, docx_drive_url, drive_session_folder_url, gpr_equipment, positioning_equipment)')
     .order('name', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

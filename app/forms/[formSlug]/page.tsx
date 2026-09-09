@@ -29,7 +29,7 @@ const FORM_CONFIGS: Record<string, FormConfig> = {
         required: true,
       },
       {
-        key: 'operator_name',
+        key: 'localizador_name',
         label: 'Localizador / Responsable de campo',
         type: 'text',
         required: true,
@@ -139,7 +139,7 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
     step1Fields: [
       { key: 'project_id', label: 'Proyecto', type: 'select', required: true },
       { key: 'date', label: 'Fecha', type: 'date', required: true },
-      { key: 'operator_name', label: 'Responsable', type: 'text', required: true },
+      { key: 'localizador_name', label: 'Responsable', type: 'text', required: true },
       { key: 'notes', label: 'Observaciones', type: 'textarea' },
     ],
   };

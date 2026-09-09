@@ -11,6 +11,7 @@ interface DivisionOption { id: string; name: string }
 interface FieldReport {
   id: string;
   report_date: string;
+  localizador_name?: string;
   operator_name?: string;
   cad_priority?: string;
   status: string;
@@ -1123,7 +1124,7 @@ export default function AdminProjectsPage() {
                     id: `campo-${r.id}`,
                     area: 'campo' as const,
                     date: r.report_date || '',
-                    responsible: r.operator_name || '—',
+                    responsible: r.localizador_name || r.operator_name || '—',
                     detail: `${ml.toFixed(1)} ml${m2 > 0 ? ` · ${m2.toFixed(1)} m²` : ''}`,
                     equipmentInfo: `${isLoc ? '📡 Mapeo' : ''}${isLoc && isPos ? ' + ' : ''}${isPos ? '🛰️ Geo' : ''}`,
                     statusOrType: r.status === 'submitted' ? 'Enviado' : r.status === 'reviewed' ? 'Revisado' : 'Borrador',
