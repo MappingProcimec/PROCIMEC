@@ -3,33 +3,87 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { extractTemplateTextSummary } from '@/lib/hseq-drive';
 
-// Respuestas de respaldo de alta calidad según temática del formato
-function getFallbackGuidance(code: string, title: string): string {
-  const c = (code || '').toUpperCase();
-  const t = (title || '').toUpperCase();
+// Generador de respaldo de alta fidelidad basado en los ítems reales de la columna izquierda
+function buildFallbackFromItems(
+  items: string[],
+  code: string,
+  title: string
+): string {
+  const cleanTitle = title || code || 'Inspección';
 
-  if (c.includes('012') || t.includes('ALTURA')) {
-    return 'Durante la inspección en campo para este formato de Trabajo en Alturas, verifique y responda con atención: ¿El arnés de cuerpo entero, las eslingas de posicionamiento y las líneas de vida se encuentran limpios, sin cortes, quemaduras ni costuras descosidas?, ¿los absorbedores de choque y mosquetones cuentan con doble seguro operativo y certificación visible?, ¿los puntos de anclaje estructurales fueron evaluados y garantizan la resistencia reglamentaria?, ¿el Localizador y el personal en sitio poseen su certificación vigente de trabajo en alturas y aptitud física?, y ¿las condiciones meteorológicas en la zona son estables, libres de lluvia, vientos fuertes o tormenta eléctrica?';
+  if (items && items.length > 0) {
+    const formattedQuestions = items
+      .slice(0, 6)
+      .map((it) => {
+        const clean = it
+          .replace(/^[¿?0-9\.\-\s•|]+|[¿?]+$/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        return `¿${clean}?`;
+      })
+      .filter((q) => q.length > 5)
+      .join(', ');
+
+    if (formattedQuestions.length > 15) {
+      return `Durante la inspección técnica en campo para el formato ${code} (${cleanTitle}), verifique y responda con atención a las pautas de la matriz: ${formattedQuestions}, garantizando las condiciones de seguridad requeridas para la labor.`;
+    }
   }
 
-  if (c.includes('005') || t.includes('EPP')) {
-    return 'Para la inspección técnica de Elementos de Protección Personal (EPP), observe detenidamente e indique: ¿El casco dieléctrico cuenta con su tafilete y barbuquejo de 3 puntos en perfecto estado?, ¿las gafas de seguridad con protección UV están limpias y libres de fisuras o rayones?, ¿el calzado de seguridad con puntera certificada y suela antideslizante se encuentra en uso activo?, ¿los guantes de protección corresponden exactamente al riesgo mecánico, químico o eléctrico de la labor?, y ¿se dispone de protección auditiva y respiratoria adecuada según el nivel de ruido y material particulado del entorno?';
+  // Si por alguna razón no se extrajeron ítems, personalizar según el título
+  const t = cleanTitle.toUpperCase();
+  if (t.includes('DRONE') || t.includes('DRON')) {
+    return 'Durante la inspección preoperacional de Drone para este formato, verifique y responda con atención: ¿El fuselaje, motores y hélices se encuentran sin fisuras ni holguras?, ¿las baterías del equipo y del control remoto cuentan con carga completa y temperatura óptima?, ¿la brújula, sensores anticolisión y GPS calibraron con éxito?, ¿la tarjeta de memoria y la cámara están operativas para la misión?, y ¿el área de despegue y aterrizaje está libre de obstáculos con condiciones de viento seguras?';
   }
 
-  if (c.includes('021') || t.includes('PERMISO') || t.includes('VIA') || t.includes('VÍA') || t.includes('TRANSITO')) {
-    return 'Durante la verificación de señalización y permisos de trabajo en vía, confirme y detalle: ¿Se instalaron todos los conos reflectivos, colombinas y vallas delimitando con suficiente distancia el área de trabajo y al personal?, ¿el paletero asignado cuenta con su dotación reglamentaria, chaleco de alta visibilidad y paleta pare/siga en mano?, ¿se valoraron los peligros del entorno como flujo vehicular pesado, excavaciones adyacentes o líneas energizadas?, ¿se dispone de extintor con manómetro en verde y botiquín de primeros auxilios dotado?, y ¿los permisos de trabajo y el plan de contingencia fueron coordinados y aprobados con la supervisión de obra?';
+  return `Durante la inspección técnica en campo para el formato ${code} (${cleanTitle}), verifique y responda atentamente: ¿Se comprobaron todos los ítems de seguridad y estado de los equipos requeridos?, ¿el personal cuenta con sus Elementos de Protección Personal correspondientes?, ¿se evaluaron los riesgos de la zona y del entorno?, y ¿se dispone de los permisos y medidas de control antes del inicio?`;
+}
+
+// Función auxiliar para llamar a Gemini con soporte para múltiples modelos
+async function callGemini(apiKey: string, prompt: string): Promise<string | null> {
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+
+  for (const model of models) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 380,
+          },
+        }),
+      });
+
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (text && text.length > 40) {
+          return text.replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+      } else {
+        const errText = await res.text();
+        console.warn(`Gemini (${model}) status ${res.status}:`, errText);
+      }
+    } catch (callErr) {
+      console.warn(`Error llamando a Gemini (${model}):`, callErr);
+    }
   }
 
-  if (c.includes('008') || t.includes('VEHICUL') || t.includes('EQUIPO') || t.includes('PREOPERACIONAL')) {
-    return 'En la inspección preoperacional de vehículo y equipos de exploración, compruebe y precise: ¿Los niveles de aceite de motor, refrigerante, líquido de frenos y dirección hidráulica se encuentran en el rango óptimo?, ¿todas las luces principales, direccionales, intermitentes, de freno y reversa operan al 100%?, ¿la presión, labrado y estado general de los neumáticos (incluyendo la llanta de repuesto) son seguros?, ¿el kit de carretera reglamentario, botiquín y extintor vigente se encuentran a bordo?, y ¿el Localizador cuenta con licencia de conducción y documentación técnica del vehículo al día?';
-  }
-
-  if (c.includes('LOC') || t.includes('GPR') || t.includes('GEORRADAR') || t.includes('ELECTROMAGNET')) {
-    return 'Al realizar la verificación operativa del equipo de localización GPR y electromagnético, constate e informe: ¿La batería, cables de conexión, odómetro y antena se encuentran secos, limpios y sin señales de desgaste o fisuras?, ¿el software de adquisición de datos inicializa y calibra la velocidad del suelo correctamente?, ¿el área de exploración fue despejada de obstáculos superficiales o interferencias metálicas no registradas?, ¿el Localizador porta su chaleco reflectivo y calzado de seguridad en todo el recorrido?, y ¿se tienen identificados los puntos de referencia fijos para la georreferenciación precisa del trazado?';
-  }
-
-  // Respaldo general para cualquier otro formato FOR-*
-  return `Durante la inspección técnica en campo para el formato ${code || 'HSEQ'} (${title || 'Inspección de Seguridad'}), verifique y responda de manera clara: ¿El área de trabajo se encuentra limpia, ordenada y libre de obstáculos o riesgos locativos?, ¿las herramientas y equipos utilizados cuentan con mantenimiento al día y operación segura?, ¿el personal cuenta con todos sus Elementos de Protección Personal correspondientes y en uso continuo?, ¿se realizó la charla de seguridad y evaluación de peligros previa al inicio de actividades?, y ¿se tiene identificado el plan de evacuación y los medios de comunicación en caso de emergencia?`;
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -60,13 +114,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 1. Extraer el contenido real de la plantilla Excel desde Google Drive
-  let extractedExcelText = '';
+  // 1. Extraer ítems reales de la columna izquierda de la matriz desde Google Drive
+  let leftColumnItems: string[] = [];
+  let fullTextSummary = '';
+
   if (templateFileId && !templateFileId.startsWith('fallback-')) {
     try {
-      extractedExcelText = await extractTemplateTextSummary(templateFileId);
+      const extraction = await extractTemplateTextSummary(templateFileId);
+      leftColumnItems = extraction.leftColumnItems;
+      fullTextSummary = extraction.fullTextSummary;
     } catch (extractErr) {
-      console.warn('No se pudo extraer texto del Excel de Drive:', extractErr);
+      console.warn('No se pudo extraer la columna izquierda del Excel de Drive:', extractErr);
     }
   }
 
@@ -74,86 +132,63 @@ export async function POST(req: NextRequest) {
 
   if (!apiKey) {
     return NextResponse.json({
-      paragraph: getFallbackGuidance(code, title),
+      paragraph: buildFallbackFromItems(leftColumnItems, code, title),
       source: 'fallback_no_key',
     });
   }
 
-  try {
-    const excelContextSection = extractedExcelText
-      ? `\nHemos leído e inspeccionado el archivo Excel oficial de la plantilla desde Google Drive. Los ítems, preguntas y criterios reales extraídos son:\n"""\n${extractedExcelText}\n"""\nUtiliza ESTOS ÍTEMS REALES como base primordial para formular las preguntas del párrafo.`
-      : '';
+  // 2. Armar el prompt para Gemini centrado en los ítems de la columna izquierda
+  const itemsContext =
+    leftColumnItems.length > 0
+      ? `Las preguntas y puntos de inspección extraídos directamente de la columna izquierda de la matriz del formato son:\n${leftColumnItems
+          .map((it, idx) => `${idx + 1}. ${it}`)
+          .join('\n')}`
+      : fullTextSummary
+      ? `Texto extraído de la plantilla:\n${fullTextSummary}`
+      : `El formato es: ${code} - ${title} (Carpeta: ${folderName})`;
 
-    const prompt = `Actúa como un especialista senior en HSEQ (Seguridad, Salud en el Trabajo, Medio Ambiente y Calidad) de PROCIMEC.
-El Localizador en campo ha seleccionado el siguiente formato de inspección oficial:
-- Código del formato: "${code || 'FOR-HSEQ'}"
-- Título o tema: "${title || 'Inspección de Seguridad'}"
+  const prompt = `Actúa como especialista senior en HSEQ de la empresa PROCIMEC.
+El Localizador en campo acaba de seleccionar el siguiente formato de inspección oficial:
+- Formato: "${code || 'FOR-HSEQ'}" - "${title || 'Inspección'}"
 - Carpeta en Google Drive: "${folderName || 'General'}"
-${excelContextSection}
 
-Tu tarea:
-Analizar la temática y contenido de este formato y redactar UN SOLO PÁRRAFO continuo y fluido que contenga una serie de preguntas de verificación e inspección directamente pertinentes a este formato específico.
-El Localizador leerá este párrafo y responderá de viva voz o por escrito.
+CONTENIDO REAL DE LA COLUMNA IZQUIERDA DE LA MATRIZ DE INSPECCIÓN:
+"""
+${itemsContext}
+"""
 
-Reglas estrictas de redacción:
-1. Debe ser exactamente UN SOLO PÁRRAFO de texto corrido.
-2. Inicia con una frase orientadora: "Durante la inspección en campo para este formato de ${title || code}, verifique y responda detalladamente: ..."
-3. Formula entre 4 y 6 preguntas claras, técnicas y concretas basadas en los riesgos y puntos de control propios de este formato.
-4. NO uses viñetas, guiones, asteriscos, listas numeradas ni saltos de línea.
-5. NO incluyas saludos ni introducciones previas. Devuelve únicamente el párrafo final redactado.`;
+TU TAREA:
+Analiza detenidamente las preguntas y puntos de chequeo de la columna izquierda del formato indicado arriba (por ejemplo, si es drone, concéntrate en fuselaje, hélices, calibración, baterías, cámara y condiciones de vuelo; si es otro formato, en sus puntos exactos).
+Redacta UN SOLO PÁRRAFO continuo y fluido que reúna una serie de preguntas de verificación directa basadas FIELMENTE en estos ítems de la matriz para que el Localizador las responda en el audio o por escrito.
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
+REGLAS ESTRICTAS DE REDACCIÓN:
+1. Exactamente UN SOLO PÁRRAFO de texto corrido.
+2. Inicia con: "Durante la inspección en campo para este formato de ${title || code}, verifique y responda detalladamente: ..."
+3. Integra entre 4 y 6 preguntas concretas y específicas derivadas de los ítems de la columna izquierda.
+4. NO uses listas con viñetas, guiones, asteriscos ni saltos de línea.
+5. NO incluyas introducciones ni saludos. Devuelve única y exclusivamente el párrafo final redactado.`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  try {
+    const aiParagraph = await callGemini(apiKey, prompt);
 
-    const res = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 400,
-        },
-      }),
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      console.warn('Gemini API status:', res.status);
+    if (aiParagraph) {
       return NextResponse.json({
-        paragraph: getFallbackGuidance(code, title),
-        source: 'fallback_gemini_error',
+        paragraph: aiParagraph,
+        source: 'gemini_analyzed_left_column',
+        itemsCount: leftColumnItems.length,
       });
     }
 
-    const data = await res.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-    if (rawText && rawText.length > 40) {
-      const cleanParagraph = rawText.replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim();
-      return NextResponse.json({
-        paragraph: cleanParagraph,
-        source: 'gemini_ai_analyzed',
-        hasExcelContext: Boolean(extractedExcelText),
-      });
-    }
-
+    // Si Gemini no respondió, usar generador estructurado a partir de los ítems de la columna izquierda
     return NextResponse.json({
-      paragraph: getFallbackGuidance(code, title),
-      source: 'fallback_empty_response',
+      paragraph: buildFallbackFromItems(leftColumnItems, code, title),
+      source: 'fallback_extracted_items',
+      itemsCount: leftColumnItems.length,
     });
   } catch (err) {
-    console.error('Error al generar pautas con Gemini AI:', err);
+    console.error('Error al procesar con IA:', err);
     return NextResponse.json({
-      paragraph: getFallbackGuidance(code, title),
+      paragraph: buildFallbackFromItems(leftColumnItems, code, title),
       source: 'fallback_exception',
     });
   }

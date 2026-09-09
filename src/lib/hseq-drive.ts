@@ -364,7 +364,12 @@ export async function generateHseqEvidencePdf(params: {
 }
 
 // ─── Extracción de texto y preguntas reales de la plantilla Excel ─────────────
-export async function extractTemplateTextSummary(templateFileId: string): Promise<string> {
+export interface TemplateExtractionResult {
+  leftColumnItems: string[];
+  fullTextSummary: string;
+}
+
+export async function extractTemplateTextSummary(templateFileId: string): Promise<TemplateExtractionResult> {
   try {
     const drive = await getDriveClient();
     const downloadRes = await drive.files.get(
@@ -379,12 +384,16 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
     await workbook.xlsx.load(templateBuffer);
 
     const worksheet = workbook.worksheets[0];
-    if (!worksheet) return '';
+    if (!worksheet) return { leftColumnItems: [], fullTextSummary: '' };
 
-    const lines: string[] = [];
-    worksheet.eachRow((row) => {
-      const rowTexts: string[] = [];
-      row.eachCell((cell) => {
+    const detectedLeftItems: string[] = [];
+    const allLines: string[] = [];
+
+    worksheet.eachRow((row, rowNumber) => {
+      const leftColTexts: string[] = [];
+      const allRowTexts: string[] = [];
+
+      row.eachCell((cell, colNumber) => {
         let val = '';
         if (typeof cell.value === 'string') {
           val = cell.value;
@@ -401,19 +410,36 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
         }
 
         const trimmed = val.trim();
-        if (trimmed.length > 2 && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
-          rowTexts.push(trimmed);
+        if (trimmed.length > 2) {
+          allRowTexts.push(trimmed);
+          // Las columnas de preguntas de inspección están en la izquierda (columnas 1 a 4, antes de los días que inician en E=5)
+          if (colNumber <= 4 && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
+            leftColTexts.push(trimmed);
+          }
         }
       });
 
-      if (rowTexts.length > 0) {
-        lines.push(`• ${rowTexts.join(' | ')}`);
+      const leftCombined = leftColTexts.join(' - ').trim();
+      // Filtrar cabeceras institucionales que no son preguntas de la matriz
+      if (
+        leftCombined.length > 6 &&
+        !/^(código|codigo|versión|version|fecha|proyecto|localizador|responsable|cliente|semana|mes|año|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|firma|observaciones|notas|convenciones|si|no|na|n\/a|item|ítem|descripcion|descripción)$/i.test(leftCombined)
+      ) {
+        detectedLeftItems.push(leftCombined);
+      }
+
+      if (allRowTexts.length > 0) {
+        allLines.push(`Fila ${rowNumber}: ${allRowTexts.join(' | ')}`);
       }
     });
 
-    return lines.slice(0, 50).join('\n');
+    return {
+      leftColumnItems: detectedLeftItems.slice(0, 30),
+      fullTextSummary: allLines.slice(0, 45).join('\n'),
+    };
   } catch (err) {
     console.warn(`No se pudo extraer texto de la plantilla ${templateFileId}:`, err);
-    return '';
+    return { leftColumnItems: [], fullTextSummary: '' };
   }
 }
+
