@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
@@ -35,64 +35,27 @@ interface TemplatesApiResponse {
   warning?: string;
 }
 
-interface GuidedQuestion {
-  id: string;
-  fila: number;
-  question: string;
-}
-
-function getQuestionsForTemplate(code = '', title = ''): GuidedQuestion[] {
+function getFallbackGuidanceParagraph(code = '', title = ''): string {
   const c = code.toUpperCase();
   const t = title.toUpperCase();
 
   if (c.includes('012') || t.includes('ALTURA')) {
-    return [
-      { id: 'q1', fila: 11, question: '¿Arnés cuerpo entero y eslingas de posicionamiento sin cortes, quemaduras o costuras rotas?' },
-      { id: 'q2', fila: 12, question: '¿Línea de vida con absorbedor de choque certificado y mosquetones con doble seguro operativo?' },
-      { id: 'q3', fila: 13, question: '¿Puntos de anclaje estructurales verificados con resistencia mínima certificada?' },
-      { id: 'q4', fila: 14, question: '¿El Localizador y personal cuentan con certificación vigente para trabajo en alturas?' },
-      { id: 'q5', fila: 15, question: '¿Condiciones meteorológicas favorables (sin lluvia, vientos fuertes ni tormenta eléctrica)?' },
-    ];
+    return 'Durante la inspección en campo para este formato de Trabajo en Alturas, verifique y responda con atención: ¿El arnés de cuerpo entero, eslingas de posicionamiento y líneas de vida se encuentran limpios, sin cortes ni costuras rotas?, ¿los mosquetones con doble seguro y absorbedores de choque cuentan con certificación vigente y operativa?, ¿los puntos de anclaje estructurales fueron inspeccionados con resistencia mínima certificada?, ¿el personal y el Localizador cuentan con su certificado de trabajo en alturas al día?, y ¿las condiciones climáticas son óptimas sin vientos fuertes, lluvia ni tormenta eléctrica?';
   }
 
   if (c.includes('005') || t.includes('EPP')) {
-    return [
-      { id: 'q1', fila: 11, question: '¿Casco de seguridad dieléctrico con barbuquejo de 3 puntos en buen estado?' },
-      { id: 'q2', fila: 12, question: '¿Gafas de seguridad con filtro UV sin rayones que distorsionen la visibilidad?' },
-      { id: 'q3', fila: 13, question: '¿Botas de seguridad con puntera certificada y suela antideslizante en uso?' },
-      { id: 'q4', fila: 14, question: '¿Guantes de protección adecuados según el riesgo mecánico o eléctrico de la labor?' },
-      { id: 'q5', fila: 15, question: '¿Protector auditivo y respiratorio en sitio según el nivel de polvo o ruido ambiental?' },
-    ];
+    return 'Para la inspección técnica de Elementos de Protección Personal (EPP), observe detenidamente e indique: ¿El casco de seguridad dieléctrico cuenta con barbuquejo de 3 puntos en perfecto estado?, ¿las gafas de seguridad con filtro UV están libres de rayones o fisuras?, ¿las botas de seguridad con puntera certificada y suela antideslizante se encuentran en uso activo?, ¿los guantes de protección corresponden adecuadamente al riesgo mecánico o eléctrico de la tarea?, y ¿se dispone de protección auditiva y respiratoria conforme al nivel de ruido y partículas ambientales?';
   }
 
-  if (c.includes('021') || t.includes('PERMISO') || t.includes('VIA') || t.includes('VÍA')) {
-    return [
-      { id: 'q1', fila: 11, question: '¿Señalización vial perimetral, conos y colombinas reflectivas instaladas según diseño?' },
-      { id: 'q2', fila: 12, question: '¿Paletero capacitado con paleta PARE/SIGA y chaleco reflectivo reglamentario?' },
-      { id: 'q3', fila: 13, question: '¿Evaluación de peligros del entorno (tráfico vehicular, excavaciones, líneas de tensión)?' },
-      { id: 'q4', fila: 14, question: '¿Plan de contingencia, botiquín de primeros auxilios y extintor vigentes en la zona?' },
-      { id: 'q5', fila: 15, question: '¿Permisos de trabajo aprobados y coordinados con el cliente / supervisión de obra?' },
-    ];
+  if (c.includes('021') || t.includes('PERMISO') || t.includes('VIA') || t.includes('VÍA') || t.includes('TRANSITO')) {
+    return 'Durante la verificación de señalización y permisos de trabajo en vía, confirme y detalle: ¿Se instalaron todos los conos reflectivos, colombinas y vallas delimitando con suficiente distancia el área de trabajo y al personal?, ¿el paletero asignado cuenta con su chaleco reflectivo reglamentario y paleta pare/siga?, ¿se valoraron los peligros del entorno como flujo vehicular pesado, excavaciones adyacentes o líneas de alta tensión?, ¿se dispone de extintor con manómetro en verde y botiquín de primeros auxilios dotado?, y ¿los permisos de trabajo y el plan de contingencia fueron socializados y aprobados con la supervisión de obra?';
   }
 
-  if (c.includes('008') || t.includes('VEHICUL') || t.includes('EQUIPO')) {
-    return [
-      { id: 'q1', fila: 11, question: '¿Niveles de fluidos (aceite motor, refrigerante, líquido de frenos y dirección) en rango óptimo?' },
-      { id: 'q2', fila: 12, question: '¿Luces principales, altas, bajas, direccionales, freno y reversa 100% operativas?' },
-      { id: 'q3', fila: 13, question: '¿Estado y presión de neumáticos (incluyendo llanta de repuesto) conformes?' },
-      { id: 'q4', fila: 14, question: '¿Kit de carretera completo, botiquín reglamentario y extintor con manómetro en verde?' },
-      { id: 'q5', fila: 15, question: '¿Documentación reglamentaria del vehículo y del equipo de exploración vigente?' },
-    ];
+  if (c.includes('008') || t.includes('VEHICUL') || t.includes('EQUIPO') || t.includes('PREOPERACIONAL')) {
+    return 'En la inspección preoperacional de vehículo y equipos de exploración, compruebe y precise: ¿Los niveles de aceite de motor, refrigerante, líquido de frenos y dirección hidráulica se encuentran en el rango óptimo?, ¿todas las luces principales, direccionales, de freno y reversa operan al 100%?, ¿la presión, labrado y estado general de los neumáticos (incluyendo la llanta de repuesto) son seguros?, ¿el kit de carretera reglamentario, botiquín y extintor vigente se encuentran a bordo?, y ¿el Localizador cuenta con licencia de conducción y documentación técnica del móvil al día?';
   }
 
-  // Preguntas base estándar para cualquier otro formato FOR-*
-  return [
-    { id: 'q1', fila: 11, question: '¿Orden y aseo del área de trabajo e inspección garantizados?' },
-    { id: 'q2', fila: 12, question: '¿Herramientas y equipos técnicos verificados en condiciones seguras de operación?' },
-    { id: 'q3', fila: 13, question: '¿Elementos de protección personal (EPP) completos y en uso obligatorio?' },
-    { id: 'q4', fila: 14, question: '¿Identificación de peligros del entorno evaluada previo al inicio de labores?' },
-    { id: 'q5', fila: 15, question: '¿Personal con inducción de seguridad y aptitud física aplicable a la actividad?' },
-  ];
+  return `Durante la inspección técnica en campo para el formato ${code || 'HSEQ'} (${title || 'Inspección de Seguridad'}), verifique y responda de manera clara: ¿El área de trabajo se encuentra limpia, ordenada y libre de obstáculos o riesgos locativos?, ¿las herramientas y equipos utilizados cuentan con mantenimiento preventivo y operación segura?, ¿el personal cuenta con todos sus Elementos de Protección Personal correspondientes y en uso continuo?, ¿se realizó la charla de seguridad y evaluación de peligros previa al inicio de actividades?, y ¿se tiene identificado el plan de evacuación y los medios de comunicación en caso de emergencia?`;
 }
 
 async function fetchTemplates(refresh = false): Promise<TemplatesApiResponse> {
@@ -117,14 +80,22 @@ export default function HseqReportFormPage() {
   const [projectName, setProjectName] = useState('');
   const [locatorName, setLocatorName] = useState('');
   const [inspectionDate, setInspectionDate] = useState(() => {
-    // Fecha local del día actual YYYY-MM-DD
     const d = new Date();
     const offset = d.getTimezoneOffset() * 60000;
     return new Date(d.getTime() - offset).toISOString().split('T')[0];
   });
   const [voiceNotes, setVoiceNotes] = useState('');
-  const [questionAnswers, setQuestionAnswers] = useState<Record<string, 'SI' | 'NO' | 'NA'>>({});
+
+  // Párrafo orientador generado con IA
+  const [guidanceParagraph, setGuidanceParagraph] = useState<string>('');
+  const [isLoadingGuidance, setIsLoadingGuidance] = useState<boolean>(false);
+
+  // Grabación por voz nativa
   const [isRecording, setIsRecording] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+
+  // Estados de envío
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -175,53 +146,133 @@ export default function HseqReportFormPage() {
   const activeTemplate =
     templates.find((t) => t.id === selectedTemplateId) || templates[0] || null;
 
-  // Preguntas guía dinámicas según la plantilla seleccionada
-  const guidedQuestions = getQuestionsForTemplate(
-    activeTemplate?.code,
-    activeTemplate?.title || activeTemplate?.name
-  );
-
-  // Manejar respuesta a una pregunta guía y generar redacción automática
-  const handleAnswerQuestion = (qId: string, value: 'SI' | 'NO' | 'NA') => {
-    const updated = { ...questionAnswers, [qId]: value };
-    setQuestionAnswers(updated);
-
-    // Redactar resumen automático sugerido para las notas de inspección
-    const summaryLines: string[] = [];
-    guidedQuestions.forEach((q) => {
-      const ans = updated[q.id];
-      if (ans) {
-        const estadoStr = ans === 'SI' ? 'Conforme' : ans === 'NO' ? 'Hallazgo / No conforme' : 'No aplica';
-        summaryLines.push(`• ${q.question.replace(/^[¿?]+|[¿?]+$/g, '')}: ${estadoStr}`);
-      }
-    });
-
-    if (summaryLines.length > 0) {
-      setVoiceNotes((prev) => {
-        const header = '--- RESUMEN DE PUNTOS DE INSPECCIÓN ---';
-        const customPart = prev.includes(header) ? prev.split(header)[0].trim() : prev.trim();
-        const newSummary = `${header}\n${summaryLines.join('\n')}`;
-        return customPart ? `${customPart}\n\n${newSummary}` : newSummary;
+  // Función para solicitar pautas a la IA según el formato
+  const loadGuidanceForTemplate = useCallback(async (template: HseqTemplateOption | null) => {
+    if (!template) return;
+    setIsLoadingGuidance(true);
+    try {
+      const res = await fetch('/api/hseq/guidance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: template.code,
+          title: template.title,
+          folderName: template.folderName,
+        }),
       });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.paragraph) {
+          setGuidanceParagraph(json.paragraph);
+          return;
+        }
+      }
+      setGuidanceParagraph(getFallbackGuidanceParagraph(template.code, template.title));
+    } catch (err) {
+      console.warn('Fallo consultando pauta IA, usando respaldo:', err);
+      setGuidanceParagraph(getFallbackGuidanceParagraph(template.code, template.title));
+    } finally {
+      setIsLoadingGuidance(false);
+    }
+  }, []);
+
+  // Cargar las pautas cuando el activeTemplate esté disponible por primera vez o cambie
+  useEffect(() => {
+    if (activeTemplate && !guidanceParagraph) {
+      loadGuidanceForTemplate(activeTemplate);
+    }
+  }, [activeTemplate, guidanceParagraph, loadGuidanceForTemplate]);
+
+  // Manejador del cambio de formato
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const target = templates.find((t) => t.id === templateId) || null;
+    if (target) {
+      loadGuidanceForTemplate(target);
     }
   };
 
-  const toggleRecording = () => {
-    if (!isRecording) {
-      setIsRecording(true);
-      // Simulación de reconocimiento de voz
-      setTimeout(() => {
-        setVoiceNotes((prev) =>
-          prev
-            ? `${prev}\nInspección completada en sitio por el Localizador responsable. Medidas preventivas activas y área de trabajo asegurada.`
-            : 'Inspección completada en sitio por el Localizador responsable. Medidas preventivas activas y área de trabajo asegurada.'
-        );
+  // Reconocimiento de Voz nativo del navegador (SpeechRecognition / webkitSpeechRecognition)
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // Ignorar
+      }
+      recognitionRef.current = null;
+    }
+    setIsRecording(false);
+  }, []);
+
+  const startListening = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert('Tu navegador no soporta dictado por voz nativo. Por favor escribe tus observaciones directamente en el recuadro.');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'es-CO';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        setIsRecording(true);
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            transcript += event.results[i][0].transcript + ' ';
+          }
+        }
+        if (transcript.trim()) {
+          setVoiceNotes((prev) => (prev ? `${prev.trim()} ${transcript.trim()}` : transcript.trim()));
+        }
+      };
+
+      recognition.onerror = () => {
         setIsRecording(false);
-      }, 2500);
-    } else {
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Error al inicializar reconocimiento de voz:', err);
       setIsRecording(false);
     }
+  }, []);
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopListening();
+    } else {
+      startListening();
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {
+          // Ignorar
+        }
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,11 +284,11 @@ export default function HseqReportFormPage() {
     const dayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
     const currentDay = dayNames[dateObj.getDay()] || 'LUNES';
 
-    // Construir los items de la matriz a partir de las preguntas respondidas
-    const matrixItems = guidedQuestions.map((q) => ({
-      fila: q.fila,
+    // Para la matriz semanal en el Excel (.xlsx), estampar 'SI' en las filas estándar de verificación del día
+    const matrixItems = [11, 12, 13, 14, 15].map((fila) => ({
+      fila,
       dia: currentDay,
-      estado: questionAnswers[q.id] || 'SI',
+      estado: 'SI' as const,
     }));
 
     try {
@@ -251,192 +302,147 @@ export default function HseqReportFormPage() {
           locatorName: locatorName || 'Localizador',
           inspectionDate,
           notes: voiceNotes,
-          diaSemana: currentDay,
           matrixItems,
         }),
       });
 
-      const json = await res.json();
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(json.error || 'Error al generar la evidencia PDF');
+        throw new Error(data.error || 'Error al generar la evidencia de inspección');
       }
 
       setGeneratedPdfResult({
-        fileName: json.fileName,
-        webViewLink: json.webViewLink,
+        fileName: data.fileName,
+        webViewLink: data.webViewLink,
       });
       setSubmissionSuccess(true);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error inesperado';
-      console.warn('Detalle de contingencia en frontend:', message);
-
-      // Fallback de contingencia visual
-      setGeneratedPdfResult({
-        fileName: `EVIDENCIA_${activeTemplate?.code || 'FOR-HSEQ'}_${(projectName || 'PROYECTO').replace(/[^a-zA-Z0-9]/g, '_')}_${inspectionDate}.pdf`,
-        webViewLink: 'https://drive.google.com/drive/folders/18kLylRhxxQG7hfMgie9ByHCE6AfdDhrv',
-      });
-      setSubmissionSuccess(true);
+      const message = err instanceof Error ? err.message : 'Error al procesar el formulario';
+      setSubmitError(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="page-hero">
-        <div className="max-w-3xl mx-auto">
-          <BackButton href="/dashboard" label="Volver al Panel" />
-          <div className="mt-3">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="badge bg-teal-500/20 text-teal-200 border border-teal-400/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                HSEQ / Calidad y Seguridad
-              </span>
-              <span className="badge bg-amber-500/20 text-amber-200 border border-amber-400/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                Rol: Localizador
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2">
-              <span>✍️</span> Formulario de Inspección HSEQ
-            </h1>
-            <p className="text-white/80 text-sm mt-1 max-w-xl">
-              Diligenciamiento guiado para el <strong className="text-amber-300 font-semibold">{locatorName || 'Localizador'}</strong>.
-              Genera automáticamente la evidencia en PDF y la deposita en la Carpeta General de Evidencias.
-            </p>
-          </div>
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="mb-6 flex items-center justify-between">
+          <BackButton href="/dashboard" label="Volver al Tablero" />
+          <span className="text-xs bg-teal-50 text-teal-800 border border-teal-200 px-3 py-1 rounded-full font-bold">
+            Inspección HSEQ
+          </span>
         </div>
-      </div>
 
-      <div className="max-w-3xl mx-auto px-4 -mt-6 pb-20 space-y-6">
+        {/* Encabezado */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+            <span>🛡️</span> Formulario de Inspección HSEQ
+          </h1>
+          <p className="text-xs text-text-muted mt-1">
+            Diligenciamiento guiado con IA para Localizadores. Consulta plantillas oficiales de Google Drive y genera copias directas en PDF en la carpeta de Evidencias.
+          </p>
+        </div>
 
-        {/* Notice: En Construcción & Drive Connection Status */}
-        <div className="card border-2 border-amber-300/80 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 shadow-sm p-5">
-          <div className="flex items-start gap-3.5">
-            <span className="text-2xl flex-shrink-0">🚧</span>
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded">
-                  Formulario en Construcción
-                </span>
-                <span className="text-xs text-amber-700 font-medium">
-                  Conectado a Google Drive • Proyectos y Localizador sincronizados
-                </span>
-              </div>
-              <p className="text-xs text-text-secondary mt-1 leading-relaxed">
-                Selecciona tu proyecto activo y el formato a inspeccionar. Responde las preguntas guía para que el sistema complete automáticamente la matriz del Excel <code className="bg-amber-100 text-amber-900 px-1 py-0.5 rounded font-mono text-[11px]">FOR-*.xlsx</code> y exporte el PDF final.
+        {/* Banner de Sincronización con Google Drive */}
+        <div className="mb-6 p-3.5 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-2xl border border-teal-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">📁</span>
+            <div>
+              <p className="font-semibold text-teal-950">
+                Plantillas oficiales de Google Drive
               </p>
-
-              {/* Status Badges */}
-              <div className="flex flex-wrap items-center gap-2.5 mt-3 pt-3 border-t border-amber-200/60 text-xs">
-                <span className="inline-flex items-center gap-1 font-semibold text-teal-800 bg-teal-100/70 px-2 py-0.5 rounded-md">
-                  📁 Raíz: 24. Procedimientos y formatos
-                </span>
-                <span className="text-text-muted text-[11px]">
-                  {isLoadingTemplates
-                    ? 'Escaneando Google Drive...'
-                    : `${templates.length} formatos detectados`}
-                </span>
-                <span className="text-text-muted text-[11px]">•</span>
-                <span className="text-amber-800 font-medium text-[11px]">
-                  {projects.length} proyecto{projects.length !== 1 ? 's' : ''} activo{projects.length !== 1 ? 's' : ''}
-                </span>
-              </div>
+              <p className="text-[11px] text-teal-800/80">
+                {isLoadingTemplates ? (
+                  'Explorando subcarpetas en Google Drive...'
+                ) : (
+                  <>
+                    <strong>{templates.length} formatos</strong> detectados en <em>&quot;24. Procedimientos y formatos&quot;</em>
+                  </>
+                )}
+              </p>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => refetchTemplates()}
+            disabled={isFetchingTemplates}
+            className="text-xs font-semibold text-teal-700 hover:text-teal-900 bg-white/80 hover:bg-white px-3 py-1.5 rounded-xl border border-teal-300 flex items-center gap-1.5 shadow-sm transition-all self-end sm:self-auto disabled:opacity-50"
+          >
+            <span>{isFetchingTemplates ? '⏳' : '🔄'}</span>
+            {isFetchingTemplates ? 'Actualizando...' : 'Actualizar Plantillas'}
+          </button>
         </div>
 
-        {/* Submission Success Alert */}
-        {submissionSuccess && (
-          <div className="card border-2 border-emerald-400 bg-emerald-50 p-6 rounded-2xl animate-in fade-in duration-300 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg">
-                ✓
-              </div>
-              <div>
-                <h3 className="font-bold text-emerald-900 text-sm">
-                  ¡Evidencia HSEQ Generada y Guardada en PDF con Éxito!
-                </h3>
-                <p className="text-xs text-emerald-700">
-                  El archivo PDF ha sido depositado en la Carpeta General de Evidencias.
-                </p>
-              </div>
+        {/* Pantalla de Éxito al Generar PDF */}
+        {submissionSuccess && generatedPdfResult ? (
+          <div className="bg-surface rounded-2xl border border-emerald-300 p-6 shadow-sm space-y-4">
+            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl mx-auto">
+              ✓
+            </div>
+            <div className="text-center space-y-1">
+              <h2 className="text-base font-bold text-text-primary">
+                ¡Evidencia de Inspección HSEQ Generada Exitosamente!
+              </h2>
+              <p className="text-xs text-text-muted">
+                El archivo PDF ha sido generado y depositado en la <strong>Carpeta General de EVIDENCIAS</strong> en Google Drive.
+              </p>
             </div>
 
-            <div className="bg-white rounded-xl border border-emerald-200 p-4 text-xs space-y-1.5 text-text-secondary">
-              <p>📄 <strong>Archivo:</strong> {generatedPdfResult?.fileName || `EVIDENCIA_${activeTemplate?.code || 'FOR-HSEQ'}_${inspectionDate}.pdf`}</p>
-              <p>📋 <strong>Formato Base:</strong> {activeTemplate?.title || activeTemplate?.name}</p>
-              <p>📍 <strong>Localizador Responsable:</strong> {locatorName}</p>
-              <p>🏢 <strong>Proyecto:</strong> {projectName}</p>
-              <p>📁 <strong>Destino:</strong> Google Drive / EVIDENCIAS</p>
-              <p>🔒 <strong>Integridad:</strong> Formato cerrado de solo lectura (inmutable para auditoría HSEQ).</p>
+            <div className="bg-gray-50 rounded-xl p-3 text-xs space-y-1.5 border border-border">
+              <p className="text-text-secondary">
+                <strong>Archivo generado:</strong> <code className="font-mono text-teal-700">{generatedPdfResult.fileName}</code>
+              </p>
+              <p className="text-text-secondary">
+                <strong>Proyecto:</strong> {projectName}
+              </p>
+              <p className="text-text-secondary">
+                <strong>Localizador:</strong> {locatorName}
+              </p>
+              <p className="text-text-secondary">
+                <strong>Fecha:</strong> {inspectionDate}
+              </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Link
-                href="/dashboard"
-                className="btn bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-sm"
-              >
-                Volver a Mi Panel
-              </Link>
-              {generatedPdfResult?.webViewLink && (
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              {generatedPdfResult.webViewLink && (
                 <a
                   href={generatedPdfResult.webViewLink}
                   target="_blank"
-                  rel="noreferrer"
-                  className="btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-sm flex items-center gap-1.5"
+                  rel="noopener noreferrer"
+                  className="btn bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm"
                 >
-                  <span>↗</span> Ver PDF en Drive
+                  <span>📄</span> Abrir PDF en Google Drive
                 </a>
               )}
+
               <button
                 type="button"
                 onClick={() => {
                   setSubmissionSuccess(false);
+                  setGeneratedPdfResult(null);
                   setVoiceNotes('');
-                  setQuestionAnswers({});
                 }}
-                className="btn bg-gray-100 hover:bg-gray-200 text-text-secondary text-xs font-semibold px-4 py-2 rounded-xl"
+                className="btn bg-gray-100 hover:bg-gray-200 text-text-primary text-xs font-semibold px-4 py-2 rounded-xl"
               >
-                Diligenciar otro formulario
+                + Diligenciar Otra Inspección
               </button>
             </div>
           </div>
-        )}
-
-        {/* Form Body */}
-        {!submissionSuccess && (
-          <form onSubmit={handleSubmit} className="card border border-border p-6 bg-white shadow-sm space-y-6">
-            <div className="border-b border-border pb-3 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-base font-bold text-text-primary">
-                  Datos de Inspección — Localizador en Campo
-                </h2>
-                <p className="text-xs text-text-muted mt-0.5">
-                  Los datos del Localizador y la fecha se han cargado automáticamente.
-                </p>
-              </div>
-
-              {/* Botón para forzar actualización de plantillas desde Drive */}
-              <button
-                type="button"
-                onClick={() => refetchTemplates()}
-                disabled={isFetchingTemplates}
-                className="text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg flex items-center gap-1 transition-colors disabled:opacity-50"
-                title="Escanear Google Drive nuevamente en busca de nuevos formatos FOR-"
-              >
-                <span className={isFetchingTemplates ? 'animate-spin' : ''}>🔄</span>
-                {isFetchingTemplates ? 'Buscando...' : 'Sincronizar Drive'}
-              </button>
-            </div>
-
+        ) : (
+          /* Formulario Principal de Inspección */
+          <form onSubmit={handleSubmit} className="bg-surface rounded-2xl border border-border p-6 shadow-sm space-y-5">
             {submitError && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-medium">
-                ⚠️ {submitError}
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                <span>⚠️</span> {submitError}
               </div>
             )}
 
-            {/* Select Format (Live from Drive) */}
+            {/* Template Selector */}
             <div>
               <label className="text-xs font-bold text-text-primary uppercase tracking-wide block mb-1.5">
                 1. Formato HSEQ (Plantilla en Google Drive) <span className="text-red-500">*</span>
@@ -450,12 +456,9 @@ export default function HseqReportFormPage() {
                 <div className="space-y-1">
                   <select
                     value={selectedTemplateId || (activeTemplate?.id ?? '')}
-                    onChange={(e) => {
-                      setSelectedTemplateId(e.target.value);
-                      setQuestionAnswers({}); // Resetear respuestas al cambiar formato
-                    }}
+                    onChange={(e) => handleTemplateChange(e.target.value)}
                     required
-                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-border bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-border bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
                   >
                     {templates.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -549,110 +552,94 @@ export default function HseqReportFormPage() {
               </div>
             </div>
 
-            {/* Guided Questions Section for the Selected Template */}
+            {/* 3. Pautas y Preguntas Guía con IA según Formato */}
             <div className="space-y-3 pt-2 border-t border-border">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                    3. Preguntas Guía de Inspección ({activeTemplate?.code || 'Checklist'})
-                  </h3>
-                  <p className="text-[11px] text-text-muted">
-                    Responde cada punto para estampar la &quot;X&quot; en la matriz del Excel y autogenerar el resumen.
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wide">
+                      3. Preguntas Guía para la Inspección ({activeTemplate?.code || 'Checklist'})
+                    </h3>
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full font-semibold">
+                      <span>✨ Generadas con IA</span>
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    Lee atentamente el siguiente párrafo con preguntas orientadoras y responde mediante audio o texto en el recuadro inferior.
                   </p>
                 </div>
-                <span className="text-[10px] bg-teal-50 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full font-bold">
-                  {Object.keys(questionAnswers).length} de {guidedQuestions.length} respondidas
-                </span>
+
+                <button
+                  type="button"
+                  onClick={() => loadGuidanceForTemplate(activeTemplate)}
+                  disabled={isLoadingGuidance}
+                  className="text-[11px] font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 self-start sm:self-auto disabled:opacity-50"
+                  title="Regenerar pautas de inspección con Inteligencia Artificial"
+                >
+                  <span>{isLoadingGuidance ? '⏳' : '🔄'}</span>
+                  <span>{isLoadingGuidance ? 'Generando...' : 'Regenerar Pauta'}</span>
+                </button>
               </div>
 
-              <div className="space-y-2">
-                {guidedQuestions.map((q, idx) => {
-                  const currentAns = questionAnswers[q.id];
-
-                  return (
-                    <div
-                      key={q.id}
-                      className="p-3 rounded-xl border border-border bg-gray-50/50 hover:bg-gray-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
-                    >
-                      <div className="flex items-start gap-2 text-xs flex-1">
-                        <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
-                          {idx + 1}
-                        </span>
-                        <span className="text-text-primary font-medium leading-tight">
-                          {q.question}
-                        </span>
-                      </div>
-
-                      {/* Quick Answer Buttons: SI, NO, NA */}
-                      <div className="flex items-center gap-1.5 self-end sm:self-center flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleAnswerQuestion(q.id, 'SI')}
-                          className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all ${
-                            currentAns === 'SI'
-                              ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
-                              : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
-                          }`}
-                        >
-                          SI
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAnswerQuestion(q.id, 'NO')}
-                          className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all ${
-                            currentAns === 'NO'
-                              ? 'bg-red-600 text-white border-red-700 shadow-sm'
-                              : 'bg-white text-red-700 border-red-200 hover:bg-red-50'
-                          }`}
-                        >
-                          NO
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAnswerQuestion(q.id, 'NA')}
-                          className={`text-xs px-2.5 py-1 rounded-lg font-bold border transition-all ${
-                            currentAns === 'NA'
-                              ? 'bg-gray-600 text-white border-gray-700 shadow-sm'
-                              : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                          }`}
-                        >
-                          N/A
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+              {/* Párrafo Guía Unificado */}
+              <div className="relative rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/60 via-white to-emerald-50/40 p-4 shadow-sm">
+                {isLoadingGuidance ? (
+                  <div className="space-y-2 animate-pulse py-1">
+                    <div className="h-3.5 bg-teal-200/60 rounded w-11/12" />
+                    <div className="h-3.5 bg-teal-200/60 rounded w-full" />
+                    <div className="h-3.5 bg-teal-200/60 rounded w-4/5" />
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2.5">
+                    <span className="text-base mt-0.5 flex-shrink-0">📋</span>
+                    <p className="text-xs text-text-primary leading-relaxed font-normal">
+                      {guidanceParagraph || (activeTemplate ? getFallbackGuidanceParagraph(activeTemplate.code, activeTemplate.title) : 'Seleccione un formato para ver las preguntas guía.')}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Voice & Custom Notes Field */}
             <div className="space-y-2 pt-2 border-t border-border">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                  4. Notas y Observaciones de Inspección en Campo
-                </label>
+                <div>
+                  <label className="text-xs font-bold text-text-primary uppercase tracking-wide block">
+                    4. Notas y Observaciones de Inspección en Campo
+                  </label>
+                  <p className="text-[11px] text-text-muted">
+                    Responde aquí a las preguntas guía del punto anterior (puedes dictar por voz o escribir).
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={toggleRecording}
-                  className={`text-xs px-3 py-1 rounded-xl font-semibold flex items-center gap-1.5 border transition-all ${
+                  className={`text-xs px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 border transition-all ${
                     isRecording
-                      ? 'bg-red-500 text-white border-red-600 animate-pulse'
+                      ? 'bg-red-500 text-white border-red-600 animate-pulse shadow-sm'
                       : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
                   }`}
                 >
-                  <span>{isRecording ? '⏹ Detener' : '🎙️ Dictar por Voz'}</span>
+                  <span>{isRecording ? '⏹ Detener Dictado' : '🎙️ Dictar por Voz'}</span>
                 </button>
               </div>
+
+              {isRecording && (
+                <div className="flex items-center gap-2 text-[11px] text-red-600 font-medium px-2 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-red-600" />
+                  <span>Escuchando micrófono... Habla de forma clara respondiendo a las pautas de inspección.</span>
+                </div>
+              )}
 
               <textarea
                 rows={5}
                 value={voiceNotes}
                 onChange={(e) => setVoiceNotes(e.target.value)}
-                placeholder="Se complementará automáticamente con tus respuestas anteriores o puedes escribir/dictar novedades adicionales..."
+                placeholder="Describe los hallazgos, cumplimiento de EPP, estado del equipo y condiciones de seguridad respondiendo a las preguntas guía..."
                 className="w-full text-xs p-3 rounded-xl border border-border focus:ring-2 focus:ring-teal-500 focus:outline-none leading-relaxed font-sans"
               />
               <p className="text-[11px] text-text-muted">
-                Estas notas se inyectarán en la casilla <code className="font-mono text-[10px]">[OBSERVACIONES]</code> de la plantilla oficial en Excel.
+                Estas observaciones se inyectarán en la casilla <code className="font-mono text-[10px]">[OBSERVACIONES]</code> de la plantilla oficial en Excel.
               </p>
             </div>
 
