@@ -216,90 +216,82 @@ export default function HseqReportFormPage() {
 
   const startListening = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognitionClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
+    if (!SpeechRecognitionClass) {
       alert('Tu navegador no soporta dictado por voz nativo. Por favor escribe tus observaciones directamente en el recuadro.');
       return;
     }
 
-    if (recognitionRef.current) {
+    isRecordingRef.current = true;
+    setIsRecording(true);
+
+    const initRecognition = () => {
+      if (!isRecordingRef.current) return;
+
       try {
-        recognitionRef.current.abort();
-      } catch {
-        // Ignorar
-      }
-    }
+        const recognition = new SpeechRecognitionClass();
+        recognition.lang = 'es-CO';
+        recognition.continuous = false; // continuous = false evita repetición de palabras en el buffer
+        recognition.interimResults = false;
 
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'es-CO';
-      recognition.continuous = true;
-      recognition.interimResults = false; // Solo oraciones definitivas para evitar repeticiones de palabras
+        recognition.onstart = () => {
+          if (isRecordingRef.current) setIsRecording(true);
+        };
 
-      isRecordingRef.current = true;
-
-      recognition.onstart = () => {
-        setIsRecording(true);
-      };
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      recognition.onresult = (event: any) => {
-        let newTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            newTranscript += event.results[i][0].transcript + ' ';
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recognition.onresult = (event: any) => {
+          let chunk = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              chunk += event.results[i][0].transcript + ' ';
+            }
           }
-        }
-        newTranscript = newTranscript.trim();
+          chunk = chunk.trim();
 
-        if (newTranscript) {
-          setVoiceNotes((prev) => {
-            const trimmedPrev = prev.trim();
-            return trimmedPrev ? `${trimmedPrev} ${newTranscript}` : newTranscript;
-          });
-        }
-      };
+          if (chunk) {
+            setVoiceNotes((prev) => {
+              const trimmed = prev.trim();
+              if (!trimmed) return chunk;
+              const normChunk = chunk.toLowerCase();
+              const normPrev = trimmed.toLowerCase();
+              if (normPrev.endsWith(normChunk)) {
+                return trimmed;
+              }
+              return `${trimmed} ${chunk}`;
+            });
+          }
+        };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      recognition.onerror = (err: any) => {
-        if (err.error === 'no-speech' && isRecordingRef.current) {
-          return;
-        }
-        if (err.error === 'aborted') {
-          return;
-        }
-        console.warn('SpeechRecognition aviso:', err.error);
-      };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recognition.onerror = (err: any) => {
+          if (err.error === 'no-speech' || err.error === 'aborted') {
+            return;
+          }
+          console.warn('SpeechRecognition aviso:', err.error);
+        };
 
-      recognition.onend = () => {
-        // Reiniciar si el usuario sigue en modo grabación para que no se corte por silencios
-        if (isRecordingRef.current) {
-          try {
-            recognition.start();
-          } catch {
+        recognition.onend = () => {
+          // Si el usuario sigue en grabación, iniciar un ciclo nuevo sin desconectar
+          if (isRecordingRef.current) {
             setTimeout(() => {
               if (isRecordingRef.current) {
-                try {
-                  recognition.start();
-                } catch {
-                  // Ignorar
-                }
+                initRecognition();
               }
-            }, 300);
+            }, 120);
+          } else {
+            setIsRecording(false);
           }
-        } else {
-          setIsRecording(false);
-        }
-      };
+        };
 
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (err) {
-      console.error('Error al inicializar reconocimiento de voz:', err);
-      setIsRecording(false);
-      isRecordingRef.current = false;
-    }
+        recognitionRef.current = recognition;
+        recognition.start();
+      } catch (err) {
+        console.warn('Reintento SpeechRecognition:', err);
+      }
+    };
+
+    initRecognition();
   }, []);
 
   const toggleRecording = () => {
@@ -338,12 +330,16 @@ export default function HseqReportFormPage() {
     const dayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
     const currentDay = dayNames[dateObj.getDay()] || 'LUNES';
 
-    // Para la matriz semanal en el Excel (.xlsx), estampar 'SI' en los ítems de verificación del día (filas 10 a 45)
-    const matrixItems = Array.from({ length: 35 }, (_, i) => i + 10).map((fila) => ({
+    // Para la matriz semanal en el Excel (.xlsx), estampar 'SI' en los ítems de verificación del día (filas 11 a 45)
+    const matrixItems = Array.from({ length: 35 }, (_, i) => i + 11).map((fila) => ({
       fila,
       dia: currentDay,
       estado: 'SI' as const,
     }));
+
+    const selectedProjObj = projects.find((p) => p.id === selectedProjectId);
+    const costCenter = selectedProjObj?.cost_center || selectedProjObj?.code || 'PROCIMEC-HSEQ';
+    const projectLoc = selectedProjObj?.client ? `Campo - ${selectedProjObj.client}` : 'En campo';
 
     try {
       const res = await fetch('/api/hseq/generate', {
@@ -353,6 +349,8 @@ export default function HseqReportFormPage() {
           templateFileId: activeTemplate.id,
           templateCode: activeTemplate.code,
           projectName: projectName || 'Proyecto Activo',
+          costCenter,
+          location: projectLoc,
           locatorName: locatorName || 'Localizador',
           inspectionDate,
           notes: voiceNotes,

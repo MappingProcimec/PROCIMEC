@@ -515,56 +515,221 @@ export async function generateHseqEvidencePdf(params: {
   if (officialPdfBuffer) {
     pdfBase64 = officialPdfBuffer.toString('base64');
   } else {
-    // Generador de respaldo con jsPDF
+    // Generador de PDF de alta fidelidad que replica la estructura oficial de inspección
     const { default: jsPDF } = await import('jspdf');
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 14;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
     let y = 14;
 
-    doc.setFillColor(15, 118, 110);
+    // Extraer los ítems de verificación reales del buffer Excel diligenciado
+    const ExcelJSModule = await import('exceljs');
+    const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(filledExcelBuffer);
+    const ws = wb.worksheets[0];
+
+    const inspectionRows: Array<{
+      num: number;
+      category: string;
+      description: string;
+      status: string;
+    }> = [];
+
+    if (ws) {
+      let currentCat = '';
+      for (let r = 11; r <= ws.rowCount; r++) {
+        const row = ws.getRow(r);
+        const catCell = row.getCell(1);
+        const descCell = row.getCell(3);
+
+        const cat = getCellSafeText(catCell).trim();
+        const desc = getCellSafeText(descCell).trim();
+
+        if (cat && !cat.startsWith('OBSERVACIONES') && !cat.startsWith('FIRMA') && !cat.startsWith('PUNTO') && !cat.startsWith('LUNES') && !cat.startsWith('EQUIPOS')) {
+          currentCat = cat;
+        }
+        if (desc && desc.length > 4 && !desc.startsWith('OBSERVACIONES') && !desc.startsWith('FIRMA') && !desc.startsWith('PUNTO') && !desc.startsWith('LUNES') && !desc.startsWith('EQUIPOS') && !desc.startsWith('SI') && !desc.startsWith('NO')) {
+          inspectionRows.push({
+            num: inspectionRows.length + 1,
+            category: currentCat || 'GENERAL',
+            description: desc,
+            status: 'CUMPLE (SI)',
+          });
+        }
+        if (cat.startsWith('OBSERVACIONES') || cat.startsWith('FIRMA')) break;
+      }
+    }
+
+    // 1. Barra superior institucional y cabecera
+    doc.setFillColor(27, 43, 75); // Azul Marino PROCIMEC
     doc.rect(0, 0, pageWidth, 5, 'F');
-    doc.setTextColor(15, 23, 42);
+
+    doc.setTextColor(27, 43, 75);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
     doc.text('PROCIMEC — MAPPING INGENIERÍA S.A.S.', margin, y);
-    doc.setFontSize(8.5);
+
+    doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text('Sistema de Gestión HSEQ — Evidencia Oficial de Inspección en Campo', margin, y + 5);
+    doc.text('SISTEMA DE GESTIÓN INTEGRAL HSEQ — FORMATO DE INSPECCIÓN PRE-OPERACIONAL', margin, y + 4.5);
 
-    y += 16;
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(margin, y, pageWidth - margin * 2, 24, 2, 2, 'FD');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
+    // Badge con código oficial
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(pageWidth - margin - 52, y - 4, 52, 12, 1.5, 1.5, 'F');
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
-    doc.text('FORMATO:', margin + 4, y + 6);
-    doc.text('PROYECTO:', margin + 4, y + 12);
-    doc.text('RESPONSABLE:', margin + 4, y + 18);
+    doc.text(cleanCode.substring(0, 22), pageWidth - margin - 49, y + 1.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Versión: 02 | Estado: Vigente', pageWidth - margin - 49, y + 5.5);
+
+    y += 14;
+
+    // 2. Cuadro de Metadatos de la Inspección
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(margin, y, pageWidth - margin * 2, 22, 2, 2, 'FD');
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('PROYECTO:', margin + 4, y + 5);
+    doc.text('RESPONSABLE / OPERADOR:', margin + 4, y + 10.5);
+    doc.text('FORMATO OFICIAL:', margin + 4, y + 16);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(projectName.substring(0, 50), margin + 45, y + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(locatorName.substring(0, 40), margin + 45, y + 10.5);
+    doc.text(templateCode.substring(0, 45), margin + 45, y + 16);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text('FECHA:', pageWidth - margin - 55, y + 5);
+    doc.text('DÍA SEMANA:', pageWidth - margin - 55, y + 10.5);
+    doc.text('ESTADO:', pageWidth - margin - 55, y + 16);
+
+    // Calcular día de la semana
+    const dayNames = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+    const dateParsed = new Date(inspectionDate + 'T12:00:00');
+    const dayLabel = dayNames[dateParsed.getDay()] || 'CAMPO';
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(15, 23, 42);
-    doc.text(templateCode, margin + 26, y + 6);
-    doc.text(projectName, margin + 26, y + 12);
-    doc.text(`${locatorName} (Fecha: ${inspectionDate})`, margin + 28, y + 18);
-
-    y += 30;
-    doc.setFillColor(15, 118, 110);
-    doc.roundedRect(margin, y, pageWidth - margin * 2, 6, 1, 1, 'F');
-    doc.setTextColor(255, 255, 255);
+    doc.text(inspectionDate, pageWidth - margin - 32, y + 5);
+    doc.text(dayLabel, pageWidth - margin - 32, y + 10.5);
+    doc.setTextColor(5, 150, 105);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.text('NOTAS Y OBSERVACIONES DE INSPECCIÓN', margin + 3, y + 4.2);
+    doc.text('CONFORME', pageWidth - margin - 32, y + 16);
 
-    y += 8;
-    const notesContent = textPlaceholders.OBSERVACIONES || textPlaceholders.NOTAS || 'Inspección completada conforme.';
-    doc.setTextColor(30, 41, 59);
+    y += 26;
+
+    // 3. Cabecera de la Tabla de Inspección
+    const drawTableHeader = (curY: number) => {
+      doc.setFillColor(15, 118, 110);
+      doc.rect(margin, curY, pageWidth - margin * 2, 6.5, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('N°', margin + 2, curY + 4.5);
+      doc.text('COMPONENTE', margin + 10, curY + 4.5);
+      doc.text('CRITERIO DE INSPECCIÓN / VERIFICACIÓN EN CAMPO', margin + 42, curY + 4.5);
+      doc.text('ESTADO VERIFICADO', pageWidth - margin - 35, curY + 4.5);
+    };
+
+    drawTableHeader(y);
+    y += 6.5;
+
+    // 4. Filas de Inspección Pre-operacional
+    inspectionRows.forEach((item, idx) => {
+      if (y > pageHeight - 38) {
+        doc.addPage();
+        y = 14;
+        drawTableHeader(y);
+        y += 6.5;
+      }
+
+      const isEven = idx % 2 === 0;
+      doc.setFillColor(isEven ? 255 : 248, isEven ? 255 : 250, isEven ? 255 : 252);
+      doc.rect(margin, y, pageWidth - margin * 2, 6, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, y + 6, pageWidth - margin, y + 6);
+
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(String(item.num), margin + 2, y + 4.2);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(item.category.substring(0, 16), margin + 10, y + 4.2);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 41, 59);
+      doc.text(item.description.substring(0, 72), margin + 42, y + 4.2);
+
+      // Badge CUMPLE
+      doc.setFillColor(236, 253, 245);
+      doc.roundedRect(pageWidth - margin - 35, y + 1, 30, 4.2, 1, 1, 'F');
+      doc.setTextColor(5, 150, 105);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.text('[ X ] CUMPLE (SI)', pageWidth - margin - 32, y + 3.9);
+
+      y += 6;
+    });
+
+    y += 4;
+    if (y > pageHeight - 45) {
+      doc.addPage();
+      y = 14;
+    }
+
+    // 5. Cuadro de Observaciones
+    const notesContent = textPlaceholders.OBSERVACIONES || textPlaceholders.NOTAS || 'Inspección técnica completada satisfactoriamente sin novedades críticas.';
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(margin, y, pageWidth - margin * 2, 18, 1.5, 1.5, 'FD');
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`OBSERVACIONES Y NOTAS DE INSPECCIÓN EN CAMPO (${dayLabel}):`, margin + 3, y + 4);
+
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
     const splitNotes = doc.splitTextToSize(notesContent, pageWidth - margin * 2 - 8);
-    doc.text(splitNotes, margin + 4, y + 4);
+    doc.text(splitNotes, margin + 3, y + 8.5);
+
+    y += 24;
+    if (y > pageHeight - 25) {
+      doc.addPage();
+      y = 20;
+    }
+
+    // 6. Firmas Institucionales
+    const sigWidth = (pageWidth - margin * 2 - 10) / 2;
+    doc.setDrawColor(148, 163, 184);
+    doc.line(margin + 5, y + 8, margin + sigWidth - 5, y + 8);
+    doc.line(margin + sigWidth + 15, y + 8, pageWidth - margin - 5, y + 8);
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('FIRMA RESPONSABLE / OPERADOR DEL EQUIPO', margin + 10, y + 12);
+    doc.text('FIRMA RESPONSABLE SSTA / SUPERVISOR HSEQ', margin + sigWidth + 20, y + 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(locatorName || 'Localizador Asignado', margin + 10, y + 16);
+    doc.text('PROCIMEC MAPPING INGENIERÍA S.A.S.', margin + sigWidth + 20, y + 16);
 
     const pdfArrayBuffer = doc.output('arraybuffer');
     pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');

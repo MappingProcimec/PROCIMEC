@@ -29,14 +29,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Calcular mes y fechas para las etiquetas oficiales de la plantilla Excel
+    const dateObj = new Date(inspectionDate + 'T12:00:00');
+    const monthNames = [
+      'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+      'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+    ];
+    const currentMonth = monthNames[dateObj.getMonth()] || 'MES';
+
     // Combinar los marcadores de texto con notas y datos del usuario
     const mergedPlaceholders: Record<string, string> = {
       FECHA: inspectionDate,
+      fecha: inspectionDate,
+      fecha_inspeccion: inspectionDate,
       PROYECTO: projectName,
+      proyecto: projectName,
+      nombre_proyecto: projectName,
+      NOMBRE_PROYECTO: projectName,
+      centro_costo: body.costCenter || 'PROCIMEC-HSEQ',
+      centro_costos: body.costCenter || 'PROCIMEC-HSEQ',
+      CENTRO_COSTO: body.costCenter || 'PROCIMEC-HSEQ',
+      ciudad_ubicacion: body.location || 'En campo',
+      CIUDAD_UBICACION: body.location || 'En campo',
+      fecha_inicio: inspectionDate,
+      fecha_fin: inspectionDate,
+      mes: currentMonth,
+      MES: currentMonth,
+      marca_modelo: 'EQUIPO OFICIAL PROCIMEC',
+      serial_drone: 'PROC-DRN-01',
+      serial: 'PROC-EQ-01',
       LOCALIZADOR: locatorName,
+      localizador: locatorName,
       RESPONSABLE: locatorName,
+      responsable: locatorName,
       OBSERVACIONES: notes,
+      observaciones: notes,
       NOTAS: notes,
+      notas: notes,
       ...textPlaceholders,
     };
 
