@@ -47,7 +47,8 @@ interface DivisionActivityLog {
   form_name: string;
   project_name: string;
   project_code: string;
-  operator_name: string;
+  localizador_name?: string;
+  operator_name?: string;
   detail: string;
   status: string;
   url: string | null;
@@ -439,7 +440,7 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                               )}
                             </td>
                             <td className="px-4 py-3 text-xs text-text-muted hidden sm:table-cell">
-                              {log.operator_name}
+                              {log.localizador_name || log.operator_name}
                             </td>
                             <td className="px-4 py-3 font-mono text-xs text-text-primary font-medium">
                               {log.detail}

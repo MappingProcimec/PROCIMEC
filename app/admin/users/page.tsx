@@ -481,7 +481,7 @@ export default function AdminUsersPage() {
       const project_ids = Array.from(new Set(valid.flatMap(b => Array.from(b.projectIds))));
       const primaryRoleId = valid.map(b => b.roleId).find(Boolean) || null;
       const primaryRole = roleOptions.find(r => r.id === primaryRoleId);
-      const sysRole = primaryRole ? deriveSystemRole(primaryRole.name) : 'operator';
+      const sysRole = primaryRole ? deriveSystemRole(primaryRole.name) : 'localizador';
       updateMutation.mutate({
         ...basePayload,
         role: sysRole,

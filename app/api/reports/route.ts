@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
 // PUT /api/reports — Record file or finalize docx report
 export async function PUT(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || !['admin', 'operator'].includes(session.user.role || '')) {
+  if (!session || !['admin', 'localizador', 'operator'].includes(session.user.role || '')) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 

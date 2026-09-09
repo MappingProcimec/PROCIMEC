@@ -31,8 +31,8 @@ export async function GET() {
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  // Operators only see assigned projects
-  if (role === 'operator') {
+  // Localizadores / Operators only see assigned projects
+  if (role === 'operator' || role === 'localizador') {
     const { data: assignments } = await supabase
       .from('user_projects')
       .select('project_id')
