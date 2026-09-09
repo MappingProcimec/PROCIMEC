@@ -15,17 +15,18 @@ function buildFallbackFromItems(
     const formattedQuestions = items
       .slice(0, 6)
       .map((it) => {
-        const clean = it
+        let clean = it
           .replace(/^[¿?0-9\.\-\s•|]+|[¿?]+$/g, '')
           .replace(/\s+/g, ' ')
           .trim();
+        clean = clean.charAt(0).toUpperCase() + clean.slice(1);
         return `¿${clean}?`;
       })
-      .filter((q) => q.length > 5)
+      .filter((q) => q.length > 6)
       .join(', ');
 
     if (formattedQuestions.length > 15) {
-      return `Durante la inspección técnica en campo para el formato ${code} (${cleanTitle}), verifique y responda con atención a las pautas de la matriz: ${formattedQuestions}, garantizando las condiciones de seguridad requeridas para la labor.`;
+      return `Durante la inspección técnica en campo para este formato de ${cleanTitle}, verifique y responda con atención a las pautas de la matriz: ${formattedQuestions}, garantizando las condiciones de seguridad requeridas para la labor.`;
     }
   }
 
@@ -35,7 +36,7 @@ function buildFallbackFromItems(
     return 'Durante la inspección preoperacional de Drone para este formato, verifique y responda con atención: ¿El fuselaje, motores y hélices se encuentran sin fisuras ni holguras?, ¿las baterías del equipo y del control remoto cuentan con carga completa y temperatura óptima?, ¿la brújula, sensores anticolisión y GPS calibraron con éxito?, ¿la tarjeta de memoria y la cámara están operativas para la misión?, y ¿el área de despegue y aterrizaje está libre de obstáculos con condiciones de viento seguras?';
   }
 
-  return `Durante la inspección técnica en campo para el formato ${code} (${cleanTitle}), verifique y responda atentamente: ¿Se comprobaron todos los ítems de seguridad y estado de los equipos requeridos?, ¿el personal cuenta con sus Elementos de Protección Personal correspondientes?, ¿se evaluaron los riesgos de la zona y del entorno?, y ¿se dispone de los permisos y medidas de control antes del inicio?`;
+  return `Durante la inspección técnica en campo para el formato ${cleanTitle}, verifique y responda atentamente a los puntos de verificación y condiciones seguras del equipo en sitio.`;
 }
 
 // Función auxiliar para llamar a Gemini con soporte para múltiples modelos

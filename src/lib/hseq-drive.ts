@@ -424,20 +424,43 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
         }
       });
 
-      // Limpiar texto de la columna izquierda y remover corchetes {{...}}
-      const cleanLeft = leftColTexts
-        .join(' - ')
-        .replace(/\{\{[^}]*\}\}/g, '')
-        .replace(/\[[^\]]*\]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+      // 1. Obtener valores únicos de la fila en columnas A a E (elimina duplicados causados por celdas combinadas)
+      const uniqueTexts = Array.from(
+        new Set(
+          leftColTexts.map((t) =>
+            t
+              .replace(/\{\{[^}]*\}\}/g, '')
+              .replace(/\[[^\]]*\]/g, '')
+              .replace(/\s+/g, ' ')
+              .trim()
+          )
+        )
+      ).filter(
+        (t) =>
+          t.length > 3 &&
+          !/^[\d\.\,\-\s]+$/.test(t) &&
+          !/^(si|no|na|n\/a|x|item|ítem|código|codigo|versión|version|fecha|proyecto|localizador|responsable|cliente|semana|mes|año|firma|observaciones|notas|convenciones|marque con una x|marque|estado|conforme)$/i.test(
+            t
+          )
+      );
 
-      // Filtrar cabeceras o etiquetas residuales
-      if (
-        cleanLeft.length > 4 &&
-        !/^(código|codigo|versión|version|fecha|proyecto|localizador|responsable|cliente|semana|mes|año|firma|observaciones|notas|convenciones|item|ítem|descripcion|descripción|marque con una x|marque|estado)$/i.test(cleanLeft)
-      ) {
-        detectedLeftItems.push(cleanLeft);
+      if (uniqueTexts.length === 0) return;
+
+      // Si todos los valores únicos son una sola palabra genérica de categoría (como "EQUIPOS", "DRONE", "VEHICULO"), omitir fila de encabezado
+      if (uniqueTexts.length === 1 && uniqueTexts[0].length < 18 && !uniqueTexts[0].includes(' ')) {
+        return;
+      }
+
+      // La pregunta/ítem de inspección real es la descripción más completa y detallada de la fila
+      const sortedByDetail = [...uniqueTexts].sort((a, b) => b.length - a.length);
+      const mainQuestion = sortedByDetail[0];
+
+      if (mainQuestion && mainQuestion.length > 8) {
+        // Limpiar numeración o prefijos "1. ", "1 - "
+        const cleanedItem = mainQuestion.replace(/^[0-9]+[\.\-\)\s]+/, '').trim();
+        if (!detectedLeftItems.includes(cleanedItem)) {
+          detectedLeftItems.push(cleanedItem);
+        }
       }
 
       if (allRowTexts.length > 0) {
