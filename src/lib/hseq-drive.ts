@@ -386,37 +386,12 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
     const worksheet = workbook.worksheets.find((ws) => ws.rowCount > 5) || workbook.worksheets[0];
     if (!worksheet) return { leftColumnItems: [], fullTextSummary: '' };
 
-    // 1. Detección dinámica de la fila de inicio y la columna donde comienza la matriz de marcas
-    let detectedHeaderRow = 0;
-    let matrixStartCol = 6; // Por defecto columna F (después de A, B, C, D, E)
-
-    worksheet.eachRow((row, rowNumber) => {
-      if (detectedHeaderRow === 0 && rowNumber <= 25) {
-        row.eachCell((cell, colNumber) => {
-          const text = (cell.text || String(cell.value || '')).trim().toUpperCase();
-          // Si encontramos cabeceras típicas de columnas de inspección
-          if (/^(ÍTEM|ITEM|DESCRIPCIÓN|DESCRIPCION|ASPECTO|ELEMENTO|ACTIVIDAD|CRITERIO|CONDICIÓN|CONDICION)/.test(text)) {
-            detectedHeaderRow = rowNumber;
-          }
-          // Si encontramos dónde inician los días o marcas (LUNES, SI, NO, CUMPLE)
-          if (/^(LUNES|SI|CUMPLE|BUENO|CONFORME)/.test(text) && colNumber > 1) {
-            if (colNumber < matrixStartCol || matrixStartCol === 6) {
-              matrixStartCol = colNumber;
-            }
-          }
-        });
-      }
-    });
-
-    // Si no se detectó una fila de cabecera explícita, comenzar en fila 9
-    const startRow = detectedHeaderRow > 0 ? detectedHeaderRow + 1 : 9;
-
     const detectedLeftItems: string[] = [];
     const allLines: string[] = [];
 
     worksheet.eachRow((row, rowNumber) => {
-      // Omitir cabeceras del documento
-      if (rowNumber < startRow) return;
+      // Iniciar de la fila 10 para abajo
+      if (rowNumber < 10) return;
 
       const candidateTexts: string[] = [];
       const allRowTexts: string[] = [];
@@ -440,8 +415,8 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
         const trimmed = val.trim();
         if (trimmed.length > 2) {
           allRowTexts.push(trimmed);
-          // Tomar celdas ubicadas antes de la columna de verificación o de marcas de días
-          if (colNumber < matrixStartCol && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
+          // Columnas A, B, C, D hasta la columna E (colNumber <= 5)
+          if (colNumber <= 5 && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
             if (!/^(si|no|na|n\/a|x|c|nc)$/i.test(trimmed)) {
               candidateTexts.push(trimmed);
             }
@@ -449,7 +424,7 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
         }
       });
 
-      // 2. Extraer textos únicos limpios de la fila
+      // 1. Extraer textos únicos limpios de la fila
       const uniqueTexts = Array.from(
         new Set(
           candidateTexts.map((t) =>
@@ -471,7 +446,16 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
 
       if (uniqueTexts.length === 0) return;
 
-      // Omitir títulos de sección de una sola palabra corta
+      // Omitir firmas y notas de pie de página (no son preguntas de inspección)
+      const joinedLine = uniqueTexts.join(' ');
+      if (
+        /^(FIRMA|RESPONSABLE SSTA|RESPONSABLE DEL|APROB|REVIS|NOTA IMPORTANTE|SUPERVISOR)/i.test(joinedLine) ||
+        joinedLine.includes('La inspección preoperacional debe realizarla')
+      ) {
+        return;
+      }
+
+      // Omitir títulos de sección de una sola palabra corta (ej. "EQUIPOS", "SISTEMA")
       if (uniqueTexts.length === 1 && uniqueTexts[0].length < 18 && !uniqueTexts[0].includes(' ')) {
         return;
       }
@@ -480,7 +464,7 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
       const sortedByDetail = [...uniqueTexts].sort((a, b) => b.length - a.length);
       const mainQuestion = sortedByDetail[0];
 
-      if (mainQuestion && mainQuestion.length > 8) {
+      if (mainQuestion && mainQuestion.length > 6) {
         const cleanedItem = mainQuestion.replace(/^[0-9]+[\.\-\)\s]+/, '').trim();
         if (!detectedLeftItems.includes(cleanedItem)) {
           detectedLeftItems.push(cleanedItem);
@@ -491,6 +475,7 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
         allLines.push(`Fila ${rowNumber}: ${allRowTexts.join(' | ')}`);
       }
     });
+
 
     return {
       leftColumnItems: detectedLeftItems.slice(0, 35),

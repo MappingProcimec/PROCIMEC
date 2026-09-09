@@ -13,7 +13,7 @@ function buildFallbackFromItems(
 
   if (items && items.length > 0) {
     const formattedQuestions = items
-      .slice(0, 6)
+      .slice(0, 15)
       .map((it) => {
         let clean = it
           .replace(/^[¿?0-9\.\-\s•|]+|[¿?]+$/g, '')
@@ -29,6 +29,7 @@ function buildFallbackFromItems(
       return `Durante la inspección técnica en campo para este formato de ${cleanTitle}, verifique y responda con atención a las pautas de la matriz: ${formattedQuestions}, garantizando las condiciones de seguridad requeridas para la labor.`;
     }
   }
+
 
   // Si por alguna razón no se extrajeron ítems, personalizar según el título
   const t = cleanTitle.toUpperCase();
