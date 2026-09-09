@@ -22,5 +22,25 @@ export async function GET() {
     .order('name', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data: data ?? [] });
+  const tools = (data ?? []) as { id: string; slug: string; name: string; category: string; is_universal: boolean }[];
+  const slugs = new Set(tools.map((t) => t.slug));
+  if (!slugs.has('hseq-formats')) {
+    tools.push({
+      id: 'hseq-formats-synthetic',
+      slug: 'hseq-formats',
+      name: 'Gestión y Llenado HSEQ con IA',
+      category: 'hseq',
+      is_universal: false,
+    });
+  }
+  if (!slugs.has('evidence-board')) {
+    tools.push({
+      id: 'evidence-board-synthetic',
+      slug: 'evidence-board',
+      name: 'Tablero de Evidencias HSEQ',
+      category: 'hseq',
+      is_universal: false,
+    });
+  }
+  return NextResponse.json({ data: tools });
 }

@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import TwoStepForm, { FormConfig, Project } from '@/components/forms/TwoStepForm';
 import CadRegisterFormPage from '@/app/tools/cad-register-form/page';
 import NewReportPage from '@/app/projects/[projectId]/new-report/page';
+import HseqReportFormPage from '@/app/forms/hseq-report/page';
 
 // --- Form catalog configurations ---
 const FORM_CONFIGS: Record<string, FormConfig> = {
@@ -210,6 +211,10 @@ export default function FormPage({ params }: { params: { formSlug: string } }) {
         <NewReportPage />
       </Suspense>
     );
+  }
+
+  if (params.formSlug === 'hseq-report' || params.formSlug === 'hseq') {
+    return <HseqReportFormPage />;
   }
 
   return (

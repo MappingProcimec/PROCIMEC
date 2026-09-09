@@ -32,6 +32,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   cad: 'CAD / BIM',
   admin: 'Administración',
   universal: 'Universal',
+  hseq: 'HSEQ / Calidad y Seguridad',
 };
 
 const CATEGORY_CHIP: Record<string, string> = {
@@ -39,6 +40,7 @@ const CATEGORY_CHIP: Record<string, string> = {
   cad: 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100',
   admin: 'bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100',
   universal: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100',
+  hseq: 'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100',
 };
 
 export function DynamicDashboard({ data }: { data: DashboardData }) {

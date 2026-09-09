@@ -104,6 +104,20 @@ export async function GET(req: NextRequest) {
 
       tools = (allToolsRes.data ?? []) as Tool[];
       forms = (allFormsRes.data ?? []) as Form[];
+
+      const toolSlugs = new Set(tools.map((t) => t.slug));
+      if (!toolSlugs.has('hseq-formats')) {
+        tools.push({ id: 'hseq-formats', slug: 'hseq-formats', name: 'Gestión y Llenado HSEQ con IA', category: 'hseq' });
+      }
+      if (!toolSlugs.has('evidence-board')) {
+        tools.push({ id: 'evidence-board', slug: 'evidence-board', name: 'Tablero de Evidencias HSEQ', category: 'hseq' });
+      }
+
+      const formSlugs = new Set(forms.map((f) => f.slug));
+      if (!formSlugs.has('hseq-report')) {
+        forms.push({ id: 'hseq-report', slug: 'hseq-report', name: 'Formulario de Inspección HSEQ (con IA)' });
+      }
+
       projects = ((allProjectsRes.data ?? []) as unknown as Project[]).map((p) => {
         const cc = p.cost_center || p.code || '';
         return { ...p, cost_center: cc, code: cc };

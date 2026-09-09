@@ -23,5 +23,18 @@ export async function GET() {
     return f;
   });
 
+  const formSlugs = new Set(normalized.map((f) => f.slug));
+  if (!formSlugs.has('hseq-report')) {
+    normalized.push({
+      id: 'hseq-report-synthetic',
+      slug: 'hseq-report',
+      name: 'Formulario de Inspección HSEQ (con IA)',
+      description: 'Formulario de campo HSEQ para Localizadores con soporte de dictado por voz y generación directa de PDF en Google Drive.',
+      steps_count: 2,
+      has_attachments: true,
+      created_at: new Date().toISOString(),
+    });
+  }
+
   return NextResponse.json({ data: normalized });
 }

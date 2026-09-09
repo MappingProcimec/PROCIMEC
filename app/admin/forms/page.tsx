@@ -19,7 +19,7 @@ interface Tool {
   id: string;
   slug: string;
   name: string;
-  category: 'gpr' | 'cad' | 'admin' | 'universal';
+  category: 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq';
   is_universal: boolean;
 }
 
@@ -101,6 +101,18 @@ const TOOL_META: Record<string, { icon: string; description: string; tag: string
     tag: 'Control / Asistencia',
     path: '/tools/attendance-tracker',
   },
+  'hseq-formats': {
+    icon: '🦺',
+    description: 'Gestión inteligente de formatos HSEQ con IA: plantillas en Google Drive y llenado guiado por voz para Localizadores con exportación a PDF.',
+    tag: 'HSEQ / Calidad y Seguridad',
+    path: '/tools/hseq-formats',
+  },
+  'evidence-board': {
+    icon: '📋',
+    description: 'Tablero centralizado de evidencias HSEQ en PDF almacenadas en Google Drive, con filtros por localizador, proyecto y fecha.',
+    tag: 'HSEQ / Evidencias',
+    path: '/tools/evidence-board',
+  },
 };
 
 const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string; text: string }> = {
@@ -108,11 +120,13 @@ const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string
   cad: { label: 'CAD / BIM', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
   admin: { label: 'Administración', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
   universal: { label: 'Universal', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+  hseq: { label: 'HSEQ / Calidad y Seguridad', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
 };
 
 const FORM_SLUG_STYLE: Record<string, { icon: string; bg: string; border: string; text: string }> = {
   'gpr-field-form': { icon: '📍', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
   'cad-register-form': { icon: '✏️', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
+  'hseq-report': { icon: '🦺', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
 };
 
 export default function AdminToolsAndFormsPage() {

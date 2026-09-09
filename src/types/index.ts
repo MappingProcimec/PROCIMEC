@@ -250,7 +250,7 @@ export interface DashboardStats {
 
 // ─── Multi-división: Tools, Forms, Roles, Divisions ──────────────────────────
 
-export type ToolCategory = 'gpr' | 'cad' | 'admin' | 'universal';
+export type ToolCategory = 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq';
 
 export type ToolSlug =
   | 'gsf-processor'
@@ -265,7 +265,9 @@ export type ToolSlug =
   | 'meeting-transcriber'
   | 'org-chart-ai'
   | 'dynamic-dashboard'
-  | 'attendance-tracker';
+  | 'attendance-tracker'
+  | 'hseq-formats'
+  | 'evidence-board';
 
 export interface Tool {
   id: string;

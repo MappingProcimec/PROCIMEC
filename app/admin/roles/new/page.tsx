@@ -15,6 +15,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   cad: 'CAD / BIM',
   admin: 'Administración',
   universal: 'Universal',
+  hseq: 'HSEQ / Calidad y Seguridad',
 };
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -22,6 +23,7 @@ const CATEGORY_COLOR: Record<string, string> = {
   cad: 'border-amber-200 bg-amber-50',
   admin: 'border-purple-200 bg-purple-50',
   universal: 'border-emerald-200 bg-emerald-50',
+  hseq: 'border-teal-200 bg-teal-50',
 };
 
 async function fetchDivisions(): Promise<Division[]> {
