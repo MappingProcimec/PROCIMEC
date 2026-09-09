@@ -390,6 +390,9 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
     const allLines: string[] = [];
 
     worksheet.eachRow((row, rowNumber) => {
+      // Ignorar cabeceras del documento: extraer únicamente de la fila 10 para abajo
+      if (rowNumber < 10) return;
+
       const leftColTexts: string[] = [];
       const allRowTexts: string[] = [];
 
@@ -414,21 +417,27 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
           allRowTexts.push(trimmed);
           // Columnas A (1), B (2), C (3), D (4) hasta la columna E (5)
           if (colNumber <= 5 && !/^[\d\s\.\,\-]+$/.test(trimmed)) {
-            // Excluir si es únicamente marca SI/NO/NA
-            if (!/^(si|no|na|n\/a)$/i.test(trimmed)) {
+            if (!/^(si|no|na|n\/a|x)$/i.test(trimmed)) {
               leftColTexts.push(trimmed);
             }
           }
         }
       });
 
-      const leftCombined = leftColTexts.join(' - ').trim();
-      // Filtrar cabeceras institucionales que no son preguntas de la matriz
+      // Limpiar texto de la columna izquierda y remover corchetes {{...}}
+      const cleanLeft = leftColTexts
+        .join(' - ')
+        .replace(/\{\{[^}]*\}\}/g, '')
+        .replace(/\[[^\]]*\]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Filtrar cabeceras o etiquetas residuales
       if (
-        leftCombined.length > 5 &&
-        !/^(código|codigo|versión|version|fecha|proyecto|localizador|responsable|cliente|semana|mes|año|firma|observaciones|notas|convenciones|item|ítem|descripcion|descripción)$/i.test(leftCombined)
+        cleanLeft.length > 4 &&
+        !/^(código|codigo|versión|version|fecha|proyecto|localizador|responsable|cliente|semana|mes|año|firma|observaciones|notas|convenciones|item|ítem|descripcion|descripción|marque con una x|marque|estado)$/i.test(cleanLeft)
       ) {
-        detectedLeftItems.push(leftCombined);
+        detectedLeftItems.push(cleanLeft);
       }
 
       if (allRowTexts.length > 0) {

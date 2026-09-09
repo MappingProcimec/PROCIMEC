@@ -47,11 +47,14 @@ async function callGemini(apiKey: string, prompt: string): Promise<string | null
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         signal: controller.signal,
         body: JSON.stringify({
           contents: [
@@ -61,7 +64,7 @@ async function callGemini(apiKey: string, prompt: string): Promise<string | null
           ],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 380,
+            maxOutputTokens: 350,
           },
         }),
       });
@@ -114,7 +117,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 1. Extraer ítems reales de la columna izquierda de la matriz desde Google Drive
+  // 1. Extraer ítems reales de la fila 10 para abajo y columnas A a E
   let leftColumnItems: string[] = [];
   let fullTextSummary = '';
 
@@ -124,7 +127,7 @@ export async function POST(req: NextRequest) {
       leftColumnItems = extraction.leftColumnItems;
       fullTextSummary = extraction.fullTextSummary;
     } catch (extractErr) {
-      console.warn('No se pudo extraer la columna izquierda del Excel de Drive:', extractErr);
+      console.warn('No se pudo extraer la matriz del Excel de Drive:', extractErr);
     }
   }
 
@@ -137,36 +140,28 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 2. Armar el prompt para Gemini centrado en los ítems de la columna izquierda
+  // 2. Armar el prompt exacto solicitado por el usuario
   const itemsContext =
     leftColumnItems.length > 0
-      ? `Las preguntas y puntos de inspección extraídos directamente de la columna izquierda de la matriz del formato son:\n${leftColumnItems
+      ? `Ítems extraídos de la matriz del formato (de la fila 10 para abajo, columnas A a E):\n${leftColumnItems
           .map((it, idx) => `${idx + 1}. ${it}`)
           .join('\n')}`
       : fullTextSummary
-      ? `Texto extraído de la plantilla:\n${fullTextSummary}`
-      : `El formato es: ${code} - ${title} (Carpeta: ${folderName})`;
+      ? `Contenido de la plantilla:\n${fullTextSummary}`
+      : `Formato de inspección: ${code} - ${title}`;
 
-  const prompt = `Actúa como especialista senior en HSEQ de la empresa PROCIMEC.
-El Localizador en campo acaba de seleccionar el siguiente formato de inspección oficial:
-- Formato: "${code || 'FOR-HSEQ'}" - "${title || 'Inspección'}"
-- Carpeta en Google Drive: "${folderName || 'General'}"
+  const prompt = `Extráeme de este formato un párrafo con una serie de preguntas para que un operador del equipo llene el formulario de forma hablada.
 
-CONTENIDO REAL DE LA COLUMNA IZQUIERDA DE LA MATRIZ DE INSPECCIÓN:
-"""
+Formato seleccionado: "${code || 'FOR-HSEQ'}" - "${title || 'Inspección'}" (Carpeta: "${folderName || 'General'}")
+
 ${itemsContext}
-"""
 
-TU TAREA:
-Analiza detenidamente las preguntas y puntos de chequeo de la columna izquierda del formato indicado arriba (por ejemplo, si es drone, concéntrate en fuselaje, hélices, calibración, baterías, cámara y condiciones de vuelo; si es otro formato, en sus puntos exactos).
-Redacta UN SOLO PÁRRAFO continuo y fluido que reúna una serie de preguntas de verificación directa basadas FIELMENTE en estos ítems de la matriz para que el Localizador las responda en el audio o por escrito.
+Instrucciones estrictas:
+- Devuelve UN SOLO PÁRRAFO continuo de texto corrido.
+- Formula entre 4 y 6 preguntas claras y concretas basadas exclusivamente en los ítems extraídos del formato.
+- NO uses listas con viñetas, guiones, asteriscos ni saltos de línea.
+- NO incluyas introducciones ni saludos. Devuelve única y exclusivamente el párrafo final.`;
 
-REGLAS ESTRICTAS DE REDACCIÓN:
-1. Exactamente UN SOLO PÁRRAFO de texto corrido.
-2. Inicia con: "Durante la inspección en campo para este formato de ${title || code}, verifique y responda detalladamente: ..."
-3. Integra entre 4 y 6 preguntas concretas y específicas derivadas de los ítems de la columna izquierda.
-4. NO uses listas con viñetas, guiones, asteriscos ni saltos de línea.
-5. NO incluyas introducciones ni saludos. Devuelve única y exclusivamente el párrafo final redactado.`;
 
   try {
     const aiParagraph = await callGemini(apiKey, prompt);
