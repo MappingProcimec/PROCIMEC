@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X, RotateCcw, Check, PenTool, UserCheck } from 'lucide-react';
 
 interface DigitalSignatureModalProps {

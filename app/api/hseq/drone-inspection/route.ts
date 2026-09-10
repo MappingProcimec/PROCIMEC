@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -125,12 +126,15 @@ export async function POST(req: NextRequest) {
               fileId: driveFileId,
               requestBody: { role: 'reader', type: 'anyone' },
             });
-          } catch (_) {}
+          } catch {
+            // Ignorar
+          }
         }
       }
-    } catch (dErr: any) {
-      console.warn('Aviso guardando en Google Drive:', dErr?.message || dErr);
-      driveWarning = dErr?.message || 'No se pudo subir copia a Google Drive';
+    } catch (dErr: unknown) {
+      const msg = dErr instanceof Error ? dErr.message : String(dErr);
+      console.warn('Aviso guardando en Google Drive:', msg);
+      driveWarning = msg || 'No se pudo subir copia a Google Drive';
     }
 
     // 3. Persistir en la Base de Datos Supabase (Ley 1 de PROCIMEC)
@@ -183,10 +187,11 @@ export async function POST(req: NextRequest) {
       driveWarning,
       message: '¡Inspección Pre-operacional de Drone registrada con éxito y PDF generado!',
     });
-  } catch (err: any) {
-    console.error('Error procesando inspección de drone:', err);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Error inesperado procesando la inspección de drone.';
+    console.error('Error procesando inspección de drone:', msg);
     return NextResponse.json(
-      { error: err?.message || 'Error inesperado procesando la inspección de drone.' },
+      { error: msg },
       { status: 500 }
     );
   }
