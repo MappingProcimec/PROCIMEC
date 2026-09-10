@@ -27,15 +27,37 @@ export function DigitalSignatureModal({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+  const isNameValidRef = useRef(false);
 
+  const isNameValid = fullName.trim().length >= 3;
+  isNameValidRef.current = isNameValid;
+
+  // 1. Bloquear scroll del body y prevenir rebote de pantalla mientras el modal está abierto
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      const prevTouchAction = document.body.style.touchAction;
+
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+
+      return () => {
+        document.body.style.overflow = prevOverflow;
+        document.body.style.touchAction = prevTouchAction;
+      };
+    }
+  }, [isOpen]);
+
+  // 2. Inicializar estado y canvas al abrir
   useEffect(() => {
     if (isOpen) {
       setFullName(initialName);
       setHasDrawn(false);
       setErrorMsg('');
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setupCanvas();
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [isOpen, initialName]);
 
@@ -45,7 +67,6 @@ export function DigitalSignatureModal({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Ajustar escala para alta resolución (Retina/Mobile)
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * 2;
     canvas.height = rect.height * 2;
@@ -56,54 +77,108 @@ export function DigitalSignatureModal({
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Fondo blanco limpio
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, rect.width, rect.height);
   };
 
-  const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
+  // 3. Conexión de eventos táctiles NATIVOS con passive: false (Evita scroll y movimiento de la ventana)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !isOpen) return;
+
+    const getTouchCoords = (touch: Touch) => {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top,
+      };
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault(); // Bloquea scroll en el navegador
+      e.stopPropagation();
+
+      if (!isNameValidRef.current) {
+        setErrorMsg('Por favor ingresa primero el nombre completo para desbloquear el recuadro de firma.');
+        return;
+      }
+
+      setErrorMsg('');
+      isDrawingRef.current = true;
+      if (e.touches.length > 0) {
+        lastPointRef.current = getTouchCoords(e.touches[0]);
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault(); // Bloquea cualquier intento de mover la ventana modal o pantalla de fondo
+      e.stopPropagation();
+
+      if (!isDrawingRef.current || !lastPointRef.current || e.touches.length === 0) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const currentPoint = getTouchCoords(e.touches[0]);
+
+      ctx.beginPath();
+      ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+      ctx.lineTo(currentPoint.x, currentPoint.y);
+      ctx.stroke();
+
+      lastPointRef.current = currentPoint;
+      setHasDrawn(true);
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      isDrawingRef.current = false;
+      lastPointRef.current = null;
+    };
+
+    // Agregar listeners nativos con passive: false
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
+      canvas.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [isOpen]);
+
+  // 4. Manejadores para Mouse (Escritorio)
+  const getMouseCoords = (e: React.MouseEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-
-    if ('touches' in e && e.touches.length > 0) {
-      return {
-        x: e.touches[0].clientX - rect.left,
-        y: e.touches[0].clientY - rect.top,
-      };
-    } else if ('clientX' in e) {
-      return {
-        x: (e as React.MouseEvent).clientX - rect.left,
-        y: (e as React.MouseEvent).clientY - rect.top,
-      };
-    }
-    return { x: 0, y: 0 };
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
   };
 
-  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleMouseDown = (e: React.MouseEvent) => {
     if (!isNameValid) {
       setErrorMsg('Por favor ingresa primero el nombre completo para desbloquear el recuadro de firma.');
       return;
     }
     setErrorMsg('');
     isDrawingRef.current = true;
-    const pt = getCoordinates(e);
-    lastPointRef.current = pt;
+    lastPointRef.current = getMouseCoords(e);
   };
 
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDrawingRef.current || !lastPointRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Prevenir scroll en móviles mientras firma
-    if ('touches' in e) {
-      e.preventDefault();
-    }
-
-    const currentPoint = getCoordinates(e);
+    const currentPoint = getMouseCoords(e);
 
     ctx.beginPath();
     ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
@@ -114,7 +189,7 @@ export function DigitalSignatureModal({
     if (!hasDrawn) setHasDrawn(true);
   };
 
-  const stopDrawing = () => {
+  const handleMouseUp = () => {
     isDrawingRef.current = false;
     lastPointRef.current = null;
   };
@@ -136,7 +211,6 @@ export function DigitalSignatureModal({
       return;
     }
 
-    // Exportar imagen PNG de la firma
     const dataUrl = canvasRef.current.toDataURL('image/png');
     onSaveSignature(cleanName, dataUrl);
     onClose();
@@ -144,20 +218,18 @@ export function DigitalSignatureModal({
 
   if (!isOpen) return null;
 
-  const isNameValid = fullName.trim().length >= 3;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overscroll-none touch-none animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] overscroll-contain">
         {/* Header Modal */}
-        <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-800 p-5 text-white flex items-center justify-between">
+        <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-800 p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-white/15 rounded-xl backdrop-blur-md">
               <PenTool className="w-5 h-5 text-teal-200" />
             </div>
             <div>
-              <h3 className="font-bold text-base leading-snug">{title}</h3>
-              <p className="text-xs text-teal-100 font-medium">Firma Digital Oficial • {roleLabel}</p>
+              <h3 className="font-bold text-sm sm:text-base leading-snug">{title}</h3>
+              <p className="text-[11px] sm:text-xs text-teal-100 font-medium">Firma Digital Oficial • {roleLabel}</p>
             </div>
           </div>
           <button
@@ -168,7 +240,7 @@ export function DigitalSignatureModal({
           </button>
         </div>
 
-        <div className="p-5 overflow-y-auto space-y-4">
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
           {/* Paso 1: Verificación de Identidad (Nombre Completo) */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
@@ -215,8 +287,10 @@ export function DigitalSignatureModal({
               </button>
             </div>
 
+            {/* Contenedor del Canvas bloqueado contra scroll y movimientos */}
             <div
-              className={`relative border-2 rounded-2xl overflow-hidden touch-none transition-all ${
+              style={{ touchAction: 'none' }}
+              className={`relative border-2 rounded-2xl overflow-hidden touch-none select-none transition-all ${
                 isNameValid
                   ? 'border-dashed border-teal-400 bg-white shadow-inner cursor-crosshair'
                   : 'border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed'
@@ -224,18 +298,16 @@ export function DigitalSignatureModal({
             >
               <canvas
                 ref={canvasRef}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
-                className="w-full h-44 block"
+                style={{ touchAction: 'none' }}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                className="w-full h-44 sm:h-48 block touch-none select-none"
               />
 
               {!isNameValid && (
-                <div className="absolute inset-0 flex items-center justify-center p-4 bg-slate-100/80 backdrop-blur-[1px] text-center">
+                <div className="absolute inset-0 flex items-center justify-center p-4 bg-slate-100/80 backdrop-blur-[1px] text-center pointer-events-none">
                   <p className="text-xs font-semibold text-slate-600">
                     🔒 Escribe tu nombre completo para habilitar la pantalla de firma
                   </p>
@@ -258,7 +330,7 @@ export function DigitalSignatureModal({
         </div>
 
         {/* Footer Acciones */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 flex-shrink-0">
           <button
             type="button"
             onClick={onClose}
