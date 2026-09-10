@@ -20,6 +20,7 @@
     "google-auth-library": "^11.0.2",
     "googleapis": "^174.0.1",
     "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.38.0",
     "next": "14.2.35",
     "next-auth": "^4.24.15",
