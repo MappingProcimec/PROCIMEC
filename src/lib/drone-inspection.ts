@@ -79,126 +79,243 @@ export function convertWorksheetToPdf(
   let sstaSignRowIdx = -1;
   let logoCellPos: { rowIdx: number; colIdx: number } | null = null;
 
-  for (let r = 1; r <= ws.rowCount; r++) {
-    const row = ws.getRow(r);
-    const rowCells: any[] = [];
-    let rowHasVal = false;
+  const isDroneFormat = !isLandscape && maxCol <= 6;
 
-    for (let c = 1; c <= maxCol; c++) {
-      if (mergedCellsToSkip.has(`${r},${c}`)) continue;
+  if (isDroneFormat) {
+    // ── Formato Oficial Drone (Exact Fit a 1 Sola Página A4) ──
+    for (let r = 1; r <= ws.rowCount; r++) {
+      if (r === 9 || r === 43) continue; // Separadores vacíos en la plantilla Excel
 
-      const cell = row.getCell(c);
-      let val = cell.value;
-      if (val !== null && val !== undefined && val !== '') rowHasVal = true;
+      const row = ws.getRow(r);
+      const rowCells: any[] = [];
 
-      if (val && typeof val === 'object' && (val as any).richText) {
-        val = (val as any).richText.map((t: any) => t.text).join('');
-      } else if (val && typeof val === 'object') {
-        val = (val as any).text || '';
-      }
-
-      const strVal = val === null || val === undefined ? '' : String(val);
-
-      // Ubicación de logo (celda A2 en Drone o A1 en Estación Total)
-      if (r === 2 && c === 1 && !isLandscape && !logoCellPos) {
-        logoCellPos = { rowIdx: tableBody.length, colIdx: rowCells.length };
-      } else if (r === 1 && c === 1 && isLandscape && !logoCellPos) {
-        logoCellPos = { rowIdx: tableBody.length, colIdx: rowCells.length };
-      }
-
-      // Detectar filas de firma
-      if (/FIRMA RESPONSABLE DEL EQUIPO/i.test(strVal)) {
-        operatorSignRowIdx = tableBody.length;
-      }
-      if (/FIRMA RESPONSABLE SSTA/i.test(strVal)) {
-        sstaSignRowIdx = tableBody.length;
-      }
-
-      const cellDef: any = {
-        content: strVal,
-        styles: {},
-      };
-
-      const mergeInfo = mergeMap.get(`${r},${c}`);
-      if (mergeInfo) {
-        if (mergeInfo.colSpan > 1) cellDef.colSpan = mergeInfo.colSpan;
-        if (mergeInfo.rowSpan > 1) cellDef.rowSpan = mergeInfo.rowSpan;
-      }
-
-      // Tipografía y tamaños derivados del Excel
-      if (isLandscape) {
-        cellDef.styles.fontSize = 5.2;
-      } else {
-        if (r === 2 && c >= 2) {
-          cellDef.styles.fontSize = 11;
-          cellDef.styles.fontStyle = 'bold';
-        } else if (r === 1) {
-          cellDef.styles.fontSize = 7;
-        } else {
-          cellDef.styles.fontSize = Math.min(Math.max((cell.font?.size || 9) * 0.75, 6), 9);
+      if (r === 1) {
+        rowCells.push({
+          content: String(row.getCell(1).value || ''),
+          colSpan: 5,
+          styles: { halign: 'right', fontSize: 6.5, fontStyle: 'bold', fillColor: [245, 247, 250] },
+        });
+      } else if (r === 2) {
+        logoCellPos = { rowIdx: tableBody.length, colIdx: 0 };
+        rowCells.push({ content: '', colSpan: 1, styles: { halign: 'center' } }); // Celda de Logo Procimec
+        rowCells.push({
+          content: String(row.getCell(2).value || 'INSPECCIÓN PRE-OPERACIONAL DRONE'),
+          colSpan: 4,
+          styles: { halign: 'center', fontSize: 11, fontStyle: 'bold', valign: 'middle' },
+        });
+      } else if (r >= 3 && r <= 8) {
+        rowCells.push({
+          content: String(row.getCell(1).value || ''),
+          colSpan: 1,
+          styles: { fontSize: 6.5, fontStyle: 'bold', fillColor: [248, 250, 252] },
+        });
+        rowCells.push({
+          content: String(row.getCell(2).value || ''),
+          colSpan: 4,
+          styles: { fontSize: 6.5, fontStyle: 'normal' },
+        });
+      } else if (r === 10) {
+        rowCells.push({
+          content: String(row.getCell(1).value || ''),
+          colSpan: 5,
+          styles: { halign: 'center', fontSize: 7, fontStyle: 'bold', fillColor: [217, 217, 217] },
+        });
+      } else if (r === 11) {
+        for (let c = 1; c <= 5; c++) {
+          rowCells.push({
+            content: String(row.getCell(c).value || ''),
+            styles: {
+              halign: c >= 3 || c === 1 ? 'center' : 'left',
+              fontSize: 7,
+              fontStyle: 'bold',
+              fillColor: [217, 217, 217],
+            },
+          });
         }
+      } else if (r >= 12 && r <= 37) {
+        for (let c = 1; c <= 5; c++) {
+          const val = String(row.getCell(c).value || '');
+          rowCells.push({
+            content: val,
+            styles: {
+              halign: c >= 3 || c === 1 ? 'center' : 'left',
+              fontSize: 6.5,
+              fontStyle: c === 1 || val === 'X' ? 'bold' : 'normal',
+              textColor: val === 'X' ? [15, 23, 42] : [0, 0, 0],
+            },
+          });
+        }
+      } else if (r === 38) {
+        operatorSignRowIdx = tableBody.length;
+        rowCells.push({
+          content: String(row.getCell(1).value || 'FIRMA RESPONSABLE DEL EQUIPO'),
+          colSpan: 1,
+          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 11 },
+        });
+        rowCells.push({
+          content: String(row.getCell(2).value || ''),
+          colSpan: 4,
+          styles: { fontSize: 6.5, minCellHeight: 11 },
+        });
+      } else if (r === 39) {
+        sstaSignRowIdx = tableBody.length;
+        rowCells.push({
+          content: String(row.getCell(1).value || 'FIRMA RESPONSABLE SSTA O PROYECTO'),
+          colSpan: 1,
+          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 11 },
+        });
+        rowCells.push({
+          content: String(row.getCell(2).value || ''),
+          colSpan: 4,
+          styles: { fontSize: 6.5, minCellHeight: 11 },
+        });
+      } else if (r === 40) {
+        let t = row.getCell(1).value || row.getCell(2).value;
+        if (typeof t === 'object' && (t as any).richText) t = (t as any).richText.map((x: any) => x.text).join('');
+        rowCells.push({
+          content: String(t || ''),
+          colSpan: 5,
+          styles: { fontSize: 5.5, fontStyle: 'italic', textColor: [80, 80, 80] },
+        });
+      } else if (r === 41) {
+        rowCells.push({
+          content: String(row.getCell(1).value || 'OBSERVACIONES:'),
+          colSpan: 5,
+          styles: { fontSize: 7, fontStyle: 'bold', fillColor: [217, 217, 217] },
+        });
+      } else if (r === 42) {
+        rowCells.push({
+          content: String(row.getCell(1).value || row.getCell(2).value || ''),
+          colSpan: 5,
+          styles: { fontSize: 6.5, minCellHeight: 7 },
+        });
+      } else if (r === 44) {
+        rowCells.push({
+          content: String(row.getCell(1).value || ''),
+          colSpan: 5,
+          styles: { fontSize: 7, fontStyle: 'bold', fillColor: [254, 242, 242], textColor: [185, 28, 28] },
+        });
+      } else if (r === 45) {
+        rowCells.push({
+          content: String(row.getCell(1).value || ''),
+          colSpan: 5,
+          styles: { fontSize: 6.5, minCellHeight: 6 },
+        });
       }
 
-      if (cell.font?.bold) cellDef.styles.fontStyle = 'bold';
-      if (cell.font?.italic) cellDef.styles.fontStyle = (cellDef.styles.fontStyle || '') + 'italic';
-
-      // Alineación
-      if (cell.alignment?.horizontal) {
-        cellDef.styles.halign = cell.alignment.horizontal;
-      } else if (c >= 3 && strVal === 'X') {
-        cellDef.styles.halign = 'center';
+      if (rowCells.length > 0) {
+        tableBody.push(rowCells);
       }
-
-      if (cell.alignment?.vertical) {
-        cellDef.styles.valign = cell.alignment.vertical === 'top' || cell.alignment.vertical === 'bottom' ? cell.alignment.vertical : 'middle';
-      } else {
-        cellDef.styles.valign = 'middle';
-      }
-
-      // Fondos grises de la plantilla oficial
-      if (cell.fill && (cell.fill as any).type === 'pattern' && (cell.fill as any).pattern === 'solid') {
-        cellDef.styles.fillColor = [217, 217, 217];
-      }
-
-      // Marcas 'X' de verificación en color y negrita
-      if (strVal === 'X') {
-        cellDef.styles.fontStyle = 'bold';
-        cellDef.styles.halign = 'center';
-        cellDef.styles.textColor = [15, 23, 42];
-      }
-
-      rowCells.push(cellDef);
     }
+  } else {
+    // ── Formato Genérico / Horizontal (Estación Total u otros) ──
+    for (let r = 1; r <= ws.rowCount; r++) {
+      const row = ws.getRow(r);
+      const rowCells: any[] = [];
+      let rowHasVal = false;
 
-    if (rowHasVal || rowCells.length > 0) {
-      tableBody.push(rowCells);
+      for (let c = 1; c <= maxCol; c++) {
+        if (mergedCellsToSkip.has(`${r},${c}`)) continue;
+
+        const cell = row.getCell(c);
+        let val = cell.value;
+        if (val !== null && val !== undefined && val !== '') rowHasVal = true;
+
+        if (val && typeof val === 'object' && (val as any).richText) {
+          val = (val as any).richText.map((t: any) => t.text).join('');
+        } else if (val && typeof val === 'object') {
+          val = (val as any).text || '';
+        }
+
+        const strVal = val === null || val === undefined ? '' : String(val);
+
+        if (r <= 2 && c === 1 && !logoCellPos) {
+          logoCellPos = { rowIdx: tableBody.length, colIdx: rowCells.length };
+        }
+
+        if (/FIRMA RESPONSABLE DEL EQUIPO/i.test(strVal)) {
+          operatorSignRowIdx = tableBody.length;
+        }
+        if (/FIRMA RESPONSABLE SSTA/i.test(strVal)) {
+          sstaSignRowIdx = tableBody.length;
+        }
+
+        const cellDef: any = {
+          content: strVal,
+          styles: {},
+        };
+
+        const mergeInfo = mergeMap.get(`${r},${c}`);
+        if (mergeInfo) {
+          if (mergeInfo.colSpan > 1) cellDef.colSpan = mergeInfo.colSpan;
+          if (mergeInfo.rowSpan > 1) cellDef.rowSpan = mergeInfo.rowSpan;
+        }
+
+        cellDef.styles.fontSize = isLandscape ? 5.2 : 6.5;
+        if (cell.font?.bold) cellDef.styles.fontStyle = 'bold';
+        if (cell.font?.italic) cellDef.styles.fontStyle = (cellDef.styles.fontStyle || '') + 'italic';
+
+        if (cell.alignment?.horizontal) {
+          cellDef.styles.halign = cell.alignment.horizontal;
+        } else if (c >= 3 && strVal === 'X') {
+          cellDef.styles.halign = 'center';
+        }
+
+        cellDef.styles.valign = 'middle';
+
+        if (cell.fill && (cell.fill as any).type === 'pattern' && (cell.fill as any).pattern === 'solid') {
+          cellDef.styles.fillColor = [217, 217, 217];
+        }
+
+        if (strVal === 'X') {
+          cellDef.styles.fontStyle = 'bold';
+          cellDef.styles.halign = 'center';
+          cellDef.styles.textColor = [15, 23, 42];
+        }
+
+        rowCells.push(cellDef);
+      }
+
+      if (rowHasVal || rowCells.length > 0) {
+        tableBody.push(rowCells);
+      }
     }
   }
 
   // 4. Renderizado con autoTable preservando exactamente la hoja
   autoTable(doc, {
     startY: 8,
-    margin: { left: 8, right: 8 },
+    margin: isDroneFormat ? { left: 10, right: 10, top: 8, bottom: 8 } : { left: 8, right: 8, top: 8, bottom: 8 },
     theme: 'grid',
     body: tableBody,
     styles: {
-      lineColor: [140, 140, 140],
+      lineColor: [120, 120, 120],
       lineWidth: 0.15,
-      cellPadding: isLandscape ? 0.7 : 1.1,
+      cellPadding: isDroneFormat ? { top: 0.6, bottom: 0.6, left: 1, right: 1 } : (isLandscape ? 0.6 : 0.9),
       textColor: [0, 0, 0],
+      valign: 'middle',
     },
+    columnStyles: isDroneFormat
+      ? {
+          0: { cellWidth: 26 },
+          1: { cellWidth: 120 },
+          2: { cellWidth: 14, halign: 'center' },
+          3: { cellWidth: 15, halign: 'center' },
+          4: { cellWidth: 15, halign: 'center' },
+        }
+      : undefined,
     didDrawCell: (data) => {
-      // Dibujar logo de PROCIMEC en la celda oficial
+      // Dibujar logo de PROCIMEC en la celda oficial A2
       if (logoCellPos && data.row.index === logoCellPos.rowIdx && data.column.index === logoCellPos.colIdx) {
         try {
-          doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', data.cell.x + 2, data.cell.y + 1, isLandscape ? 28 : 34, isLandscape ? 9 : 11);
+          doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', data.cell.x + 1.5, data.cell.y + 0.8, isLandscape ? 26 : 23, isLandscape ? 8.5 : 7.5);
         } catch {}
       }
       // Estampar firma digital del Operador
       if (data.row.index === operatorSignRowIdx && data.column.index === 1) {
         if (payload.operatorSignatureDataUrl && payload.operatorSignatureDataUrl.startsWith('data:image')) {
           try {
-            doc.addImage(payload.operatorSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 10);
+            doc.addImage(payload.operatorSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 9);
           } catch {}
         }
       }
@@ -206,7 +323,7 @@ export function convertWorksheetToPdf(
       if (data.row.index === sstaSignRowIdx && data.column.index === 1) {
         if (payload.sstaSignatureDataUrl && payload.sstaSignatureDataUrl.startsWith('data:image')) {
           try {
-            doc.addImage(payload.sstaSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 10);
+            doc.addImage(payload.sstaSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 9);
           } catch {}
         }
       }
