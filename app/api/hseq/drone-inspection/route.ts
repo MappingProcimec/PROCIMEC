@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 import {
-  buildHseqInspectionPdf,
   convertWorksheetToPdf,
   fillHseqExcelTemplate,
   getHseqFormatConfig,

@@ -10,7 +10,7 @@ import { DigitalSignatureModal } from '@/components/hseq/DigitalSignatureModal';
 import {
   getHseqFormatConfig,
   getOptimalResponses,
-} from '@/lib/drone-inspection';
+} from '@/lib/hseq-definitions';
 import { PenTool, AlertCircle, Check } from 'lucide-react';
 
 interface HseqTemplateOption {
