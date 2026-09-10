@@ -3,10 +3,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 import {
-  convertWorksheetToPdf,
   fillHseqExcelTemplate,
   getHseqFormatConfig,
 } from '@/lib/drone-inspection';
+import { convertOfficeDocumentToPdf } from '@/lib/cloud-document-converter';
 import { HSEQ_EVIDENCE_FOLDER_ID, getUploadDriveClient } from '@/lib/hseq-drive';
 
 export async function POST(req: NextRequest) {
@@ -113,8 +113,9 @@ export async function POST(req: NextRequest) {
     const excelFileName = excelResult.fileName;
     const excelBase64 = excelResult.excelBase64;
 
-    // 2. Convertir la hoja Excel ya diligenciada directamente a PDF
-    const { fileName, pdfBase64, pdfBuffer } = convertWorksheetToPdf(
+    // 2. Convertir la hoja Excel ya diligenciada directamente a PDF (Solución B con fallback A1)
+    const { fileName, pdfBase64, pdfBuffer, conversionMethod } = await convertOfficeDocumentToPdf(
+      excelResult.excelBuffer,
       excelResult.worksheet,
       payloadForGeneration
     );
@@ -213,6 +214,7 @@ export async function POST(req: NextRequest) {
       excelBase64,
       webViewLink: driveWebViewLink,
       driveWarning,
+      conversionMethod,
       message: `¡${formatConfig.title} registrada con éxito y formatos generados!`,
     });
   } catch (err: unknown) {
