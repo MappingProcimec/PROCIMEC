@@ -95,6 +95,8 @@ export default function HseqReportFormPage() {
     fileName: string;
     webViewLink?: string;
     pdfBase64?: string;
+    excelFileName?: string;
+    excelBase64?: string;
     driveError?: string | null;
   } | null>(null);
 
@@ -290,6 +292,8 @@ export default function HseqReportFormPage() {
         fileName: data.fileName,
         webViewLink: data.webViewLink,
         pdfBase64: data.pdfBase64,
+        excelFileName: data.excelFileName,
+        excelBase64: data.excelBase64,
         driveError: data.driveWarning || null,
       });
       setSubmissionSuccess(true);
@@ -321,6 +325,31 @@ export default function HseqReportFormPage() {
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error('Error al descargar PDF:', e);
+    }
+  };
+
+  const downloadLocalExcel = () => {
+    if (!generatedPdfResult?.excelBase64 || !generatedPdfResult?.excelFileName) return;
+    try {
+      const byteCharacters = atob(generatedPdfResult.excelBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = generatedPdfResult.excelFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Error al descargar Excel:', e);
     }
   };
 
@@ -356,17 +385,23 @@ export default function HseqReportFormPage() {
                 Inspección Registrada Exitosamente
               </h2>
               <p className="text-xs text-text-muted">
-                El documento PDF oficial ha sido generado según el formato seleccionado.
+                El reporte ha sido generado según la plantilla oficial de la <strong>Carpeta 24</strong>.
               </p>
             </div>
 
             <div className="bg-gray-50 rounded-xl p-4 text-xs space-y-2 border border-border">
               <p className="text-text-secondary">
-                <strong>Archivo generado:</strong>{' '}
+                <strong>Archivo PDF generado:</strong>{' '}
                 <code className="font-mono text-primary font-bold">{generatedPdfResult.fileName}</code>
               </p>
+              {generatedPdfResult.excelFileName && (
+                <p className="text-text-secondary">
+                  <strong>Plantilla Excel diligenciada:</strong>{' '}
+                  <code className="font-mono text-emerald-700 font-bold">{generatedPdfResult.excelFileName}</code>
+                </p>
+              )}
               <p className="text-text-secondary">
-                <strong>Formato:</strong> {formatConfig?.pdfTitle || activeTemplate?.title} ({formatConfig?.code})
+                <strong>Formato Oficial:</strong> {formatConfig?.pdfTitle || activeTemplate?.title} ({formatConfig?.code})
               </p>
               <p className="text-text-secondary">
                 <strong>Proyecto:</strong> {selectedProject?.name || projectName}
@@ -393,9 +428,19 @@ export default function HseqReportFormPage() {
                 <button
                   type="button"
                   onClick={downloadLocalPdf}
-                  className="btn btn-primary"
+                  className="btn btn-primary shadow-sm"
                 >
                   <span>⬇️</span> Descargar PDF Oficial
+                </button>
+              )}
+
+              {generatedPdfResult.excelBase64 && (
+                <button
+                  type="button"
+                  onClick={downloadLocalExcel}
+                  className="btn bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-colors"
+                >
+                  <span>📊</span> Descargar Plantilla Excel Diligenciada (.xlsx)
                 </button>
               )}
 

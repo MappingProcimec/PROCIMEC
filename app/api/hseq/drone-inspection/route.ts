@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 import {
   buildHseqInspectionPdf,
+  fillHseqExcelTemplate,
   getHseqFormatConfig,
 } from '@/lib/drone-inspection';
 import { HSEQ_EVIDENCE_FOLDER_ID, getUploadDriveClient } from '@/lib/hseq-drive';
@@ -106,11 +107,43 @@ export async function POST(req: NextRequest) {
       sstaSignatureDataUrl,
     });
 
+    // 2. Generar el Formato Oficial Excel Diligenciado desde la plantilla de Carpeta 24
+    let excelFileName: string | null = null;
+    let excelBase64: string | null = null;
+    try {
+      const excelResult = await fillHseqExcelTemplate({
+        formatTitle: formatConfig.pdfTitle,
+        formatCode: formatConfig.code,
+        version: formatConfig.version,
+        equipmentLabel: formatConfig.equipmentLabel,
+        projectName: projectName || 'Proyecto',
+        costCenter: costCenter || '',
+        location: location || '',
+        inspectionDate,
+        equipmentBrandModel: brandModel,
+        equipmentSerial: serial,
+        items: requiredItems,
+        itemsResponses,
+        criticalPoint,
+        generalObservations,
+        operatorName,
+        operatorSignatureDataUrl,
+        sstaName,
+        sstaSignatureDataUrl,
+        templateType: formatConfig.formatType,
+        templateId: templateId || undefined,
+      });
+      excelFileName = excelResult.fileName;
+      excelBase64 = excelResult.excelBase64;
+    } catch (exErr) {
+      console.warn('Aviso generando Excel desde plantilla de Carpeta 24:', exErr);
+    }
+
     let driveFileId: string | null = null;
     let driveWebViewLink: string | null = null;
     let driveWarning: string | null = null;
 
-    // 2. Intentar guardar copia en Google Drive (Carpeta de Evidencias)
+    // 3. Intentar guardar copia en Google Drive (Carpeta de Evidencias)
     try {
       const { Readable } = await import('stream');
       const uploadDrive = await getUploadDriveClient();
@@ -149,7 +182,7 @@ export async function POST(req: NextRequest) {
         'Para sincronizar directamente en la carpeta de Google Drive en la nube, el administrador debe renovar su sesión en la plataforma. Tu reporte oficial está listo para descarga local inmediata.';
     }
 
-    // 3. Persistir en la Base de Datos Supabase (Ley 1 de PROCIMEC)
+    // 4. Persistir en la Base de Datos Supabase (Ley 1 de PROCIMEC)
     const supabase = createAdminClient();
     const { data: inserted, error: dbErr } = await supabase
       .from('hseq_drone_inspections')
@@ -160,8 +193,8 @@ export async function POST(req: NextRequest) {
         cost_center: costCenter || null,
         location: location || null,
         inspection_date: inspectionDate,
-        drone_brand_model: droneBrandModel,
-        drone_serial: droneSerial || null,
+        drone_brand_model: brandModel,
+        drone_serial: serial || null,
         items_responses: itemsResponses,
         critical_point: criticalPoint || 'Ninguno',
         general_observations: generalObservations || null,
@@ -178,14 +211,15 @@ export async function POST(req: NextRequest) {
 
     if (dbErr) {
       console.error('Error insertando en hseq_drone_inspections:', dbErr);
-      // Si la tabla aún no fue corrida en el SQL editor, devolver el PDF generado con aviso
       return NextResponse.json({
         ok: true,
         recordId: null,
         fileName,
         pdfBase64,
+        excelFileName,
+        excelBase64,
         webViewLink: driveWebViewLink,
-        dbWarning: `El registro se generó en PDF, pero la tabla hseq_drone_inspections requiere ejecutar la migración 015 en Supabase: ${dbErr.message}`,
+        dbWarning: `El registro se generó en PDF y Excel oficial, pero la tabla hseq_drone_inspections requiere ejecutar la migración 015 en Supabase: ${dbErr.message}`,
         driveWarning,
       });
     }
@@ -195,9 +229,11 @@ export async function POST(req: NextRequest) {
       recordId: inserted?.id,
       fileName,
       pdfBase64,
+      excelFileName,
+      excelBase64,
       webViewLink: driveWebViewLink,
       driveWarning,
-      message: '¡Inspección Pre-operacional de Drone registrada con éxito y PDF generado!',
+      message: `¡${formatConfig.title} registrada con éxito y formatos generados!`,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error inesperado procesando la inspección de drone.';

@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import fs from 'fs';
+import path from 'path';
+import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { PROCIMEC_LOGO_BASE64 } from './logo-base64';
+import { getDriveClient } from './hseq-drive';
 
 export interface DroneInspectionItemDef {
   code: string;
@@ -311,218 +316,161 @@ export async function buildHseqInspectionPdf(payload: HseqPdfGenerationPayload):
     format: 'a4',
   });
 
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
+  const pageWidth = doc.internal.pageSize.getWidth(); // 210
+  const margin = 10;
 
-  const title = (payload.formatTitle || 'INSPECCIÓN PRE-OPERACIONAL').toUpperCase();
-  const code = payload.formatCode || 'FOR-HSEQ';
-  const version = payload.version || '01';
+  const title = (payload.formatTitle || 'INSPECCIÓN PRE-OPERACIONAL DRONE').toUpperCase();
+  const code = payload.formatCode || 'FOR-HSEQ-024';
+  const version = payload.version || '02';
+  const versionDate = payload.inspectionDate || new Date().toISOString().split('T')[0];
   const equipment = payload.equipmentBrandModel || payload.droneBrandModel || 'Equipo Oficial PROCIMEC';
   const serial = payload.equipmentSerial || payload.droneSerial || 'N/A';
   const items = payload.items && payload.items.length > 0 ? payload.items : DRONE_INSPECTION_ITEMS;
 
-  // ── 1. Encabezado Oficial PROCIMEC (Azul Marino Corporativo #1B3A5C) ──────
-  doc.setFillColor(27, 58, 92);
-  doc.rect(margin, 12, pageWidth - margin * 2, 18, 'F');
-
-  // Franja Dorada Accent
-  doc.setFillColor(245, 166, 35);
-  doc.rect(margin, 30, pageWidth - margin * 2, 1.2, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
-  doc.text('PROCIMEC — MAPPING INGENIERÍA S.A.S.', pageWidth / 2, 18.5, { align: 'center' });
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text(title, pageWidth / 2, 23.5, { align: 'center' });
-  doc.setFontSize(6.5);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`SISTEMA DE GESTIÓN INTEGRAL HSEQ | ${code} — VERSIÓN ${version}`, pageWidth / 2, 27.5, { align: 'center' });
-  // ── 2. Cuadro de Metadatos del Proyecto y Equipo ───────────────────────────
-  autoTable(doc, {
-    startY: 34,
-    margin: { left: margin, right: margin },
-    theme: 'grid',
-    styles: {
-      fontSize: 7.2,
-      cellPadding: 1.8,
-      lineColor: [203, 213, 225],
-      lineWidth: 0.2,
-      textColor: [30, 41, 59],
-    },
-    headStyles: {
-      fillColor: [241, 245, 249],
-      textColor: [15, 23, 42],
-      fontStyle: 'bold',
-      halign: 'left',
-    },
-    body: [
-      [
-        { content: 'PROYECTO:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
-        payload.projectName || 'N/A',
-        { content: 'CENTRO DE COSTOS:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
-        payload.costCenter || 'N/A',
-      ],
-      [
-        { content: 'UBICACIÓN / CIUDAD:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
-        payload.location || 'En campo',
-        { content: 'FECHA INSPECCIÓN:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
-        payload.inspectionDate || 'N/A',
-      ],
-      [
-        { content: 'EQUIPO / MODELO:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
-        equipment,
-        { content: 'SERIAL:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
-        serial,
-      ],
+  // 1. Cabecera idéntica al Formato Excel de Carpeta 24
+  const tableBody: any[] = [
+    [
+      {
+        content: `Versión: ${version}\nFecha: ${versionDate}`,
+        styles: { fontStyle: 'bold', fontSize: 7, halign: 'center', valign: 'middle', cellWidth: 38, fillColor: [255, 255, 255] }
+      },
+      {
+        content: title,
+        colSpan: 4,
+        rowSpan: 2,
+        styles: { fontStyle: 'bold', fontSize: 11, halign: 'center', valign: 'middle', textColor: [15, 23, 42] }
+      }
     ],
-  });
+    [
+      {
+        content: '',
+        styles: { cellWidth: 38, minCellHeight: 12, fillColor: [255, 255, 255] }
+      }
+    ],
+    [
+      { content: 'NOMBRE PROYECTO:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
+      { content: payload.projectName || 'N/A', colSpan: 4, styles: { fontSize: 7.5 } }
+    ],
+    [
+      { content: 'CENTRO DE COSTO:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
+      { content: payload.costCenter || 'N/A', colSpan: 4, styles: { fontSize: 7.5 } }
+    ],
+    [
+      { content: 'CIUDAD / UBICACIÓN:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
+      { content: payload.location || 'En campo', colSpan: 4, styles: { fontSize: 7.5 } }
+    ],
+    [
+      { content: 'FECHA:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
+      { content: payload.inspectionDate || 'N/A', colSpan: 4, styles: { fontSize: 7.5 } }
+    ],
+    [
+      { content: 'MARCA Y MODELO:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
+      { content: equipment, colSpan: 4, styles: { fontSize: 7.5 } }
+    ],
+    [
+      { content: 'SERIAL:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
+      { content: serial, colSpan: 4, styles: { fontSize: 7.5 } }
+    ],
+    [
+      {
+        content: 'MARQUE CON UNA "X" SEGÚN LO EVIDENCIADO',
+        colSpan: 5,
+        styles: { fontStyle: 'bold', fontSize: 8, halign: 'center', fillColor: [217, 217, 217], textColor: [15, 23, 42] }
+      }
+    ],
+    [
+      { content: 'ITEMS', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217], cellWidth: 14 } },
+      { content: 'REVISION', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217] } },
+      { content: 'SI', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217], cellWidth: 12 } },
+      { content: 'NO', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217], cellWidth: 12 } },
+      { content: 'NA', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217], cellWidth: 12 } }
+    ]
+  ];
 
-  // ── 3. Tabla de Ítems de Inspección del Formato Seleccionado ──────────────
-  const tableRows: any[] = [];
-  let currentSection = '';
-
+  // 2. Ítems del formato oficial con la 'X' en la columna correspondiente
   for (const item of items) {
-    if (item.section !== currentSection) {
-      currentSection = item.section;
-      tableRows.push([
-        {
-          content: currentSection,
-          colSpan: 5,
-          styles: {
-            fillColor: [226, 232, 240], // Slate 200
-            textColor: [15, 23, 42],
-            fontStyle: 'bold',
-            fontSize: 7.5,
-          },
-        },
-      ]);
-    }
-
     const resp = payload.itemsResponses[item.code] || '';
-    tableRows.push([
-      item.code,
-      item.description,
-      resp === 'SI' ? 'X' : '',
-      resp === 'NO' ? 'X' : '',
-      resp === 'NA' ? 'X' : '',
+    tableBody.push([
+      { content: item.code, styles: { fontStyle: 'bold', fontSize: 7, halign: 'center', cellWidth: 14 } },
+      { content: item.description, styles: { fontSize: 6.8 } },
+      { content: resp === 'SI' ? 'X' : '', styles: { fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellWidth: 12, textColor: resp === 'SI' ? [16, 185, 129] : [15, 23, 42] } },
+      { content: resp === 'NO' ? 'X' : '', styles: { fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellWidth: 12, textColor: resp === 'NO' ? [239, 68, 68] : [15, 23, 42] } },
+      { content: resp === 'NA' ? 'X' : '', styles: { fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellWidth: 12, textColor: [100, 116, 139] } }
     ]);
   }
 
-  autoTable(doc, {
-    startY: (doc as any).lastAutoTable.finalY + 3,
-    margin: { left: margin, right: margin },
-    theme: 'grid',
-    head: [['CÓD.', 'COMPONENTE / CRITERIO DE INSPECCIÓN', 'SÍ', 'NO', 'N/A']],
-    body: tableRows,
-    styles: {
-      fontSize: 6.8,
-      cellPadding: 1.2,
-      lineColor: [203, 213, 225],
-      lineWidth: 0.15,
-      textColor: [30, 41, 59],
-      valign: 'middle',
-    },
-    headStyles: {
-      fillColor: [27, 58, 92], // Azul Marino Corporativo PROCIMEC
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'center',
-      fontSize: 7,
-    },
-    columnStyles: {
-      0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
-      1: { cellWidth: 'auto' },
-      2: { cellWidth: 10, halign: 'center', fontStyle: 'bold', textColor: [16, 185, 129] },
-      3: { cellWidth: 10, halign: 'center', fontStyle: 'bold', textColor: [239, 68, 68] },
-      4: { cellWidth: 10, halign: 'center', fontStyle: 'bold', textColor: [100, 116, 139] },
-    },
-  });
+  // Índices para celdas de firmas
+  const operatorSignRowIndex = tableBody.length;
+  tableBody.push([
+    { content: 'FIRMA RESPONSABLE DEL EQUIPO', styles: { fontStyle: 'bold', fontSize: 7, halign: 'center', valign: 'middle', cellWidth: 36, fillColor: [248, 250, 252] } },
+    { content: `Firma digital verificada: ${payload.operatorName || 'Operador'}`, colSpan: 4, styles: { fontSize: 7.5, valign: 'bottom', minCellHeight: 16 } }
+  ]);
 
-  // ── 4. Observaciones y Puntos Críticos ──────────────────────────────────────
-  let finalY = (doc as any).lastAutoTable.finalY + 3;
+  const sstaSignRowIndex = tableBody.length;
+  tableBody.push([
+    { content: 'FIRMA RESPONSABLE SSTA O PROYECTO', styles: { fontStyle: 'bold', fontSize: 7, halign: 'center', valign: 'middle', cellWidth: 36, fillColor: [248, 250, 252] } },
+    { content: `Firma digital verificada: ${payload.sstaName || 'Responsable SSTA'}`, colSpan: 4, styles: { fontSize: 7.5, valign: 'bottom', minCellHeight: 16 } }
+  ]);
 
-  if (finalY > 235) {
-    doc.addPage();
-    finalY = 15;
-  }
+  // 4. Nota legal oficial idéntica a la fila 40 del Excel oficial
+  tableBody.push([
+    {
+      content: 'NOTA IMPORTANTE: La inspección preoperacional debe realizarla ÚNICAMENTE el OPERADOR del equipo. En caso de necesitar ayuda adicional debe informarle a su SUPERVISOR quien tomará la decisión más segura.',
+      colSpan: 5,
+      styles: { fontSize: 6.5, fontStyle: 'italic', fillColor: [248, 250, 252], textColor: [71, 85, 105] }
+    }
+  ]);
+
+  // 5. Observaciones idénticas a las filas 41 y 42 del Excel oficial
+  tableBody.push([
+    { content: 'OBSERVACIONES:', styles: { fontStyle: 'bold', fontSize: 7, cellWidth: 36, fillColor: [248, 250, 252] } },
+    { content: payload.generalObservations || 'Sin observaciones.', colSpan: 4, styles: { fontSize: 7 } }
+  ]);
+
+  // 6. Punto crítico idéntico a las filas 44 y 45 del Excel oficial
+  tableBody.push([
+    { content: 'PUNTO CRÍTICO QUE INHABILITA EL EQUIPO:', styles: { fontStyle: 'bold', fontSize: 7, cellWidth: 36, fillColor: [254, 242, 242], textColor: [185, 28, 28] } },
+    { content: payload.criticalPoint || 'Ninguno', colSpan: 4, styles: { fontSize: 7 } }
+  ]);
 
   autoTable(doc, {
-    startY: finalY,
+    startY: margin,
     margin: { left: margin, right: margin },
     theme: 'grid',
+    body: tableBody,
     styles: {
-      fontSize: 7,
-      cellPadding: 1.8,
-      lineColor: [203, 213, 225],
+      lineColor: [148, 163, 184],
       lineWidth: 0.15,
+      cellPadding: 1.1,
+      textColor: [15, 23, 42],
     },
-    body: [
-      [
-        { content: 'PUNTO CRÍTICO QUE INHABILITA EL EQUIPO:', styles: { fontStyle: 'bold', cellWidth: 60, fillColor: [254, 242, 242] } },
-        { content: payload.criticalPoint || 'Ninguno' },
-      ],
-      [
-        { content: 'OBSERVACIONES GENERALES:', styles: { fontStyle: 'bold', cellWidth: 60, fillColor: [248, 250, 252] } },
-        { content: payload.generalObservations || 'Sin novedades adicionales reportadas.' },
-      ],
-    ],
+    didDrawCell: (data) => {
+      // Estampar Logo de PROCIMEC en celda (fila 1, col 0)
+      if (data.row.index === 1 && data.column.index === 0) {
+        try {
+          doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', data.cell.x + 2, data.cell.y + 1, 34, 10);
+        } catch {}
+      }
+      // Estampar trazo de firma del operador si existe
+      if (data.row.index === operatorSignRowIndex && data.column.index === 1) {
+        if (payload.operatorSignatureDataUrl && payload.operatorSignatureDataUrl.startsWith('data:image')) {
+          try {
+            doc.addImage(payload.operatorSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 10);
+          } catch {}
+        }
+      }
+      // Estampar trazo de firma del SSTA si existe
+      if (data.row.index === sstaSignRowIndex && data.column.index === 1) {
+        if (payload.sstaSignatureDataUrl && payload.sstaSignatureDataUrl.startsWith('data:image')) {
+          try {
+            doc.addImage(payload.sstaSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 10);
+          } catch {}
+        }
+      }
+    }
   });
 
-  // ── 5. Recuadros de Firmas Digitales con Trazo en Pantalla ─────────────────
-  let signY = (doc as any).lastAutoTable.finalY + 4;
-  if (signY > 235) {
-    doc.addPage();
-    signY = 15;
-  }
-
-  const boxWidth = (pageWidth - margin * 2 - 8) / 2;
-  const boxHeight = 32;
-
-  // Cuadro Firma Operador
-  doc.setDrawColor(203, 213, 225);
-  doc.setFillColor(255, 255, 255);
-  doc.rect(margin, signY, boxWidth, boxHeight, 'FD');
-
-  // Cuadro Firma SSTA
-  doc.rect(margin + boxWidth + 8, signY, boxWidth, boxHeight, 'FD');
-
-  // Insertar imágenes de firma si existen
-  try {
-    if (payload.operatorSignatureDataUrl && payload.operatorSignatureDataUrl.startsWith('data:image')) {
-      doc.addImage(payload.operatorSignatureDataUrl, 'PNG', margin + 4, signY + 2, boxWidth - 8, 18);
-    }
-  } catch (e) {
-    console.warn('No se pudo estampar firma operador en PDF:', e);
-  }
-
-  try {
-    if (payload.sstaSignatureDataUrl && payload.sstaSignatureDataUrl.startsWith('data:image')) {
-      doc.addImage(payload.sstaSignatureDataUrl, 'PNG', margin + boxWidth + 8 + 4, signY + 2, boxWidth - 8, 18);
-    }
-  } catch (e) {
-    console.warn('No se pudo estampar firma SSTA en PDF:', e);
-  }
-
-  // Línea y textos de pie de firma
-  doc.setDrawColor(148, 163, 184);
-  doc.line(margin + 6, signY + 22, margin + boxWidth - 6, signY + 22);
-  doc.line(margin + boxWidth + 8 + 6, signY + 22, margin + boxWidth * 2 + 2, signY + 22);
-
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(`RESPONSABLE / OPERADOR: ${payload.operatorName || 'Colaborador'}`, margin + boxWidth / 2, signY + 26, { align: 'center' });
-  doc.text(`RESPONSABLE SSTA / SST: ${payload.sstaName || 'Inspector SSTA'}`, margin + boxWidth + 8 + boxWidth / 2, signY + 26, { align: 'center' });
-
-  doc.setFontSize(6.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 116, 139);
-  doc.text('Firma Digital Verificada en Dispositivo', margin + boxWidth / 2, signY + 30, { align: 'center' });
-  doc.text('Firma Digital Verificada en Dispositivo', margin + boxWidth + 8 + boxWidth / 2, signY + 30, { align: 'center' });
-
-  // ── 6. Generar Output ──────────────────────────────────────────────────────
+  // ── Generar Archivo PDF ──────────────────────────────────────────────────
   const cleanFormat = (payload.formatCode || 'HSEQ').replace(/[^a-zA-Z0-9\-_]/g, '_');
   const cleanProject = (payload.projectName || 'Proyecto').replace(/[^a-zA-Z0-9\-_]/g, '_').substring(0, 25);
   const cleanDate = (payload.inspectionDate || new Date().toISOString().split('T')[0]).replace(/[^0-9\-]/g, '');
@@ -555,4 +503,208 @@ export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload
     equipmentBrandModel: payload.droneBrandModel || cfg.defaultEquipment,
     equipmentSerial: payload.droneSerial || cfg.defaultSerial,
   });
+}
+
+// ─── Llenado y Generación de la Plantilla Excel Original de Carpeta 24 ─────────
+export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & {
+  templateType?: 'drone' | 'estacion_total' | 'generic';
+  templateId?: string;
+}): Promise<{
+  fileName: string;
+  excelBase64: string;
+  excelBuffer: Buffer;
+}> {
+  const wb = new ExcelJS.Workbook();
+  const isEstacion =
+    payload.templateType === 'estacion_total' ||
+    /estaci[oó]n|total|025/i.test(`${payload.formatCode || ''} ${payload.formatTitle || ''}`);
+
+  let loaded = false;
+
+  // 1. Intentar descargar archivo original desde Google Drive si hay templateId
+  if (payload.templateId && !payload.templateId.startsWith('hseq-') && !payload.templateId.startsWith('folder-')) {
+    try {
+      const drive = await getDriveClient();
+      const res = await drive.files.get(
+        { fileId: payload.templateId, alt: 'media' },
+        { responseType: 'arraybuffer' }
+      );
+      if (res.data) {
+        await wb.xlsx.load(Buffer.from(res.data as ArrayBuffer) as any);
+        loaded = true;
+      }
+    } catch (e) {
+      console.warn('Aviso cargando plantilla desde Drive, recurriendo a plantilla oficial local:', e);
+    }
+  }
+
+  // 2. Si no se obtuvo de Drive, cargar la copia oficial de Carpeta 24
+  if (!loaded) {
+    const templateFileName = isEstacion
+      ? 'FOR-Inspección pre-operacional Estación Total.xlsx'
+      : 'FOR-Inspección pre-operacional Drone.xlsx';
+
+    const localCandidates = [
+      path.join(process.cwd(), 'public', 'templates', templateFileName),
+      path.join(process.cwd(), templateFileName),
+      path.join(process.cwd(), 'public', 'templates', isEstacion ? 'estacion_template.xlsx' : 'drone_template.xlsx'),
+    ];
+
+    for (const p of localCandidates) {
+      if (fs.existsSync(p)) {
+        await wb.xlsx.readFile(p);
+        loaded = true;
+        break;
+      }
+    }
+  }
+
+  if (!loaded) {
+    throw new Error('No fue posible cargar la plantilla Excel oficial de Carpeta 24.');
+  }
+
+  const ws = wb.worksheets[0];
+
+  if (!isEstacion) {
+    // ── Llenado de Formato Drone (FOR-HSEQ-024) ───────────────────────────────
+    const replacements: Record<string, string> = {
+      '{{nombre_proyecto}}': payload.projectName || '',
+      '{{centro_costos}}': payload.costCenter || '',
+      '{{ciudad_ubicacion}}': payload.location || '',
+      '{{fecha}}': payload.inspectionDate || '',
+      '{{marca_modelo}}': payload.equipmentBrandModel || payload.droneBrandModel || 'DJI Mavic 3 Enterprise',
+      '{{serial_drone}}': payload.equipmentSerial || payload.droneSerial || 'PROC-DRN-001',
+      '{{firma_op}}': `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
+      '{{firma_ss}}': `${payload.sstaName || 'Responsable SSTA'} (Firma Digital Verificada)`,
+      '{{observaciones}}': payload.generalObservations || 'Sin observaciones.',
+      '{{punto_critico}}': payload.criticalPoint || 'Ninguno',
+    };
+
+    const items = payload.items && payload.items.length > 0 ? payload.items : DRONE_INSPECTION_ITEMS;
+    for (const item of items) {
+      const resp = payload.itemsResponses[item.code] || '';
+      replacements[`{{${item.code}_si}}`] = resp === 'SI' ? 'X' : '';
+      replacements[`{{${item.code}_no}}`] = resp === 'NO' ? 'X' : '';
+      replacements[`{{${item.code}_na}}`] = resp === 'NA' ? 'X' : '';
+    }
+
+    ws.eachRow((row) => {
+      row.eachCell((cell) => {
+        if (typeof cell.value === 'string') {
+          let text = cell.value;
+          for (const [k, v] of Object.entries(replacements)) {
+            if (text.includes(k)) {
+              text = text.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), v);
+            }
+          }
+          cell.value = text;
+        }
+      });
+    });
+
+    // Incrustar trazos gráficos de firma en celdas de firma
+    if (payload.operatorSignatureDataUrl?.startsWith('data:image')) {
+      try {
+        const opBuffer = Buffer.from(payload.operatorSignatureDataUrl.split(',')[1], 'base64');
+        const opImgId = wb.addImage({ buffer: opBuffer as any, extension: 'png' });
+        ws.addImage(opImgId, {
+          tl: { col: 1.2, row: 37.1 },
+          ext: { width: 130, height: 40 },
+        });
+      } catch {}
+    }
+
+    if (payload.sstaSignatureDataUrl?.startsWith('data:image')) {
+      try {
+        const sstaBuffer = Buffer.from(payload.sstaSignatureDataUrl.split(',')[1], 'base64');
+        const sstaImgId = wb.addImage({ buffer: sstaBuffer as any, extension: 'png' });
+        ws.addImage(sstaImgId, {
+          tl: { col: 1.2, row: 38.1 },
+          ext: { width: 130, height: 40 },
+        });
+      } catch {}
+    }
+  } else {
+    // ── Llenado de Formato Estación Total (FOR-HSEQ-025) ─────────────────────
+    const replacements: Record<string, string> = {
+      '{{proyecto}}': payload.projectName || '',
+      '{{ubicacion}}': payload.location || '',
+    };
+
+    ws.eachRow((row, rowNumber) => {
+      row.eachCell((cell, colNumber) => {
+        if (typeof cell.value === 'string') {
+          let text = cell.value;
+          for (const [k, v] of Object.entries(replacements)) {
+            if (text.includes(k)) {
+              text = text.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), v);
+            }
+          }
+          cell.value = text;
+        }
+
+        // Fila 3: Centro de Costos
+        if (rowNumber === 3 && colNumber === 25 && payload.costCenter) {
+          cell.value = `CENTRO DE COSTO: ${payload.costCenter}`;
+        }
+
+        // Fila 6: Marca/Modelo y Serial
+        if (rowNumber === 6 && colNumber === 3 && (payload.equipmentBrandModel || payload.droneBrandModel)) {
+          cell.value = payload.equipmentBrandModel || payload.droneBrandModel;
+        }
+        if (rowNumber === 6 && colNumber === 12 && (payload.equipmentSerial || payload.droneSerial)) {
+          cell.value = payload.equipmentSerial || payload.droneSerial;
+        }
+      });
+    });
+
+    // Identificar columna del día inspeccionado (Lunes=5, Martes=8, etc.)
+    const dateObj = new Date(payload.inspectionDate + 'T12:00:00Z');
+    const dayOfWeek = isNaN(dateObj.getTime()) ? 1 : dateObj.getDay();
+    const dayBaseCol = dayOfWeek === 0 ? 23 : 5 + (dayOfWeek - 1) * 3;
+
+    // Ítems de inspección (filas 11 a 25)
+    const items = payload.items && payload.items.length > 0 ? payload.items : ESTACION_TOTAL_ITEMS;
+    items.forEach((item, idx) => {
+      const targetRowNumber = 11 + idx;
+      if (targetRowNumber <= 25) {
+        const row = ws.getRow(targetRowNumber);
+        const resp = payload.itemsResponses[item.code];
+        if (resp === 'SI') {
+          row.getCell(dayBaseCol).value = 'X';
+        } else if (resp === 'NO') {
+          row.getCell(dayBaseCol + 1).value = 'X';
+        } else if (resp === 'NA') {
+          row.getCell(dayBaseCol + 2).value = 'X';
+        }
+      }
+    });
+
+    // Firmas
+    ws.getRow(26).getCell(5).value = `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`;
+    ws.getRow(27).getCell(5).value = `${payload.sstaName || 'Responsable SSTA'} (Firma Digital Verificada)`;
+
+    // Observaciones (fila 30 a 36 según el día)
+    const dayObsRow = dayOfWeek === 0 ? 36 : 30 + (dayOfWeek - 1);
+    if (dayObsRow >= 30 && dayObsRow <= 36) {
+      ws.getRow(dayObsRow).getCell(4).value = payload.generalObservations || 'Conforme.';
+    }
+
+    // Punto crítico
+    ws.getRow(38).getCell(4).value = payload.criticalPoint || 'Ninguno';
+  }
+
+  const excelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
+  const excelBase64 = excelBuffer.toString('base64');
+
+  const cleanFormat = (payload.formatCode || 'FOR-HSEQ').replace(/[^a-zA-Z0-9\-_]/g, '_');
+  const cleanProject = (payload.projectName || 'Proyecto').replace(/[^a-zA-Z0-9\-_]/g, '_').substring(0, 25);
+  const cleanDate = (payload.inspectionDate || new Date().toISOString().split('T')[0]).replace(/[^0-9\-]/g, '');
+  const fileName = `Formato_Oficial_${cleanFormat}_${cleanProject}_${cleanDate}.xlsx`;
+
+  return {
+    fileName,
+    excelBase64,
+    excelBuffer,
+  };
 }

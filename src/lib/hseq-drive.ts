@@ -25,7 +25,7 @@ let cachedTemplates: HseqTemplateItem[] | null = null;
 let lastScanTimestamp = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de caché
 
-async function getDriveClient(): Promise<drive_v3.Drive> {
+export async function getDriveClient(): Promise<drive_v3.Drive> {
   // 1. Service Account (Cuenta de Servicio: no expira nunca y tiene acceso estable y directo)
   const base64Key = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY;
   if (base64Key) {
