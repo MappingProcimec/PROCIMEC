@@ -120,11 +120,43 @@ export async function POST(req: NextRequest) {
       payloadForGeneration
     );
 
+    // 3. Almacenar Evidencias en Supabase Storage (Bucket 'evidencias')
+    const supabase = createAdminClient();
+    let pdfUrl: string | null = null;
+    let excelUrl: string | null = null;
+
+    try {
+      const year = new Date().getFullYear();
+      const month = String(new Date().getMonth() + 1).padStart(2, '0');
+      const pdfStoragePath = `pdf/${year}/${month}/${fileName}`;
+      const excelStoragePath = `excel/${year}/${month}/${excelFileName}`;
+
+      // Subir PDF a bucket de evidencias
+      const pdfUpload = await supabase.storage.from('evidencias').upload(pdfStoragePath, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true,
+      });
+      if (!pdfUpload.error) {
+        pdfUrl = supabase.storage.from('evidencias').getPublicUrl(pdfStoragePath).data.publicUrl;
+      }
+
+      // Subir Excel (.xlsx) a bucket de evidencias
+      const excelUpload = await supabase.storage.from('evidencias').upload(excelStoragePath, excelResult.excelBuffer, {
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        upsert: true,
+      });
+      if (!excelUpload.error) {
+        excelUrl = supabase.storage.from('evidencias').getPublicUrl(excelStoragePath).data.publicUrl;
+      }
+    } catch (sErr) {
+      console.warn('Aviso guardando evidencias en Supabase Storage:', sErr);
+    }
+
     let driveFileId: string | null = null;
-    let driveWebViewLink: string | null = null;
+    let driveWebViewLink: string | null = pdfUrl;
     let driveWarning: string | null = null;
 
-    // 3. Intentar guardar copia en Google Drive (Carpeta de Evidencias)
+    // 4. Intentar guardar copia complementaria en Google Drive (si está disponible)
     try {
       const { Readable } = await import('stream');
       const uploadDrive = await getUploadDriveClient();
@@ -143,40 +175,75 @@ export async function POST(req: NextRequest) {
       });
 
       driveFileId = uploadRes.data.id || null;
-      driveWebViewLink = uploadRes.data.webViewLink || null;
-
-      // Otorgar permisos de lectura compartida
-      if (driveFileId) {
-        try {
-          await uploadDrive.permissions.create({
-            fileId: driveFileId,
-            requestBody: { role: 'reader', type: 'anyone' },
-          });
-        } catch {
-          // Ignorar
-        }
+      if (uploadRes.data.webViewLink) {
+        driveWebViewLink = uploadRes.data.webViewLink;
       }
     } catch (dErr: unknown) {
-      const msg = dErr instanceof Error ? dErr.message : String(dErr);
-      console.warn('Aviso guardando en Google Drive:', msg);
-      driveWarning =
-        'Para sincronizar directamente en la carpeta de Google Drive en la nube, el administrador debe renovar su sesión en la plataforma. Tu reporte oficial está listo para descarga local inmediata.';
+      // Ignorar error de cuota en Drive personal; la evidencia ya quedó respaldada en Supabase Storage
     }
 
-    // 4. Persistir en la Base de Datos Supabase (Ley 1 de PROCIMEC)
-    const supabase = createAdminClient();
+    // 5. Determinar División del Usuario y Formulario
+    let divisionName = formatConfig.formatType === 'drone' ? 'Mapping / Drones' : 'Ingeniería / Topografía';
+    try {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('division_id, divisions!users_division_id_fkey(name)')
+        .eq('id', session.user.id)
+        .single();
+      if ((userProfile as any)?.divisions?.name) {
+        divisionName = (userProfile as any).divisions.name;
+      }
+    } catch {}
+
+    // 6. Detectar si "algo no marcha bien" (Anomalías, respuestas 'NO' y Puntos Críticos)
+    const nonCompliantItems = requiredItems
+      .filter((it) => itemsResponses[it.code] === 'NO')
+      .map((it) => ({ code: it.code, description: (it as any).description || (it as any).title || '' }));
+
+    const hasCriticalPoint =
+      Boolean(criticalPoint) &&
+      criticalPoint.trim().toLowerCase() !== 'ninguno' &&
+      criticalPoint.trim().toLowerCase() !== 'ninguna' &&
+      criticalPoint.trim() !== '';
+
+    const hasAnomalies = nonCompliantItems.length > 0 || hasCriticalPoint;
+
+    // Enriquecer items_responses con metadatos completos para el tablero
+    const enrichedItemsResponses = {
+      ...itemsResponses,
+      _meta: {
+        division: divisionName,
+        format_code: formatConfig.code,
+        format_title: formatConfig.title,
+        equipment_label: formatConfig.equipmentLabel,
+        equipment_brand_model: brandModel,
+        equipment_serial: serial,
+        pdf_filename: fileName,
+        pdf_url: pdfUrl,
+        excel_filename: excelFileName,
+        excel_url: excelUrl,
+        has_anomalies: hasAnomalies,
+        non_compliant_count: nonCompliantItems.length,
+        non_compliant_items: nonCompliantItems,
+        critical_point: criticalPoint || 'Ninguno',
+        general_observations: generalObservations || '',
+        created_at: new Date().toISOString(),
+      },
+    };
+
+    // 7. Persistir en la Base de Datos Supabase (Ley 1 de PROCIMEC)
     const { data: inserted, error: dbErr } = await supabase
       .from('hseq_drone_inspections')
       .insert({
         project_id: projectId,
         user_id: session.user.id,
-        status: 'submitted',
+        status: hasAnomalies ? 'submitted' : 'approved',
         cost_center: costCenter || null,
         location: location || null,
         inspection_date: inspectionDate,
         drone_brand_model: brandModel,
         drone_serial: serial || null,
-        items_responses: itemsResponses,
+        items_responses: enrichedItemsResponses,
         critical_point: criticalPoint || 'Ninguno',
         general_observations: generalObservations || null,
         operator_name: operatorName,
@@ -212,6 +279,10 @@ export async function POST(req: NextRequest) {
       pdfBase64,
       excelFileName,
       excelBase64,
+      pdfUrl,
+      excelUrl,
+      divisionName,
+      hasAnomalies,
       webViewLink: driveWebViewLink,
       driveWarning,
       conversionMethod,
