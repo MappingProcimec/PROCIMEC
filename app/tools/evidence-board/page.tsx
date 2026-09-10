@@ -245,7 +245,7 @@ export default function EvidenceBoardToolPage() {
               {/* Status Filter */}
               <select
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as any)}
+                onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta')}
                 className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
               >
                 <option value="all">🔘 Todos los Estados</option>
@@ -277,6 +277,20 @@ export default function EvidenceBoardToolPage() {
                 {uniqueFormats.map((f) => (
                   <option key={f.code} value={f.code}>
                     {f.code}
+                  </option>
+                ))}
+              </select>
+
+              {/* Locator Filter */}
+              <select
+                value={selectedLocator}
+                onChange={(e) => setSelectedLocator(e.target.value)}
+                className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              >
+                <option value="all">📍 Todos los Localizadores</option>
+                {uniqueLocators.map((loc) => (
+                  <option key={loc} value={loc}>
+                    {loc}
                   </option>
                 ))}
               </select>
@@ -616,6 +630,7 @@ export default function EvidenceBoardToolPage() {
                   <span className="font-semibold text-text-primary block">{selectedEvidence.locatorName}</span>
                   {selectedEvidence.operatorSignatureData && (
                     <div className="bg-white border border-border rounded-lg p-1.5 flex items-center justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={selectedEvidence.operatorSignatureData}
                         alt="Firma Operador"
@@ -632,6 +647,7 @@ export default function EvidenceBoardToolPage() {
                   <span className="font-semibold text-text-primary block">{selectedEvidence.sstaName}</span>
                   {selectedEvidence.sstaSignatureData && (
                     <div className="bg-white border border-border rounded-lg p-1.5 flex items-center justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={selectedEvidence.sstaSignatureData}
                         alt="Firma SSTA"

@@ -104,9 +104,16 @@ export async function convertOfficeDocumentToPdf(
       });
 
       if (jobRes.ok) {
-        const jobData = await jobRes.json();
-        const exportTask = jobData?.data?.tasks?.find(
-          (t: any) => t.name === 'export-url' && t.status === 'finished'
+        interface CloudConvertTask {
+          name?: string;
+          status?: string;
+          result?: {
+            files?: Array<{ url?: string }>;
+          };
+        }
+        const tasks = (jobData?.data?.tasks || []) as CloudConvertTask[];
+        const exportTask = tasks.find(
+          (t) => t.name === 'export-url' && t.status === 'finished'
         );
         const fileUrl = exportTask?.result?.files?.[0]?.url;
 

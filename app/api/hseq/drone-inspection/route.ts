@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
 
     let driveFileId: string | null = null;
     let driveWebViewLink: string | null = pdfUrl;
-    let driveWarning: string | null = null;
+    const driveWarning: string | null = null;
 
     // 4. Intentar guardar copia complementaria en Google Drive (si está disponible)
     try {
@@ -178,27 +178,35 @@ export async function POST(req: NextRequest) {
       if (uploadRes.data.webViewLink) {
         driveWebViewLink = uploadRes.data.webViewLink;
       }
-    } catch (dErr: unknown) {
+    } catch {
       // Ignorar error de cuota en Drive personal; la evidencia ya quedó respaldada en Supabase Storage
     }
 
     // 5. Determinar División del Usuario y Formulario
     let divisionName = formatConfig.formatType === 'drone' ? 'Mapping / Drones' : 'Ingeniería / Topografía';
     try {
+      interface UserProfileWithDiv {
+        division_id?: string | null;
+        divisions?: { name?: string } | null;
+      }
       const { data: userProfile } = await supabase
         .from('users')
         .select('division_id, divisions!users_division_id_fkey(name)')
         .eq('id', session.user.id)
         .single();
-      if ((userProfile as any)?.divisions?.name) {
-        divisionName = (userProfile as any).divisions.name;
+      const typedProfile = userProfile as unknown as UserProfileWithDiv | null;
+      if (typedProfile?.divisions?.name) {
+        divisionName = typedProfile.divisions.name;
       }
     } catch {}
 
     // 6. Detectar si "algo no marcha bien" (Anomalías, respuestas 'NO' y Puntos Críticos)
     const nonCompliantItems = requiredItems
       .filter((it) => itemsResponses[it.code] === 'NO')
-      .map((it) => ({ code: it.code, description: (it as any).description || (it as any).title || '' }));
+      .map((it) => {
+        const itemObj = it as unknown as { code: string; description?: string; title?: string };
+        return { code: itemObj.code, description: itemObj.description || itemObj.title || '' };
+      });
 
     const hasCriticalPoint =
       Boolean(criticalPoint) &&
