@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 import {
   buildHseqInspectionPdf,
+  convertWorksheetToPdf,
   fillHseqExcelTemplate,
   getHseqFormatConfig,
 } from '@/lib/drone-inspection';
@@ -85,8 +86,7 @@ export async function POST(req: NextRequest) {
       equipmentBrandModel || droneBrandModel || formatConfig.defaultEquipment;
     const serial = equipmentSerial || droneSerial || formatConfig.defaultSerial;
 
-    // 1. Generar el PDF Oficial de Inspección con el formato seleccionado
-    const { fileName, pdfBase64, pdfBuffer } = await buildHseqInspectionPdf({
+    const payloadForGeneration = {
       formatTitle: formatConfig.pdfTitle,
       formatCode: formatConfig.code,
       version: formatConfig.version,
@@ -105,39 +105,20 @@ export async function POST(req: NextRequest) {
       operatorSignatureDataUrl,
       sstaName,
       sstaSignatureDataUrl,
-    });
+      templateType: formatConfig.formatType,
+      templateId: templateId || undefined,
+    };
 
-    // 2. Generar el Formato Oficial Excel Diligenciado desde la plantilla de Carpeta 24
-    let excelFileName: string | null = null;
-    let excelBase64: string | null = null;
-    try {
-      const excelResult = await fillHseqExcelTemplate({
-        formatTitle: formatConfig.pdfTitle,
-        formatCode: formatConfig.code,
-        version: formatConfig.version,
-        equipmentLabel: formatConfig.equipmentLabel,
-        projectName: projectName || 'Proyecto',
-        costCenter: costCenter || '',
-        location: location || '',
-        inspectionDate,
-        equipmentBrandModel: brandModel,
-        equipmentSerial: serial,
-        items: requiredItems,
-        itemsResponses,
-        criticalPoint,
-        generalObservations,
-        operatorName,
-        operatorSignatureDataUrl,
-        sstaName,
-        sstaSignatureDataUrl,
-        templateType: formatConfig.formatType,
-        templateId: templateId || undefined,
-      });
-      excelFileName = excelResult.fileName;
-      excelBase64 = excelResult.excelBase64;
-    } catch (exErr) {
-      console.warn('Aviso generando Excel desde plantilla de Carpeta 24:', exErr);
-    }
+    // 1. Abrir la plantilla Excel oficial de Carpeta 24 y diligenciar sus celdas
+    const excelResult = await fillHseqExcelTemplate(payloadForGeneration);
+    const excelFileName = excelResult.fileName;
+    const excelBase64 = excelResult.excelBase64;
+
+    // 2. Convertir la hoja Excel ya diligenciada directamente a PDF
+    const { fileName, pdfBase64, pdfBuffer } = convertWorksheetToPdf(
+      excelResult.worksheet,
+      payloadForGeneration
+    );
 
     let driveFileId: string | null = null;
     let driveWebViewLink: string | null = null;

@@ -305,172 +305,203 @@ export interface HseqPdfGenerationPayload {
 
 export type DronePdfGenerationPayload = HseqPdfGenerationPayload;
 
-export async function buildHseqInspectionPdf(payload: HseqPdfGenerationPayload): Promise<{
+// ─── Conversión Fiel de Hoja de Cálculo Excel (.xlsx) a PDF ───────────────────
+export function convertWorksheetToPdf(
+  ws: ExcelJS.Worksheet,
+  payload: HseqPdfGenerationPayload & { templateType?: string }
+): {
   fileName: string;
   pdfBase64: string;
   pdfBuffer: Buffer;
-}> {
+} {
+  // 1. Detectar dimensión y orientación de la hoja
+  let maxCol = 5;
+  for (let r = 1; r <= Math.min(ws.rowCount, 25); r++) {
+    ws.getRow(r).eachCell((c, col) => {
+      if (col > maxCol) maxCol = col;
+    });
+  }
+  maxCol = Math.min(maxCol, 26);
+  const isLandscape = maxCol > 10;
+
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation: isLandscape ? 'landscape' : 'portrait',
     unit: 'mm',
     format: 'a4',
   });
 
-  const pageWidth = doc.internal.pageSize.getWidth(); // 210
-  const margin = 10;
+  // 2. Mapear celdas combinadas (Merges) del Excel oficial
+  const mergeMap = new Map<string, { rowSpan: number; colSpan: number }>();
+  const mergedCellsToSkip = new Set<string>();
 
-  const title = (payload.formatTitle || 'INSPECCIÓN PRE-OPERACIONAL DRONE').toUpperCase();
-  const code = payload.formatCode || 'FOR-HSEQ-024';
-  const version = payload.version || '02';
-  const versionDate = payload.inspectionDate || new Date().toISOString().split('T')[0];
-  const equipment = payload.equipmentBrandModel || payload.droneBrandModel || 'Equipo Oficial PROCIMEC';
-  const serial = payload.equipmentSerial || payload.droneSerial || 'N/A';
-  const items = payload.items && payload.items.length > 0 ? payload.items : DRONE_INSPECTION_ITEMS;
+  for (const range of (ws.model.merges || [])) {
+    const match = range.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+    if (match) {
+      const colToNum = (col: string) => {
+        let n = 0;
+        for (let i = 0; i < col.length; i++) n = n * 26 + col.charCodeAt(i) - 64;
+        return n;
+      };
+      const startCol = colToNum(match[1]);
+      const startRow = parseInt(match[2], 10);
+      const endCol = colToNum(match[3]);
+      const endRow = parseInt(match[4], 10);
 
-  // 1. Cabecera idéntica al Formato Excel de Carpeta 24
-  const tableBody: any[] = [
-    [
-      {
-        content: `Versión: ${version}\nFecha: ${versionDate}`,
-        styles: { fontStyle: 'bold', fontSize: 7, halign: 'center', valign: 'middle', cellWidth: 38, fillColor: [255, 255, 255] }
-      },
-      {
-        content: title,
-        colSpan: 4,
-        rowSpan: 2,
-        styles: { fontStyle: 'bold', fontSize: 11, halign: 'center', valign: 'middle', textColor: [15, 23, 42] }
-      }
-    ],
-    [
-      {
-        content: '',
-        styles: { cellWidth: 38, minCellHeight: 12, fillColor: [255, 255, 255] }
-      }
-    ],
-    [
-      { content: 'NOMBRE PROYECTO:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
-      { content: payload.projectName || 'N/A', colSpan: 4, styles: { fontSize: 7.5 } }
-    ],
-    [
-      { content: 'CENTRO DE COSTO:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
-      { content: payload.costCenter || 'N/A', colSpan: 4, styles: { fontSize: 7.5 } }
-    ],
-    [
-      { content: 'CIUDAD / UBICACIÓN:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
-      { content: payload.location || 'En campo', colSpan: 4, styles: { fontSize: 7.5 } }
-    ],
-    [
-      { content: 'FECHA:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
-      { content: payload.inspectionDate || 'N/A', colSpan: 4, styles: { fontSize: 7.5 } }
-    ],
-    [
-      { content: 'MARCA Y MODELO:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
-      { content: equipment, colSpan: 4, styles: { fontSize: 7.5 } }
-    ],
-    [
-      { content: 'SERIAL:', styles: { fontStyle: 'bold', fontSize: 7.5, cellWidth: 36, fillColor: [248, 250, 252] } },
-      { content: serial, colSpan: 4, styles: { fontSize: 7.5 } }
-    ],
-    [
-      {
-        content: 'MARQUE CON UNA "X" SEGÚN LO EVIDENCIADO',
-        colSpan: 5,
-        styles: { fontStyle: 'bold', fontSize: 8, halign: 'center', fillColor: [217, 217, 217], textColor: [15, 23, 42] }
-      }
-    ],
-    [
-      { content: 'ITEMS', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217], cellWidth: 14 } },
-      { content: 'REVISION', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217] } },
-      { content: 'SI', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217], cellWidth: 12 } },
-      { content: 'NO', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217], cellWidth: 12 } },
-      { content: 'NA', styles: { fontStyle: 'bold', fontSize: 7.5, halign: 'center', fillColor: [217, 217, 217], cellWidth: 12 } }
-    ]
-  ];
+      const colSpan = endCol - startCol + 1;
+      const rowSpan = endRow - startRow + 1;
 
-  // 2. Ítems del formato oficial con la 'X' en la columna correspondiente
-  for (const item of items) {
-    const resp = payload.itemsResponses[item.code] || '';
-    tableBody.push([
-      { content: item.code, styles: { fontStyle: 'bold', fontSize: 7, halign: 'center', cellWidth: 14 } },
-      { content: item.description, styles: { fontSize: 6.8 } },
-      { content: resp === 'SI' ? 'X' : '', styles: { fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellWidth: 12, textColor: resp === 'SI' ? [16, 185, 129] : [15, 23, 42] } },
-      { content: resp === 'NO' ? 'X' : '', styles: { fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellWidth: 12, textColor: resp === 'NO' ? [239, 68, 68] : [15, 23, 42] } },
-      { content: resp === 'NA' ? 'X' : '', styles: { fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellWidth: 12, textColor: [100, 116, 139] } }
-    ]);
+      mergeMap.set(`${startRow},${startCol}`, { colSpan, rowSpan });
+
+      for (let r = startRow; r <= endRow; r++) {
+        for (let c = startCol; c <= endCol; c++) {
+          if (r !== startRow || c !== startCol) {
+            mergedCellsToSkip.add(`${r},${c}`);
+          }
+        }
+      }
+    }
   }
 
-  // Índices para celdas de firmas
-  const operatorSignRowIndex = tableBody.length;
-  tableBody.push([
-    { content: 'FIRMA RESPONSABLE DEL EQUIPO', styles: { fontStyle: 'bold', fontSize: 7, halign: 'center', valign: 'middle', cellWidth: 36, fillColor: [248, 250, 252] } },
-    { content: `Firma digital verificada: ${payload.operatorName || 'Operador'}`, colSpan: 4, styles: { fontSize: 7.5, valign: 'bottom', minCellHeight: 16 } }
-  ]);
+  // 3. Recorrer celdas de la hoja Excel ya diligenciada
+  const tableBody: any[] = [];
+  let operatorSignRowIdx = -1;
+  let sstaSignRowIdx = -1;
+  let logoCellPos: { rowIdx: number; colIdx: number } | null = null;
 
-  const sstaSignRowIndex = tableBody.length;
-  tableBody.push([
-    { content: 'FIRMA RESPONSABLE SSTA O PROYECTO', styles: { fontStyle: 'bold', fontSize: 7, halign: 'center', valign: 'middle', cellWidth: 36, fillColor: [248, 250, 252] } },
-    { content: `Firma digital verificada: ${payload.sstaName || 'Responsable SSTA'}`, colSpan: 4, styles: { fontSize: 7.5, valign: 'bottom', minCellHeight: 16 } }
-  ]);
+  for (let r = 1; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    const rowCells: any[] = [];
+    let rowHasVal = false;
 
-  // 4. Nota legal oficial idéntica a la fila 40 del Excel oficial
-  tableBody.push([
-    {
-      content: 'NOTA IMPORTANTE: La inspección preoperacional debe realizarla ÚNICAMENTE el OPERADOR del equipo. En caso de necesitar ayuda adicional debe informarle a su SUPERVISOR quien tomará la decisión más segura.',
-      colSpan: 5,
-      styles: { fontSize: 6.5, fontStyle: 'italic', fillColor: [248, 250, 252], textColor: [71, 85, 105] }
+    for (let c = 1; c <= maxCol; c++) {
+      if (mergedCellsToSkip.has(`${r},${c}`)) continue;
+
+      const cell = row.getCell(c);
+      let val = cell.value;
+      if (val !== null && val !== undefined && val !== '') rowHasVal = true;
+
+      if (val && typeof val === 'object' && (val as any).richText) {
+        val = (val as any).richText.map((t: any) => t.text).join('');
+      } else if (val && typeof val === 'object') {
+        val = (val as any).text || '';
+      }
+
+      const strVal = val === null || val === undefined ? '' : String(val);
+
+      // Ubicación de logo (celda A2 en Drone o A1 en Estación Total)
+      if (r === 2 && c === 1 && !isLandscape && !logoCellPos) {
+        logoCellPos = { rowIdx: tableBody.length, colIdx: rowCells.length };
+      } else if (r === 1 && c === 1 && isLandscape && !logoCellPos) {
+        logoCellPos = { rowIdx: tableBody.length, colIdx: rowCells.length };
+      }
+
+      // Detectar filas de firma
+      if (/FIRMA RESPONSABLE DEL EQUIPO/i.test(strVal)) {
+        operatorSignRowIdx = tableBody.length;
+      }
+      if (/FIRMA RESPONSABLE SSTA/i.test(strVal)) {
+        sstaSignRowIdx = tableBody.length;
+      }
+
+      const cellDef: any = {
+        content: strVal,
+        styles: {},
+      };
+
+      const mergeInfo = mergeMap.get(`${r},${c}`);
+      if (mergeInfo) {
+        if (mergeInfo.colSpan > 1) cellDef.colSpan = mergeInfo.colSpan;
+        if (mergeInfo.rowSpan > 1) cellDef.rowSpan = mergeInfo.rowSpan;
+      }
+
+      // Tipografía y tamaños derivados del Excel
+      if (isLandscape) {
+        cellDef.styles.fontSize = 5.2;
+      } else {
+        if (r === 2 && c >= 2) {
+          cellDef.styles.fontSize = 11;
+          cellDef.styles.fontStyle = 'bold';
+        } else if (r === 1) {
+          cellDef.styles.fontSize = 7;
+        } else {
+          cellDef.styles.fontSize = Math.min(Math.max((cell.font?.size || 9) * 0.75, 6), 9);
+        }
+      }
+
+      if (cell.font?.bold) cellDef.styles.fontStyle = 'bold';
+      if (cell.font?.italic) cellDef.styles.fontStyle = (cellDef.styles.fontStyle || '') + 'italic';
+
+      // Alineación
+      if (cell.alignment?.horizontal) {
+        cellDef.styles.halign = cell.alignment.horizontal;
+      } else if (c >= 3 && strVal === 'X') {
+        cellDef.styles.halign = 'center';
+      }
+
+      if (cell.alignment?.vertical) {
+        cellDef.styles.valign = cell.alignment.vertical === 'top' || cell.alignment.vertical === 'bottom' ? cell.alignment.vertical : 'middle';
+      } else {
+        cellDef.styles.valign = 'middle';
+      }
+
+      // Fondos grises de la plantilla oficial
+      if (cell.fill && (cell.fill as any).type === 'pattern' && (cell.fill as any).pattern === 'solid') {
+        cellDef.styles.fillColor = [217, 217, 217];
+      }
+
+      // Marcas 'X' de verificación en color y negrita
+      if (strVal === 'X') {
+        cellDef.styles.fontStyle = 'bold';
+        cellDef.styles.halign = 'center';
+        cellDef.styles.textColor = [15, 23, 42];
+      }
+
+      rowCells.push(cellDef);
     }
-  ]);
 
-  // 5. Observaciones idénticas a las filas 41 y 42 del Excel oficial
-  tableBody.push([
-    { content: 'OBSERVACIONES:', styles: { fontStyle: 'bold', fontSize: 7, cellWidth: 36, fillColor: [248, 250, 252] } },
-    { content: payload.generalObservations || 'Sin observaciones.', colSpan: 4, styles: { fontSize: 7 } }
-  ]);
+    if (rowHasVal || rowCells.length > 0) {
+      tableBody.push(rowCells);
+    }
+  }
 
-  // 6. Punto crítico idéntico a las filas 44 y 45 del Excel oficial
-  tableBody.push([
-    { content: 'PUNTO CRÍTICO QUE INHABILITA EL EQUIPO:', styles: { fontStyle: 'bold', fontSize: 7, cellWidth: 36, fillColor: [254, 242, 242], textColor: [185, 28, 28] } },
-    { content: payload.criticalPoint || 'Ninguno', colSpan: 4, styles: { fontSize: 7 } }
-  ]);
-
+  // 4. Renderizado con autoTable preservando exactamente la hoja
   autoTable(doc, {
-    startY: margin,
-    margin: { left: margin, right: margin },
+    startY: 8,
+    margin: { left: 8, right: 8 },
     theme: 'grid',
     body: tableBody,
     styles: {
-      lineColor: [148, 163, 184],
+      lineColor: [140, 140, 140],
       lineWidth: 0.15,
-      cellPadding: 1.1,
-      textColor: [15, 23, 42],
+      cellPadding: isLandscape ? 0.7 : 1.1,
+      textColor: [0, 0, 0],
     },
     didDrawCell: (data) => {
-      // Estampar Logo de PROCIMEC en celda (fila 1, col 0)
-      if (data.row.index === 1 && data.column.index === 0) {
+      // Dibujar logo de PROCIMEC en la celda oficial
+      if (logoCellPos && data.row.index === logoCellPos.rowIdx && data.column.index === logoCellPos.colIdx) {
         try {
-          doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', data.cell.x + 2, data.cell.y + 1, 34, 10);
+          doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', data.cell.x + 2, data.cell.y + 1, isLandscape ? 28 : 34, isLandscape ? 9 : 11);
         } catch {}
       }
-      // Estampar trazo de firma del operador si existe
-      if (data.row.index === operatorSignRowIndex && data.column.index === 1) {
+      // Estampar firma digital del Operador
+      if (data.row.index === operatorSignRowIdx && data.column.index === 1) {
         if (payload.operatorSignatureDataUrl && payload.operatorSignatureDataUrl.startsWith('data:image')) {
           try {
             doc.addImage(payload.operatorSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 10);
           } catch {}
         }
       }
-      // Estampar trazo de firma del SSTA si existe
-      if (data.row.index === sstaSignRowIndex && data.column.index === 1) {
+      // Estampar firma digital del SSTA
+      if (data.row.index === sstaSignRowIdx && data.column.index === 1) {
         if (payload.sstaSignatureDataUrl && payload.sstaSignatureDataUrl.startsWith('data:image')) {
           try {
             doc.addImage(payload.sstaSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 10);
           } catch {}
         }
       }
-    }
+    },
   });
 
-  // ── Generar Archivo PDF ──────────────────────────────────────────────────
   const cleanFormat = (payload.formatCode || 'HSEQ').replace(/[^a-zA-Z0-9\-_]/g, '_');
   const cleanProject = (payload.projectName || 'Proyecto').replace(/[^a-zA-Z0-9\-_]/g, '_').substring(0, 25);
   const cleanDate = (payload.inspectionDate || new Date().toISOString().split('T')[0]).replace(/[^0-9\-]/g, '');
@@ -487,24 +518,6 @@ export async function buildHseqInspectionPdf(payload: HseqPdfGenerationPayload):
   };
 }
 
-export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload): Promise<{
-  fileName: string;
-  pdfBase64: string;
-  pdfBuffer: Buffer;
-}> {
-  const cfg = getHseqFormatConfig('drone');
-  return buildHseqInspectionPdf({
-    ...payload,
-    formatTitle: cfg.pdfTitle,
-    formatCode: cfg.code,
-    version: cfg.version,
-    equipmentLabel: cfg.equipmentLabel,
-    items: cfg.items,
-    equipmentBrandModel: payload.droneBrandModel || cfg.defaultEquipment,
-    equipmentSerial: payload.droneSerial || cfg.defaultSerial,
-  });
-}
-
 // ─── Llenado y Generación de la Plantilla Excel Original de Carpeta 24 ─────────
 export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & {
   templateType?: 'drone' | 'estacion_total' | 'generic';
@@ -513,6 +526,8 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
   fileName: string;
   excelBase64: string;
   excelBuffer: Buffer;
+  worksheet: ExcelJS.Worksheet;
+  workbook: ExcelJS.Workbook;
 }> {
   const wb = new ExcelJS.Workbook();
   const isEstacion =
@@ -566,14 +581,19 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
   const ws = wb.worksheets[0];
 
   if (!isEstacion) {
-    // ── Llenado de Formato Drone (FOR-HSEQ-024) ───────────────────────────────
+    // ── Llenado de Formato Drone o Genérico (FOR-HSEQ-024 o similares) ──────────
     const replacements: Record<string, string> = {
       '{{nombre_proyecto}}': payload.projectName || '',
+      '{{proyecto}}': payload.projectName || '',
       '{{centro_costos}}': payload.costCenter || '',
+      '{{centro_costo}}': payload.costCenter || '',
       '{{ciudad_ubicacion}}': payload.location || '',
+      '{{ubicacion}}': payload.location || '',
+      '{{ciudad}}': payload.location || '',
       '{{fecha}}': payload.inspectionDate || '',
       '{{marca_modelo}}': payload.equipmentBrandModel || payload.droneBrandModel || 'DJI Mavic 3 Enterprise',
       '{{serial_drone}}': payload.equipmentSerial || payload.droneSerial || 'PROC-DRN-001',
+      '{{serial}}': payload.equipmentSerial || payload.droneSerial || 'PROC-DRN-001',
       '{{firma_op}}': `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
       '{{firma_ss}}': `${payload.sstaName || 'Responsable SSTA'} (Firma Digital Verificada)`,
       '{{observaciones}}': payload.generalObservations || 'Sin observaciones.',
@@ -706,5 +726,42 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
     fileName,
     excelBase64,
     excelBuffer,
+    worksheet: ws,
+    workbook: wb,
   };
+}
+
+// ─── Generación del PDF Oficial Derivado de la Plantilla Excel ────────────────
+export async function buildHseqInspectionPdf(payload: HseqPdfGenerationPayload & {
+  templateType?: 'drone' | 'estacion_total' | 'generic';
+  templateId?: string;
+}): Promise<{
+  fileName: string;
+  pdfBase64: string;
+  pdfBuffer: Buffer;
+}> {
+  // 1. Abrir la plantilla Excel original de Carpeta 24 y diligenciar sus celdas
+  const filledExcel = await fillHseqExcelTemplate(payload);
+
+  // 2. Convertir directamente la hoja de cálculo ya llena a PDF
+  return convertWorksheetToPdf(filledExcel.worksheet, payload);
+}
+
+export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload): Promise<{
+  fileName: string;
+  pdfBase64: string;
+  pdfBuffer: Buffer;
+}> {
+  const cfg = getHseqFormatConfig('drone');
+  return buildHseqInspectionPdf({
+    ...payload,
+    formatTitle: cfg.pdfTitle,
+    formatCode: cfg.code,
+    version: cfg.version,
+    equipmentLabel: cfg.equipmentLabel,
+    items: cfg.items,
+    equipmentBrandModel: payload.droneBrandModel || cfg.defaultEquipment,
+    equipmentSerial: payload.droneSerial || cfg.defaultSerial,
+    templateType: 'drone',
+  });
 }
