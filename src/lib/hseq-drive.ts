@@ -84,7 +84,7 @@ async function getDriveClient(): Promise<drive_v3.Drive> {
 }
 
 // ─── Cliente Google Drive para Subida (prioriza OAuth para cuota de usuario) ─
-async function getUploadDriveClient(): Promise<drive_v3.Drive> {
+export async function getUploadDriveClient(): Promise<drive_v3.Drive> {
   const refreshToken = process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN;
   if (refreshToken) {
     const oauth2Client = new google.auth.OAuth2(
@@ -101,19 +101,22 @@ async function getUploadDriveClient(): Promise<drive_v3.Drive> {
     const supabase = createAdminClient();
     const adminEmail = process.env.GOOGLE_DRIVE_ADMIN_EMAIL || 'mapping.procimec2024@gmail.com';
 
-    const { data } = await supabase
+    const { data: usersWithToken } = await supabase
       .from('users')
-      .select('drive_refresh_token')
-      .eq('email', adminEmail)
-      .single();
+      .select('drive_refresh_token, email')
+      .not('drive_refresh_token', 'is', null);
 
-    if (data?.drive_refresh_token) {
+    const targetUser =
+      usersWithToken?.find((u) => u.email?.toLowerCase() === adminEmail.toLowerCase()) ||
+      usersWithToken?.[0];
+
+    if (targetUser?.drive_refresh_token) {
       const oauth2Client = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET,
         (process.env.NEXTAUTH_URL || 'http://localhost:3000') + '/api/auth/callback/google'
       );
-      oauth2Client.setCredentials({ refresh_token: data.drive_refresh_token });
+      oauth2Client.setCredentials({ refresh_token: targetUser.drive_refresh_token });
       return google.drive({ version: 'v3', auth: oauth2Client });
     }
   } catch (err) {
@@ -127,6 +130,16 @@ async function getUploadDriveClient(): Promise<drive_v3.Drive> {
 // ─── Extracción limpia de código y título ────────────────────────────────────
 function parseFormatName(rawName: string): { code: string; title: string } {
   const withoutExt = rawName.replace(/\.(xlsx|xls|gdoc|gsheet)$/i, '').trim();
+
+  // Caso específico Drone
+  if (/drone/i.test(withoutExt)) {
+    return { code: 'FOR-HSEQ-024', title: 'Inspección Pre-operacional de Drone' };
+  }
+  // Caso específico Estación Total
+  if (/estaci[oó]n\s*total/i.test(withoutExt) || /total\s*station/i.test(withoutExt)) {
+    return { code: 'FOR-HSEQ-025', title: 'Inspección Pre-operacional de Estación Total' };
+  }
+
   // Formato tipo FOR-HSEQ-001 o FOR-001
   const codeMatch = withoutExt.match(/^(FOR-[A-Za-z0-9\-_]+)(.*)$/i);
   if (codeMatch && codeMatch[2]?.trim()) {
@@ -138,7 +151,7 @@ function parseFormatName(rawName: string): { code: string; title: string } {
     return { code, title: title || code };
   }
 
-  // Formato tipo "FOR-Inspección pre-operacional Drone"
+  // Formato tipo "FOR-Inspección..."
   const cleanTitle = withoutExt.replace(/^FOR-[\s\-_]*/i, '').trim();
   const words = cleanTitle.split(/[\s\-_]+/);
   const codeWords = words.slice(0, 2).map((w) => w.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));

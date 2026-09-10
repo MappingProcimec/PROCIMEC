@@ -188,21 +188,107 @@ export const DRONE_INSPECTION_ITEMS: DroneInspectionItemDef[] = [
   },
 ];
 
-export function getOptimalResponses(): Record<string, 'SI' | 'NO' | 'NA'> {
+export const ESTACION_TOTAL_SECTIONS = [
+  '1. ESTACIÓN TOTAL',
+  '2. CARGADOR Y BATERÍAS',
+  '3. ACCESORIOS',
+] as const;
+
+export const ESTACION_TOTAL_ITEMS: DroneInspectionItemDef[] = [
+  // 1. ESTACION TOTAL
+  { code: '1.1', section: '1. ESTACIÓN TOTAL', description: 'Estado general del equipo: todos los componentes funcionan', optimal: 'SI' },
+  { code: '1.2', section: '1. ESTACIÓN TOTAL', description: 'La carcasa presenta golpes o grietas', optimal: 'NO' },
+  { code: '1.3', section: '1. ESTACIÓN TOTAL', description: 'Los lentes se encuentran limpios y sin rayones', optimal: 'SI' },
+  { code: '1.4', section: '1. ESTACIÓN TOTAL', description: 'Los tornillos de giro se encuentran suaves y funcionales', optimal: 'SI' },
+  { code: '1.5', section: '1. ESTACIÓN TOTAL', description: 'Sistemas de conexión (puertos) están en buen estado', optimal: 'SI' },
+  { code: '1.6', section: '1. ESTACIÓN TOTAL', description: 'El equipo se encuentra limpio', optimal: 'SI' },
+  { code: '1.7', section: '1. ESTACIÓN TOTAL', description: 'El display se encuentra en buen estado', optimal: 'SI' },
+  { code: '1.8', section: '1. ESTACIÓN TOTAL', description: 'La base nivelante limpia y en buen estado', optimal: 'SI' },
+
+  // 2. CARGADOR Y BATERIAS
+  { code: '2.1', section: '2. CARGADOR Y BATERÍAS', description: 'Cable se encuentra en buen estado sin empalmes o fisuras', optimal: 'SI' },
+  { code: '2.2', section: '2. CARGADOR Y BATERÍAS', description: 'El enchufe del cable está en buen estado', optimal: 'SI' },
+  { code: '2.3', section: '2. CARGADOR Y BATERÍAS', description: 'La batería está en buen estado', optimal: 'SI' },
+
+  // 3. ACCESORIOS
+  { code: '3.1', section: '3. ACCESORIOS', description: 'Trípode en buen estado', optimal: 'SI' },
+  { code: '3.2', section: '3. ACCESORIOS', description: 'Bastón en buen estado', optimal: 'SI' },
+  { code: '3.3', section: '3. ACCESORIOS', description: 'Prisma en buen estado', optimal: 'SI' },
+  { code: '3.4', section: '3. ACCESORIOS', description: 'Fundas y maletas en buen estado', optimal: 'SI' },
+];
+
+export function getOptimalResponses(formatType: 'drone' | 'estacion_total' | 'generic' = 'drone'): Record<string, 'SI' | 'NO' | 'NA'> {
+  const items = formatType === 'estacion_total' ? ESTACION_TOTAL_ITEMS : DRONE_INSPECTION_ITEMS;
   const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
-  for (const item of DRONE_INSPECTION_ITEMS) {
+  for (const item of items) {
     map[item.code] = item.optimal;
   }
   return map;
 }
 
-export interface DronePdfGenerationPayload {
+export interface HseqFormatConfig {
+  id: string;
+  formatType: 'drone' | 'estacion_total' | 'generic';
+  code: string;
+  title: string;
+  pdfTitle: string;
+  version: string;
+  equipmentLabel: string;
+  defaultEquipment: string;
+  defaultSerial: string;
+  sections: readonly string[];
+  items: DroneInspectionItemDef[];
+}
+
+export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
+  const norm = formatIdentifier.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (norm.includes('estacion') || norm.includes('total') || norm.includes('025') || norm.includes('ts')) {
+    return {
+      id: 'hseq-estacion-total',
+      formatType: 'estacion_total',
+      code: 'FOR-HSEQ-025',
+      title: 'Inspección Pre-operacional de Estación Total',
+      pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL ESTACIÓN TOTAL',
+      version: '01',
+      equipmentLabel: 'Estación Total',
+      defaultEquipment: 'Leica FlexLine TS07',
+      defaultSerial: 'PROC-ET-001',
+      sections: ESTACION_TOTAL_SECTIONS,
+      items: ESTACION_TOTAL_ITEMS,
+    };
+  }
+
+  // Por defecto / Drone
+  return {
+    id: 'hseq-drone-preoperational',
+    formatType: 'drone',
+    code: 'FOR-HSEQ-024',
+    title: 'Inspección Pre-operacional de Drone',
+    pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL DRONE',
+    version: '02',
+    equipmentLabel: 'Drone',
+    defaultEquipment: 'DJI Mavic 3 Enterprise',
+    defaultSerial: 'PROC-DRN-001',
+    sections: DRONE_INSPECTION_SECTIONS,
+    items: DRONE_INSPECTION_ITEMS,
+  };
+}
+
+export interface HseqPdfGenerationPayload {
+  formatTitle?: string;
+  formatCode?: string;
+  version?: string;
+  equipmentLabel?: string;
   projectName: string;
   costCenter: string;
   location: string;
   inspectionDate: string;
-  droneBrandModel: string;
-  droneSerial: string;
+  droneBrandModel?: string;
+  droneSerial?: string;
+  equipmentBrandModel?: string;
+  equipmentSerial?: string;
+  items?: DroneInspectionItemDef[];
   itemsResponses: Record<string, 'SI' | 'NO' | 'NA'>;
   criticalPoint?: string;
   generalObservations?: string;
@@ -212,7 +298,9 @@ export interface DronePdfGenerationPayload {
   sstaSignatureDataUrl: string;
 }
 
-export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload): Promise<{
+export type DronePdfGenerationPayload = HseqPdfGenerationPayload;
+
+export async function buildHseqInspectionPdf(payload: HseqPdfGenerationPayload): Promise<{
   fileName: string;
   pdfBase64: string;
   pdfBuffer: Buffer;
@@ -226,25 +314,38 @@ export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 14;
 
-  // ── 1. Encabezado Oficial ──────────────────────────────────────────────────
-  doc.setFillColor(15, 118, 110); // Teal 700
+  const title = (payload.formatTitle || 'INSPECCIÓN PRE-OPERACIONAL').toUpperCase();
+  const code = payload.formatCode || 'FOR-HSEQ';
+  const version = payload.version || '01';
+  const equipment = payload.equipmentBrandModel || payload.droneBrandModel || 'Equipo Oficial PROCIMEC';
+  const serial = payload.equipmentSerial || payload.droneSerial || 'N/A';
+  const items = payload.items && payload.items.length > 0 ? payload.items : DRONE_INSPECTION_ITEMS;
+
+  // ── 1. Encabezado Oficial PROCIMEC (Azul Marino Corporativo #1B3A5C) ──────
+  doc.setFillColor(27, 58, 92);
   doc.rect(margin, 12, pageWidth - margin * 2, 18, 'F');
+
+  // Franja Dorada Accent
+  doc.setFillColor(245, 166, 35);
+  doc.rect(margin, 30, pageWidth - margin * 2, 1.2, 'F');
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text('PROCIMEC INGENIERÍA S.A.S.', pageWidth / 2, 19, { align: 'center' });
-  doc.setFontSize(8.5);
+  doc.setFontSize(10.5);
+  doc.text('PROCIMEC — MAPPING INGENIERÍA S.A.S.', pageWidth / 2, 18.5, { align: 'center' });
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text(title, pageWidth / 2, 23.5, { align: 'center' });
+  doc.setFontSize(6.5);
   doc.setFont('helvetica', 'normal');
-  doc.text('SISTEMA INTEGRADO DE GESTIÓN HSEQ — INSPECCIÓN PRE-OPERACIONAL DE DRONE', pageWidth / 2, 25, { align: 'center' });
-
+  doc.text(`SISTEMA DE GESTIÓN INTEGRAL HSEQ | ${code} — VERSIÓN ${version}`, pageWidth / 2, 27.5, { align: 'center' });
   // ── 2. Cuadro de Metadatos del Proyecto y Equipo ───────────────────────────
   autoTable(doc, {
-    startY: 33,
+    startY: 34,
     margin: { left: margin, right: margin },
     theme: 'grid',
     styles: {
-      fontSize: 7.5,
+      fontSize: 7.2,
       cellPadding: 1.8,
       lineColor: [203, 213, 225],
       lineWidth: 0.2,
@@ -270,19 +371,19 @@ export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload
         payload.inspectionDate || 'N/A',
       ],
       [
-        { content: 'MARCA Y MODELO:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
-        payload.droneBrandModel || 'DJI Mavic 3 Enterprise',
-        { content: 'SERIAL DEL EQUIPO:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
-        payload.droneSerial || 'N/A',
+        { content: 'EQUIPO / MODELO:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
+        equipment,
+        { content: 'SERIAL:', styles: { fontStyle: 'bold', fillColor: [248, 250, 252] } },
+        serial,
       ],
     ],
   });
 
-  // ── 3. Tabla de los 25 Ítems de Inspección ────────────────────────────────
+  // ── 3. Tabla de Ítems de Inspección del Formato Seleccionado ──────────────
   const tableRows: any[] = [];
   let currentSection = '';
 
-  for (const item of DRONE_INSPECTION_ITEMS) {
+  for (const item of items) {
     if (item.section !== currentSection) {
       currentSection = item.section;
       tableRows.push([
@@ -324,7 +425,7 @@ export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload
       valign: 'middle',
     },
     headStyles: {
-      fillColor: [15, 118, 110], // Teal
+      fillColor: [27, 58, 92], // Azul Marino Corporativo PROCIMEC
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       halign: 'center',
@@ -333,8 +434,8 @@ export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload
     columnStyles: {
       0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
       1: { cellWidth: 'auto' },
-      2: { cellWidth: 10, halign: 'center', fontStyle: 'bold', textColor: [13, 148, 136] },
-      3: { cellWidth: 10, halign: 'center', fontStyle: 'bold', textColor: [225, 29, 72] },
+      2: { cellWidth: 10, halign: 'center', fontStyle: 'bold', textColor: [16, 185, 129] },
+      3: { cellWidth: 10, halign: 'center', fontStyle: 'bold', textColor: [239, 68, 68] },
       4: { cellWidth: 10, halign: 'center', fontStyle: 'bold', textColor: [100, 116, 139] },
     },
   });
@@ -342,7 +443,6 @@ export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload
   // ── 4. Observaciones y Puntos Críticos ──────────────────────────────────────
   let finalY = (doc as any).lastAutoTable.finalY + 3;
 
-  // Si queda muy poco espacio para firmas y observaciones en la página actual, agregar nueva página
   if (finalY > 235) {
     doc.addPage();
     finalY = 15;
@@ -423,9 +523,10 @@ export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload
   doc.text('Firma Digital Verificada en Dispositivo', margin + boxWidth + 8 + boxWidth / 2, signY + 30, { align: 'center' });
 
   // ── 6. Generar Output ──────────────────────────────────────────────────────
+  const cleanFormat = (payload.formatCode || 'HSEQ').replace(/[^a-zA-Z0-9\-_]/g, '_');
   const cleanProject = (payload.projectName || 'Proyecto').replace(/[^a-zA-Z0-9\-_]/g, '_').substring(0, 25);
-  const cleanDate = (payload.inspectionDate || '2026-09-10').replace(/[^0-9\-]/g, '');
-  const fileName = `Inspeccion_Drone_${cleanProject}_${cleanDate}.pdf`;
+  const cleanDate = (payload.inspectionDate || new Date().toISOString().split('T')[0]).replace(/[^0-9\-]/g, '');
+  const fileName = `Inspeccion_${cleanFormat}_${cleanProject}_${cleanDate}.pdf`;
 
   const pdfArrayBuffer = doc.output('arraybuffer');
   const pdfBuffer = Buffer.from(pdfArrayBuffer);
@@ -436,4 +537,22 @@ export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload
     pdfBase64,
     pdfBuffer,
   };
+}
+
+export async function buildDroneInspectionPdf(payload: DronePdfGenerationPayload): Promise<{
+  fileName: string;
+  pdfBase64: string;
+  pdfBuffer: Buffer;
+}> {
+  const cfg = getHseqFormatConfig('drone');
+  return buildHseqInspectionPdf({
+    ...payload,
+    formatTitle: cfg.pdfTitle,
+    formatCode: cfg.code,
+    version: cfg.version,
+    equipmentLabel: cfg.equipmentLabel,
+    items: cfg.items,
+    equipmentBrandModel: payload.droneBrandModel || cfg.defaultEquipment,
+    equipmentSerial: payload.droneSerial || cfg.defaultSerial,
+  });
 }

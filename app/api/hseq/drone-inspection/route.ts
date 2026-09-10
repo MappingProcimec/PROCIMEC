@@ -1,10 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
-import { buildDroneInspectionPdf, DRONE_INSPECTION_ITEMS } from '@/lib/drone-inspection';
-import { HSEQ_EVIDENCE_FOLDER_ID } from '@/lib/hseq-drive';
+import {
+  buildHseqInspectionPdf,
+  getHseqFormatConfig,
+} from '@/lib/drone-inspection';
+import { HSEQ_EVIDENCE_FOLDER_ID, getUploadDriveClient } from '@/lib/hseq-drive';
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -20,8 +22,13 @@ export async function POST(req: NextRequest) {
       costCenter,
       location,
       inspectionDate = new Date().toISOString().split('T')[0],
-      droneBrandModel = 'DJI Mavic 3 Enterprise',
-      droneSerial = '',
+      templateId = '',
+      templateCode = '',
+      templateTitle = '',
+      droneBrandModel,
+      droneSerial,
+      equipmentBrandModel,
+      equipmentSerial,
       itemsResponses = {},
       criticalPoint = 'Ninguno',
       generalObservations = '',
@@ -54,28 +61,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validar que los 25 ítems estén respondidos
-    const missingCodes = DRONE_INSPECTION_ITEMS.filter(
-      (it) => !itemsResponses[it.code]
-    ).map((it) => it.code);
+    // Resolver configuración del formato seleccionado
+    const formatIdentifier = `${templateId} ${templateCode} ${templateTitle}`;
+    const formatConfig = getHseqFormatConfig(formatIdentifier);
+
+    // Validar que todos los ítems de este formato específico estén evaluados
+    const requiredItems = formatConfig.items;
+    const missingCodes = requiredItems
+      .filter((it) => !itemsResponses[it.code])
+      .map((it) => it.code);
 
     if (missingCodes.length > 0) {
       return NextResponse.json(
         {
-          error: `Faltan ${missingCodes.length} ítems por evaluar (${missingCodes.slice(0, 5).join(', ')}...). Todos los 25 ítems son obligatorios.`,
+          error: `Faltan ${missingCodes.length} ítems por evaluar (${missingCodes.slice(0, 5).join(', ')}...). Todos los ${requiredItems.length} ítems son obligatorios.`,
         },
         { status: 400 }
       );
     }
 
-    // 1. Generar el PDF Oficial de Inspección
-    const { fileName, pdfBase64, pdfBuffer } = await buildDroneInspectionPdf({
+    const brandModel =
+      equipmentBrandModel || droneBrandModel || formatConfig.defaultEquipment;
+    const serial = equipmentSerial || droneSerial || formatConfig.defaultSerial;
+
+    // 1. Generar el PDF Oficial de Inspección con el formato seleccionado
+    const { fileName, pdfBase64, pdfBuffer } = await buildHseqInspectionPdf({
+      formatTitle: formatConfig.pdfTitle,
+      formatCode: formatConfig.code,
+      version: formatConfig.version,
+      equipmentLabel: formatConfig.equipmentLabel,
       projectName: projectName || 'Proyecto',
       costCenter: costCenter || '',
       location: location || '',
       inspectionDate,
-      droneBrandModel,
-      droneSerial,
+      equipmentBrandModel: brandModel,
+      equipmentSerial: serial,
+      items: requiredItems,
       itemsResponses,
       criticalPoint,
       generalObservations,
@@ -92,49 +113,40 @@ export async function POST(req: NextRequest) {
     // 2. Intentar guardar copia en Google Drive (Carpeta de Evidencias)
     try {
       const { Readable } = await import('stream');
-      const { google } = await import('googleapis');
-      const base64Key = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY;
+      const uploadDrive = await getUploadDriveClient();
 
-      if (base64Key) {
-        const credentials = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf-8'));
-        const auth = new google.auth.GoogleAuth({
-          credentials,
-          scopes: ['https://www.googleapis.com/auth/drive'],
-        });
-        const drive = google.drive({ version: 'v3', auth });
+      const uploadRes = await uploadDrive.files.create({
+        requestBody: {
+          name: fileName,
+          parents: [HSEQ_EVIDENCE_FOLDER_ID],
+          mimeType: 'application/pdf',
+        },
+        media: {
+          mimeType: 'application/pdf',
+          body: Readable.from(pdfBuffer),
+        },
+        fields: 'id, name, webViewLink',
+      });
 
-        const uploadRes = await drive.files.create({
-          requestBody: {
-            name: fileName,
-            parents: [HSEQ_EVIDENCE_FOLDER_ID],
-            mimeType: 'application/pdf',
-          },
-          media: {
-            mimeType: 'application/pdf',
-            body: Readable.from(pdfBuffer),
-          },
-          fields: 'id, name, webViewLink',
-        });
+      driveFileId = uploadRes.data.id || null;
+      driveWebViewLink = uploadRes.data.webViewLink || null;
 
-        driveFileId = uploadRes.data.id || null;
-        driveWebViewLink = uploadRes.data.webViewLink || null;
-
-        // Otorgar permisos de lectura compartida
-        if (driveFileId) {
-          try {
-            await drive.permissions.create({
-              fileId: driveFileId,
-              requestBody: { role: 'reader', type: 'anyone' },
-            });
-          } catch {
-            // Ignorar
-          }
+      // Otorgar permisos de lectura compartida
+      if (driveFileId) {
+        try {
+          await uploadDrive.permissions.create({
+            fileId: driveFileId,
+            requestBody: { role: 'reader', type: 'anyone' },
+          });
+        } catch {
+          // Ignorar
         }
       }
     } catch (dErr: unknown) {
       const msg = dErr instanceof Error ? dErr.message : String(dErr);
       console.warn('Aviso guardando en Google Drive:', msg);
-      driveWarning = msg || 'No se pudo subir copia a Google Drive';
+      driveWarning =
+        'Para sincronizar directamente en la carpeta de Google Drive en la nube, el administrador debe renovar su sesión en la plataforma. Tu reporte oficial está listo para descarga local inmediata.';
     }
 
     // 3. Persistir en la Base de Datos Supabase (Ley 1 de PROCIMEC)
