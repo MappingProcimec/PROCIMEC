@@ -31,6 +31,7 @@ interface EvidenceItem {
   excelUrl: string;
   driveLink: string;
   itemsResponses: Record<string, string>;
+  optimalMap?: Record<string, string>;
   nonCompliantCodes: string[];
   nonCompliantCount: number;
   operatorSignatureData?: string | null;
@@ -58,7 +59,7 @@ export default function EvidenceBoardToolPage() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch('/api/evidence-board');
+        const res = await fetch('/api/evidence-board', { cache: 'no-store' });
         if (!res.ok) {
           throw new Error(`Error del servidor (${res.status}) al obtener evidencias.`);
         }
@@ -172,11 +173,11 @@ export default function EvidenceBoardToolPage() {
                     Atención de Seguridad Requerida
                   </span>
                   <span className="text-xs font-semibold text-red-700">
-                    {alertasCount} {alertasCount === 1 ? 'inspección presenta' : 'inspecciones presentan'} puntos críticos o respuestas &apos;NO&apos;
+                    {alertasCount} {alertasCount === 1 ? 'inspección presenta' : 'inspecciones presentan'} variaciones o puntos críticos
                   </span>
                 </div>
                 <p className="text-xs text-red-800/90 mt-1">
-                  Se han registrado inspecciones donde &quot;algo no marcha bien&quot;. Puedes filtrar por <strong>Estado: Alertas / Puntos Críticos</strong> para revisar qué equipos requieren mantenimiento o inhabilitación antes de operar.
+                  Se han registrado inspecciones con variaciones respecto al estándar óptimo. Puedes filtrar por <strong>Estado: Alertas / Puntos Críticos</strong> para revisar qué equipos requieren mantenimiento o inhabilitación antes de operar.
                 </p>
               </div>
             </div>
@@ -200,7 +201,7 @@ export default function EvidenceBoardToolPage() {
             <p className={`text-2xl font-bold mt-1 ${alertasCount > 0 ? 'text-red-600' : 'text-text-muted'}`}>
               {loading ? '...' : alertasCount}
             </p>
-            <span className="text-[11px] text-red-600 font-medium mt-0.5 block">Puntos críticos o &apos;NO&apos;</span>
+            <span className="text-[11px] text-red-600 font-medium mt-0.5 block">Variaciones o Puntos Críticos</span>
           </div>
           <div className="card border border-border p-4 bg-white shadow-sm">
             <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">🏢 Divisiones Activas</span>
@@ -384,7 +385,7 @@ export default function EvidenceBoardToolPage() {
                             </span>
                             {ev.nonCompliantCount > 0 && (
                               <span className="text-[9px] text-red-600 font-semibold mt-0.5">
-                                {ev.nonCompliantCount} {ev.nonCompliantCount === 1 ? 'ítem en NO' : 'ítems en NO'}
+                                {ev.nonCompliantCount} {ev.nonCompliantCount === 1 ? 'ítem con variación' : 'ítems con variación'}
                               </span>
                             )}
                           </div>
@@ -596,22 +597,28 @@ export default function EvidenceBoardToolPage() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
                   {Object.entries(selectedEvidence.itemsResponses).map(([code, val]) => {
-                    const isNo = String(val).toUpperCase() === 'NO';
-                    const isSi = String(val).toUpperCase() === 'SI';
+                    const expected = selectedEvidence.optimalMap?.[code] || (['1.2', '1.4', '2.2'].includes(code) ? 'NO' : 'SI');
+                    const isVariation = expected !== 'NA' && String(val).toUpperCase() !== expected;
+
                     return (
                       <div
                         key={code}
                         className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border ${
-                          isNo
+                          isVariation
                             ? 'bg-red-50 border-red-300 text-red-800 font-bold'
-                            : isSi
-                            ? 'bg-emerald-50/60 border-emerald-200 text-emerald-800'
-                            : 'bg-gray-50 border-gray-200 text-text-muted'
+                            : 'bg-emerald-50/60 border-emerald-200 text-emerald-800'
                         }`}
                       >
-                        <span className="font-mono text-[11px]">Ítem {code}:</span>
+                        <div className="flex flex-col">
+                          <span className="font-mono text-[11px]">Ítem {code}</span>
+                          {isVariation && (
+                            <span className="text-[9px] text-red-600 font-normal">
+                              Esperado: {expected}
+                            </span>
+                          )}
+                        </div>
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          isNo ? 'bg-red-600 text-white' : isSi ? 'bg-emerald-600 text-white' : 'bg-gray-300 text-gray-800'
+                          isVariation ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'
                         }`}>
                           {val}
                         </span>

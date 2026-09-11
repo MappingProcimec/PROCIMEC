@@ -8,6 +8,10 @@ import {
 } from '@/lib/drone-inspection';
 import { convertOfficeDocumentToPdf } from '@/lib/cloud-document-converter';
 import { HSEQ_EVIDENCE_FOLDER_ID, getUploadDriveClient } from '@/lib/hseq-drive';
+import { sendHseqAlertEmail } from '@/lib/hseq-mailer';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -200,12 +204,21 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
 
-    // 6. Detectar si "algo no marcha bien" (Anomalías, respuestas 'NO' y Puntos Críticos)
+    // 6. Detectar si hay variaciones respecto a la condición óptima o Puntos Críticos
     const nonCompliantItems = requiredItems
-      .filter((it) => itemsResponses[it.code] === 'NO')
+      .filter((it) => {
+        if (it.optimal === 'NA') return false;
+        const userVal = String(itemsResponses[it.code] || '').toUpperCase();
+        return userVal !== it.optimal;
+      })
       .map((it) => {
-        const itemObj = it as unknown as { code: string; description?: string; title?: string };
-        return { code: itemObj.code, description: itemObj.description || itemObj.title || '' };
+        const itemObj = it as unknown as { code: string; description?: string; title?: string; optimal: string };
+        return {
+          code: itemObj.code,
+          description: itemObj.description || itemObj.title || '',
+          response: String(itemsResponses[it.code] || '').toUpperCase(),
+          expected: itemObj.optimal,
+        };
       });
 
     const hasCriticalPoint =
@@ -215,6 +228,29 @@ export async function POST(req: NextRequest) {
       criticalPoint.trim() !== '';
 
     const hasAnomalies = nonCompliantItems.length > 0 || hasCriticalPoint;
+
+    // Disparar correo automático de alerta al responsable HSEQ si hay variaciones o punto crítico
+    if (hasAnomalies) {
+      sendHseqAlertEmail({
+        formatCode: formatConfig.code,
+        formatTitle: formatConfig.title,
+        projectName: projectName || 'Proyecto General',
+        costCenter,
+        location,
+        inspectionDate,
+        equipmentBrandModel: brandModel,
+        equipmentSerial: serial,
+        operatorName,
+        sstaName,
+        variations: nonCompliantItems,
+        criticalPoint: hasCriticalPoint ? criticalPoint : undefined,
+        generalObservations,
+        pdfUrl: pdfUrl || driveWebViewLink || undefined,
+        excelUrl: excelUrl || undefined,
+      }).catch((mailErr) => {
+        console.error('Error despachando correo de alerta HSEQ:', mailErr);
+      });
+    }
 
     // Enriquecer items_responses con metadatos completos para el tablero
     const enrichedItemsResponses = {

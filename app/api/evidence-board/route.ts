@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
+import { getOptimalResponses } from '@/lib/hseq-definitions';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface InspectionRow {
   id: string;
@@ -60,7 +64,14 @@ export async function GET() {
         }
       }
 
-      // Evaluar condición de seguridad y anomalías ("cuando algo no marcha bien")
+      const isEstacion = /025|estaci[oó]n/i.test(`${row.pdf_filename || ''} ${String(meta.format_code || '')}`);
+      const formatCode = (typeof meta.format_code === 'string' && meta.format_code) || (isEstacion ? 'FOR-HSEQ-025' : 'FOR-HSEQ-030');
+      const formatTitle = (typeof meta.format_title === 'string' && meta.format_title) || (isEstacion ? 'Inspección Pre-operacional Estación Total' : 'Inspección Pre-operacional Drone');
+
+      // Obtener el mapa de respuestas óptimas esperadas para este formato
+      const optimalMap = getOptimalResponses(isEstacion ? 'estacion_total' : 'drone');
+
+      // Evaluar condición de seguridad y variaciones ("cuando algo no coincide con el estado seguro")
       const criticalText = (row.critical_point || '').trim();
       const hasCritical =
         Boolean(criticalText) &&
@@ -68,16 +79,18 @@ export async function GET() {
         criticalText.toLowerCase() !== 'ninguna' &&
         criticalText !== '';
 
+      // Un ítem es no conforme SOLO si difiere de su respuesta óptima esperada
       const nonCompliantList = Object.entries(responses)
-        .filter(([, val]) => val.toUpperCase() === 'NO')
+        .filter(([code, val]) => {
+          const expected = optimalMap[code];
+          if (!expected || expected === 'NA') return false;
+          return val.toUpperCase() !== expected;
+        })
         .map(([code]) => code);
 
       const hasAnomalies = Boolean(meta.has_anomalies) || nonCompliantList.length > 0 || hasCritical;
 
       const divisionName = (typeof meta.division === 'string' && meta.division) || row.users?.divisions?.name || 'Mapping / Drones';
-      const isEstacion = /025|estaci[oó]n/i.test(`${row.pdf_filename || ''} ${String(meta.format_code || '')}`);
-      const formatCode = (typeof meta.format_code === 'string' && meta.format_code) || (isEstacion ? 'FOR-HSEQ-025' : 'FOR-HSEQ-030');
-      const formatTitle = (typeof meta.format_title === 'string' && meta.format_title) || (isEstacion ? 'Inspección Pre-operacional Estación Total' : 'Inspección Pre-operacional Drone');
 
       const dateStr = row.inspection_date || row.created_at?.split('T')[0] || '';
       let timeStr = '';
@@ -125,6 +138,7 @@ export async function GET() {
         excelUrl: excelUrlStr,
         driveLink: row.drive_web_view_link || pdfUrlStr,
         itemsResponses: responses,
+        optimalMap,
         nonCompliantCodes: nonCompliantList,
         nonCompliantCount: nonCompliantList.length,
         operatorSignatureData: row.operator_signature_data || null,
@@ -132,10 +146,17 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({
-      ok: true,
-      evidences,
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        evidences,
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        },
+      }
+    );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('Error en API evidence-board:', msg);
