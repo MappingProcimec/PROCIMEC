@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 import { fetchAllRows } from '@/lib/supabase-pagination';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -280,7 +283,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     total_reports: typedProjects.reduce((s, p) => s + p.report_count, 0),
   };
 
-  return NextResponse.json({ data: { ...division, roles, users, projects, stats, activity_logs } });
+  return NextResponse.json(
+    { data: { ...division, roles, users, projects, stats, activity_logs } },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    }
+  );
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {

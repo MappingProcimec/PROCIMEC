@@ -78,7 +78,7 @@ export default function CadProductivityBoardPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const r = await fetch('/api/dibujo/actividades');
+        const r = await fetch('/api/dibujo/actividades', { cache: 'no-store' });
         const data = await r.json();
         if (!r.ok) {
           throw new Error(data.error || 'Error al cargar los datos del tablero');

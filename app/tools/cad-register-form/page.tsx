@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSession } from 'next-auth/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Navbar } from '@/components/layout/Navbar';
 
 // ─── Tipo de Proyecto ─────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 // ─── Componente principal ──────────────────────────────────────────────────────
 export default function CadRegisterFormPage() {
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [lastSuccess, setLastSuccess] = useState<{ project: string; software: string } | null>(null);
@@ -142,6 +144,13 @@ export default function CadRegisterFormPage() {
       setLastSuccess({ project: data.project_name, software: data.software });
       setToast({ message: '¡Actividad registrada exitosamente!', type: 'success' });
       reset({ activity_date: today, is_rework: false });
+
+      // Invalidar consultas para refrescar métricas de inmediato en dashboards y divisiones
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-division'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-projects'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
 
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'smooth' });

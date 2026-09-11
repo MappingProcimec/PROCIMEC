@@ -62,7 +62,7 @@ interface DivisionDetail {
 }
 
 async function fetchDivision(id: string): Promise<DivisionDetail> {
-  const res = await fetch(`/api/admin/divisions/${id}`);
+  const res = await fetch(`/api/admin/divisions/${id}`, { cache: 'no-store' });
   const json = await res.json();
   return json.data;
 }

@@ -4,6 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 import { isKnownAdmin } from '@/lib/admin-emails';
 import { fetchAllRows } from '@/lib/supabase-pagination';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -48,7 +51,24 @@ export async function POST(req: NextRequest) {
 
   const { role, userId } = await getUserInfo(token);
 
-  if (role !== 'dibujo' && role !== 'admin') {
+  let hasAccess = role === 'dibujo' || role === 'admin';
+  if (!hasAccess && userId) {
+    const { data: uf } = await supabase
+      .from('user_forms')
+      .select('forms(slug)')
+      .eq('user_id', userId);
+    const slugs = (uf ?? []).flatMap((row) => {
+      const f = (row as unknown as { forms: { slug?: string } | { slug?: string }[] | null }).forms;
+      if (!f) return [];
+      if (Array.isArray(f)) return f.map((x) => x.slug).filter((s): s is string => Boolean(s));
+      return f.slug ? [f.slug] : [];
+    });
+    if (slugs.includes('nueva-actividad') || slugs.includes('cad-register-form') || slugs.includes('cad-register')) {
+      hasAccess = true;
+    }
+  }
+
+  if (!hasAccess) {
     return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
   }
 
@@ -127,7 +147,11 @@ export async function GET(req: NextRequest) {
       return await query.range(from, to);
     });
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Error al obtener actividades';
     return NextResponse.json({ error: message }, { status: 500 });

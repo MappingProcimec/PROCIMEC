@@ -29,12 +29,12 @@ interface DrawingActivity {
 
 async function fetchDashboardData() {
   const [projectsRes, usersRes, divisionsRes, rolesRes, reportsRes, dibujoRes] = await Promise.all([
-    fetch('/api/admin/projects'),
-    fetch('/api/admin/users'),
-    fetch('/api/admin/divisions'),
-    fetch('/api/admin/roles'),
-    fetch('/api/reports'),
-    fetch('/api/dibujo/actividades'),
+    fetch('/api/admin/projects', { cache: 'no-store' }),
+    fetch('/api/admin/users', { cache: 'no-store' }),
+    fetch('/api/admin/divisions', { cache: 'no-store' }),
+    fetch('/api/admin/roles', { cache: 'no-store' }),
+    fetch('/api/reports', { cache: 'no-store' }),
+    fetch('/api/dibujo/actividades', { cache: 'no-store' }),
   ]);
   return {
     projects: (await projectsRes.json()).data || [],

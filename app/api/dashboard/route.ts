@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 type Tool = { id: string; slug: string; name: string; category: string };
 type Form = { id: string; slug: string; name: string };
 type Project = { id: string; cost_center?: string; code?: string; name: string; client: string };
@@ -153,40 +156,64 @@ export async function GET(req: NextRequest) {
       });
   }
 
-  const { data: cadActivity } = await supabase
-    .from('cad_activities')
-    .select('id, date, phase, projects(name, cost_center)')
-    .eq('user_id', dbUser.id)
-    .order('created_at', { ascending: false })
+  let cadActivityQuery = supabase
+    .from('drawing_activities')
+    .select('id, activity_date, elaboration_stage, software, hours_worked, project_name')
+    .order('activity_date', { ascending: false })
     .limit(5);
 
-  type CadRow = { id: string; date: string; phase: string; projects: { name: string; cost_center?: string; code?: string } | null };
+  if (dbUser.id && dbUser.email) {
+    cadActivityQuery = cadActivityQuery.or(`user_id.eq.${dbUser.id},responsible.ilike.${dbUser.email}`);
+  } else if (dbUser.id) {
+    cadActivityQuery = cadActivityQuery.eq('user_id', dbUser.id);
+  } else if (dbUser.email) {
+    cadActivityQuery = cadActivityQuery.ilike('responsible', dbUser.email);
+  }
+
+  const { data: cadActivity } = await cadActivityQuery;
+
+  type CadRow = {
+    id: string;
+    activity_date: string;
+    elaboration_stage?: string | null;
+    software?: string | null;
+    hours_worked?: number | null;
+    project_name?: string | null;
+  };
+
   const recentActivity = (cadActivity ?? []).map((a) => {
     const row = a as unknown as CadRow;
     return {
       id: row.id,
-      date: row.date,
+      date: row.activity_date,
       type: 'CAD/BIM',
-      formSlug: 'cad-register-form',
-      projectName: row.projects?.name ?? '—',
-      projectCode: row.projects?.cost_center ?? row.projects?.code ?? '—',
-      detail: row.phase,
+      formSlug: 'nueva-actividad',
+      projectName: row.project_name ?? '—',
+      projectCode: '—',
+      detail: `${Number(row.hours_worked || 8.5).toFixed(1)} h (${row.software || 'CAD'})`,
     };
   });
 
   const isRolePreview = Boolean(dbUser.role === 'admin' && roleIdParam);
 
-  return NextResponse.json({
-    data: {
-      user: { id: dbUser.id, email: dbUser.email, full_name: dbUser.full_name },
-      legacyRole: (dbUser.role as string) ?? null,
-      isRolePreview,
-      division,
-      role,
-      projects,
-      tools,
-      forms,
-      recentActivity,
+  return NextResponse.json(
+    {
+      data: {
+        user: { id: dbUser.id, email: dbUser.email, full_name: dbUser.full_name },
+        legacyRole: (dbUser.role as string) ?? null,
+        isRolePreview,
+        division,
+        role,
+        projects,
+        tools,
+        forms,
+        recentActivity,
+      },
     },
-  });
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    }
+  );
 }

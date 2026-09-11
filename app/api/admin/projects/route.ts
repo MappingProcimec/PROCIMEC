@@ -5,6 +5,9 @@ import { createAdminClient } from '@/lib/supabase';
 import { createProjectSchema } from '@/lib/validations';
 import { createProjectFolder } from '@/lib/drive';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 interface OperationalSummaryRow {
   ml?: number;
   m2?: number;
@@ -266,7 +269,14 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ data: resultProjects });
+  return NextResponse.json(
+    { data: resultProjects },
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    }
+  );
 }
 
 // POST /api/admin/projects
