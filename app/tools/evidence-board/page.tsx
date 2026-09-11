@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 
@@ -25,6 +25,7 @@ interface EvidenceItem {
   hasAnomalies: boolean;
   hasCritical: boolean;
   criticalPoint: string;
+  hasObservations?: boolean;
   generalObservations: string;
   divisionName: string;
   pdfUrl: string;
@@ -43,13 +44,24 @@ export default function EvidenceBoardToolPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
+  // Global & General Filters
   const [search, setSearch] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('all');
   const [selectedProject, setSelectedProject] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'conforme' | 'alerta'>('all');
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'conforme' | 'alerta' | 'observaciones'>('all');
   const [selectedFormat, setSelectedFormat] = useState('all');
   const [selectedLocator, setSelectedLocator] = useState('all');
+
+  // Column Specific Filters
+  const [colFilterProjectText, setColFilterProjectText] = useState('');
+  const [colFilterDate, setColFilterDate] = useState('');
+  const [showColumnFilters, setShowColumnFilters] = useState(true);
+
+  // Sorting
+  const [sortField, setSortField] = useState<
+    'division' | 'format' | 'project' | 'locator' | 'date' | 'status' | null
+  >('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Modal selection
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceItem | null>(null);
@@ -90,28 +102,150 @@ export default function EvidenceBoardToolPage() {
   );
   const uniqueLocators = Array.from(new Set(evidences.map((e) => e.locatorName).filter(Boolean)));
 
-  // Filter logic
-  const filteredEvidences = evidences.filter((ev) => {
-    const s = search.toLowerCase();
-    const matchesSearch =
-      !search ||
-      ev.fileName.toLowerCase().includes(s) ||
-      ev.locatorName.toLowerCase().includes(s) ||
-      ev.formatName.toLowerCase().includes(s) ||
-      ev.projectName.toLowerCase().includes(s) ||
-      ev.equipment.toLowerCase().includes(s) ||
-      ev.serial.toLowerCase().includes(s) ||
-      ev.divisionName.toLowerCase().includes(s) ||
-      (ev.criticalPoint && ev.criticalPoint.toLowerCase().includes(s));
+  // Sorting handler
+  const handleSort = (field: 'division' | 'format' | 'project' | 'locator' | 'date' | 'status') => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        setSortField(null);
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
-    const matchesDivision = selectedDivision === 'all' || ev.divisionName === selectedDivision;
-    const matchesProject = selectedProject === 'all' || ev.projectName === selectedProject;
-    const matchesStatus = selectedStatus === 'all' || ev.status === selectedStatus;
-    const matchesFormat = selectedFormat === 'all' || ev.code === selectedFormat;
-    const matchesLocator = selectedLocator === 'all' || ev.locatorName === selectedLocator;
+  const getSortIcon = (field: 'division' | 'format' | 'project' | 'locator' | 'date' | 'status') => {
+    if (sortField !== field) return <span className="text-gray-300 font-normal ml-1">↕</span>;
+    return <span className="text-teal-600 font-black ml-1">{sortDirection === 'asc' ? '▲' : '▼'}</span>;
+  };
 
-    return matchesSearch && matchesDivision && matchesProject && matchesStatus && matchesFormat && matchesLocator;
-  });
+  // Clear all filters
+  const resetAllFilters = () => {
+    setSearch('');
+    setSelectedDivision('all');
+    setSelectedProject('all');
+    setSelectedFormat('all');
+    setSelectedLocator('all');
+    setSelectedStatus('all');
+    setColFilterProjectText('');
+    setColFilterDate('');
+    setSortField('date');
+    setSortDirection('desc');
+  };
+
+  const hasActiveFilters =
+    Boolean(search) ||
+    selectedDivision !== 'all' ||
+    selectedProject !== 'all' ||
+    selectedFormat !== 'all' ||
+    selectedLocator !== 'all' ||
+    selectedStatus !== 'all' ||
+    Boolean(colFilterProjectText) ||
+    Boolean(colFilterDate);
+
+  // Filter and Sorting logic combined
+  const filteredEvidences = useMemo(() => {
+    const list = evidences.filter((ev) => {
+      const s = search.toLowerCase();
+      const matchesSearch =
+        !search ||
+        ev.fileName.toLowerCase().includes(s) ||
+        ev.locatorName.toLowerCase().includes(s) ||
+        ev.formatName.toLowerCase().includes(s) ||
+        ev.projectName.toLowerCase().includes(s) ||
+        ev.equipment.toLowerCase().includes(s) ||
+        ev.serial.toLowerCase().includes(s) ||
+        ev.divisionName.toLowerCase().includes(s) ||
+        (ev.criticalPoint && ev.criticalPoint.toLowerCase().includes(s));
+
+      const matchesDivision = selectedDivision === 'all' || ev.divisionName === selectedDivision;
+      const matchesProject = selectedProject === 'all' || ev.projectName === selectedProject;
+      const matchesFormat = selectedFormat === 'all' || ev.code === selectedFormat;
+      const matchesLocator = selectedLocator === 'all' || ev.locatorName === selectedLocator;
+
+      // Column filters
+      const projQ = colFilterProjectText.toLowerCase();
+      const matchesColProject =
+        !projQ ||
+        ev.projectName.toLowerCase().includes(projQ) ||
+        ev.equipment.toLowerCase().includes(projQ) ||
+        (ev.costCenter && ev.costCenter.toLowerCase().includes(projQ)) ||
+        (ev.serial && ev.serial.toLowerCase().includes(projQ));
+
+      const matchesColDate = !colFilterDate || ev.date.includes(colFilterDate);
+
+      let matchesStatus = true;
+      if (selectedStatus === 'conforme') {
+        matchesStatus = ev.status === 'conforme';
+      } else if (selectedStatus === 'alerta') {
+        matchesStatus = ev.status === 'alerta';
+      } else if (selectedStatus === 'observaciones') {
+        matchesStatus = Boolean(ev.hasObservations);
+      }
+
+      return (
+        matchesSearch &&
+        matchesDivision &&
+        matchesProject &&
+        matchesFormat &&
+        matchesLocator &&
+        matchesColProject &&
+        matchesColDate &&
+        matchesStatus
+      );
+    });
+
+    if (!sortField) return list;
+
+    return [...list].sort((a, b) => {
+      let valA = '';
+      let valB = '';
+
+      switch (sortField) {
+        case 'division':
+          valA = a.divisionName || '';
+          valB = b.divisionName || '';
+          break;
+        case 'format':
+          valA = a.code || '';
+          valB = b.code || '';
+          break;
+        case 'project':
+          valA = a.projectName || '';
+          valB = b.projectName || '';
+          break;
+        case 'locator':
+          valA = a.locatorName || '';
+          valB = b.locatorName || '';
+          break;
+        case 'date':
+          valA = `${a.date} ${a.time}`;
+          valB = `${b.date} ${b.time}`;
+          break;
+        case 'status':
+          valA = a.status;
+          valB = b.status;
+          break;
+      }
+
+      const cmp = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [
+    evidences,
+    search,
+    selectedDivision,
+    selectedProject,
+    selectedFormat,
+    selectedLocator,
+    selectedStatus,
+    colFilterProjectText,
+    colFilterDate,
+    sortField,
+    sortDirection,
+  ]);
 
   // Metrics counters
   const totalEvidences = evidences.length;
@@ -246,12 +380,13 @@ export default function EvidenceBoardToolPage() {
               {/* Status Filter */}
               <select
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta')}
+                onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta' | 'observaciones')}
                 className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
               >
                 <option value="all">🔘 Todos los Estados</option>
                 <option value="conforme">🟢 Conforme (Sin fallas)</option>
-                <option value="alerta">🔴 Alertas / Puntos Críticos</option>
+                <option value="alerta">🔴 Alertas / Variaciones</option>
+                <option value="observaciones">📝 Con Observaciones</option>
               </select>
 
               {/* Project Filter */}
@@ -298,20 +433,248 @@ export default function EvidenceBoardToolPage() {
             </div>
           </div>
 
+          {/* Action and Filter Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/60 text-xs">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowColumnFilters(!showColumnFilters)}
+                className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold inline-flex items-center gap-1.5 transition-colors ${
+                  showColumnFilters
+                    ? 'bg-teal-50 text-teal-800 border-teal-300 shadow-xs'
+                    : 'bg-white text-text-secondary border-border hover:bg-gray-50'
+                }`}
+                title="Mostrar u ocultar la fila de filtros directos en cada columna"
+              >
+                <span>🔽</span> Filtros en Columnas: <strong className="text-teal-900">{showColumnFilters ? 'Visibles' : 'Ocultos'}</strong>
+              </button>
+
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 font-semibold hover:bg-red-100 transition-colors inline-flex items-center gap-1"
+                  title="Restablecer todos los filtros y búsquedas"
+                >
+                  <span>✕</span> Limpiar Todos los Filtros
+                </button>
+              )}
+            </div>
+
+            <div className="text-text-muted text-[11px] font-medium">
+              {hasActiveFilters ? (
+                <span className="text-teal-700 font-semibold">
+                  Mostrando {filteredEvidences.length} de {evidences.length} resultados filtrados
+                </span>
+              ) : (
+                <span>Total: {evidences.length} registros</span>
+              )}
+            </div>
+          </div>
+
           {/* Evidence Table */}
-          <div className="border border-border rounded-xl overflow-hidden mt-3">
+          <div className="border border-border rounded-xl overflow-hidden mt-3 shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-gray-50 border-b border-border text-text-muted font-bold uppercase tracking-wider">
+                <thead className="bg-gray-50 border-b border-border text-text-muted font-bold uppercase tracking-wider text-[11px]">
+                  {/* Fila 1: Encabezados con Ordenamiento (Sort) */}
                   <tr>
-                    <th className="px-4 py-3">División</th>
-                    <th className="px-4 py-3">Formato HSEQ</th>
-                    <th className="px-4 py-3">Proyecto / Equipo</th>
-                    <th className="px-4 py-3">Localizador Responsable</th>
-                    <th className="px-4 py-3">Fecha y Hora</th>
-                    <th className="px-4 py-3 text-center">Estado de Operación</th>
-                    <th className="px-4 py-3 text-right">Evidencias</th>
+                    <th
+                      onClick={() => handleSort('division')}
+                      className="px-4 py-3 cursor-pointer hover:bg-gray-100/80 transition-colors select-none group"
+                      title="Ordenar por División"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>División</span>
+                        {getSortIcon('division')}
+                      </div>
+                    </th>
+
+                    <th
+                      onClick={() => handleSort('format')}
+                      className="px-4 py-3 cursor-pointer hover:bg-gray-100/80 transition-colors select-none group"
+                      title="Ordenar por Formato"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Formato HSEQ</span>
+                        {getSortIcon('format')}
+                      </div>
+                    </th>
+
+                    <th
+                      onClick={() => handleSort('project')}
+                      className="px-4 py-3 cursor-pointer hover:bg-gray-100/80 transition-colors select-none group"
+                      title="Ordenar por Proyecto"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Proyecto / Equipo</span>
+                        {getSortIcon('project')}
+                      </div>
+                    </th>
+
+                    <th
+                      onClick={() => handleSort('locator')}
+                      className="px-4 py-3 cursor-pointer hover:bg-gray-100/80 transition-colors select-none group"
+                      title="Ordenar por Localizador"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Localizador Responsable</span>
+                        {getSortIcon('locator')}
+                      </div>
+                    </th>
+
+                    <th
+                      onClick={() => handleSort('date')}
+                      className="px-4 py-3 cursor-pointer hover:bg-gray-100/80 transition-colors select-none group"
+                      title="Ordenar por Fecha"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Fecha y Hora</span>
+                        {getSortIcon('date')}
+                      </div>
+                    </th>
+
+                    <th
+                      onClick={() => handleSort('status')}
+                      className="px-4 py-3 text-center cursor-pointer hover:bg-gray-100/80 transition-colors select-none group"
+                      title="Ordenar por Estado"
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span>Estado de Operación</span>
+                        {getSortIcon('status')}
+                      </div>
+                    </th>
+
+                    <th className="px-4 py-3 text-right">
+                      <span>Evidencias</span>
+                    </th>
                   </tr>
+
+                  {/* Fila 2: Filtros directos e interactivos en cada columna */}
+                  {showColumnFilters && (
+                    <tr className="bg-slate-100/90 border-t border-border lowercase tracking-normal">
+                      {/* Filtro Columna: División */}
+                      <th className="p-2 font-normal">
+                        <select
+                          value={selectedDivision}
+                          onChange={(e) => setSelectedDivision(e.target.value)}
+                          className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                        >
+                          <option value="all">🏢 Todas ({uniqueDivisions.length})</option>
+                          {uniqueDivisions.map((d) => (
+                            <option key={d} value={d}>
+                              {d}
+                            </option>
+                          ))}
+                        </select>
+                      </th>
+
+                      {/* Filtro Columna: Formato */}
+                      <th className="p-2 font-normal">
+                        <select
+                          value={selectedFormat}
+                          onChange={(e) => setSelectedFormat(e.target.value)}
+                          className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                        >
+                          <option value="all">📋 Todos ({uniqueFormats.length})</option>
+                          {uniqueFormats.map((f) => (
+                            <option key={f.code} value={f.code}>
+                              {f.code}
+                            </option>
+                          ))}
+                        </select>
+                      </th>
+
+                      {/* Filtro Columna: Proyecto / Equipo */}
+                      <th className="p-2 font-normal">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Buscar proyecto o equipo..."
+                            value={colFilterProjectText}
+                            onChange={(e) => setColFilterProjectText(e.target.value)}
+                            className="w-full text-[11px] px-2 py-1 pr-5 rounded-md border border-border bg-white text-text-primary placeholder:text-gray-400 focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                          />
+                          {colFilterProjectText && (
+                            <button
+                              type="button"
+                              onClick={() => setColFilterProjectText('')}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-[10px]"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Filtro Columna: Localizador */}
+                      <th className="p-2 font-normal">
+                        <select
+                          value={selectedLocator}
+                          onChange={(e) => setSelectedLocator(e.target.value)}
+                          className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                        >
+                          <option value="all">📍 Todos ({uniqueLocators.length})</option>
+                          {uniqueLocators.map((loc) => (
+                            <option key={loc} value={loc}>
+                              {loc}
+                            </option>
+                          ))}
+                        </select>
+                      </th>
+
+                      {/* Filtro Columna: Fecha */}
+                      <th className="p-2 font-normal">
+                        <div className="relative">
+                          <input
+                            type="date"
+                            value={colFilterDate}
+                            onChange={(e) => setColFilterDate(e.target.value)}
+                            className="w-full text-[11px] px-1.5 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                          />
+                          {colFilterDate && (
+                            <button
+                              type="button"
+                              onClick={() => setColFilterDate('')}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-[10px]"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Filtro Columna: Estado */}
+                      <th className="p-2 font-normal text-center">
+                        <select
+                          value={selectedStatus}
+                          onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta' | 'observaciones')}
+                          className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none font-medium"
+                        >
+                          <option value="all">🔘 Todos</option>
+                          <option value="conforme">🟢 Conformes</option>
+                          <option value="alerta">🚨 Alertas / Variaciones</option>
+                          <option value="observaciones">📝 Con Observaciones</option>
+                        </select>
+                      </th>
+
+                      {/* Acción en Columna */}
+                      <th className="p-2 text-right font-normal">
+                        {hasActiveFilters ? (
+                          <button
+                            type="button"
+                            onClick={resetAllFilters}
+                            className="w-full text-[11px] font-bold text-teal-800 bg-teal-100/90 hover:bg-teal-200 border border-teal-300 py-1 px-2 rounded-md transition-colors inline-flex items-center justify-center gap-1"
+                            title="Limpiar todos los filtros activos"
+                          >
+                            <span>✕</span> Limpiar
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-text-muted block text-center py-1">Sin filtro</span>
+                        )}
+                      </th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody className="divide-y divide-border">
                   {loading && (
@@ -574,12 +937,23 @@ export default function EvidenceBoardToolPage() {
                 </div>
 
                 {/* Observaciones Generales */}
-                <div className="rounded-xl border border-border bg-white p-3.5 text-xs">
+                <div
+                  className={`rounded-xl border p-3.5 text-xs ${
+                    selectedEvidence.hasObservations
+                      ? 'border-blue-300 bg-blue-50/70 text-blue-950 font-medium'
+                      : 'border-border bg-white text-text-secondary'
+                  }`}
+                >
                   <span className="font-bold block uppercase tracking-wider text-[11px] mb-1 flex items-center gap-1.5 text-text-primary">
                     <span>📝</span> Observaciones Generales:
+                    {selectedEvidence.hasObservations && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-800 font-bold border border-blue-200">
+                        Novedad Notificada a HSEQ
+                      </span>
+                    )}
                   </span>
-                  <p className="text-text-secondary leading-relaxed">
-                    {selectedEvidence.generalObservations || 'Sin observaciones registradas.'}
+                  <p className="leading-relaxed">
+                    {selectedEvidence.generalObservations || 'Ninguna'}
                   </p>
                 </div>
               </div>

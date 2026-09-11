@@ -88,7 +88,12 @@ export async function GET() {
         })
         .map(([code]) => code);
 
-      const hasAnomalies = Boolean(meta.has_anomalies) || nonCompliantList.length > 0 || hasCritical;
+      const obsText = (row.general_observations || '').trim().toLowerCase();
+      const hasCustomObservations =
+        Boolean(row.general_observations) &&
+        !['ninguna', 'ninguno', 'ningun', 'sin observaciones', 'n/a', 'na', ''].includes(obsText);
+
+      const hasAnomalies = Boolean(meta.has_anomalies) || nonCompliantList.length > 0 || hasCritical || hasCustomObservations;
 
       const divisionName = (typeof meta.division === 'string' && meta.division) || row.users?.divisions?.name || 'Mapping / Drones';
 
@@ -132,7 +137,8 @@ export async function GET() {
         hasAnomalies,
         hasCritical,
         criticalPoint: criticalText || 'Ninguno',
-        generalObservations: row.general_observations || '',
+        hasObservations: hasCustomObservations,
+        generalObservations: row.general_observations || 'Ninguna',
         divisionName,
         pdfUrl: pdfUrlStr,
         excelUrl: excelUrlStr,

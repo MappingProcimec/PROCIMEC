@@ -75,7 +75,7 @@ export default function HseqReportFormPage() {
   // Checklist reactivo
   const [itemsResponses, setItemsResponses] = useState<Record<string, 'SI' | 'NO' | 'NA'>>({});
   const [criticalPoint, setCriticalPoint] = useState('Ninguno');
-  const [generalObservations, setGeneralObservations] = useState('');
+  const [generalObservations, setGeneralObservations] = useState('Ninguna');
 
   // Firmas Digitales
   const [operatorSignName, setOperatorSignName] = useState('');
@@ -462,9 +462,10 @@ export default function HseqReportFormPage() {
                   setGeneratedPdfResult(null);
                   setSelectedTemplateId('');
                   setItemsResponses({});
+                  setCriticalPoint('Ninguno');
                   setOperatorSignDataUrl('');
                   setSstaSignDataUrl('');
-                  setGeneralObservations('');
+                  setGeneralObservations('Ninguna');
                 }}
                 className="btn btn-ghost"
               >
@@ -704,14 +705,17 @@ export default function HseqReportFormPage() {
                     </div>
 
                     <div>
-                      <label className="label text-xs">Observaciones generales</label>
+                      <label className="label text-xs font-semibold text-text-secondary">Observaciones generales</label>
                       <textarea
                         rows={3}
                         value={generalObservations}
                         onChange={(e) => setGeneralObservations(e.target.value)}
-                        placeholder="Detalles adicionales sobre las condiciones de operación o el entorno..."
+                        placeholder="Ej. Ninguna / Describa cualquier novedad..."
                         className="textarea text-xs"
                       />
+                      <span className="text-[11px] text-text-muted mt-1 block">
+                        * Por defecto viene como <strong>&quot;Ninguna&quot;</strong>. Si escribe alguna observación o novedad, el sistema notificará automáticamente al equipo HSEQ (ghprocimec@gmail.com).
+                      </span>
                     </div>
                   </div>
                 </div>

@@ -33,7 +33,40 @@ export async function sendHseqAlertEmail(data: HseqAlertData): Promise<{ ok: boo
   const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
   const smtpPort = Number(process.env.SMTP_PORT || 465);
 
-  const subject = `🚨 ALERTA HSEQ [${data.formatCode}]: Variación de Seguridad en ${data.projectName}`;
+  const hasVariations = Array.isArray(data.variations) && data.variations.length > 0;
+  const hasCritical =
+    Boolean(data.criticalPoint) &&
+    !['ninguno', 'ninguna'].includes(data.criticalPoint!.trim().toLowerCase());
+  const obsClean = (data.generalObservations || '').trim().toLowerCase();
+  const hasCustomObs =
+    Boolean(data.generalObservations) &&
+    !['ninguna', 'ninguno', 'ningun', 'sin observaciones', 'n/a', 'na', ''].includes(obsClean);
+
+  const isPureObservation = hasCustomObs && !hasVariations && !hasCritical;
+
+  const subject = isPureObservation
+    ? `📝 NOTIFICACIÓN HSEQ [${data.formatCode}]: Observación Registrada en ${data.projectName}`
+    : `🚨 ALERTA HSEQ [${data.formatCode}]: Variación de Seguridad en ${data.projectName}`;
+
+  const headerGradient = isPureObservation
+    ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+    : 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)';
+
+  const headerTitle = isPureObservation
+    ? '📝 NOTIFICACIÓN DE OBSERVACIÓN HSEQ'
+    : '🚨 ALERTA DE SEGURIDAD HSEQ';
+
+  const headerSubtitle = isPureObservation
+    ? 'El operador ha registrado observaciones especiales durante la inspección'
+    : 'Se ha detectado una variación no conforme o punto crítico en la inspección';
+
+  const alertBoxStyle = isPureObservation
+    ? 'background: #f0f9ff; border-left: 4px solid #0284c7; color: #0369a1;'
+    : 'background: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b;';
+
+  const alertBoxContent = isPureObservation
+    ? '<strong>ℹ️ Novedad Reportada:</strong> El colaborador ha registrado observaciones o condiciones especiales en el formulario que requieren conocimiento y seguimiento del área HSEQ.'
+    : '<strong>⚠️ Atención Inmediata:</strong> Una o más respuestas difieren del patrón de seguridad establecido en el catálogo o se reportó un punto crítico que compromete la operación normal.';
 
   // Formato HTML elegante y profesional
   const html = `
@@ -44,12 +77,12 @@ export async function sendHseqAlertEmail(data: HseqAlertData): Promise<{ ok: boo
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b; }
         .container { max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        .header { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: #ffffff; padding: 24px; text-align: center; }
+        .header { background: ${headerGradient}; color: #ffffff; padding: 24px; text-align: center; }
         .header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
         .header p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
         .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; margin-top: 8px; }
         .content { padding: 24px; }
-        .alert-box { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; color: #991b1b; }
+        .alert-box { ${alertBoxStyle} padding: 14px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
         .grid { display: table; width: 100%; margin-bottom: 20px; }
         .row { display: table-row; }
         .cell { display: table-cell; padding: 8px; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
@@ -68,14 +101,14 @@ export async function sendHseqAlertEmail(data: HseqAlertData): Promise<{ ok: boo
     <body>
       <div class="container">
         <div class="header">
-          <h1>🚨 ALERTA DE SEGURIDAD HSEQ</h1>
-          <p>Se ha detectado una variación no conforme o punto crítico en la inspección</p>
+          <h1>${headerTitle}</h1>
+          <p>${headerSubtitle}</p>
           <div class="badge">${data.formatCode} — ${data.formatTitle}</div>
         </div>
 
         <div class="content">
           <div class="alert-box">
-            <strong>⚠️ Atención Inmediata:</strong> Una o más respuestas difieren del patrón de seguridad establecido en el catálogo o se reportó un punto crítico que compromete la operación normal.
+            ${alertBoxContent}
           </div>
 
           <h3 style="font-size: 14px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; color: #334155;">
@@ -157,11 +190,11 @@ export async function sendHseqAlertEmail(data: HseqAlertData): Promise<{ ok: boo
           }
 
           ${
-            data.generalObservations
+            hasCustomObs
               ? `
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 16px;">
-              <strong style="color: #475569; font-size: 13px;">📝 Observaciones Generales:</strong>
-              <p style="margin: 6px 0 0; font-size: 13px; color: #334155;">${data.generalObservations}</p>
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+              <strong style="color: #0369a1; font-size: 13px;">📝 Observaciones / Novedades Registradas por el Operador:</strong>
+              <p style="margin: 6px 0 0; font-size: 14px; color: #0c4a6e; font-weight: 600; line-height: 1.5;">${data.generalObservations}</p>
             </div>
           `
               : ''

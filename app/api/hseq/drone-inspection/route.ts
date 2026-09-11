@@ -227,9 +227,14 @@ export async function POST(req: NextRequest) {
       criticalPoint.trim().toLowerCase() !== 'ninguna' &&
       criticalPoint.trim() !== '';
 
-    const hasAnomalies = nonCompliantItems.length > 0 || hasCriticalPoint;
+    const obsClean = (generalObservations || '').trim().toLowerCase();
+    const hasCustomObservations =
+      Boolean(generalObservations) &&
+      !['ninguna', 'ninguno', 'ningun', 'sin observaciones', 'n/a', 'na', ''].includes(obsClean);
 
-    // Disparar correo automático de alerta al responsable HSEQ si hay variaciones o punto crítico
+    const hasAnomalies = nonCompliantItems.length > 0 || hasCriticalPoint || hasCustomObservations;
+
+    // Disparar correo automático de alerta/notificación al responsable HSEQ si hay variaciones, punto crítico u observaciones
     if (hasAnomalies) {
       sendHseqAlertEmail({
         formatCode: formatConfig.code,
@@ -244,7 +249,7 @@ export async function POST(req: NextRequest) {
         sstaName,
         variations: nonCompliantItems,
         criticalPoint: hasCriticalPoint ? criticalPoint : undefined,
-        generalObservations,
+        generalObservations: hasCustomObservations ? generalObservations : undefined,
         pdfUrl: pdfUrl || driveWebViewLink || undefined,
         excelUrl: excelUrl || undefined,
       }).catch((mailErr) => {
