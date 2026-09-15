@@ -24,14 +24,13 @@ export function AiAnalysisModal({ isOpen, onClose, payload }: AiAnalysisModalPro
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AiDiagnosisResult | null>(null);
 
-  const runAnalysis = () => {
+  const runAnalysis = React.useCallback(() => {
     if (!payload) return;
     setIsAnalyzing(true);
 
     setTimeout(() => {
       const busyNodes = payload.nodes.filter((n) => n.status === 'busy');
       const totalUsers = payload.stats.totalUsers || payload.nodes.filter((n) => n.type === 'user').length;
-      const totalProjects = payload.stats.totalProjects || payload.nodes.filter((n) => n.type === 'project').length;
 
       const bottlenecks: AiDiagnosisResult['bottlenecks'] = [];
 
@@ -87,13 +86,13 @@ export function AiAnalysisModal({ isOpen, onClose, payload }: AiAnalysisModalPro
 
       setIsAnalyzing(false);
     }, 650);
-  };
+  }, [payload]);
 
   React.useEffect(() => {
     if (isOpen && !analysis) {
       runAnalysis();
     }
-  }, [isOpen]);
+  }, [isOpen, analysis, runAnalysis]);
 
   if (!isOpen) return null;
 

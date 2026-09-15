@@ -5,12 +5,9 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Minimize2,
-  Search,
   ArrowUpRight,
   ArrowDownRight,
   Layers,
-  Sparkles,
   Download,
   Share2,
   Check,
@@ -21,11 +18,8 @@ import {
   Database,
   Briefcase,
   X,
-  ExternalLink,
-  ChevronRight,
-  Filter,
 } from 'lucide-react';
-import { DiagramEdge, DiagramNode, DiagramPayload, ReachMode, ViewMode } from './types';
+import { DiagramNode, DiagramPayload, ReachMode } from './types';
 
 interface OrgChartCanvasProps {
   payload: DiagramPayload;
@@ -75,7 +69,7 @@ export function OrgChartCanvas({
       x: Math.round((containerWidth - diagramWidth * optimalZoom) / 2 - minX * optimalZoom),
       y: Math.round(40),
     });
-  }, [payload.mode, payload.nodes.length]);
+  }, [payload.mode, payload.nodes]);
 
   // Mouse wheel zoom
   const handleWheel = (e: React.WheelEvent) => {

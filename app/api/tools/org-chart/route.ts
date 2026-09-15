@@ -226,7 +226,7 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json({ data: payload });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching org chart data:', error);
     // Graceful fallback to canonical data
     return NextResponse.json({ data: getCanonicalOrgData() });

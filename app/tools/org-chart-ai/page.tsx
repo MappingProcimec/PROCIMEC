@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Navbar } from '@/components/layout/Navbar';
 import { OrgChartCanvas } from '@/components/tools/org-chart/OrgChartCanvas';
 import { AiAnalysisModal } from '@/components/tools/org-chart/AiAnalysisModal';
@@ -15,11 +15,7 @@ import {
   Filter,
   Users,
   Layers,
-  Briefcase,
-  Activity,
   GitBranch,
-  ShieldCheck,
-  CheckCircle2,
 } from 'lucide-react';
 
 async function fetchDiagramData(mode: ViewMode): Promise<DiagramPayload> {
@@ -35,14 +31,13 @@ async function fetchDiagramData(mode: ViewMode): Promise<DiagramPayload> {
 }
 
 export default function OrgChartAiPage() {
-  const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>('org');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('all');
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   // Auto-fetch data with React Query (automatic background sync every 15s)
-  const { data: diagramData, isLoading, isFetching, refetch } = useQuery<DiagramPayload>({
+  const { data: diagramData, isFetching, refetch } = useQuery<DiagramPayload>({
     queryKey: ['org-chart-data', viewMode],
     queryFn: () => fetchDiagramData(viewMode),
     refetchInterval: 15000, // Automatic live update every 15 seconds
