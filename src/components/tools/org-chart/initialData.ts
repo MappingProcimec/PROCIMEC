@@ -11,8 +11,7 @@ export const VERTICAL_SPACING = 90;
  * Distributes nodes into levels and evenly centers horizontal positions.
  */
 export function computeAutoLayout(
-  nodes: Omit<DiagramNode, 'x' | 'y' | 'width' | 'height'>[],
-  _edges?: DiagramEdge[]
+  nodes: Omit<DiagramNode, 'x' | 'y' | 'width' | 'height'>[]
 ): DiagramNode[] {
   if (nodes.length === 0) return [];
 
@@ -229,7 +228,7 @@ export function getCanonicalOrgData(): DiagramPayload {
 
   return {
     mode: 'org',
-    nodes: computeAutoLayout(rawNodes, edges),
+    nodes: computeAutoLayout(rawNodes),
     edges,
     lastSyncedAt: new Date().toISOString(),
     stats: {
@@ -363,7 +362,7 @@ export function getCanonicalPipelineData(): DiagramPayload {
 
   return {
     mode: 'pipeline',
-    nodes: computeAutoLayout(rawNodes, edges),
+    nodes: computeAutoLayout(rawNodes),
     edges,
     lastSyncedAt: new Date().toISOString(),
     stats: {

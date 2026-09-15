@@ -209,7 +209,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Auto-layout
-    const positionedNodes = computeAutoLayout(rawNodes, edges);
+    const positionedNodes = computeAutoLayout(rawNodes);
 
     const payload: DiagramPayload = {
       mode: 'org',
