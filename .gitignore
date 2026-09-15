@@ -37,3 +37,6 @@ next-env.d.ts
 
 # WhatsApp Bot (ejecución local en servidor / PM2, no subir a GitHub)
 bot-whatsapp/
+
+.vercel
+.env*

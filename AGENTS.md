@@ -25,4 +25,12 @@ Todo agente de Inteligencia Artificial que opere en este workspace debe acatar e
   - Actividades CAD/BIM: `hours_worked = 8.5` por defecto, `responsible = user.email`.
   - Reportes de Campo GPR: `cad_priority = 'Media'`, `weather_conditions = 'Despejado'`, `report_date = CURRENT_DATE`.
 
-Para más detalles, consultar `.agents/rules/procimec_architecture.md`.
+## 4. Identidad Visual y Sistema de Diseño (Industrial Precision)
+- **Paleta Oficial del Logo:** Los colores corporativos se basan estrictamente en el logotipo (`public/logo.png`): Primario en **Carbón Técnico (`#1E2229`)** y Acento en **Ámbar Geofísico de Radar (`#EAA023`)**. Prohibido usar azules arbitrarios o gradientes genéricos.
+- **Directrices Anti-Slop:**
+  - **Zero-Emoji:** Prohibido el uso de emojis en interfaces y componentes; utilizar exclusivamente iconos vectoriales de Lucide React (`strokeWidth={1.75}`).
+  - **Microinteracciones y Física:** Botones con `:active:scale-[0.98]` y transición de 160ms (`cubic-bezier(0.23, 1, 0.32, 1)`). Prohibido animar desde `scale(0)` o usar `ease-in`.
+  - **Tipografía Bimodal:** Inter para UI general y `JetBrains Mono` para coordenadas UTM, GHz, horas, códigos y metadatos.
+  - **Mobile:** Contenedores con `min-h-[100dvh]` (nunca `h-screen`) y targets táctiles de mínimo `44x44px`.
+
+Para especificaciones completas, consultar [PRODUCT.md](PRODUCT.md), [.agents/rules/procimec_design_system.md](.agents/rules/procimec_design_system.md) y [.agents/rules/procimec_architecture.md](.agents/rules/procimec_architecture.md).

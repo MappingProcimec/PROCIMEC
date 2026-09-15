@@ -4,9 +4,10 @@
 
 @layer base {
   :root {
-    --color-primary: #1B3A5C;
-    --color-accent: #F5A623;
+    --color-primary: #1E2229;
+    --color-accent: #EAA023;
     --color-surface: #F8FAFC;
+    --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
   }
 
   * {
@@ -31,26 +32,26 @@
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-primary-200 rounded-full;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-primary-400;
+    @apply bg-gray-300 rounded-full hover:bg-gray-400;
   }
 }
 
 @layer components {
-  /* Buttons */
+  /* Buttons - Emil Kowalski Physical Feedback & Precision Easing */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95;
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm
+           transition-all duration-150 active:scale-[0.98]
+           focus:outline-none focus:ring-2 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none;
   }
   .btn-primary {
-    @apply btn bg-primary text-white hover:bg-primary-600 focus:ring-primary shadow-glow hover:shadow-lg;
+    @apply btn bg-primary-700 text-white hover:bg-primary-800 focus:ring-primary-700 shadow-sm hover:shadow-card;
   }
   .btn-accent {
-    @apply btn bg-accent text-white hover:bg-accent-600 focus:ring-accent shadow-glow-accent hover:shadow-lg;
+    @apply btn bg-accent text-white hover:bg-accent-600 focus:ring-accent shadow-sm hover:shadow-glow-accent;
   }
   .btn-outline {
-    @apply btn border-2 border-primary text-primary bg-transparent hover:bg-primary-50 focus:ring-primary;
+    @apply btn border border-primary-700 text-primary-700 bg-transparent hover:bg-primary-50 focus:ring-primary-700;
   }
   .btn-ghost {
     @apply btn text-text-secondary hover:bg-gray-100 focus:ring-gray-300;

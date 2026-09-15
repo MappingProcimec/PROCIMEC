@@ -11,42 +11,51 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // PROCIMEC Corporate Palette
+        // PROCIMEC Corporate Palette (Derived from Official Logo public/logo.png)
         primary: {
-          50: '#EFF4FA',
-          100: '#D6E4F0',
-          200: '#ADC9E1',
-          300: '#84AED2',
-          400: '#5B93C3',
-          500: '#3278B4',
-          600: '#2860A3',
-          700: '#1B3A5C', // Main primary
-          800: '#142D47',
-          900: '#0D1F32',
-          DEFAULT: '#1B3A5C',
+          50: '#F5F6F8',
+          100: '#E6E8EC',
+          200: '#CDD1D9',
+          300: '#9DA4B3',
+          400: '#656D7E',
+          500: '#414856',
+          600: '#2B2F38', // Mid charcoal
+          700: '#1E2229', // Main primary (Charcoal lettering)
+          800: '#15181D',
+          900: '#0C0E11', // Deep instrumental console
+          DEFAULT: '#1E2229',
         },
         accent: {
-          50: '#FEF9EE',
-          100: '#FEF0D0',
-          200: '#FDE0A1',
-          300: '#FCD072',
-          400: '#FBC043',
-          500: '#F5A623', // Main accent
-          600: '#D4891A',
-          700: '#A66B11',
-          800: '#784D08',
-          900: '#4A2F00',
-          DEFAULT: '#F5A623',
+          50: '#FEF9EC',
+          100: '#FEF1CE',
+          200: '#FDE19B',
+          300: '#FCCD61',
+          400: '#FABA2B',
+          500: '#EAA023', // Main accent (Radar pulse from Logo)
+          600: '#CE8315',
+          700: '#A4610F',
+          800: '#844D12',
+          900: '#4A2A07',
+          DEFAULT: '#EAA023',
         },
         surface: '#F8FAFC',
-        'text-primary': '#1A202C',
-        'text-secondary': '#4A5568',
-        'text-muted': '#718096',
+        'text-primary': '#0F172A',
+        'text-secondary': '#475569',
+        'text-muted': '#94A3B8',
         border: '#E2E8F0',
+        'border-subtle': '#F1F5F9',
         success: '#10B981',
         warning: '#F59E0B',
         error: '#EF4444',
-        info: '#3B82F6',
+        info: '#0284C7',
+        // Subsurface Utility Marking Standards
+        utility: {
+          water: '#0284C7',
+          gas: '#EAB308',
+          power: '#DC2626',
+          telecom: '#EA580C',
+          sewer: '#10B981',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -58,29 +67,32 @@ const config: Config = {
         '3xl': '1.75rem',
       },
       boxShadow: {
-        soft: '0 2px 15px -3px rgba(0,0,0,0.07), 0 10px 20px -2px rgba(0,0,0,0.04)',
-        glow: '0 0 20px rgba(27, 58, 92, 0.15)',
-        'glow-accent': '0 0 20px rgba(245, 166, 35, 0.25)',
-        card: '0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08)',
+        soft: '0 2px 15px -3px rgba(30,34,41,0.06), 0 10px 20px -2px rgba(30,34,41,0.03)',
+        glow: '0 0 20px rgba(30, 34, 41, 0.18)',
+        'glow-accent': '0 0 20px rgba(234, 160, 35, 0.28)',
+        card: '0 1px 3px rgba(30,34,41,0.05), 0 4px 12px rgba(30,34,41,0.06)',
+      },
+      transitionTimingFunction: {
+        'out-quint': 'cubic-bezier(0.23, 1, 0.32, 1)',
       },
       animation: {
-        'fade-in': 'fadeIn 0.3s ease-in-out',
-        'slide-up': 'slideUp 0.3s ease-out',
-        'slide-in-right': 'slideInRight 0.3s ease-out',
+        'fade-in': 'fadeIn 0.2s cubic-bezier(0.23, 1, 0.32, 1)',
+        'slide-up': 'slideUp 0.25s cubic-bezier(0.23, 1, 0.32, 1)',
+        'slide-in-right': 'slideInRight 0.25s cubic-bezier(0.23, 1, 0.32, 1)',
         'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
         'spin-slow': 'spin 3s linear infinite',
       },
       keyframes: {
         fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+          '0%': { opacity: '0', transform: 'scale(0.97)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
         },
         slideUp: {
-          '0%': { opacity: '0', transform: 'translateY(16px)' },
+          '0%': { opacity: '0', transform: 'translateY(12px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         slideInRight: {
-          '0%': { opacity: '0', transform: 'translateX(16px)' },
+          '0%': { opacity: '0', transform: 'translateX(12px)' },
           '100%': { opacity: '1', transform: 'translateX(0)' },
         },
         pulseSoft: {
@@ -89,9 +101,9 @@ const config: Config = {
         },
       },
       backgroundImage: {
-        'procimec-gradient': 'linear-gradient(135deg, #1B3A5C 0%, #2860A3 50%, #1B3A5C 100%)',
-        'accent-gradient': 'linear-gradient(135deg, #F5A623 0%, #FBC043 100%)',
-        'hero-pattern': 'radial-gradient(ellipse at top, #2860A3 0%, #1B3A5C 60%)',
+        'procimec-gradient': 'linear-gradient(135deg, #1E2229 0%, #2B2F38 50%, #15181D 100%)',
+        'accent-gradient': 'linear-gradient(135deg, #EAA023 0%, #FABA2B 100%)',
+        'hero-pattern': 'radial-gradient(ellipse at top, #2B2F38 0%, #1E2229 70%)',
       },
     },
   },

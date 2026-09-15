@@ -5,6 +5,31 @@ import { Navbar } from '@/components/layout/Navbar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useMemo } from 'react';
 
+import {
+  Radio,
+  PenTool,
+  ShieldCheck,
+  Globe,
+  Settings,
+  ChevronDown,
+  UserCog,
+  Clock,
+  UserX,
+  UserCheck,
+  AlertTriangle,
+  MessageSquare,
+  Building2,
+  Layers,
+  Wrench,
+  FileText,
+  Search,
+  RotateCcw,
+  CheckCircle2,
+  Info,
+  Check,
+  Plus
+} from 'lucide-react';
+
 interface DivisionOption { id: string; name: string }
 interface RoleOption {
   id: string;
@@ -77,12 +102,19 @@ function userDisplayBadge(user: User, roleOptions: RoleOption[] = []) {
   return { label: user.role === 'dibujo' ? 'Dibujo' : 'Localizador', badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
 }
 
-const TOOL_CATEGORY_STYLES: Record<string, { label: string; icon: string; bg: string; text: string }> = {
-  gpr: { label: 'GPR / Geofísica', icon: '📡', bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700' },
-  cad: { label: 'CAD / BIM', icon: '✏️', bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-  admin: { label: 'Administración', icon: '⚙️', bg: 'bg-purple-50 border-purple-200', text: 'text-purple-700' },
-  universal: { label: 'Universal', icon: '🌐', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+const TOOL_CATEGORY_STYLES: Record<string, { label: string; type: 'gpr' | 'cad' | 'admin' | 'universal'; bg: string; text: string }> = {
+  gpr: { label: 'GPR / Geofísica', type: 'gpr', bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800' },
+  cad: { label: 'CAD / BIM', type: 'cad', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-800' },
+  admin: { label: 'Administración', type: 'admin', bg: 'bg-gray-100 border-gray-200', text: 'text-gray-800' },
+  universal: { label: 'Universal', type: 'universal', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800' },
 };
+
+function ToolCategoryIcon({ type }: { type: 'gpr' | 'cad' | 'admin' | 'universal' | string }) {
+  if (type === 'gpr') return <Radio className="w-4 h-4 text-accent" strokeWidth={1.75} />;
+  if (type === 'cad') return <PenTool className="w-4 h-4 text-slate-700" strokeWidth={1.75} />;
+  if (type === 'admin') return <ShieldCheck className="w-4 h-4 text-primary" strokeWidth={1.75} />;
+  return <Globe className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />;
+}
 
 // ── Helpers para resolver herramientas y formularios del rol ──────────────────
 function getUserRoleIds(user: User, roleOptions: RoleOption[]): string[] {
@@ -642,10 +674,12 @@ export default function AdminUsersPage() {
                           <span className={`badge ${badge.badge} text-xs`}>{badge.label}</span>
                           {!user.is_active && <span className="badge badge-gray text-xs">Inactivo</span>}
                           {user.role === 'pending' && (
-                            <span className="badge bg-amber-400 text-white text-xs animate-pulse-soft">⏳ Aprobación pendiente</span>
+                            <span className="badge bg-accent text-white text-xs animate-pulse-soft flex items-center gap-1 font-semibold">
+                              <Clock className="w-3 h-3" strokeWidth={2} /> Aprobación pendiente
+                            </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap">
+                        <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap font-mono">
                           <span>{user.email}</span>
                         </div>
                       </div>
@@ -653,10 +687,11 @@ export default function AdminUsersPage() {
                         <div className="relative inline-block text-left">
                           <button
                             onClick={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
-                            className="btn-sm btn-outline text-xs px-2.5 py-1.5 flex items-center gap-1.5 hover:bg-gray-100 rounded-lg shadow-2xs font-medium text-text-primary"
+                            className="btn-sm btn-outline text-xs px-2.5 py-1.5 flex items-center gap-1.5 hover:bg-gray-100 rounded-lg font-medium text-text-primary active:scale-[0.98] transition-transform duration-150"
                           >
-                            <span>⚙️ Acciones</span>
-                            <span className="text-[9px] text-text-muted">▼</span>
+                            <Settings className="w-3.5 h-3.5 text-text-secondary" strokeWidth={1.75} />
+                            <span>Acciones</span>
+                            <ChevronDown className="w-3 h-3 text-text-muted" strokeWidth={1.75} />
                           </button>
 
                           {openMenuId === user.id && (
@@ -673,7 +708,8 @@ export default function AdminUsersPage() {
                                   }}
                                   className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
                                 >
-                                  <span>✏️</span> Editar usuario y roles
+                                  <UserCog className="w-3.5 h-3.5 text-text-secondary" strokeWidth={1.75} />
+                                  <span>Editar usuario y roles</span>
                                 </button>
 
                                 {user.role !== 'pending' && (
@@ -683,7 +719,8 @@ export default function AdminUsersPage() {
                                     className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
                                     title="Ver registro de asistencia de este colaborador"
                                   >
-                                    <span>⏱️</span> Ver asistencia
+                                    <Clock className="w-3.5 h-3.5 text-text-secondary" strokeWidth={1.75} />
+                                    <span>Ver asistencia</span>
                                   </Link>
                                 )}
 
@@ -697,7 +734,8 @@ export default function AdminUsersPage() {
                                     }}
                                     className="w-full text-left px-3.5 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 font-semibold transition-colors"
                                   >
-                                    <span>🚫</span> Desactivar usuario
+                                    <UserX className="w-3.5 h-3.5 text-red-600" strokeWidth={1.75} />
+                                    <span>Desactivar usuario</span>
                                   </button>
                                 ) : (
                                   <button
@@ -708,7 +746,8 @@ export default function AdminUsersPage() {
                                     disabled={updateMutation.isPending}
                                     className="w-full text-left px-3.5 py-2 text-xs text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 font-semibold transition-colors"
                                   >
-                                    <span>✅</span> Activar usuario
+                                    <UserCheck className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />
+                                    <span>Activar usuario</span>
                                   </button>
                                 )}
                               </div>
@@ -808,22 +847,23 @@ export default function AdminUsersPage() {
 
                     <div>
                       <label className="block text-xs font-semibold text-text-secondary mb-1 flex items-center gap-1">
-                        <span>💬</span> WhatsApp
+                        <MessageSquare className="w-3.5 h-3.5 text-text-secondary" strokeWidth={1.75} /> WhatsApp
                       </label>
                       <input
                         type="tel"
                         value={editPhone}
                         onChange={e => setEditPhone(e.target.value)}
                         placeholder="Ej. +57 300 123 4567"
-                        className="input text-xs w-full py-2 bg-white"
+                        className="input text-xs w-full py-2 bg-white font-mono"
                       />
                     </div>
                   </div>
                 </div>
 
                 {validationError && (
-                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2 font-medium">
-                    ⚠️ {validationError}
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2 font-medium flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" strokeWidth={1.75} />
+                    <span>{validationError}</span>
                   </p>
                 )}
               </div>
@@ -837,12 +877,18 @@ export default function AdminUsersPage() {
                   {(['admin', 'pending', 'division'] as const).map(t => (
                     <button key={t} type="button"
                       onClick={() => setAccessType(t)}
-                      className={`py-2.5 px-3 rounded-xl border-2 text-xs font-semibold transition-all ${
+                      className={`py-2.5 px-3 rounded-xl border-2 text-xs font-semibold transition-all active:scale-[0.98] ${
                         accessType === t
                           ? 'border-primary bg-primary text-white shadow-sm'
                           : 'border-border text-text-secondary hover:border-primary/40 bg-white'
                       }`}>
-                      {t === 'admin' ? '🔑 Administrador' : t === 'pending' ? '⏳ Pendiente' : '🏢 División'}
+                      {t === 'admin' ? (
+                        <span className="flex items-center justify-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" strokeWidth={1.75} /> Administrador</span>
+                      ) : t === 'pending' ? (
+                        <span className="flex items-center justify-center gap-1.5"><Clock className="w-3.5 h-3.5" strokeWidth={1.75} /> Pendiente</span>
+                      ) : (
+                        <span className="flex items-center justify-center gap-1.5"><Building2 className="w-3.5 h-3.5" strokeWidth={1.75} /> División</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -850,15 +896,19 @@ export default function AdminUsersPage() {
 
               {/* Contenido según tipo de acceso */}
               {accessType === 'admin' && (
-                <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800 space-y-1">
-                  <p className="font-bold">🔑 Acceso Total de Administrador</p>
-                  <p>Este usuario cuenta con permisos ilimitados sobre todos los proyectos, herramientas y formularios de la plataforma PROCIMEC.</p>
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs text-text-primary space-y-1">
+                  <p className="font-bold flex items-center gap-1.5 text-primary">
+                    <ShieldCheck className="w-4 h-4 text-primary" strokeWidth={1.75} /> Acceso Total de Administrador
+                  </p>
+                  <p className="text-text-secondary">Este usuario cuenta con permisos ilimitados sobre todos los proyectos, herramientas y formularios de la plataforma PROCIMEC.</p>
                 </div>
               )}
 
               {accessType === 'pending' && (
                 <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 space-y-1">
-                  <p className="font-bold">⏳ Estado Pendiente de Aprobación</p>
+                  <p className="font-bold flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-amber-700" strokeWidth={1.75} /> Estado Pendiente de Aprobación
+                  </p>
                   <p>El usuario no tendrá acceso a ninguna división, herramienta ni formulario hasta que se apruebe su rol.</p>
                 </div>
               )}
@@ -870,25 +920,27 @@ export default function AdminUsersPage() {
                     <button
                       type="button"
                       onClick={() => setSectionTab('division')}
-                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
                         sectionTab === 'division'
                           ? 'bg-white text-primary shadow-sm border border-border'
                           : 'text-text-muted hover:text-text-primary'
                       }`}
                     >
-                      <span>🏢 División & Proyectos</span>
+                      <Layers className="w-3.5 h-3.5" strokeWidth={1.75} />
+                      <span>División & Proyectos</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSectionTab('tools')}
-                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
                         sectionTab === 'tools'
                           ? 'bg-white text-primary shadow-sm border border-border'
                           : 'text-text-muted hover:text-text-primary'
                       }`}
                     >
-                      <span>⏱️ Herramientas</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                      <Wrench className="w-3.5 h-3.5" strokeWidth={1.75} />
+                      <span>Herramientas</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold font-mono ${
                         selectedToolIds.size > 0 ? 'bg-primary-100 text-primary' : 'bg-gray-200 text-gray-600'
                       }`}>
                         {selectedToolIds.size}
@@ -897,14 +949,15 @@ export default function AdminUsersPage() {
                     <button
                       type="button"
                       onClick={() => setSectionTab('forms')}
-                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
                         sectionTab === 'forms'
                           ? 'bg-white text-primary shadow-sm border border-border'
                           : 'text-text-muted hover:text-text-primary'
                       }`}
                     >
-                      <span>📝 Formularios</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                      <FileText className="w-3.5 h-3.5" strokeWidth={1.75} />
+                      <span>Formularios</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold font-mono ${
                         selectedFormIds.size > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
                       }`}>
                         {selectedFormIds.size}
@@ -1032,7 +1085,7 @@ export default function AdminUsersPage() {
                             const isChecked = selectedToolIds.has(tool.id);
                             const isGrantedByRole = currentRolePermissions.toolIds.has(tool.id);
                             const catStyle = TOOL_CATEGORY_STYLES[tool.category] ?? {
-                              label: tool.category, icon: '⚙️', bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700',
+                              label: tool.category, type: 'admin', bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700',
                             };
 
                             return (
@@ -1048,7 +1101,7 @@ export default function AdminUsersPage() {
                                   onChange={() => onToggleTool(tool.id)}
                                   className="rounded text-primary focus:ring-primary w-4 h-4"
                                 />
-                                <span className="text-base flex-shrink-0">{catStyle.icon}</span>
+                                <span className="flex-shrink-0 flex items-center"><ToolCategoryIcon type={catStyle.type} /></span>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-xs font-semibold text-text-primary truncate">{tool.name}</span>
@@ -1056,7 +1109,7 @@ export default function AdminUsersPage() {
                                       {catStyle.label}
                                     </span>
                                     {isGrantedByRole && (
-                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-gray-100 text-text-secondary border border-gray-200">
                                         ✓ En su rol
                                       </span>
                                     )}
@@ -1086,10 +1139,11 @@ export default function AdminUsersPage() {
                           <button
                             type="button"
                             onClick={handleResetToRoleDefaults}
-                            className="text-indigo-600 hover:underline font-semibold"
+                            className="text-primary hover:underline font-semibold flex items-center gap-1"
                             title="Restablecer a los formularios otorgados por su rol"
                           >
-                            🔄 Según su rol
+                            <RotateCcw className="w-3 h-3" strokeWidth={1.75} />
+                            <span>Según su rol</span>
                           </button>
                           <span className="text-gray-300">|</span>
                           <button
@@ -1150,7 +1204,7 @@ export default function AdminUsersPage() {
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-xs font-semibold text-text-primary">{form.name}</p>
                                     {isGrantedByRole && (
-                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-gray-100 text-text-secondary border border-gray-200">
                                         ✓ En su rol
                                       </span>
                                     )}
@@ -1173,8 +1227,9 @@ export default function AdminUsersPage() {
               )}
 
               {updateMutation.isError && (
-                <p className="text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">
-                  ⚠️ {updateMutation.error instanceof Error ? updateMutation.error.message : 'Error al actualizar usuario'}
+                <p className="text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded-lg border border-red-200 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" strokeWidth={1.75} />
+                  <span>{updateMutation.error instanceof Error ? updateMutation.error.message : 'Error al actualizar usuario'}</span>
                 </p>
               )}
             </div>
@@ -1196,8 +1251,8 @@ export default function AdminUsersPage() {
       {confirmDeactivateUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
           <div className="card w-full max-w-md p-6 bg-white rounded-2xl shadow-2xl space-y-4 border border-border animate-slide-up">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl font-bold">
-              ⚠️
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" strokeWidth={2} />
             </div>
             <div className="text-center space-y-1.5">
               <h3 className="text-lg font-bold text-text-primary">¿Desactivar este usuario?</h3>
@@ -1206,8 +1261,11 @@ export default function AdminUsersPage() {
                 <span className="font-bold text-text-primary">{confirmDeactivateUser.full_name}</span>{' '}
                 ({confirmDeactivateUser.email}).
               </p>
-              <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 text-left leading-relaxed">
-                ℹ️ <strong>Nota:</strong> El colaborador perderá inmediatamente el acceso y no podrá iniciar sesión en PROCIMEC hasta que sea reactivado por un administrador.
+              <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 text-left leading-relaxed flex items-start gap-2">
+                <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" strokeWidth={1.75} />
+                <span>
+                  <strong>Nota:</strong> El colaborador perderá inmediatamente el acceso y no podrá iniciar sesión en PROCIMEC hasta que sea reactivado por un administrador.
+                </span>
               </div>
             </div>
             <div className="flex gap-3 pt-2">
@@ -1223,7 +1281,7 @@ export default function AdminUsersPage() {
                   setConfirmDeactivateUser(null);
                 }}
                 disabled={updateMutation.isPending}
-                className="flex-1 text-xs py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50"
+                className="flex-1 text-xs py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50 active:scale-[0.98]"
               >
                 {updateMutation.isPending ? 'Desactivando...' : 'Sí, desactivar'}
               </button>
