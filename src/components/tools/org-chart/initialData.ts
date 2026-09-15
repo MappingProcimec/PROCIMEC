@@ -1,4 +1,4 @@
-import { DiagramEdge, DiagramNode, DiagramPayload, ViewMode } from './types';
+import { DiagramEdge, DiagramNode, DiagramPayload } from './types';
 
 // Layout Constants
 export const NODE_WIDTH = 240;
@@ -12,7 +12,7 @@ export const VERTICAL_SPACING = 90;
  */
 export function computeAutoLayout(
   nodes: Omit<DiagramNode, 'x' | 'y' | 'width' | 'height'>[],
-  edges: DiagramEdge[]
+  _edges?: DiagramEdge[]
 ): DiagramNode[] {
   if (nodes.length === 0) return [];
 
@@ -180,7 +180,6 @@ export function getCanonicalOrgData(): DiagramPayload {
       category: 'hseq',
       badge: 'HSEQ Campo',
       status: 'active',
-      email: 'seguridad@procimec.com',
       level: 2,
       parentId: 'div-hseq',
       meta: { chequeosHoy: 8, reportes: 'Al Día' },
