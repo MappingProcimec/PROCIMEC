@@ -22,12 +22,8 @@ import {
   Layers,
   Wrench,
   FileText,
-  Search,
   RotateCcw,
-  CheckCircle2,
   Info,
-  Check,
-  Plus
 } from 'lucide-react';
 
 interface DivisionOption { id: string; name: string }
