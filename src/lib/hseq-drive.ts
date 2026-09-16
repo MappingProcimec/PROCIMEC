@@ -128,37 +128,55 @@ export async function getUploadDriveClient(): Promise<drive_v3.Drive> {
   return getDriveClient();
 }
 
-// ─── Extracción limpia de código y título ────────────────────────────────────
-function parseFormatName(rawName: string): { code: string; title: string } {
-  const withoutExt = rawName.replace(/\.(xlsx|xls|gdoc|gsheet)$/i, '').trim();
+// ─── Extracción limpia y normalización canónica de código y título ────────────
+export function parseFormatName(rawName: string): { code: string; title: string } {
+  const withoutExt = rawName
+    .replace(/\.(xlsx|xls|gdoc|gsheet)$/i, '')
+    .replace(/\s*v\d+.*$/i, '')
+    .trim();
 
-  // Caso específico Drone
-  if (/drone/i.test(withoutExt)) {
+  const norm = withoutExt
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  // 1. Mapeo Canónico Oficial de Formatos de Inspección PROCIMEC
+  if (norm.includes('drone') || norm.includes('dron')) {
     return { code: 'FOR-HSEQ-024', title: 'Inspección Pre-operacional de Drone' };
   }
-  // Caso específico Estación Total
-  if (/estaci[oó]n\s*total/i.test(withoutExt) || /total\s*station/i.test(withoutExt)) {
+  if (norm.includes('estacion') || norm.includes('total')) {
     return { code: 'FOR-HSEQ-025', title: 'Inspección Pre-operacional de Estación Total' };
   }
-
-  // Formato tipo FOR-HSEQ-001 o FOR-001
-  const codeMatch = withoutExt.match(/^(FOR-[A-Za-z0-9\-_]+)(.*)$/i);
-  if (codeMatch && codeMatch[2]?.trim()) {
-    const code = codeMatch[1].trim().toUpperCase();
-    const title = codeMatch[2]
-      .replace(/^[\s\-_]+/, '')
-      .replace(/[\s\-_]+v\d+.*$/i, '')
-      .trim();
-    return { code, title: title || code };
+  if (norm.includes('gps')) {
+    return { code: 'FOR-HSEQ-026', title: 'Inspección Pre-operacional de GPS' };
+  }
+  if (norm.includes('gpr') || norm.includes('georadar') || norm.includes('penetrating radar')) {
+    return { code: 'FOR-HSEQ-027', title: 'Inspección Pre-operacional de Georadar (GPR)' };
+  }
+  if (norm.includes('localizador') || norm.includes('electromagnetico')) {
+    return { code: 'FOR-HSEQ-028', title: 'Inspección Pre-operacional de Localizador Electromagnético' };
+  }
+  if (norm.includes('vehiculo') || norm.includes('camioneta') || norm.includes('carro')) {
+    return { code: 'FOR-HSEQ-029', title: 'Inspección Pre-operacional de Vehículo' };
   }
 
-  // Formato tipo "FOR-Inspección..."
-  const cleanTitle = withoutExt.replace(/^FOR-[\s\-_]*/i, '').trim();
-  const words = cleanTitle.split(/[\s\-_]+/);
-  const codeWords = words.slice(0, 2).map((w) => w.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
-  const code = codeWords.length > 0 ? `FOR-${codeWords.join('-')}` : 'FOR-HSEQ';
+  // 2. Si el nombre trae un código completo, ej. FOR-HSEQ-030 o FOR-010
+  const fullCodeMatch = withoutExt.match(/^(FOR-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)[\s\-_:]+(.*)$/i);
+  if (fullCodeMatch && fullCodeMatch[1] && fullCodeMatch[2]?.trim()) {
+    const code = fullCodeMatch[1].toUpperCase().trim();
+    let title = fullCodeMatch[2].trim();
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+    return { code, title };
+  }
 
-  return { code, title: cleanTitle };
+  // 3. Formato genérico con FOR- o sin prefijo
+  let clean = withoutExt.replace(/^FOR[\-_:\s]*/i, '').trim();
+  clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+
+  return {
+    code: 'FOR-HSEQ',
+    title: clean || 'Inspección Técnica',
+  };
 }
 
 // ─── Exploración Recursiva de Carpetas en Drive ──────────────────────────────
@@ -997,8 +1015,8 @@ export async function parseExcelTemplateSchema(
   }
 
   const nameFallback = parseFormatName(fallbackName || '');
-  const finalCode = detectedCode || nameFallback.code || 'FOR-HSEQ';
-  const finalTitle = detectedTitle || nameFallback.title || 'Inspección Pre-operacional';
+  const finalCode = (detectedCode && detectedCode.length > 5 && detectedCode !== 'FOR-') ? detectedCode : nameFallback.code;
+  const finalTitle = nameFallback.title || detectedTitle || 'Inspección Pre-operacional';
   const pdfTitle = finalTitle.toUpperCase();
 
   // Etiqueta de equipo sugerida

@@ -8,7 +8,7 @@ import {
   ESTACION_TOTAL_SECTIONS,
   DRONE_INSPECTION_SECTIONS,
 } from '@/lib/hseq-definitions';
-import { parseExcelTemplateSchema, DynamicFormatSchema } from '@/lib/hseq-drive';
+import { parseExcelTemplateSchema, scanHseqTemplates, DynamicFormatSchema } from '@/lib/hseq-drive';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,7 +97,9 @@ export async function GET(
 
   // 4. Analizar dinámicamente el archivo Excel de Google Drive
   try {
-    const schema = await parseExcelTemplateSchema(templateId);
+    const templates = await scanHseqTemplates(false);
+    const matched = templates.find((t) => t.id === templateId);
+    const schema = await parseExcelTemplateSchema(templateId, undefined, matched?.name || templateId);
 
     schemaCache.set(templateId, {
       schema,
