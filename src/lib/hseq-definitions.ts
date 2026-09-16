@@ -213,11 +213,58 @@ export const ESTACION_TOTAL_ITEMS: DroneInspectionItemDef[] = [
   { code: '3.4', section: '3. ACCESORIOS', description: 'Fundas y maletas en buen estado', optimal: 'SI' },
 ];
 
-export function getOptimalResponses(formatType: 'drone' | 'estacion_total' | 'generic' = 'drone'): Record<string, 'SI' | 'NO' | 'NA'> {
-  const items = formatType === 'estacion_total' ? ESTACION_TOTAL_ITEMS : DRONE_INSPECTION_ITEMS;
+/**
+ * Clasificador lingüístico de condiciones seguras HSEQ:
+ * - Si la pregunta indaga por daños, averías o defectos -> Condición segura y óptima es 'NO' (no presenta daño).
+ * - Si la pregunta evalúa operatividad, limpieza o buen estado -> Condición segura y óptima es 'SI'.
+ */
+export function inferOptimalResponse(itemDescription: string): 'SI' | 'NO' {
+  const norm = itemDescription
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  const defectKeywords = [
+    'golpe', 'grieta', 'fisur', 'corrosi', 'fuga', 'rotur', 'roto', 'rota',
+    'oxid', 'averi', 'dañ', 'holgur', 'desgast', 'rayon', 'pelad',
+    'deforma', 'derram', 'fall', 'cortocircuit', 'calentamient', 'suelt',
+    'vencid', 'filtraci', 'quebrad', 'rajad'
+  ];
+
+  for (const kw of defectKeywords) {
+    if (norm.includes(kw)) {
+      // Excepción si dice "sin golpes", "libre de grietas", "no presenta corrosión", etc.
+      if (
+        norm.includes(`sin ${kw}`) ||
+        norm.includes(`libre de ${kw}`) ||
+        norm.includes(`no presenta ${kw}`) ||
+        norm.includes(`sin signos de ${kw}`)
+      ) {
+        return 'SI';
+      }
+      return 'NO';
+    }
+  }
+
+  return 'SI';
+}
+
+export function getOptimalResponses(
+  formatTypeOrItems: 'drone' | 'estacion_total' | 'generic' | DroneInspectionItemDef[] = 'drone'
+): Record<string, 'SI' | 'NO' | 'NA'> {
+  let items: DroneInspectionItemDef[];
+
+  if (Array.isArray(formatTypeOrItems)) {
+    items = formatTypeOrItems;
+  } else if (formatTypeOrItems === 'estacion_total') {
+    items = ESTACION_TOTAL_ITEMS;
+  } else {
+    items = DRONE_INSPECTION_ITEMS;
+  }
+
   const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
   for (const item of items) {
-    map[item.code] = item.optimal;
+    map[item.code] = item.optimal || inferOptimalResponse(item.description);
   }
   return map;
 }
@@ -234,6 +281,7 @@ export interface HseqFormatConfig {
   defaultSerial: string;
   sections: readonly string[];
   items: DroneInspectionItemDef[];
+  isDynamic?: boolean;
 }
 
 export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {

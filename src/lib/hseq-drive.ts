@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { drive_v3, google } from 'googleapis';
+import { inferOptimalResponse, DroneInspectionItemDef } from './hseq-definitions';
 
 export const HSEQ_TEMPLATES_FOLDER_ID =
   process.env.GOOGLE_DRIVE_HSEQ_TEMPLATES_FOLDER_ID || '1CwEDHn4Vv77dbW5du6EvHGufd78yDCHS';
@@ -163,7 +164,10 @@ function parseFormatName(rawName: string): { code: string; title: string } {
 // ─── Exploración Recursiva de Carpetas en Drive ──────────────────────────────
 export async function scanHseqTemplates(forceRefresh = false): Promise<HseqTemplateItem[]> {
   const now = Date.now();
-  if (!forceRefresh && cachedTemplates && now - lastScanTimestamp < CACHE_TTL_MS) {
+  if (forceRefresh) {
+    cachedTemplates = null;
+    lastScanTimestamp = 0;
+  } else if (cachedTemplates && now - lastScanTimestamp < CACHE_TTL_MS) {
     return cachedTemplates;
   }
 
@@ -205,14 +209,17 @@ export async function scanHseqTemplates(forceRefresh = false): Promise<HseqTempl
               name: file.name,
             });
           } else {
-            // Si es un archivo y su nombre empieza o contiene FOR-
-            const isForTemplate = /FOR-/i.test(file.name);
+            // Si es un archivo de hoja de cálculo
             const isSpreadsheet =
               file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
               file.mimeType === 'application/vnd.google-apps.spreadsheet' ||
               file.name.toLowerCase().endsWith('.xlsx');
 
-            if (isForTemplate && isSpreadsheet) {
+            const isForTemplate =
+              /FOR-|INSPECCI|PREOPERACIONAL|PRE-OPERACIONAL|CHECKLIST|CONTROL/i.test(file.name) ||
+              /format|procedimiento|inspecci/i.test(currentFolder.name);
+
+            if (isSpreadsheet && isForTemplate) {
               const { code, title } = parseFormatName(file.name);
 
               results.push({
@@ -872,4 +879,267 @@ export async function extractTemplateTextSummary(templateFileId: string): Promis
     return { leftColumnItems: [], fullTextSummary: '' };
   }
 }
+
+export interface DynamicTemplateItem extends DroneInspectionItemDef {
+  excelRow?: number;
+}
+
+export interface DynamicFormatSchema {
+  id: string;
+  formatType: 'drone' | 'estacion_total' | 'generic';
+  code: string;
+  title: string;
+  pdfTitle: string;
+  version: string;
+  equipmentLabel: string;
+  defaultEquipment: string;
+  defaultSerial: string;
+  sections: string[];
+  items: DynamicTemplateItem[];
+  isDynamic: boolean;
+}
+
+// ─── Extracción completa y estructuración de esquema desde Excel ──────────────
+export async function parseExcelTemplateSchema(
+  templateFileId: string,
+  customBuffer?: Buffer,
+  fallbackName?: string
+): Promise<DynamicFormatSchema> {
+  const ExcelJSModule = await import('exceljs');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule;
+  const wb = new ExcelJS.Workbook();
+
+  let buffer = customBuffer;
+  if (!buffer && templateFileId) {
+    try {
+      const drive = await getDriveClient();
+      const res = await drive.files.get(
+        { fileId: templateFileId, alt: 'media' },
+        { responseType: 'arraybuffer' }
+      );
+      buffer = Buffer.from(res.data as ArrayBuffer);
+    } catch (err) {
+      console.warn(`Aviso descargando archivo ${templateFileId} de Drive:`, err);
+    }
+  }
+
+  if (!buffer) {
+    const fallbackParsed = parseFormatName(fallbackName || templateFileId);
+    return {
+      id: templateFileId,
+      formatType: 'generic',
+      code: fallbackParsed.code,
+      title: fallbackParsed.title,
+      pdfTitle: fallbackParsed.title.toUpperCase(),
+      version: '01',
+      equipmentLabel: 'Equipo / Herramienta',
+      defaultEquipment: 'Estándar PROCIMEC',
+      defaultSerial: 'PROC-GEN-001',
+      sections: ['1. CONDICIÓN GENERAL'],
+      items: [
+        {
+          code: '1.1',
+          section: '1. CONDICIÓN GENERAL',
+          description: 'El equipo se encuentra limpio, operativo y en buen estado general',
+          optimal: 'SI',
+        },
+        {
+          code: '1.2',
+          section: '1. CONDICIÓN GENERAL',
+          description: 'El equipo o sus componentes presentan golpes, fisuras o roturas',
+          optimal: 'NO',
+        },
+      ],
+      isDynamic: true,
+    };
+  }
+
+  await wb.xlsx.load(buffer);
+  const ws = wb.worksheets.find((s: any) => s.rowCount > 5) || wb.worksheets[0];
+  if (!ws) {
+    throw new Error('La plantilla de Excel no contiene hojas de cálculo válidas.');
+  }
+
+  // 1. Extraer Metadatos del Encabezado
+  let detectedCode = '';
+  let detectedTitle = '';
+  let detectedVersion = '01';
+
+  for (let r = 1; r <= Math.min(ws.rowCount, 10); r++) {
+    const row = ws.getRow(r);
+    row.eachCell((cell: any) => {
+      const txt = getCellSafeText(cell).trim();
+      if (!txt) return;
+
+      // Código FOR-...
+      const codeMatch = txt.match(/FOR-[A-Z0-9\-_]+/i);
+      if (codeMatch && !detectedCode) {
+        detectedCode = codeMatch[0].toUpperCase();
+      }
+
+      // Versión
+      const verMatch = txt.match(/versi[oó]n[:\s]*(\d+)/i);
+      if (verMatch && verMatch[1]) {
+        detectedVersion = verMatch[1].padStart(2, '0');
+      }
+
+      // Título
+      if (
+        (txt.toUpperCase().includes('INSPECCI') || txt.toUpperCase().includes('PRE-OPERACIONAL') || txt.toUpperCase().includes('PREOPERACIONAL') || txt.toUpperCase().includes('CHECKLIST')) &&
+        txt.length > 10 &&
+        txt.length < 90 &&
+        !detectedTitle
+      ) {
+        detectedTitle = txt.replace(/procimec/i, '').replace(/mapping/i, '').trim();
+      }
+    });
+  }
+
+  const nameFallback = parseFormatName(fallbackName || '');
+  const finalCode = detectedCode || nameFallback.code || 'FOR-HSEQ';
+  const finalTitle = detectedTitle || nameFallback.title || 'Inspección Pre-operacional';
+  const pdfTitle = finalTitle.toUpperCase();
+
+  // Etiqueta de equipo sugerida
+  let equipmentLabel = 'Equipo / Herramienta';
+  const tNorm = finalTitle.toLowerCase();
+  if (tNorm.includes('vehiculo') || tNorm.includes('camioneta')) equipmentLabel = 'Vehículo';
+  else if (tNorm.includes('arnes') || tNorm.includes('altura')) equipmentLabel = 'Equipo de Alturas';
+  else if (tNorm.includes('planta') || tNorm.includes('generador')) equipmentLabel = 'Planta Eléctrica';
+  else if (tNorm.includes('compresor')) equipmentLabel = 'Compresor';
+  else if (tNorm.includes('gpr') || tNorm.includes('georadar')) equipmentLabel = 'Georadar GPR';
+
+  // 2. Extraer Secciones e Ítems
+  const sectionsSet = new Set<string>();
+  const items: DynamicTemplateItem[] = [];
+  let currentSection = '1. GENERAL';
+  let sequentialIndex = 1;
+
+  for (let r = 8; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    const cellA = getCellSafeText(row.getCell(1)).trim();
+    const cellB = getCellSafeText(row.getCell(2)).trim();
+    const cellC = getCellSafeText(row.getCell(3)).trim();
+    const cellD = getCellSafeText(row.getCell(4)).trim();
+
+    const fullRowText = `${cellA} ${cellB} ${cellC} ${cellD}`.toUpperCase();
+
+    // Detener si llegamos a firmas u observaciones
+    if (
+      fullRowText.includes('OBSERVACIONES') ||
+      fullRowText.includes('FIRMA') ||
+      fullRowText.includes('RESPONSABLE SSTA') ||
+      fullRowText.includes('PUNTO CRITICO') ||
+      fullRowText.includes('PUNTO CRÍTICO')
+    ) {
+      break;
+    }
+
+    // Identificar si la fila es un encabezado de Sección
+    // Ejemplo: Cell A o B tiene texto en mayúsculas tipo "1. CABINA" o "SISTEMA ELÉCTRICO" y no hay muchas más celdas
+    const candidateSec = cellA || cellB;
+    const isSectionHeader =
+      Boolean(candidateSec) &&
+      candidateSec.length > 3 &&
+      candidateSec.length < 50 &&
+      !cellC &&
+      !cellD &&
+      !/^\d+$/.test(candidateSec) &&
+      !/^(si|no|na|item|código)$/i.test(candidateSec);
+
+    if (isSectionHeader) {
+      currentSection = candidateSec.toUpperCase();
+      sectionsSet.add(currentSection);
+      continue;
+    }
+
+    // Identificar si la fila es un Ítem de Inspección
+    // Un ítem tiene numeral o descripción en B o C
+    let itemCode = '';
+    let itemDesc = '';
+
+    if (cellA && /^[0-9]+([\.\-][0-9]+)*$/i.test(cellA)) {
+      itemCode = cellA;
+      itemDesc = cellB || cellC;
+    } else if (cellB && /^[0-9]+([\.\-][0-9]+)*$/i.test(cellB)) {
+      itemCode = cellB;
+      itemDesc = cellC || cellD;
+    } else {
+      // Sin numeral explícito: usar la celda con texto más descriptivo
+      const candidates = [cellA, cellB, cellC].filter(
+        (t) => t.length > 5 && !/^(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|si|no|na)$/i.test(t)
+      );
+      if (candidates.length > 0) {
+        itemDesc = candidates[0];
+        itemCode = `${sequentialIndex}`;
+      }
+    }
+
+    // Limpiar descripción
+    itemDesc = itemDesc.replace(/^[\d\.\-\)\s]+/, '').trim();
+
+    if (itemDesc && itemDesc.length > 5 && !/^(si|no|na|criterio|item|aspecto)$/i.test(itemDesc)) {
+      sectionsSet.add(currentSection);
+
+      const optimal = inferOptimalResponse(itemDesc);
+
+      items.push({
+        code: itemCode || `${sequentialIndex}`,
+        section: currentSection,
+        description: itemDesc,
+        optimal,
+        excelRow: r,
+      });
+
+      sequentialIndex++;
+    }
+  }
+
+  // Si no se detectaron ítems suficientes, fallback seguro
+  if (items.length === 0) {
+    items.push(
+      {
+        code: '1.1',
+        section: '1. GENERAL',
+        description: 'Estado general del equipo y funcionamiento de todos los componentes',
+        optimal: 'SI',
+        excelRow: 12,
+      },
+      {
+        code: '1.2',
+        section: '1. GENERAL',
+        description: 'El equipo presenta golpes, fisuras, grietas o piezas rotas',
+        optimal: 'NO',
+        excelRow: 13,
+      },
+      {
+        code: '1.3',
+        section: '1. GENERAL',
+        description: 'Cables, conectores y puertos se encuentran en buen estado',
+        optimal: 'SI',
+        excelRow: 14,
+      }
+    );
+    sectionsSet.add('1. GENERAL');
+  }
+
+  const sections = Array.from(sectionsSet);
+
+  return {
+    id: templateFileId,
+    formatType: 'generic',
+    code: finalCode,
+    title: finalTitle,
+    pdfTitle,
+    version: detectedVersion,
+    equipmentLabel,
+    defaultEquipment: `${equipmentLabel} Estándar`,
+    defaultSerial: 'PROC-EQ-001',
+    sections: sections.length > 0 ? sections : ['1. GENERAL'],
+    items,
+    isDynamic: true,
+  };
+}
+
 

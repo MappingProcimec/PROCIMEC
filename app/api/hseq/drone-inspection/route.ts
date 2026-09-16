@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
       templateId = '',
       templateCode = '',
       templateTitle = '',
+      customItems = [],
+      customSections = [],
       droneBrandModel,
       droneSerial,
       equipmentBrandModel,
@@ -66,15 +69,55 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Resolver configuración del formato seleccionado
-    const formatIdentifier = `${templateId} ${templateCode} ${templateTitle}`;
-    const formatConfig = getHseqFormatConfig(formatIdentifier);
+    // Resolver configuración del formato (Drone, Estación Total o Dinámico)
+    const isDrone =
+      templateId === 'hseq-drone-preoperational' ||
+      templateId.includes('024') ||
+      templateId.toLowerCase().includes('drone');
+    const isEstacion =
+      templateId === 'hseq-estacion-total' ||
+      templateId.includes('025') ||
+      templateId.toLowerCase().includes('estacion') ||
+      templateId.toLowerCase().includes('estación');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let formatConfig: any;
+
+    if (isDrone) {
+      formatConfig = getHseqFormatConfig('drone');
+    } else if (isEstacion) {
+      formatConfig = getHseqFormatConfig('estacion');
+    } else if (Array.isArray(customItems) && customItems.length > 0) {
+      formatConfig = {
+        id: templateId,
+        formatType: 'generic',
+        code: templateCode || 'FOR-HSEQ',
+        title: templateTitle || 'Inspección Pre-operacional',
+        pdfTitle: (templateTitle || 'Inspección Pre-operacional').toUpperCase(),
+        version: '01',
+        equipmentLabel: equipmentBrandModel ? 'Equipo' : 'Equipo / Herramienta',
+        defaultEquipment: equipmentBrandModel || 'Equipo Estándar',
+        defaultSerial: equipmentSerial || 'PROC-EQ-001',
+        sections: customSections.length > 0 ? customSections : ['1. GENERAL'],
+        items: customItems,
+        isDynamic: true,
+      };
+    } else {
+      try {
+        const { parseExcelTemplateSchema } = await import('@/lib/hseq-drive');
+        formatConfig = await parseExcelTemplateSchema(templateId);
+      } catch {
+        formatConfig = getHseqFormatConfig(`${templateId} ${templateCode} ${templateTitle}`);
+      }
+    }
 
     // Validar que todos los ítems de este formato específico estén evaluados
-    const requiredItems = formatConfig.items;
+    const requiredItems = formatConfig.items || [];
     const missingCodes = requiredItems
-      .filter((it) => !itemsResponses[it.code])
-      .map((it) => it.code);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((it: any) => !itemsResponses[it.code])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((it: any) => it.code);
 
     if (missingCodes.length > 0) {
       return NextResponse.json(
@@ -205,13 +248,14 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     // 6. Detectar si hay variaciones respecto a la condición óptima o Puntos Críticos
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nonCompliantItems = requiredItems
-      .filter((it) => {
+      .filter((it: any) => {
         if (it.optimal === 'NA') return false;
         const userVal = String(itemsResponses[it.code] || '').toUpperCase();
         return userVal !== it.optimal;
       })
-      .map((it) => {
+      .map((it: any) => {
         const itemObj = it as unknown as { code: string; description?: string; title?: string; optimal: string };
         return {
           code: itemObj.code,
@@ -302,6 +346,14 @@ export async function POST(req: NextRequest) {
         drive_file_id: driveFileId,
         drive_web_view_link: driveWebViewLink,
         pdf_filename: fileName,
+        division_name: divisionName,
+        format_code: formatConfig.code,
+        format_title: formatConfig.title,
+        excel_filename: excelFileName,
+        excel_url: excelUrl,
+        pdf_url: pdfUrl,
+        has_anomalies: hasAnomalies,
+        non_compliant_items: nonCompliantItems,
       })
       .select()
       .single();

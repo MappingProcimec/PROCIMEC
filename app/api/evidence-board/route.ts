@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -64,14 +65,20 @@ export async function GET() {
         }
       }
 
+      const isDrone = /024|drone/i.test(`${row.pdf_filename || ''} ${String(meta.format_code || '')}`);
       const isEstacion = /025|estaci[oó]n/i.test(`${row.pdf_filename || ''} ${String(meta.format_code || '')}`);
-      const formatCode = (typeof meta.format_code === 'string' && meta.format_code) || (isEstacion ? 'FOR-HSEQ-025' : 'FOR-HSEQ-030');
-      const formatTitle = (typeof meta.format_title === 'string' && meta.format_title) || (isEstacion ? 'Inspección Pre-operacional Estación Total' : 'Inspección Pre-operacional Drone');
 
-      // Obtener el mapa de respuestas óptimas esperadas para este formato
-      const optimalMap = getOptimalResponses(isEstacion ? 'estacion_total' : 'drone');
+      const formatCode =
+        (typeof (row as any).format_code === 'string' && (row as any).format_code) ||
+        (typeof meta.format_code === 'string' && meta.format_code) ||
+        (isEstacion ? 'FOR-HSEQ-025' : isDrone ? 'FOR-HSEQ-024' : 'FOR-HSEQ');
 
-      // Evaluar condición de seguridad y variaciones ("cuando algo no coincide con el estado seguro")
+      const formatTitle =
+        (typeof (row as any).format_title === 'string' && (row as any).format_title) ||
+        (typeof meta.format_title === 'string' && meta.format_title) ||
+        (isEstacion ? 'Inspección Pre-operacional Estación Total' : isDrone ? 'Inspección Pre-operacional Drone' : 'Inspección Pre-operacional');
+
+      // Evaluar condición de seguridad y variaciones
       const criticalText = (row.critical_point || '').trim();
       const hasCritical =
         Boolean(criticalText) &&
@@ -79,23 +86,48 @@ export async function GET() {
         criticalText.toLowerCase() !== 'ninguna' &&
         criticalText !== '';
 
-      // Un ítem es no conforme SOLO si difiere de su respuesta óptima esperada
-      const nonCompliantList = Object.entries(responses)
-        .filter(([code, val]) => {
-          const expected = optimalMap[code];
-          if (!expected || expected === 'NA') return false;
-          return val.toUpperCase() !== expected;
-        })
-        .map(([code]) => code);
-
       const obsText = (row.general_observations || '').trim().toLowerCase();
       const hasCustomObservations =
         Boolean(row.general_observations) &&
         !['ninguna', 'ninguno', 'ningun', 'sin observaciones', 'n/a', 'na', ''].includes(obsText);
 
-      const hasAnomalies = Boolean(meta.has_anomalies) || nonCompliantList.length > 0 || hasCritical || hasCustomObservations;
+      // Usar ítems no conformes pre-calculados del formato o evaluar con mapa óptimo
+      const storedNonCompliant =
+        Array.isArray((row as any).non_compliant_items)
+          ? (row as any).non_compliant_items
+          : Array.isArray(meta.non_compliant_items)
+          ? meta.non_compliant_items
+          : null;
 
-      const divisionName = (typeof meta.division === 'string' && meta.division) || row.users?.divisions?.name || 'Mapping / Drones';
+      let nonCompliantCodes: string[] = [];
+      let optimalMap: Record<string, string> = {};
+
+      if (storedNonCompliant) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        nonCompliantCodes = storedNonCompliant.map((it: any) => (typeof it === 'string' ? it : it.code || ''));
+      } else {
+        optimalMap = getOptimalResponses(isEstacion ? 'estacion_total' : 'drone');
+        nonCompliantCodes = Object.entries(responses)
+          .filter(([code, val]) => {
+            const expected = optimalMap[code];
+            if (!expected || expected === 'NA') return false;
+            return val.toUpperCase() !== expected;
+          })
+          .map(([code]) => code);
+      }
+
+      const hasAnomalies =
+        (row as any).has_anomalies !== undefined && (row as any).has_anomalies !== null
+          ? Boolean((row as any).has_anomalies)
+          : meta.has_anomalies !== undefined
+          ? Boolean(meta.has_anomalies)
+          : nonCompliantCodes.length > 0 || hasCritical || hasCustomObservations;
+
+      const divisionName =
+        (typeof (row as any).division_name === 'string' && (row as any).division_name) ||
+        (typeof meta.division === 'string' && meta.division) ||
+        row.users?.divisions?.name ||
+        'Mapping / Drones';
 
       const dateStr = row.inspection_date || row.created_at?.split('T')[0] || '';
       let timeStr = '';
@@ -118,8 +150,9 @@ export async function GET() {
 
       return {
         id: row.id,
-        code: formatCode,
-        formatName: formatTitle,
+        formatCode,
+        formatTitle,
+        projectId: row.project_id,
         projectName: row.projects?.name || 'Proyecto General',
         projectCode: row.projects?.cost_center || row.cost_center || 'CC-PROY',
         costCenter: row.cost_center || row.projects?.cost_center || '',
@@ -145,8 +178,8 @@ export async function GET() {
         driveLink: row.drive_web_view_link || pdfUrlStr,
         itemsResponses: responses,
         optimalMap,
-        nonCompliantCodes: nonCompliantList,
-        nonCompliantCount: nonCompliantList.length,
+        nonCompliantCodes,
+        nonCompliantCount: nonCompliantCodes.length,
         operatorSignatureData: row.operator_signature_data || null,
         sstaSignatureData: row.ssta_signature_data || null,
       };

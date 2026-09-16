@@ -10,6 +10,7 @@ import { DigitalSignatureModal } from '@/components/hseq/DigitalSignatureModal';
 import {
   getHseqFormatConfig,
   getOptimalResponses,
+  HseqFormatConfig,
 } from '@/lib/hseq-definitions';
 import { PenTool, AlertCircle, Check } from 'lucide-react';
 
@@ -138,6 +139,19 @@ export default function HseqReportFormPage() {
     queryFn: () => fetchTemplates(false),
   });
 
+  const [isRefreshingTemplates, setIsRefreshingTemplates] = useState(false);
+  const handleForceRefresh = async () => {
+    setIsRefreshingTemplates(true);
+    try {
+      await fetchTemplates(true);
+      await refetchTemplates();
+    } catch (err) {
+      console.error('Error refrescando formatos:', err);
+    } finally {
+      setIsRefreshingTemplates(false);
+    }
+  };
+
   const templates: HseqTemplateOption[] = useMemo(() => {
     const raw = templatesData?.templates ?? [];
     const hasDrone = raw.some(
@@ -181,33 +195,52 @@ export default function HseqReportFormPage() {
     return templates.find((t) => t.id === selectedTemplateId) || null;
   }, [templates, selectedTemplateId]);
 
-  // Configuración del formato seleccionado (ítems, título, versión, defaults)
-  const formatConfig = useMemo(() => {
+  // Consulta reactiva del esquema dinámico del formato seleccionado
+  const { data: dynamicSchema, isLoading: isLoadingSchema } = useQuery({
+    queryKey: ['hseq-dynamic-schema', selectedTemplateId],
+    queryFn: async () => {
+      if (!selectedTemplateId) return null;
+      const res = await fetch(`/api/hseq/templates/${encodeURIComponent(selectedTemplateId)}/schema`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      return (json.schema as HseqFormatConfig) || null;
+    },
+    enabled: Boolean(selectedTemplateId),
+  });
+
+  // Configuración del formato seleccionado (dinámico de Drive o nativo)
+  const formatConfig: HseqFormatConfig | null = useMemo(() => {
     if (!activeTemplate) return null;
+    if (dynamicSchema) {
+      return dynamicSchema;
+    }
     const identifier = `${activeTemplate.id} ${activeTemplate.code} ${activeTemplate.title}`;
     return getHseqFormatConfig(identifier);
-  }, [activeTemplate]);
+  }, [activeTemplate, dynamicSchema]);
 
-  // Al cambiar formato, inicializar campos
+  // Sincronizar equipo y serial por defecto cuando se resuelve el esquema
+  useEffect(() => {
+    if (formatConfig) {
+      if (formatConfig.defaultEquipment) {
+        setEquipmentBrandModel(formatConfig.defaultEquipment);
+      }
+      if (formatConfig.defaultSerial) {
+        setEquipmentSerial(formatConfig.defaultSerial);
+      }
+    }
+  }, [formatConfig]);
+
+  // Al cambiar formato, inicializar respuestas
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplateId(templateId);
     setSubmitError(null);
     setItemsResponses({});
-
-    if (!templateId) return;
-
-    const target = templates.find((t) => t.id === templateId);
-    if (target) {
-      const cfg = getHseqFormatConfig(`${target.id} ${target.code} ${target.title}`);
-      setEquipmentBrandModel(cfg.defaultEquipment);
-      setEquipmentSerial(cfg.defaultSerial);
-    }
   };
 
-  // Botón rápido: marcar todo en óptimo
+  // Botón rápido: marcar todo en condición óptima según el mapa de este formato
   const handleMarkAllOptimal = () => {
     if (!formatConfig) return;
-    setItemsResponses(getOptimalResponses(formatConfig.formatType));
+    setItemsResponses(getOptimalResponses(formatConfig.items));
   };
 
   // Manejo de respuesta individual en checklist
@@ -265,7 +298,9 @@ export default function HseqReportFormPage() {
         body: JSON.stringify({
           templateId: selectedTemplateId,
           templateCode: formatConfig.code,
-          templateTitle: formatConfig.pdfTitle,
+          templateTitle: formatConfig.pdfTitle || formatConfig.title,
+          customItems: formatConfig.items,
+          customSections: formatConfig.sections,
           projectId: selectedProjectId,
           projectName: proj?.name || projectName,
           costCenter,
@@ -484,10 +519,11 @@ export default function HseqReportFormPage() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => refetchTemplates()}
-                  className="text-xs text-primary hover:underline font-semibold"
+                  onClick={handleForceRefresh}
+                  disabled={isRefreshingTemplates}
+                  className="text-xs text-primary hover:underline font-semibold disabled:opacity-50"
                 >
-                  Actualizar Formatos
+                  {isRefreshingTemplates ? 'Actualizando...' : 'Actualizar Formatos'}
                 </button>
               </div>
 
@@ -511,7 +547,13 @@ export default function HseqReportFormPage() {
                 </select>
               )}
 
-              {formatConfig && (
+              {isLoadingSchema && (
+                <div className="text-xs text-primary animate-pulse flex items-center gap-1.5 py-1">
+                  <span>⚙️</span> Extrayendo preguntas y lista de verificación del formato...
+                </div>
+              )}
+
+              {formatConfig && !isLoadingSchema && (
                 <div className="flex items-center justify-between text-xs text-primary bg-primary-50 px-3 py-2 rounded-xl border border-primary-200">
                   <span className="font-semibold">{formatConfig.pdfTitle}</span>
                   <span className="badge badge-primary font-mono text-[10px]">

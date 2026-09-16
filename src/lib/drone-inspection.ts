@@ -358,6 +358,10 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
   workbook: ExcelJS.Workbook;
 }> {
   const wb = new ExcelJS.Workbook();
+  const isDrone =
+    payload.templateType === 'drone' ||
+    /drone|024/i.test(`${payload.formatCode || ''} ${payload.formatTitle || ''}`);
+
   const isEstacion =
     payload.templateType === 'estacion_total' ||
     /estaci[oó]n|total|025/i.test(`${payload.formatCode || ''} ${payload.formatTitle || ''}`);
@@ -408,8 +412,8 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
 
   const ws = wb.worksheets[0];
 
-  if (!isEstacion) {
-    // ── Llenado de Formato Drone o Genérico (FOR-HSEQ-024 o similares) ──────────
+  if (isDrone) {
+    // ── Llenado de Formato Drone (FOR-HSEQ-024) ────────────────────────────────
     const replacements: Record<string, string> = {
       '{{nombre_proyecto}}': payload.projectName || '',
       '{{proyecto}}': payload.projectName || '',
@@ -436,8 +440,8 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
       replacements[`{{${item.code}_na}}`] = resp === 'NA' ? 'X' : '';
     }
 
-    ws.eachRow((row) => {
-      row.eachCell((cell) => {
+    ws.eachRow((row: any) => {
+      row.eachCell((cell: any) => {
         if (typeof cell.value === 'string') {
           let text = cell.value;
           for (const [k, v] of Object.entries(replacements)) {
@@ -472,15 +476,15 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
         });
       } catch {}
     }
-  } else {
+  } else if (isEstacion) {
     // ── Llenado de Formato Estación Total (FOR-HSEQ-025) ─────────────────────
     const replacements: Record<string, string> = {
       '{{proyecto}}': payload.projectName || '',
       '{{ubicacion}}': payload.location || '',
     };
 
-    ws.eachRow((row, rowNumber) => {
-      row.eachCell((cell, colNumber) => {
+    ws.eachRow((row: any, rowNumber: number) => {
+      row.eachCell((cell: any, colNumber: number) => {
         if (typeof cell.value === 'string') {
           let text = cell.value;
           for (const [k, v] of Object.entries(replacements)) {
@@ -540,6 +544,113 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
 
     // Punto crítico
     ws.getRow(38).getCell(4).value = payload.criticalPoint || 'Ninguno';
+  } else {
+    // ── Llenado de Formato Dinámico / Nuevo ─────────────────────────────────
+    const replacements: Record<string, string> = {
+      '{{nombre_proyecto}}': payload.projectName || '',
+      '{{proyecto}}': payload.projectName || '',
+      '[PROYECTO]': payload.projectName || '',
+      '{{centro_costos}}': payload.costCenter || '',
+      '{{centro_costo}}': payload.costCenter || '',
+      '{{ciudad_ubicacion}}': payload.location || '',
+      '{{ubicacion}}': payload.location || '',
+      '{{fecha}}': payload.inspectionDate || '',
+      '[FECHA]': payload.inspectionDate || '',
+      '{{marca_modelo}}': payload.equipmentBrandModel || payload.droneBrandModel || 'Estándar',
+      '{{serial}}': payload.equipmentSerial || payload.droneSerial || 'PROC-EQ-001',
+      '{{firma_op}}': `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
+      '{{firma_ss}}': `${payload.sstaName || 'Responsable SSTA'} (Firma Digital Verificada)`,
+      '{{observaciones}}': payload.generalObservations || 'Sin observaciones.',
+      '{{punto_critico}}': payload.criticalPoint || 'Ninguno',
+    };
+
+    // 1. Reemplazo de marcadores de texto
+    ws.eachRow((row: any) => {
+      row.eachCell((cell: any) => {
+        if (typeof cell.value === 'string') {
+          let text = cell.value;
+          for (const [k, v] of Object.entries(replacements)) {
+            if (text.includes(k)) {
+              text = text.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), v);
+            }
+          }
+          cell.value = text;
+        }
+      });
+    });
+
+    // 2. Detectar columnas para SI, NO, NA en encabezados de tabla (filas 8 a 16)
+    let colSi = 3;
+    let colNo = 4;
+    let colNa = 5;
+
+    for (let r = 8; r <= Math.min(ws.rowCount, 16); r++) {
+      const row = ws.getRow(r);
+      let sCol = 0, nCol = 0, naCol = 0;
+      row.eachCell((cell: any, col: number) => {
+        const v = String(cell.value || '').trim().toUpperCase();
+        if (v === 'SI' || v === 'CUMPLE' || v === 'C') sCol = col;
+        if (v === 'NO' || v === 'NO CUMPLE' || v === 'NC') nCol = col;
+        if (v === 'NA' || v === 'N/A' || v === 'NO APLICA') naCol = col;
+      });
+      if (sCol > 0 && nCol > 0) {
+        colSi = sCol;
+        colNo = nCol;
+        colNa = naCol || nCol + 1;
+        break;
+      }
+    }
+
+    // 3. Escribir 'X' en las respuestas de los ítems
+    const items = payload.items && payload.items.length > 0 ? payload.items : [];
+    for (const item of items) {
+      const resp = payload.itemsResponses[item.code];
+      if (!resp) continue;
+
+      const excelRow = (item as any).excelRow;
+      let targetRow: any = excelRow && excelRow >= 8 && excelRow <= ws.rowCount ? ws.getRow(excelRow) : null;
+
+      if (!targetRow) {
+        for (let r = 8; r <= ws.rowCount; r++) {
+          const rRow = ws.getRow(r);
+          const txtA = String(rRow.getCell(1).value || '').trim();
+          const txtB = String(rRow.getCell(2).value || '').trim();
+          if (txtA === item.code || txtB === item.code || txtB.includes(item.description.slice(0, 18))) {
+            targetRow = rRow;
+            break;
+          }
+        }
+      }
+
+      if (targetRow) {
+        const targetCol = resp === 'SI' ? colSi : resp === 'NO' ? colNo : colNa;
+        targetRow.getCell(targetCol).value = 'X';
+        targetRow.getCell(targetCol).alignment = { vertical: 'middle', horizontal: 'center' };
+      }
+    }
+
+    // 4. Inyectar metadatos en etiquetas adyacentes
+    ws.eachRow((row: any, r: number) => {
+      row.eachCell((cell: any, c: number) => {
+        const txt = String(cell.value || '').trim().toUpperCase();
+        if ((txt === 'PROYECTO:' || txt === 'PROYECTO') && payload.projectName) {
+          const next = row.getCell(c + 1);
+          if (!next.value) next.value = payload.projectName;
+        }
+        if ((txt === 'FECHA:' || txt === 'FECHA') && payload.inspectionDate) {
+          const next = row.getCell(c + 1);
+          if (!next.value) next.value = payload.inspectionDate;
+        }
+        if ((txt.includes('RESPONSABLE') || txt.includes('OPERADOR')) && payload.operatorName) {
+          const next = row.getCell(c + 1);
+          if (!next.value) next.value = `${payload.operatorName} (Firma Digital)`;
+        }
+        if ((txt.includes('OBSERVACIONES') || txt.includes('NOTAS')) && payload.generalObservations) {
+          const below = ws.getRow(r + 1).getCell(c);
+          if (!below.value) below.value = payload.generalObservations;
+        }
+      });
+    });
   }
 
   const excelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
