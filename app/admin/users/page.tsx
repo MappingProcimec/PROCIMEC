@@ -119,7 +119,7 @@ function ToolCategoryIcon({ type }: { type: 'gpr' | 'cad' | 'admin' | 'universal
 }
 
 // ── Helpers para resolver herramientas y formularios del rol ──────────────────
-function getUserRoleIds(user: User, roleOptions: RoleOption[], rolesById?: Map<string, RoleOption>): string[] {
+function getUserRoleIds(user: User, roleOptions: RoleOption[]): string[] {
   const ids = new Set<string>();
   if (user.role_id) ids.add(user.role_id);
   const udrList = user.user_division_roles;
@@ -694,9 +694,9 @@ export default function AdminUsersPage() {
   const currentModalRoleIds = useMemo(() => {
     const fromBlocks = editBlocks.map(b => b.roleId).filter(Boolean);
     if (fromBlocks.length > 0) return fromBlocks;
-    if (editingUser) return getUserRoleIds(editingUser, roleOptions, rolesById);
+    if (editingUser) return getUserRoleIds(editingUser, roleOptions);
     return [];
-  }, [editBlocks, editingUser, roleOptions, rolesById]);
+  }, [editBlocks, editingUser, roleOptions]);
 
   const currentRolePermissions = useMemo(() => {
     return getToolsAndFormsFromRoles(currentModalRoleIds, roleOptions, rolesById);
