@@ -655,9 +655,8 @@ export default function HseqReportFormPage() {
                     {isGprFormat ? (
                       <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-amber-500/5 rounded-xl border border-amber-500/20">
                         <div>
-                          <label className="label label-required text-xs text-amber-900 font-semibold flex items-center justify-between">
-                            <span>Serial Unidad Akula</span>
-                            <span className="text-[10px] text-amber-700/80 font-mono">Radar GPR</span>
+                          <label className="label label-required text-xs text-amber-900 font-semibold block">
+                            Serial Unidad Akula
                           </label>
                           <input
                             type="text"
@@ -669,9 +668,8 @@ export default function HseqReportFormPage() {
                           />
                         </div>
                         <div>
-                          <label className="label label-required text-xs text-amber-900 font-semibold flex items-center justify-between">
-                            <span>Serial Computadora / Toughbook</span>
-                            <span className="text-[10px] text-amber-700/80 font-mono">Unidad Control</span>
+                          <label className="label label-required text-xs text-amber-900 font-semibold block">
+                            Serial Computadora / Toughbook
                           </label>
                           <input
                             type="text"

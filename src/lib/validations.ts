@@ -72,7 +72,7 @@ export const createProjectSchema = z.object({
   cost_center: (data.cost_center || data.code || '').trim(),
   target_ml: data.target_ml !== undefined && data.target_ml !== null && data.target_ml !== '' ? Number(data.target_ml) : 0,
   target_m2: data.target_m2 !== undefined && data.target_m2 !== null && data.target_m2 !== '' ? Number(data.target_m2) : 0,
-  target_metric_type: data.target_metric_type || 'ml',
+  target_metric_type: (data.target_metric_type === 'm2' || (!(data.target_ml !== undefined && data.target_ml !== null && data.target_ml !== '' ? Number(data.target_ml) : 0) && (data.target_m2 !== undefined && data.target_m2 !== null && data.target_m2 !== '' ? Number(data.target_m2) : 0) > 0)) ? 'm2' : (data.target_metric_type || 'ml'),
   requires_mapping: data.requires_mapping ?? true,
   requires_positioning: data.requires_positioning ?? true,
 })).refine((data) => data.cost_center.length > 0, {

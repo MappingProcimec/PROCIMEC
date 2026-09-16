@@ -431,16 +431,8 @@ export default function AdminToolsAndFormsPage() {
                         </div>
                       </div>
 
-                      {/* Metadatos y Botón de acción */}
-                      <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-between sm:justify-end w-full sm:w-auto">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
-                          🪜 {form.steps_count} {form.steps_count === 1 ? 'paso' : 'pasos'}
-                        </span>
-                        {form.has_attachments && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700">
-                            📎 Archivos Adjuntos
-                          </span>
-                        )}
+                      {/* Botón de acción */}
+                      <div className="flex items-center gap-3 flex-shrink-0 justify-end">
                         <Link
                           href={`/forms/${form.slug}`}
                           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-600 transition-all shadow-xs group-hover:scale-102"

@@ -275,7 +275,7 @@ export default function AdminProjectsPage() {
       description: p.description ?? '',
       target_ml: p.target_ml !== undefined && p.target_ml > 0 ? String(p.target_ml) : '',
       target_m2: p.target_m2 !== undefined && p.target_m2 > 0 ? String(p.target_m2) : '',
-      target_metric_type: p.target_metric_type || 'ml',
+      target_metric_type: p.target_metric_type || ((p.target_m2 ?? 0) > 0 && !(p.target_ml ?? 0) ? 'm2' : 'ml'),
       requires_mapping: p.requires_mapping ?? true,
       requires_positioning: p.requires_positioning ?? true,
     });
@@ -299,7 +299,7 @@ export default function AdminProjectsPage() {
           description: editForm.description.trim() || null,
           target_ml: editForm.target_ml ? Number(editForm.target_ml) : 0,
           target_m2: editForm.target_m2 ? Number(editForm.target_m2) : 0,
-          target_metric_type: editForm.target_metric_type,
+          target_metric_type: editForm.target_metric_type === 'm2' || (!editForm.target_ml && Number(editForm.target_m2) > 0) ? 'm2' : 'ml',
           requires_mapping: editForm.requires_mapping,
           requires_positioning: editForm.requires_positioning,
           division_ids: Array.from(editDivisions),
@@ -624,7 +624,8 @@ export default function AdminProjectsPage() {
                       const drawingHours = p.total_drawing_hours ?? 0;
                       const ccDisplay = p.cost_center || p.code || '—';
 
-                      const targetVal = p.target_metric_type === 'm2' ? p.target_m2 : p.target_ml;
+                      const effectiveMetric = (p.target_metric_type === 'm2' || (!p.target_ml && (p.target_m2 ?? 0) > 0)) ? 'm2' : 'ml';
+                      const targetVal = effectiveMetric === 'm2' ? p.target_m2 : p.target_ml;
                       const hasTarget = targetVal !== undefined && targetVal > 0;
 
                       return (
@@ -679,7 +680,7 @@ export default function AdminProjectsPage() {
                                   <div className="flex items-center justify-between text-[11px] mb-1">
                                     <span className="font-bold text-primary">{(p.overall_progress_pct ?? 0).toFixed(0)}%</span>
                                     <span className="text-[10px] text-text-muted">
-                                      {targetVal} {p.target_metric_type?.toUpperCase()}
+                                      {targetVal} {effectiveMetric === 'm2' ? 'm²' : 'ML'}
                                     </span>
                                   </div>
                                   <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
@@ -873,165 +874,172 @@ export default function AdminProjectsPage() {
 
             {/* Ficha Descriptiva y Metas del Proyecto */}
             <div className="bg-slate-50 border-b border-border px-6 py-4">
-              {currentSelected.description && (
-                <div className="mb-4 bg-white p-3 rounded-xl border border-gray-200 text-xs text-text-secondary leading-relaxed">
-                  <span className="font-bold text-text-primary block mb-0.5">📌 Objeto / Descripción del Proyecto:</span>
-                  {currentSelected.description}
-                </div>
-              )}
-
-              {/* ── LOS 2 GRÁFICOS DE PROGRESO DE CAMPO (Mapeo vs Geolocalización) ── */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* GRÁFICO 1: Mapeo / Localización Subterránea */}
-                <div className={`p-4 rounded-2xl border transition-all ${
-                  currentSelected.requires_mapping !== false
-                    ? 'bg-white border-blue-200 shadow-xs'
-                    : 'bg-gray-100/70 border-gray-300 opacity-60'
-                }`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-base">📡</span>
-                        <h4 className="font-bold text-sm text-text-primary truncate">Localización Subterránea / Mapeo</h4>
+              {(() => {
+                const currentMetric = (currentSelected.target_metric_type === 'm2' || (!currentSelected.target_ml && (currentSelected.target_m2 ?? 0) > 0)) ? 'm2' : 'ml';
+                return (
+                  <>
+                    {currentSelected.description && (
+                      <div className="mb-4 bg-white p-3 rounded-xl border border-gray-200 text-xs text-text-secondary leading-relaxed">
+                        <span className="font-bold text-text-primary block mb-0.5">📌 Objeto / Descripción del Proyecto:</span>
+                        {currentSelected.description}
                       </div>
+                    )}
+
+                    {/* ── LOS 2 GRÁFICOS DE PROGRESO DE CAMPO (Mapeo vs Geolocalización) ── */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       
-                      {currentSelected.requires_mapping !== false ? (
-                        <>
-                          <p className="text-xs text-text-muted mb-2">
-                            GPR, Radiodetección (RD), PPR, Sondas y equipos geofísicos
-                          </p>
-                          <div className="space-y-1">
-                            <div className="flex items-baseline justify-between text-xs">
-                              <span className="text-text-muted">Metraje ejecutado:</span>
-                              <span className="font-bold text-blue-700 text-sm">
-                                {currentSelected.target_metric_type === 'm2'
-                                  ? `${(currentSelected.mapping_m2 ?? 0).toFixed(1)} m²`
-                                  : `${(currentSelected.mapping_ml ?? 0).toFixed(1)} ML`}
-                              </span>
-                            </div>
-                            <div className="flex items-baseline justify-between text-xs">
-                              <span className="text-text-muted">Meta programada:</span>
-                              <span className="font-medium text-text-primary">
-                                {currentSelected.target_metric_type === 'm2'
-                                  ? `${currentSelected.target_m2 || 0} m²`
-                                  : `${currentSelected.target_ml || 0} ML`}
-                              </span>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="py-2">
-                          <span className="badge badge-gray text-xs">No requerido en este proyecto</span>
-                          <p className="text-xs text-text-muted mt-1">Este proyecto no computa avance de exploración subterránea.</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {currentSelected.requires_mapping !== false && (
-                      <CircularProgress
-                        percentage={currentSelected.mapping_progress_pct ?? 0}
-                        color="#2563eb"
-                        label="Mapeo"
-                      />
-                    )}
-                  </div>
-
-                  {currentSelected.requires_mapping !== false && (
-                    <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px]">
-                      <span className="text-text-muted">Estado de cobertura:</span>
-                      <span className={`font-semibold ${
-                        (currentSelected.mapping_progress_pct ?? 0) >= 100
-                          ? 'text-emerald-700'
-                          : (currentSelected.mapping_progress_pct ?? 0) > 0
-                          ? 'text-blue-700'
-                          : 'text-amber-700'
+                      {/* GRÁFICO 1: Mapeo / Localización Subterránea */}
+                      <div className={`p-4 rounded-2xl border transition-all ${
+                        currentSelected.requires_mapping !== false
+                          ? 'bg-white border-blue-200 shadow-xs'
+                          : 'bg-gray-100/70 border-gray-300 opacity-60'
                       }`}>
-                        {(currentSelected.mapping_progress_pct ?? 0) >= 100
-                          ? '✅ 100% Completado'
-                          : (currentSelected.mapping_progress_pct ?? 0) > 0
-                          ? `⏳ ${(currentSelected.mapping_progress_pct ?? 0).toFixed(1)}% ejecutado`
-                          : '⚠️ Pendiente por iniciar'}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-base">📡</span>
+                              <h4 className="font-bold text-sm text-text-primary truncate">Localización Subterránea / Mapeo</h4>
+                            </div>
+                            
+                            {currentSelected.requires_mapping !== false ? (
+                              <>
+                                <p className="text-xs text-text-muted mb-2">
+                                  GPR, Radiodetección (RD), PPR, Sondas y equipos geofísicos
+                                </p>
+                                <div className="space-y-1">
+                                  <div className="flex items-baseline justify-between text-xs">
+                                    <span className="text-text-muted">Metraje ejecutado:</span>
+                                    <span className="font-bold text-blue-700 text-sm">
+                                      {currentMetric === 'm2'
+                                        ? `${(currentSelected.mapping_m2 ?? 0).toFixed(1)} m²`
+                                        : `${(currentSelected.mapping_ml ?? 0).toFixed(1)} ML`}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-baseline justify-between text-xs">
+                                    <span className="text-text-muted">Meta programada:</span>
+                                    <span className="font-medium text-text-primary">
+                                      {currentMetric === 'm2'
+                                        ? `${currentSelected.target_m2 || 0} m²`
+                                        : `${currentSelected.target_ml || 0} ML`}
+                                    </span>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="py-2">
+                                <span className="badge badge-gray text-xs">No requerido en este proyecto</span>
+                                <p className="text-xs text-text-muted mt-1">Este proyecto no computa avance de exploración subterránea.</p>
+                              </div>
+                            )}
+                          </div>
 
-                {/* GRÁFICO 2: Geolocalización / Posicionamiento */}
-                <div className={`p-4 rounded-2xl border transition-all ${
-                  currentSelected.requires_positioning !== false
-                    ? 'bg-white border-indigo-200 shadow-xs'
-                    : 'bg-gray-100/70 border-gray-300 opacity-60'
-                }`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-base">🛰️</span>
-                        <h4 className="font-bold text-sm text-text-primary truncate">Geolocalización / Posicionamiento</h4>
+                          {currentSelected.requires_mapping !== false && (
+                            <CircularProgress
+                              percentage={currentSelected.mapping_progress_pct ?? 0}
+                              color="#2563eb"
+                              label="Mapeo"
+                            />
+                          )}
+                        </div>
+
+                        {currentSelected.requires_mapping !== false && (
+                          <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px]">
+                            <span className="text-text-muted">Estado de cobertura:</span>
+                            <span className={`font-semibold ${
+                              (currentSelected.mapping_progress_pct ?? 0) >= 100
+                                ? 'text-emerald-700'
+                                : (currentSelected.mapping_progress_pct ?? 0) > 0
+                                ? 'text-blue-700'
+                                : 'text-amber-700'
+                            }`}>
+                              {(currentSelected.mapping_progress_pct ?? 0) >= 100
+                                ? '✅ 100% Completado'
+                                : (currentSelected.mapping_progress_pct ?? 0) > 0
+                                ? `⏳ ${(currentSelected.mapping_progress_pct ?? 0).toFixed(1)}% ejecutado`
+                                : '⚠️ Pendiente por iniciar'}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      {currentSelected.requires_positioning !== false ? (
-                        <>
-                          <p className="text-xs text-text-muted mb-2">
-                            GNSS RTK, Estación Total, GPS Topográfico y amarre
-                          </p>
-                          <div className="space-y-1">
-                            <div className="flex items-baseline justify-between text-xs">
-                              <span className="text-text-muted">Metraje georreferenciado:</span>
-                              <span className="font-bold text-indigo-700 text-sm">
-                                {currentSelected.target_metric_type === 'm2'
-                                  ? `${(currentSelected.positioning_m2 ?? 0).toFixed(1)} m²`
-                                  : `${(currentSelected.positioning_ml ?? 0).toFixed(1)} ML`}
-                              </span>
-                            </div>
-                            <div className="flex items-baseline justify-between text-xs">
-                              <span className="text-text-muted">Meta programada:</span>
-                              <span className="font-medium text-text-primary">
-                                {currentSelected.target_metric_type === 'm2'
-                                  ? `${currentSelected.target_m2 || 0} m²`
-                                  : `${currentSelected.target_ml || 0} ML`}
-                              </span>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="py-2">
-                          <span className="badge badge-gray text-xs">No requerido en este proyecto</span>
-                          <p className="text-xs text-text-muted mt-1">Este proyecto no computa avance de georreferenciación.</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {currentSelected.requires_positioning !== false && (
-                      <CircularProgress
-                        percentage={currentSelected.positioning_progress_pct ?? 0}
-                        color="#4f46e5"
-                        label="Geo"
-                      />
-                    )}
-                  </div>
-
-                  {currentSelected.requires_positioning !== false && (
-                    <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px]">
-                      <span className="text-text-muted">Estado de cobertura:</span>
-                      <span className={`font-semibold ${
-                        (currentSelected.positioning_progress_pct ?? 0) >= 100
-                          ? 'text-emerald-700'
-                          : (currentSelected.positioning_progress_pct ?? 0) > 0
-                          ? 'text-indigo-700'
-                          : 'text-amber-700'
+                      {/* GRÁFICO 2: Geolocalización / Posicionamiento */}
+                      <div className={`p-4 rounded-2xl border transition-all ${
+                        currentSelected.requires_positioning !== false
+                          ? 'bg-white border-indigo-200 shadow-xs'
+                          : 'bg-gray-100/70 border-gray-300 opacity-60'
                       }`}>
-                        {(currentSelected.positioning_progress_pct ?? 0) >= 100
-                          ? '✅ 100% Completado'
-                          : (currentSelected.positioning_progress_pct ?? 0) > 0
-                          ? `⏳ ${(currentSelected.positioning_progress_pct ?? 0).toFixed(1)}% ejecutado`
-                          : '⚠️ Pendiente por iniciar'}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-base">🛰️</span>
+                              <h4 className="font-bold text-sm text-text-primary truncate">Geolocalización / Posicionamiento</h4>
+                            </div>
 
-              </div>
+                            {currentSelected.requires_positioning !== false ? (
+                              <>
+                                <p className="text-xs text-text-muted mb-2">
+                                  GNSS RTK, Estación Total, GPS Topográfico y amarre
+                                </p>
+                                <div className="space-y-1">
+                                  <div className="flex items-baseline justify-between text-xs">
+                                    <span className="text-text-muted">Metraje georreferenciado:</span>
+                                    <span className="font-bold text-indigo-700 text-sm">
+                                      {currentMetric === 'm2'
+                                        ? `${(currentSelected.positioning_m2 ?? 0).toFixed(1)} m²`
+                                        : `${(currentSelected.positioning_ml ?? 0).toFixed(1)} ML`}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-baseline justify-between text-xs">
+                                    <span className="text-text-muted">Meta programada:</span>
+                                    <span className="font-medium text-text-primary">
+                                      {currentMetric === 'm2'
+                                        ? `${currentSelected.target_m2 || 0} m²`
+                                        : `${currentSelected.target_ml || 0} ML`}
+                                    </span>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="py-2">
+                                <span className="badge badge-gray text-xs">No requerido en este proyecto</span>
+                                <p className="text-xs text-text-muted mt-1">Este proyecto no computa avance de georreferenciación.</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {currentSelected.requires_positioning !== false && (
+                            <CircularProgress
+                              percentage={currentSelected.positioning_progress_pct ?? 0}
+                              color="#4f46e5"
+                              label="Geo"
+                            />
+                          )}
+                        </div>
+
+                        {currentSelected.requires_positioning !== false && (
+                          <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px]">
+                            <span className="text-text-muted">Estado de cobertura:</span>
+                            <span className={`font-semibold ${
+                              (currentSelected.positioning_progress_pct ?? 0) >= 100
+                                ? 'text-emerald-700'
+                                : (currentSelected.positioning_progress_pct ?? 0) > 0
+                                ? 'text-indigo-700'
+                                : 'text-amber-700'
+                            }`}>
+                              {(currentSelected.positioning_progress_pct ?? 0) >= 100
+                                ? '✅ 100% Completado'
+                                : (currentSelected.positioning_progress_pct ?? 0) > 0
+                                ? `⏳ ${(currentSelected.positioning_progress_pct ?? 0).toFixed(1)}% ejecutado`
+                                : '⚠️ Pendiente por iniciar'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Barra de Progreso Global del Proyecto */}
               <div className="mt-4 bg-white p-3 rounded-xl border border-gray-200">
@@ -1308,7 +1316,14 @@ export default function AdminProjectsPage() {
                       min="0"
                       step="0.1"
                       value={editForm.target_ml}
-                      onChange={(e) => setEditForm({ ...editForm, target_ml: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditForm((prev) => ({
+                          ...prev,
+                          target_ml: val,
+                          target_metric_type: (!prev.target_m2 && val) ? 'ml' : prev.target_metric_type,
+                        }));
+                      }}
                       className="input text-sm"
                       placeholder="Ej: 1500"
                     />
@@ -1320,7 +1335,14 @@ export default function AdminProjectsPage() {
                       min="0"
                       step="0.1"
                       value={editForm.target_m2}
-                      onChange={(e) => setEditForm({ ...editForm, target_m2: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditForm((prev) => ({
+                          ...prev,
+                          target_m2: val,
+                          target_metric_type: (!prev.target_ml && val) ? 'm2' : prev.target_metric_type,
+                        }));
+                      }}
                       className="input text-sm"
                       placeholder="Ej: 5000"
                     />
@@ -1498,7 +1520,14 @@ export default function AdminProjectsPage() {
                       min="0"
                       step="0.1"
                       value={form.target_ml}
-                      onChange={(e) => setForm({ ...form, target_ml: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setForm((prev) => ({
+                          ...prev,
+                          target_ml: val,
+                          target_metric_type: (!prev.target_m2 && val) ? 'ml' : prev.target_metric_type,
+                        }));
+                      }}
                       placeholder="Ej: 1500"
                       className="input text-sm"
                     />
@@ -1510,7 +1539,14 @@ export default function AdminProjectsPage() {
                       min="0"
                       step="0.1"
                       value={form.target_m2}
-                      onChange={(e) => setForm({ ...form, target_m2: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setForm((prev) => ({
+                          ...prev,
+                          target_m2: val,
+                          target_metric_type: (!prev.target_ml && val) ? 'm2' : prev.target_metric_type,
+                        }));
+                      }}
                       placeholder="Ej: 5000"
                       className="input text-sm"
                     />

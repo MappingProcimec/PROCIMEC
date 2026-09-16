@@ -119,9 +119,10 @@ export default function ProjectsPage() {
 }
 
 function ProjectCard({ project }: { project: Project }) {
-  const targetVal = project.target_metric_type === 'm2' ? project.target_m2 : project.target_ml;
+  const effMetric = (project.target_metric_type === 'm2' || (!project.target_ml && (project.target_m2 ?? 0) > 0)) ? 'm2' : 'ml';
+  const targetVal = effMetric === 'm2' ? project.target_m2 : project.target_ml;
   const hasTarget = targetVal !== undefined && targetVal > 0;
-  const unitLabel = project.target_metric_type === 'm2' ? 'm²' : 'ML';
+  const unitLabel = effMetric === 'm2' ? 'm²' : 'ML';
 
   return (
     <div className="card-hover p-5 animate-slide-up border border-border">
@@ -220,7 +221,7 @@ function ProjectCard({ project }: { project: Project }) {
             </div>
             <p className="text-[10px] text-text-muted truncate">
               {project.requires_mapping !== false
-                ? `${project.target_metric_type === 'm2' ? (project.mapping_m2 ?? 0).toFixed(1) : (project.mapping_ml ?? 0).toFixed(1)} / ${targetVal || 0} ${unitLabel}`
+                ? `${effMetric === 'm2' ? (project.mapping_m2 ?? 0).toFixed(1) : (project.mapping_ml ?? 0).toFixed(1)} / ${targetVal || 0} ${unitLabel}`
                 : 'No requerido'}
             </p>
           </div>
@@ -239,7 +240,7 @@ function ProjectCard({ project }: { project: Project }) {
             </div>
             <p className="text-[10px] text-text-muted truncate">
               {project.requires_positioning !== false
-                ? `${project.target_metric_type === 'm2' ? (project.positioning_m2 ?? 0).toFixed(1) : (project.positioning_ml ?? 0).toFixed(1)} / ${targetVal || 0} ${unitLabel}`
+                ? `${effMetric === 'm2' ? (project.positioning_m2 ?? 0).toFixed(1) : (project.positioning_ml ?? 0).toFixed(1)} / ${targetVal || 0} ${unitLabel}`
                 : 'No requerido'}
             </p>
           </div>

@@ -85,6 +85,13 @@ export function parseProjectTargets(p: Record<string, unknown>): TargetMeta {
     } catch {}
   }
 
+  // Auto-resolver métrica principal si solo se ingresó una de ellas
+  if (target_m2 > 0 && target_ml === 0) {
+    target_metric_type = 'm2';
+  } else if (target_ml > 0 && target_m2 === 0) {
+    target_metric_type = 'ml';
+  }
+
   return { target_ml, target_m2, target_metric_type, requires_mapping, requires_positioning };
 }
 
@@ -318,10 +325,16 @@ export async function POST(request: NextRequest) {
   }
 
   const divisionIds: string[] = body.division_ids ?? [];
+  const tMl = target_ml ?? 0;
+  const tM2 = target_m2 ?? 0;
+  let tMetricType: 'ml' | 'm2' = (target_metric_type as 'ml' | 'm2') || 'ml';
+  if (tM2 > 0 && tMl === 0) tMetricType = 'm2';
+  else if (tMl > 0 && tM2 === 0) tMetricType = 'ml';
+
   const targetsMeta: TargetMeta = {
-    target_ml: target_ml ?? 0,
-    target_m2: target_m2 ?? 0,
-    target_metric_type: target_metric_type ?? 'ml',
+    target_ml: tMl,
+    target_m2: tM2,
+    target_metric_type: tMetricType,
     requires_mapping: requires_mapping ?? true,
     requires_positioning: requires_positioning ?? true,
   };
@@ -392,10 +405,17 @@ export async function PATCH(request: NextRequest) {
     updates.name = updates.name.toUpperCase().trim();
   }
 
+  const tMl = updates.target_ml !== undefined ? Number(updates.target_ml) || 0 : 0;
+  const tM2 = updates.target_m2 !== undefined ? Number(updates.target_m2) || 0 : 0;
+  let tMetricType: 'ml' | 'm2' = updates.target_metric_type || 'ml';
+  if (tM2 > 0 && tMl === 0) tMetricType = 'm2';
+  else if (tMl > 0 && tM2 === 0) tMetricType = 'ml';
+  updates.target_metric_type = tMetricType;
+
   const targetsMeta: TargetMeta = {
-    target_ml: updates.target_ml !== undefined ? Number(updates.target_ml) || 0 : 0,
-    target_m2: updates.target_m2 !== undefined ? Number(updates.target_m2) || 0 : 0,
-    target_metric_type: updates.target_metric_type || 'ml',
+    target_ml: tMl,
+    target_m2: tM2,
+    target_metric_type: tMetricType,
     requires_mapping: updates.requires_mapping !== undefined ? Boolean(updates.requires_mapping) : true,
     requires_positioning: updates.requires_positioning !== undefined ? Boolean(updates.requires_positioning) : true,
   };
