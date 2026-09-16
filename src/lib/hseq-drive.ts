@@ -1028,43 +1028,139 @@ export async function parseExcelTemplateSchema(
   else if (tNorm.includes('compresor')) equipmentLabel = 'Compresor';
   else if (tNorm.includes('gpr') || tNorm.includes('georadar')) equipmentLabel = 'Georadar GPR';
 
+  // Nombres de sección enriquecidos por código de formato si el Excel no contiene filas de cabecera explícitas
+  const getEnrichedSectionName = (code: string, major: string, fallback: string): string => {
+    const is028 = code.includes('028') || finalTitle.toLowerCase().includes('localizador');
+    if (is028) {
+      if (major === '1') return '1. TRANSMISOR (TX) Y COMPONENTES';
+      if (major === '2') return '2. RECEPTOR (RX) Y BASTÓN';
+      if (major === '3') return '3. CABLES DE CONEXIÓN Y CLAMP';
+      if (major === '4') return '4. PINZAS Y CAIMANES';
+    }
+    const is027 = code.includes('027') || finalTitle.toLowerCase().includes('gpr') || finalTitle.toLowerCase().includes('georadar');
+    if (is027) {
+      if (major === '1') return '1. SISTEMA GPR (ESTRUCTURA, BATERÍAS Y AKULA)';
+      if (major === '2') return '2. UNIDAD DE CONTROL (COMPUTADOR Y DONGLE)';
+    }
+    const is026 = code.includes('026') || finalTitle.toLowerCase().includes('gps');
+    if (is026) {
+      if (major === '1') return '1. RECEPTOR GPS, BASE Y ROVER';
+      if (major === '2') return '2. COLECTORA DE DATOS';
+      if (major === '3') return '3. BATERÍAS Y ALIMENTACIÓN';
+      if (major === '4') return '4. CARGADOR Y CABLES';
+      if (major === '5') return '5. ACCESORIOS (TRÍPODE, BASTÓN Y BASE)';
+    }
+    if (fallback === '1. GENERAL' && major !== '1') {
+      return `${major}. GENERAL`;
+    }
+    return fallback;
+  };
+
+  const isMetadataOrInstruction = (txt: string) => {
+    const t = txt.trim().toUpperCase();
+    return (
+      t.startsWith('SERIAL') ||
+      t.startsWith('MARCA') ||
+      t.startsWith('MODELO') ||
+      t.startsWith('NOMBRE') ||
+      t.startsWith('PROYECTO') ||
+      t.startsWith('CENTRO') ||
+      t.startsWith('CIUDAD') ||
+      t.startsWith('UBICACI') ||
+      t.startsWith('FECHA') ||
+      t.startsWith('RESPONSABLE') ||
+      t.startsWith('OPERADOR') ||
+      t.startsWith('MARQUE CON') ||
+      t.startsWith('INSTRUCC') ||
+      t.startsWith('NOTA IMPORTANTE') ||
+      t.startsWith('EQUIPO REVISADO') ||
+      t.startsWith('EQUIPO / HERRAMIENTA') ||
+      t === 'ITEMS' ||
+      t === 'ITEM' ||
+      t === 'REVISION' ||
+      t === 'REVISIÓN' ||
+      t === 'ASPECTO' ||
+      t === 'ASPECTOS' ||
+      t === 'CRITERIO' ||
+      t === 'CRITERIOS' ||
+      t === 'DESCRIPCION' ||
+      t === 'DESCRIPCIÓN' ||
+      t === 'ESTADO' ||
+      t === 'SI' ||
+      t === 'NO' ||
+      t === 'NA' ||
+      t === 'N/A'
+    );
+  };
+
   // 2. Extraer Secciones e Ítems
   const sectionsSet = new Set<string>();
   const items: DynamicTemplateItem[] = [];
   let currentSection = '1. GENERAL';
   let sequentialIndex = 1;
+  let tableHeaderFound = false;
 
-  for (let r = 8; r <= ws.rowCount; r++) {
+  for (let r = 1; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
     const cellA = getCellSafeText(row.getCell(1)).trim();
     const cellB = getCellSafeText(row.getCell(2)).trim();
     const cellC = getCellSafeText(row.getCell(3)).trim();
     const cellD = getCellSafeText(row.getCell(4)).trim();
+    const cellE = getCellSafeText(row.getCell(5)).trim();
 
-    const fullRowText = `${cellA} ${cellB} ${cellC} ${cellD}`.toUpperCase();
+    const fullRowText = `${cellA} ${cellB} ${cellC} ${cellD} ${cellE}`.toUpperCase();
 
     // Detener si llegamos a firmas u observaciones
     if (
       fullRowText.includes('OBSERVACIONES') ||
-      fullRowText.includes('FIRMA') ||
+      fullRowText.includes('FIRMA RESPONSABLE') ||
+      fullRowText.includes('FIRMA OPERADOR') ||
       fullRowText.includes('RESPONSABLE SSTA') ||
       fullRowText.includes('PUNTO CRITICO') ||
-      fullRowText.includes('PUNTO CRÍTICO')
+      fullRowText.includes('PUNTO CRÍTICO') ||
+      fullRowText.includes('NOTA IMPORTANTE')
     ) {
-      break;
+      if (items.length > 0) break;
+    }
+
+    // Detectar si esta fila es el encabezado de las columnas de la tabla (ej. ITEMS | REVISION | SI | NO | NA)
+    const isColumnHeaderRow =
+      (/^(items?|item|revisi[oó]n|aspectos?|criterios?|descripci[oó]n|estado)$/i.test(cellA) ||
+       /^(revisi[oó]n|aspectos?|criterios?|descripci[oó]n|estado)$/i.test(cellB)) &&
+      (cellC.toUpperCase().includes('SI') || cellD.toUpperCase().includes('SI') || cellD.toUpperCase().includes('NO') || cellE.toUpperCase().includes('NA'));
+
+    if (isColumnHeaderRow) {
+      tableHeaderFound = true;
+      continue;
+    }
+
+    // Antes de encontrar la cabecera de la tabla, omitir toda fila de metadatos (Proyecto, Marca, Serial, etc.)
+    if (!tableHeaderFound) {
+      // Si la fila tiene un numeral explícito (ej. 1.1), significa que la tabla empezó
+      const hasNumeral = /^[0-9]+([\.\-][0-9]+)+$/i.test(cellA) || /^[0-9]+([\.\-][0-9]+)+$/i.test(cellB);
+      if (!hasNumeral) {
+        continue;
+      }
+      tableHeaderFound = true;
+    }
+
+    // Omitir filas que sean instrucciones o metadatos remanentes
+    if (isMetadataOrInstruction(cellA) && isMetadataOrInstruction(cellB)) {
+      continue;
     }
 
     // Identificar si la fila es un encabezado de Sección
-    // Ejemplo: Cell A o B tiene texto en mayúsculas tipo "1. CABINA" o "SISTEMA ELÉCTRICO" y no hay muchas más celdas
+    // Ejemplo: Cell A o B tiene texto como "1. TRANSMISOR" o "SISTEMA ELÉCTRICO" y no hay respuestas C/D/E
     const candidateSec = cellA || cellB;
+    const hasAnswers = Boolean(cellC || cellD || cellE);
     const isSectionHeader =
       Boolean(candidateSec) &&
       candidateSec.length > 3 &&
-      candidateSec.length < 50 &&
-      !cellC &&
-      !cellD &&
+      candidateSec.length < 60 &&
+      !hasAnswers &&
       !/^\d+$/.test(candidateSec) &&
-      !/^(si|no|na|item|código)$/i.test(candidateSec);
+      !isMetadataOrInstruction(candidateSec) &&
+      !/^(si|no|na|item|items|código|codigo|revisi[oó]n)$/i.test(candidateSec);
 
     if (isSectionHeader) {
       currentSection = candidateSec.toUpperCase();
@@ -1073,7 +1169,6 @@ export async function parseExcelTemplateSchema(
     }
 
     // Identificar si la fila es un Ítem de Inspección
-    // Un ítem tiene numeral o descripción en B o C
     let itemCode = '';
     let itemDesc = '';
 
@@ -1084,9 +1179,12 @@ export async function parseExcelTemplateSchema(
       itemCode = cellB;
       itemDesc = cellC || cellD;
     } else {
-      // Sin numeral explícito: usar la celda con texto más descriptivo
+      // Sin numeral explícito: usar la celda con texto descriptivo que no sea metadato
       const candidates = [cellA, cellB, cellC].filter(
-        (t) => t.length > 5 && !/^(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|si|no|na)$/i.test(t)
+        (t) =>
+          t.length > 5 &&
+          !isMetadataOrInstruction(t) &&
+          !/^(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|si|no|na)$/i.test(t)
       );
       if (candidates.length > 0) {
         itemDesc = candidates[0];
@@ -1097,14 +1195,23 @@ export async function parseExcelTemplateSchema(
     // Limpiar descripción
     itemDesc = itemDesc.replace(/^[\d\.\-\)\s]+/, '').trim();
 
-    if (itemDesc && itemDesc.length > 5 && !/^(si|no|na|criterio|item|aspecto)$/i.test(itemDesc)) {
-      sectionsSet.add(currentSection);
+    if (
+      itemDesc &&
+      itemDesc.length > 5 &&
+      !isMetadataOrInstruction(itemDesc)
+    ) {
+      // Derivar sección según prefijo mayor si no se definió sección explícita
+      const majorMatch = itemCode.match(/^(\d+)/);
+      const major = majorMatch ? majorMatch[1] : '1';
+      const effectiveSection = getEnrichedSectionName(finalCode, major, currentSection);
+
+      sectionsSet.add(effectiveSection);
 
       const optimal = inferOptimalResponse(itemDesc);
 
       items.push({
         code: itemCode || `${sequentialIndex}`,
-        section: currentSection,
+        section: effectiveSection,
         description: itemDesc,
         optimal,
         excelRow: r,

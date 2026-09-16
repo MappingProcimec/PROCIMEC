@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { DigitalSignatureModal } from '@/components/hseq/DigitalSignatureModal';
@@ -58,6 +58,7 @@ async function fetchActiveProjects(): Promise<ProjectOption[]> {
 
 export default function HseqReportFormPage() {
   const { data: session } = useSession();
+  const queryClient = useQueryClient();
 
   // Estados principales
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -146,6 +147,11 @@ export default function HseqReportFormPage() {
     setIsRefreshingTemplates(true);
     try {
       await fetchTemplates(true);
+      if (selectedTemplateId) {
+        await fetch(`/api/hseq/templates/${encodeURIComponent(selectedTemplateId)}/schema?refresh=true`);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['hseq-templates'] });
+      await queryClient.invalidateQueries({ queryKey: ['hseq-dynamic-schema'] });
       await refetchTemplates();
     } catch (err) {
       console.error('Error refrescando formatos:', err);
