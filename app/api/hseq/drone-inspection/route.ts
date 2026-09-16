@@ -37,6 +37,8 @@ export async function POST(req: NextRequest) {
       droneSerial,
       equipmentBrandModel,
       equipmentSerial,
+      serialAkula,
+      serialComputadora,
       itemsResponses = {},
       criticalPoint = 'Ninguno',
       generalObservations = '',
@@ -130,7 +132,10 @@ export async function POST(req: NextRequest) {
 
     const brandModel =
       equipmentBrandModel || droneBrandModel || formatConfig.defaultEquipment;
-    const serial = equipmentSerial || droneSerial || formatConfig.defaultSerial;
+    const serial =
+      serialAkula && serialComputadora
+        ? `Akula: ${serialAkula} | PC: ${serialComputadora}`
+        : serialAkula || serialComputadora || equipmentSerial || droneSerial || formatConfig.defaultSerial;
 
     const payloadForGeneration = {
       formatTitle: formatConfig.pdfTitle,
@@ -143,6 +148,8 @@ export async function POST(req: NextRequest) {
       inspectionDate,
       equipmentBrandModel: brandModel,
       equipmentSerial: serial,
+      serialAkula: serialAkula || undefined,
+      serialComputadora: serialComputadora || undefined,
       items: requiredItems,
       itemsResponses,
       criticalPoint,
@@ -311,6 +318,8 @@ export async function POST(req: NextRequest) {
         equipment_label: formatConfig.equipmentLabel,
         equipment_brand_model: brandModel,
         equipment_serial: serial,
+        serial_akula: serialAkula || null,
+        serial_computadora: serialComputadora || null,
         pdf_filename: fileName,
         pdf_url: pdfUrl,
         excel_filename: excelFileName,

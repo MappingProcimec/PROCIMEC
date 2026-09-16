@@ -72,6 +72,8 @@ export default function HseqReportFormPage() {
   // Datos del equipo según formato
   const [equipmentBrandModel, setEquipmentBrandModel] = useState('DJI Mavic 3 Enterprise');
   const [equipmentSerial, setEquipmentSerial] = useState('PROC-DRN-001');
+  const [gprAkulaSerial, setGprAkulaSerial] = useState('PROC-AKU-001');
+  const [gprPcSerial, setGprPcSerial] = useState('PROC-TB-001');
 
   // Checklist reactivo
   const [itemsResponses, setItemsResponses] = useState<Record<string, 'SI' | 'NO' | 'NA'>>({});
@@ -218,6 +220,13 @@ export default function HseqReportFormPage() {
     return getHseqFormatConfig(identifier);
   }, [activeTemplate, dynamicSchema]);
 
+  // Detectar si el formato seleccionado corresponde a Georadar (GPR)
+  const isGprFormat = useMemo(() => {
+    if (!formatConfig) return false;
+    const str = `${formatConfig.code} ${formatConfig.title} ${formatConfig.id}`.toLowerCase();
+    return str.includes('027') || str.includes('gpr') || str.includes('georadar');
+  }, [formatConfig]);
+
   // Sincronizar equipo y serial por defecto cuando se resuelve el esquema
   useEffect(() => {
     if (formatConfig) {
@@ -292,6 +301,10 @@ export default function HseqReportFormPage() {
       const costCenter = proj?.cost_center || proj?.code || 'PROCIMEC';
       const location = proj?.location || 'En campo';
 
+      const effectiveSerial = isGprFormat
+        ? `Akula: ${gprAkulaSerial.trim()} | PC: ${gprPcSerial.trim()}`
+        : equipmentSerial;
+
       const res = await fetch('/api/hseq/drone-inspection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -307,7 +320,9 @@ export default function HseqReportFormPage() {
           location,
           inspectionDate,
           equipmentBrandModel,
-          equipmentSerial,
+          equipmentSerial: effectiveSerial,
+          serialAkula: isGprFormat ? gprAkulaSerial.trim() : undefined,
+          serialComputadora: isGprFormat ? gprPcSerial.trim() : undefined,
           itemsResponses,
           criticalPoint,
           generalObservations,
@@ -619,29 +634,62 @@ export default function HseqReportFormPage() {
 
                     <div>
                       <label className="label label-required text-xs">
-                        {formatConfig.equipmentLabel} / Marca y Modelo
+                        {isGprFormat ? 'Marca y Modelo GPR' : `${formatConfig.equipmentLabel} / Marca y Modelo`}
                       </label>
                       <input
                         type="text"
                         value={equipmentBrandModel}
                         onChange={(e) => setEquipmentBrandModel(e.target.value)}
                         required
-                        placeholder="Ej. DJI Mavic 3 / Leica TS07"
+                        placeholder={isGprFormat ? 'Ej. Geoscanners Akula 9000B' : 'Ej. DJI Mavic 3 / Leica TS07'}
                         className="input text-xs"
                       />
                     </div>
 
-                    <div>
-                      <label className="label label-required text-xs">Serial del Equipo</label>
-                      <input
-                        type="text"
-                        value={equipmentSerial}
-                        onChange={(e) => setEquipmentSerial(e.target.value)}
-                        required
-                        placeholder="Ej. PROC-DRN-001 / PROC-ET-001"
-                        className="input text-xs"
-                      />
-                    </div>
+                    {isGprFormat ? (
+                      <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-amber-500/5 rounded-xl border border-amber-500/20">
+                        <div>
+                          <label className="label label-required text-xs text-amber-900 font-semibold flex items-center justify-between">
+                            <span>Serial Unidad Akula</span>
+                            <span className="text-[10px] text-amber-700/80 font-mono">Radar GPR</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={gprAkulaSerial}
+                            onChange={(e) => setGprAkulaSerial(e.target.value)}
+                            required
+                            placeholder="Ej. PROC-AKU-001"
+                            className="input text-xs font-mono border-amber-300 focus:border-amber-500 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="label label-required text-xs text-amber-900 font-semibold flex items-center justify-between">
+                            <span>Serial Computadora / Toughbook</span>
+                            <span className="text-[10px] text-amber-700/80 font-mono">Unidad Control</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={gprPcSerial}
+                            onChange={(e) => setGprPcSerial(e.target.value)}
+                            required
+                            placeholder="Ej. PROC-TB-001"
+                            className="input text-xs font-mono border-amber-300 focus:border-amber-500 bg-white"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="label label-required text-xs">Serial del Equipo</label>
+                        <input
+                          type="text"
+                          value={equipmentSerial}
+                          onChange={(e) => setEquipmentSerial(e.target.value)}
+                          required
+                          placeholder="Ej. PROC-DRN-001 / PROC-ET-001"
+                          className="input text-xs"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 

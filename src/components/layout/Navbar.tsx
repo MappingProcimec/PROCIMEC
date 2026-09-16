@@ -193,14 +193,19 @@ export function Navbar() {
     <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-border shadow-sm">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
 
-        {/* Logo */}
-        <Link href={isAdmin ? '/admin/dashboard' : '/dashboard'} className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-            </svg>
-          </div>
-          <span className="font-bold text-primary text-sm hidden sm:block">PROCIMEC</span>
+        {/* Logo Corporativo Oficial */}
+        <Link
+          href={isAdmin ? '/admin/dashboard' : '/dashboard'}
+          className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
+        >
+          <Image
+            src="/logo.png"
+            alt="PROCIMEC Mapping Ingeniería"
+            width={130}
+            height={32}
+            className="h-8 w-auto object-contain"
+            priority
+          />
         </Link>
 
         {/* Admin nav links */}

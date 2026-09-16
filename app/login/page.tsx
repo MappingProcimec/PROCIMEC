@@ -5,6 +5,7 @@ import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const { data: session, status } = useSession();
@@ -56,18 +57,18 @@ export default function LoginPage() {
         </div>
 
         {/* Logo / Brand */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 mb-4 shadow-glow">
-            {/* Radar icon */}
-            <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
-            </svg>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <div className="p-3 bg-white rounded-2xl shadow-xl mb-4 border border-white/20">
+            <Image
+              src="/logo.png"
+              alt="PROCIMEC Mapping Ingeniería"
+              width={180}
+              height={45}
+              className="h-10 w-auto object-contain"
+              priority
+            />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">
-            PROCIMEC
-          </h1>
-          <p className="text-white/70 text-sm mt-2">
+          <p className="text-white/80 text-sm mt-1">
             Plataforma de gestión empresarial
           </p>
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-accent/20 border border-accent/30 rounded-full">

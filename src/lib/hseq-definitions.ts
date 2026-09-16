@@ -332,6 +332,8 @@ export interface HseqPdfGenerationPayload {
   droneSerial?: string;
   equipmentBrandModel?: string;
   equipmentSerial?: string;
+  serialAkula?: string;
+  serialComputadora?: string;
   items?: DroneInspectionItemDef[];
   itemsResponses: Record<string, 'SI' | 'NO' | 'NA'>;
   criticalPoint?: string;

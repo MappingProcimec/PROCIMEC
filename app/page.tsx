@@ -3,6 +3,7 @@
 
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function LandingPage() {
   const { data: session, status } = useSession();
@@ -19,17 +20,16 @@ export default function LandingPage() {
       {/* Navbar */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-border shadow-xs">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center flex-shrink-0 shadow-glow">
-              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-              </svg>
-            </div>
-            <div>
-              <span className="font-bold text-primary text-base tracking-tight leading-none block">PROCIMEC</span>
-              <span className="text-[10px] text-accent-700 font-semibold tracking-wider uppercase">Plataforma de Gestión Empresarial</span>
-            </div>
-          </div>
+          <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+            <Image
+              src="/logo.png"
+              alt="PROCIMEC Mapping Ingeniería"
+              width={140}
+              height={36}
+              className="h-9 w-auto object-contain"
+              priority
+            />
+          </Link>
 
           <nav className="flex items-center gap-3">
             <Link href="/privacy" className="text-xs font-semibold text-text-secondary hover:text-primary transition-colors hidden sm:block">
