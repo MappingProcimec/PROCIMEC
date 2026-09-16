@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { indexBy } from '@/lib/indexing';
 
 import {
   Radio,
@@ -83,16 +84,21 @@ const SYSTEM_BADGE: Record<string, string> = {
   admin: 'badge-primary', pending: 'badge-warning', operator: 'badge-accent', localizador: 'badge-accent', dibujo: 'badge-success',
 };
 
-function userDisplayBadge(user: User, roleOptions: RoleOption[] = []) {
+function userDisplayBadge(user: User, roleOptions: RoleOption[] = [], rolesById?: Map<string, RoleOption>) {
   if (user.role === 'admin') return { label: 'Administrador', badge: 'badge-primary' };
   if (user.role === 'pending') return { label: 'Pendiente', badge: 'badge-warning' };
   if (user.roles?.name) return { label: user.roles.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
 
   // Buscar en user_division_roles si no está directo en user.roles
-  const udrRoleId = user.user_division_roles?.find(udr => udr.role_id)?.role_id;
-  if (udrRoleId) {
-    const foundRole = roleOptions.find(r => r.id === udrRoleId);
-    if (foundRole) return { label: foundRole.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+  const udrList = user.user_division_roles;
+  if (udrList && udrList.length > 0) {
+    for (let i = 0; i < udrList.length; i++) {
+      const udrRoleId = udrList[i].role_id;
+      if (udrRoleId) {
+        const foundRole = rolesById ? rolesById.get(udrRoleId) : roleOptions.find(r => r.id === udrRoleId);
+        if (foundRole) return { label: foundRole.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+      }
+    }
   }
 
   return { label: user.role === 'dibujo' ? 'Dibujo' : 'Localizador', badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
@@ -113,29 +119,35 @@ function ToolCategoryIcon({ type }: { type: 'gpr' | 'cad' | 'admin' | 'universal
 }
 
 // ── Helpers para resolver herramientas y formularios del rol ──────────────────
-function getUserRoleIds(user: User, roleOptions: RoleOption[]): string[] {
+function getUserRoleIds(user: User, roleOptions: RoleOption[], rolesById?: Map<string, RoleOption>): string[] {
   const ids = new Set<string>();
   if (user.role_id) ids.add(user.role_id);
-  (user.user_division_roles ?? []).forEach(udr => {
-    if (udr.role_id) ids.add(udr.role_id);
-  });
+  const udrList = user.user_division_roles;
+  if (udrList) {
+    for (let i = 0; i < udrList.length; i++) {
+      if (udrList[i].role_id) ids.add(udrList[i].role_id!);
+    }
+  }
   if (ids.size === 0 && user.role && user.role !== 'admin' && user.role !== 'pending') {
-    const match = roleOptions.find(r =>
-      r.name.toLowerCase() === user.role.toLowerCase() ||
-      ((user.role === 'operator' || user.role === 'localizador') && (r.name.toLowerCase().includes('localizador') || r.name.toLowerCase().includes('operador'))) ||
-      (user.role === 'dibujo' && r.name.toLowerCase().includes('dibujo'))
-    );
+    const roleLower = user.role.toLowerCase();
+    const match = roleOptions.find(r => {
+      const rNameLower = r.name.toLowerCase();
+      return rNameLower === roleLower ||
+        ((user.role === 'operator' || user.role === 'localizador') && (rNameLower.includes('localizador') || rNameLower.includes('operador'))) ||
+        (user.role === 'dibujo' && rNameLower.includes('dibujo'));
+    });
     if (match) ids.add(match.id);
   }
   return Array.from(ids);
 }
 
-function getToolsAndFormsFromRoles(roleIds: string[], roleOptions: RoleOption[]) {
+function getToolsAndFormsFromRoles(roleIds: string[], roleOptions: RoleOption[], rolesById?: Map<string, RoleOption>) {
   const toolIds = new Set<string>();
   const formIds = new Set<string>();
 
-  roleIds.forEach(rid => {
-    const r = roleOptions.find(opt => opt.id === rid);
+  for (let i = 0; i < roleIds.length; i++) {
+    const rid = roleIds[i];
+    const r = rolesById ? rolesById.get(rid) : roleOptions.find(opt => opt.id === rid);
     if (r) {
       (r.role_tools ?? []).forEach(rt => {
         if (rt.tools?.id) toolIds.add(rt.tools.id);
@@ -144,7 +156,7 @@ function getToolsAndFormsFromRoles(roleIds: string[], roleOptions: RoleOption[])
         if (rf.forms?.id) formIds.add(rf.forms.id);
       });
     }
-  });
+  }
 
   return { toolIds, formIds };
 }
@@ -166,6 +178,7 @@ function getUserEffectiveToolsAndForms(user: User) {
 function DivisionBlockCard({
   block, blockIndex, divisions, roleOptions, allProjects, usedDivisionIds, canRemove,
   onDivisionChange, onRoleChange, onToggleProject, onRemove,
+  projectsByDivisionId, rolesByDivisionId, globalRoles,
 }: {
   block: DivisionBlock; blockIndex: number;
   divisions: DivisionOption[]; roleOptions: RoleOption[]; allProjects: ProjectOption[];
@@ -174,16 +187,45 @@ function DivisionBlockCard({
   onRoleChange: (i: number, roleId: string) => void;
   onToggleProject: (i: number, projId: string) => void;
   onRemove: (i: number) => void;
+  projectsByDivisionId?: Map<string, ProjectOption[]>;
+  rolesByDivisionId?: Map<string, RoleOption[]>;
+  globalRoles?: RoleOption[];
 }) {
   const [search, setSearch] = useState('');
-  const divProjects = allProjects.filter(p => (p.divisions ?? []).some(d => d.id === block.divisionId));
-  const filtered = search
-    ? divProjects.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || ((p.cost_center || p.code || '').toLowerCase().includes(search.toLowerCase())))
-    : divProjects;
+
+  const divProjects = useMemo(() => {
+    if (projectsByDivisionId) {
+      return projectsByDivisionId.get(block.divisionId) || [];
+    }
+    return allProjects.filter(p => (p.divisions ?? []).some(d => d.id === block.divisionId));
+  }, [projectsByDivisionId, block.divisionId, allProjects]);
+
+  const filtered = useMemo(() => {
+    if (!search) return divProjects;
+    const s = search.toLowerCase();
+    return divProjects.filter(p =>
+      p.name.toLowerCase().includes(s) ||
+      ((p.cost_center || p.code || '').toLowerCase().includes(s))
+    );
+  }, [divProjects, search]);
+
   // Roles específicos de esta división y roles globales (sin división asignada, ej. HSEQ)
-  const divSpecificRoles = roleOptions.filter(r => r.division_id === block.divisionId);
-  const globalRoles = roleOptions.filter(r => !r.division_id);
-  const availableRoles = [...divSpecificRoles, ...globalRoles];
+  const divSpecificRoles = useMemo(() => {
+    if (rolesByDivisionId) {
+      return rolesByDivisionId.get(block.divisionId) || [];
+    }
+    return roleOptions.filter(r => r.division_id === block.divisionId);
+  }, [rolesByDivisionId, block.divisionId, roleOptions]);
+
+  const resolvedGlobalRoles = useMemo(() => {
+    if (globalRoles) return globalRoles;
+    return roleOptions.filter(r => !r.division_id);
+  }, [globalRoles, roleOptions]);
+
+  const availableRoles = useMemo(
+    () => [...divSpecificRoles, ...resolvedGlobalRoles],
+    [divSpecificRoles, resolvedGlobalRoles]
+  );
 
   return (
     <div className="border border-border rounded-xl p-4 space-y-3 bg-gray-50/40">
@@ -292,9 +334,9 @@ function DivisionBlockCard({
                   ))}
                 </optgroup>
               )}
-              {globalRoles.length > 0 && (
+              {resolvedGlobalRoles.length > 0 && (
                 <optgroup label="Roles globales (todas las divisiones)">
-                  {globalRoles.map(r => (
+                  {resolvedGlobalRoles.map(r => (
                     <option key={r.id} value={r.id}>🌐 {r.name} (Global)</option>
                   ))}
                 </optgroup>
@@ -344,8 +386,47 @@ export default function AdminUsersPage() {
   const allTools: ToolOption[] = useMemo(() => data?.tools ?? [], [data?.tools]);
   const allForms: FormOption[] = useMemo(() => data?.forms ?? [], [data?.forms]);
 
-  const projectsForDiv = (divId: string) =>
-    allProjects.filter(p => (p.divisions ?? []).some(d => d.id === divId));
+  const rolesById = useMemo(() => indexBy(roleOptions, r => r.id), [roleOptions]);
+
+  const projectsByDivisionId = useMemo(() => {
+    const map = new Map<string, ProjectOption[]>();
+    for (let i = 0; i < allProjects.length; i++) {
+      const p = allProjects[i];
+      const pDivs = p.divisions;
+      if (pDivs && pDivs.length > 0) {
+        for (let j = 0; j < pDivs.length; j++) {
+          const divId = pDivs[j].id;
+          const list = map.get(divId);
+          if (list) {
+            list.push(p);
+          } else {
+            map.set(divId, [p]);
+          }
+        }
+      }
+    }
+    return map;
+  }, [allProjects]);
+
+  const rolesByDivisionId = useMemo(() => {
+    const map = new Map<string, RoleOption[]>();
+    for (let i = 0; i < roleOptions.length; i++) {
+      const r = roleOptions[i];
+      if (r.division_id) {
+        const list = map.get(r.division_id);
+        if (list) list.push(r);
+        else map.set(r.division_id, [r]);
+      }
+    }
+    return map;
+  }, [roleOptions]);
+
+  const globalRoles = useMemo(() => roleOptions.filter(r => !r.division_id), [roleOptions]);
+
+  const projectsForDiv = useCallback(
+    (divId: string) => (divId ? projectsByDivisionId.get(divId) || [] : []),
+    [projectsByDivisionId]
+  );
 
   // Initialize blocks and sync role tools/forms when data and user are ready
   useEffect(() => {
@@ -367,7 +448,7 @@ export default function AdminUsersPage() {
       });
       setEditBlocks(blocks.length > 0 ? blocks : [{ divisionId: '', roleId: '', projectIds: new Set() }]);
     } else if (editingUser.role_id) {
-      const role = roleOptions.find(r => r.id === editingUser.role_id);
+      const role = rolesById.get(editingUser.role_id);
       if (role?.division_id) {
         const divProjs = projectsForDiv(role.division_id);
         const selected = divProjs.filter(p => userProjIds.has(p.id)).map(p => p.id);
@@ -544,7 +625,7 @@ export default function AdminUsersPage() {
   const onRoleChange = (i: number, roleId: string) => {
     setEditBlocks(prev => prev.map((b, idx) => idx === i ? { ...b, roleId } : b));
     if (roleId) {
-      const { toolIds: newToolIds, formIds: newFormIds } = getToolsAndFormsFromRoles([roleId], roleOptions);
+      const { toolIds: newToolIds, formIds: newFormIds } = getToolsAndFormsFromRoles([roleId], roleOptions, rolesById);
       setSelectedToolIds(prev => {
         const next = new Set(prev);
         newToolIds.forEach(id => next.add(id));
@@ -584,34 +665,51 @@ export default function AdminUsersPage() {
     });
   };
 
-  const usedDivisionIds = editBlocks.map(b => b.divisionId).filter(Boolean);
-  const pendingCount = users.filter(u => u.role === 'pending').length;
+  const usedDivisionIds = useMemo(() => editBlocks.map(b => b.divisionId).filter(Boolean), [editBlocks]);
+  const pendingCount = useMemo(() => users.filter(u => u.role === 'pending').length, [users]);
 
-  // Filtrado de herramientas por búsqueda
-  const filteredTools = allTools.filter(t =>
-    t.name.toLowerCase().includes(toolSearch.toLowerCase()) ||
-    t.slug.toLowerCase().includes(toolSearch.toLowerCase()) ||
-    (t.category && t.category.toLowerCase().includes(toolSearch.toLowerCase()))
-  );
+  // Filtrado de herramientas por búsqueda (memoizado)
+  const filteredTools = useMemo(() => {
+    if (!toolSearch) return allTools;
+    const q = toolSearch.toLowerCase();
+    return allTools.filter(t =>
+      t.name.toLowerCase().includes(q) ||
+      t.slug.toLowerCase().includes(q) ||
+      (t.category && t.category.toLowerCase().includes(q))
+    );
+  }, [allTools, toolSearch]);
 
-  // Filtrado de formularios por búsqueda
-  const filteredForms = allForms.filter(f =>
-    f.name.toLowerCase().includes(formSearch.toLowerCase()) ||
-    f.slug.toLowerCase().includes(formSearch.toLowerCase()) ||
-    (f.description && f.description.toLowerCase().includes(formSearch.toLowerCase()))
-  );
+  // Filtrado de formularios por búsqueda (memoizado)
+  const filteredForms = useMemo(() => {
+    if (!formSearch) return allForms;
+    const q = formSearch.toLowerCase();
+    return allForms.filter(f =>
+      f.name.toLowerCase().includes(q) ||
+      f.slug.toLowerCase().includes(q) ||
+      (f.description && f.description.toLowerCase().includes(q))
+    );
+  }, [allForms, formSearch]);
 
   // Permisos otorgados por el rol activo en el modal
   const currentModalRoleIds = useMemo(() => {
     const fromBlocks = editBlocks.map(b => b.roleId).filter(Boolean);
     if (fromBlocks.length > 0) return fromBlocks;
-    if (editingUser) return getUserRoleIds(editingUser, roleOptions);
+    if (editingUser) return getUserRoleIds(editingUser, roleOptions, rolesById);
     return [];
-  }, [editBlocks, editingUser, roleOptions]);
+  }, [editBlocks, editingUser, roleOptions, rolesById]);
 
   const currentRolePermissions = useMemo(() => {
-    return getToolsAndFormsFromRoles(currentModalRoleIds, roleOptions);
-  }, [currentModalRoleIds, roleOptions]);
+    return getToolsAndFormsFromRoles(currentModalRoleIds, roleOptions, rolesById);
+  }, [currentModalRoleIds, roleOptions, rolesById]);
+
+  // Ordenamiento de usuarios memoizado (evita mutar en cada render)
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      if (a.role === 'pending' && b.role !== 'pending') return -1;
+      if (a.role !== 'pending' && b.role === 'pending') return 1;
+      return 0;
+    });
+  }, [users]);
 
   // Función para restablecer exactamente a las herramientas de su rol
   const handleResetToRoleDefaults = () => {
@@ -643,14 +741,8 @@ export default function AdminUsersPage() {
             <div className="p-8 text-center text-text-muted">Cargando usuarios...</div>
           ) : (
             <div className="divide-y divide-border">
-              {users
-                .sort((a, b) => {
-                  if (a.role === 'pending' && b.role !== 'pending') return -1;
-                  if (a.role !== 'pending' && b.role === 'pending') return 1;
-                  return 0;
-                })
-                .map(user => {
-                  const badge = userDisplayBadge(user, roleOptions);
+              {sortedUsers.map(user => {
+                const badge = userDisplayBadge(user, roleOptions, rolesById);
 
                   return (
                     <div key={user.id} className={`p-4 sm:p-5 flex items-center gap-4 transition-colors ${
@@ -975,6 +1067,9 @@ export default function AdminUsersPage() {
                           divisions={divisions}
                           roleOptions={roleOptions}
                           allProjects={allProjects}
+                          projectsByDivisionId={projectsByDivisionId}
+                          rolesByDivisionId={rolesByDivisionId}
+                          globalRoles={globalRoles}
                           usedDivisionIds={usedDivisionIds}
                           canRemove={editBlocks.length > 1}
                           onDivisionChange={onDivisionChange}

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
@@ -7,6 +7,11 @@ import { getOptimalResponses } from '@/lib/hseq-definitions';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+// Expresiones regulares y diccionarios constantes (pre-compilados O(1))
+const DRONE_REGEX = /024|drone/i;
+const ESTACION_REGEX = /025|estaci[oó]n/i;
+const NON_OBS_SET = new Set(['ninguna', 'ninguno', 'ningun', 'sin observaciones', 'n/a', 'na', '']);
 
 interface InspectionRow {
   id: string;
@@ -33,19 +38,34 @@ interface InspectionRow {
   users?: { id?: string; full_name?: string; email?: string; division_id?: string | null; divisions?: { name?: string } | null } | null;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
+  const { searchParams } = new URL(req.url);
+  const limitParam = searchParams.get('limit');
+  const offsetParam = searchParams.get('offset');
+  const fetchAllParam = searchParams.get('all') === 'true';
+
+  // Límite predeterminado seguro para evitar transferencias no acotadas
+  const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 50, 1), 500) : 200;
+  const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : 0;
+
   try {
     const supabase = createAdminClient();
 
-    const { data: rows, error } = await supabase
+    let query = supabase
       .from('hseq_drone_inspections')
       .select('*, projects(id, name, cost_center, client), users(id, full_name, email, division_id, divisions!users_division_id_fkey(name))')
       .order('created_at', { ascending: false });
+
+    if (!fetchAllParam) {
+      query = query.range(offset, offset + limit - 1);
+    }
+
+    const { data: rows, error } = await query;
 
     if (error) {
       console.error('Error consultando hseq_drone_inspections para tablero:', error);
@@ -53,6 +73,10 @@ export async function GET() {
     }
 
     const typedRows = (rows || []) as unknown as InspectionRow[];
+
+    // Pre-cargar mapas óptimos una sola vez fuera del bucle map O(1)
+    const droneOptimalMap = getOptimalResponses('drone');
+    const estacionOptimalMap = getOptimalResponses('estacion_total');
 
     const evidences = typedRows.map((row) => {
       const rawResponses = (row.items_responses || {}) as Record<string, unknown>;
@@ -65,8 +89,9 @@ export async function GET() {
         }
       }
 
-      const isDrone = /024|drone/i.test(`${row.pdf_filename || ''} ${String(meta.format_code || '')}`);
-      const isEstacion = /025|estaci[oó]n/i.test(`${row.pdf_filename || ''} ${String(meta.format_code || '')}`);
+      const fileAndCode = `${row.pdf_filename || ''} ${String(meta.format_code || '')}`;
+      const isDrone = DRONE_REGEX.test(fileAndCode);
+      const isEstacion = ESTACION_REGEX.test(fileAndCode);
 
       const formatCode =
         (typeof (row as any).format_code === 'string' && (row as any).format_code) ||
@@ -88,8 +113,7 @@ export async function GET() {
 
       const obsText = (row.general_observations || '').trim().toLowerCase();
       const hasCustomObservations =
-        Boolean(row.general_observations) &&
-        !['ninguna', 'ninguno', 'ningun', 'sin observaciones', 'n/a', 'na', ''].includes(obsText);
+        Boolean(row.general_observations) && !NON_OBS_SET.has(obsText);
 
       // Usar ítems no conformes pre-calculados del formato o evaluar con mapa óptimo
       const storedNonCompliant =
@@ -106,7 +130,7 @@ export async function GET() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         nonCompliantCodes = storedNonCompliant.map((it: any) => (typeof it === 'string' ? it : it.code || ''));
       } else {
-        optimalMap = getOptimalResponses(isEstacion ? 'estacion_total' : 'drone');
+        optimalMap = isEstacion ? estacionOptimalMap : droneOptimalMap;
         nonCompliantCodes = Object.entries(responses)
           .filter(([code, val]) => {
             const expected = optimalMap[code];

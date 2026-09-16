@@ -33,4 +33,10 @@ Todo agente de Inteligencia Artificial que opere en este workspace debe acatar e
   - **Tipografía Bimodal:** Inter para UI general y `JetBrains Mono` para coordenadas UTM, GHz, horas, códigos y metadatos.
   - **Mobile:** Contenedores con `min-h-[100dvh]` (nunca `h-screen`) y targets táctiles de mínimo `44x44px`.
 
-Para especificaciones completas, consultar [PRODUCT.md](PRODUCT.md), [.agents/rules/procimec_design_system.md](.agents/rules/procimec_design_system.md) y [.agents/rules/procimec_architecture.md](.agents/rules/procimec_architecture.md).
+## 5. Estándares de Rendimiento y Algoritmia
+- **Indexación O(1):** Prohibido cruces de colecciones anidados O(N * M); indexar con `Map` (`indexBy`, `groupBy` en `@/lib/indexing`).
+- **I/O Asíncrono Concurrente:** Evitar waterfalls; usar `Promise.allSettled` para llamadas a red independientes.
+- **Consultas Acotadas:** Límites y proyecciones estrictas en Supabase para evitar transferencias no acotadas.
+
+Para especificaciones completas, consultar [PRODUCT.md](PRODUCT.md), [.agents/rules/procimec_design_system.md](.agents/rules/procimec_design_system.md), [.agents/rules/procimec_architecture.md](.agents/rules/procimec_architecture.md) y [.agents/rules/procimec_performance.md](.agents/rules/procimec_performance.md).
+

@@ -174,85 +174,97 @@ export async function POST(req: NextRequest) {
       payloadForGeneration
     );
 
-    // 3. Almacenar Evidencias en Supabase Storage (Bucket 'evidencias')
+    // 3. Almacenamiento y consultas independientes en paralelo (Cero Waterfall I/O)
     const supabase = createAdminClient();
+    const year = new Date().getFullYear();
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const pdfStoragePath = `pdf/${year}/${month}/${fileName}`;
+    const excelStoragePath = `excel/${year}/${month}/${excelFileName}`;
+
     let pdfUrl: string | null = null;
     let excelUrl: string | null = null;
+    let driveFileId: string | null = null;
+    let driveWebViewLink: string | null = null;
+    const driveWarning: string | null = null;
+    let divisionName = formatConfig.formatType === 'drone' ? 'Mapping / Drones' : 'Ingeniería / Topografía';
 
-    try {
-      const year = new Date().getFullYear();
-      const month = String(new Date().getMonth() + 1).padStart(2, '0');
-      const pdfStoragePath = `pdf/${year}/${month}/${fileName}`;
-      const excelStoragePath = `excel/${year}/${month}/${excelFileName}`;
-
-      // Subir PDF a bucket de evidencias
-      const pdfUpload = await supabase.storage.from('evidencias').upload(pdfStoragePath, pdfBuffer, {
+    // Disparar las 4 operaciones I/O concurrentemente con Promise.allSettled
+    const [pdfStorageRes, excelStorageRes, driveUploadRes, userProfileRes] = await Promise.allSettled([
+      // Task 1: Subir PDF a Supabase Storage
+      supabase.storage.from('evidencias').upload(pdfStoragePath, pdfBuffer, {
         contentType: 'application/pdf',
         upsert: true,
-      });
-      if (!pdfUpload.error) {
-        pdfUrl = supabase.storage.from('evidencias').getPublicUrl(pdfStoragePath).data.publicUrl;
-      }
+      }),
 
-      // Subir Excel (.xlsx) a bucket de evidencias
-      const excelUpload = await supabase.storage.from('evidencias').upload(excelStoragePath, excelResult.excelBuffer, {
+      // Task 2: Subir Excel (.xlsx) a Supabase Storage
+      supabase.storage.from('evidencias').upload(excelStoragePath, excelResult.excelBuffer, {
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         upsert: true,
-      });
-      if (!excelUpload.error) {
-        excelUrl = supabase.storage.from('evidencias').getPublicUrl(excelStoragePath).data.publicUrl;
-      }
-    } catch (sErr) {
-      console.warn('Aviso guardando evidencias en Supabase Storage:', sErr);
+      }),
+
+      // Task 3: Copia en Google Drive (si está configurada)
+      (async () => {
+        const { Readable } = await import('stream');
+        const uploadDrive = await getUploadDriveClient();
+        return uploadDrive.files.create({
+          requestBody: {
+            name: fileName,
+            parents: [HSEQ_EVIDENCE_FOLDER_ID],
+            mimeType: 'application/pdf',
+          },
+          media: {
+            mimeType: 'application/pdf',
+            body: Readable.from(pdfBuffer),
+          },
+          fields: 'id, name, webViewLink',
+        });
+      })(),
+
+      // Task 4: Consultar división del usuario autenticado
+      supabase
+        .from('users')
+        .select('division_id, divisions!users_division_id_fkey(name)')
+        .eq('id', session.user.id)
+        .single(),
+    ]);
+
+    // Procesar resultados de Task 1 (PDF en Supabase Storage)
+    if (pdfStorageRes.status === 'fulfilled' && !pdfStorageRes.value.error) {
+      pdfUrl = supabase.storage.from('evidencias').getPublicUrl(pdfStoragePath).data.publicUrl;
+    } else if (pdfStorageRes.status === 'rejected') {
+      console.warn('Aviso guardando PDF en Supabase Storage:', pdfStorageRes.reason);
     }
 
-    let driveFileId: string | null = null;
-    let driveWebViewLink: string | null = pdfUrl;
-    const driveWarning: string | null = null;
-
-    // 4. Intentar guardar copia complementaria en Google Drive (si está disponible)
-    try {
-      const { Readable } = await import('stream');
-      const uploadDrive = await getUploadDriveClient();
-
-      const uploadRes = await uploadDrive.files.create({
-        requestBody: {
-          name: fileName,
-          parents: [HSEQ_EVIDENCE_FOLDER_ID],
-          mimeType: 'application/pdf',
-        },
-        media: {
-          mimeType: 'application/pdf',
-          body: Readable.from(pdfBuffer),
-        },
-        fields: 'id, name, webViewLink',
-      });
-
-      driveFileId = uploadRes.data.id || null;
-      if (uploadRes.data.webViewLink) {
-        driveWebViewLink = uploadRes.data.webViewLink;
-      }
-    } catch {
-      // Ignorar error de cuota en Drive personal; la evidencia ya quedó respaldada en Supabase Storage
+    // Procesar resultados de Task 2 (Excel en Supabase Storage)
+    if (excelStorageRes.status === 'fulfilled' && !excelStorageRes.value.error) {
+      excelUrl = supabase.storage.from('evidencias').getPublicUrl(excelStoragePath).data.publicUrl;
+    } else if (excelStorageRes.status === 'rejected') {
+      console.warn('Aviso guardando Excel en Supabase Storage:', excelStorageRes.reason);
     }
 
-    // 5. Determinar División del Usuario y Formulario
-    let divisionName = formatConfig.formatType === 'drone' ? 'Mapping / Drones' : 'Ingeniería / Topografía';
-    try {
+    // Procesar resultados de Task 3 (Google Drive)
+    if (driveUploadRes.status === 'fulfilled' && driveUploadRes.value?.data) {
+      driveFileId = driveUploadRes.value.data.id || null;
+      if (driveUploadRes.value.data.webViewLink) {
+        driveWebViewLink = driveUploadRes.value.data.webViewLink;
+      }
+    }
+    // Si no hubo enlace de Drive, usar la URL pública del PDF como respaldo
+    if (!driveWebViewLink) {
+      driveWebViewLink = pdfUrl;
+    }
+
+    // Procesar resultados de Task 4 (División del usuario)
+    if (userProfileRes.status === 'fulfilled') {
       interface UserProfileWithDiv {
         division_id?: string | null;
         divisions?: { name?: string } | null;
       }
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('division_id, divisions!users_division_id_fkey(name)')
-        .eq('id', session.user.id)
-        .single();
-      const typedProfile = userProfile as unknown as UserProfileWithDiv | null;
+      const typedProfile = userProfileRes.value.data as unknown as UserProfileWithDiv | null;
       if (typedProfile?.divisions?.name) {
         divisionName = typedProfile.divisions.name;
       }
-    } catch {}
+    }
 
     // 6. Detectar si hay variaciones respecto a la condición óptima o Puntos Críticos
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
