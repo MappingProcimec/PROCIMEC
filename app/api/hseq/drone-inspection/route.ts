@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
       templateId = '',
       templateCode = '',
       templateTitle = '',
+      templateVersion,
+      templateDate,
       customItems = [],
       customSections = [],
       droneBrandModel,
@@ -72,23 +74,29 @@ export async function POST(req: NextRequest) {
     }
 
     // Resolver configuración del formato (Drone, Estación Total o Dinámico)
+    const combinedStr = `${templateId || ''} ${templateCode || ''} ${templateTitle || ''}`.toLowerCase();
     const isDrone =
       templateId === 'hseq-drone-preoperational' ||
-      templateId.includes('024') ||
-      templateId.toLowerCase().includes('drone');
+      combinedStr.includes('024') ||
+      combinedStr.includes('drone') ||
+      combinedStr.includes('dron');
     const isEstacion =
       templateId === 'hseq-estacion-total' ||
-      templateId.includes('025') ||
-      templateId.toLowerCase().includes('estacion') ||
-      templateId.toLowerCase().includes('estación');
+      combinedStr.includes('025') ||
+      combinedStr.includes('estacion') ||
+      combinedStr.includes('estación');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let formatConfig: any;
 
     if (isDrone) {
       formatConfig = getHseqFormatConfig('drone');
+      if (templateVersion) formatConfig.version = templateVersion;
+      if (templateDate) formatConfig.templateDate = templateDate;
     } else if (isEstacion) {
       formatConfig = getHseqFormatConfig('estacion');
+      if (templateVersion) formatConfig.version = templateVersion;
+      if (templateDate) formatConfig.templateDate = templateDate;
     } else if (Array.isArray(customItems) && customItems.length > 0) {
       formatConfig = {
         id: templateId,
@@ -96,7 +104,8 @@ export async function POST(req: NextRequest) {
         code: templateCode || 'FOR-HSEQ',
         title: templateTitle || 'Inspección Pre-operacional',
         pdfTitle: (templateTitle || 'Inspección Pre-operacional').toUpperCase(),
-        version: '01',
+        version: templateVersion || '2',
+        templateDate: templateDate || '16-sep-2026',
         equipmentLabel: equipmentBrandModel ? 'Equipo' : 'Equipo / Herramienta',
         defaultEquipment: equipmentBrandModel || 'Equipo Estándar',
         defaultSerial: equipmentSerial || 'PROC-EQ-001',
@@ -108,8 +117,12 @@ export async function POST(req: NextRequest) {
       try {
         const { parseExcelTemplateSchema } = await import('@/lib/hseq-drive');
         formatConfig = await parseExcelTemplateSchema(templateId);
+        if (templateVersion) formatConfig.version = templateVersion;
+        if (templateDate) formatConfig.templateDate = templateDate;
       } catch {
         formatConfig = getHseqFormatConfig(`${templateId} ${templateCode} ${templateTitle}`);
+        if (templateVersion) formatConfig.version = templateVersion;
+        if (templateDate) formatConfig.templateDate = templateDate;
       }
     }
 
@@ -141,6 +154,8 @@ export async function POST(req: NextRequest) {
       formatTitle: formatConfig.pdfTitle,
       formatCode: formatConfig.code,
       version: formatConfig.version,
+      templateVersion: formatConfig.version,
+      templateDate: formatConfig.templateDate,
       equipmentLabel: formatConfig.equipmentLabel,
       projectName: projectName || 'Proyecto',
       costCenter: costCenter || '',

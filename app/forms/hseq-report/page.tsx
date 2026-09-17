@@ -318,6 +318,8 @@ export default function HseqReportFormPage() {
           templateId: selectedTemplateId,
           templateCode: formatConfig.code,
           templateTitle: formatConfig.pdfTitle || formatConfig.title,
+          templateVersion: formatConfig.version,
+          templateDate: formatConfig.templateDate || '16-sep-2026',
           customItems: formatConfig.items,
           customSections: formatConfig.sections,
           projectId: selectedProjectId,

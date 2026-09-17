@@ -127,7 +127,16 @@ export function convertWorksheetToPdf(
           colSpan: 1,
           styles: { halign: 'center', fontSize: 10, fontStyle: 'bold', valign: 'middle' },
         });
-        const metaText = `CÓDIGO: ${payload.formatCode || 'FOR-HSEQ-024'}\nVERSIÓN: ${payload.version || '2'}\nFECHA: ${payload.inspectionDate || ''}`;
+
+        // Extraer metadatos de versión y fecha de revisión del formato oficial desde la celda A1 o payload
+        const rawHeaderMeta = String(ws.getRow(1).getCell(1).value || '');
+        const verMatch = rawHeaderMeta.match(/versi[oó]n[:\s]*([a-zA-Z0-9\-_]+)/i);
+        const dateMatch = rawHeaderMeta.match(/fecha[:\s]*([^\r\n]+)/i);
+
+        const formatVersion = verMatch ? verMatch[1] : (payload.templateVersion || payload.version || '2');
+        const templateRevDate = dateMatch ? dateMatch[1].trim() : (payload.templateDate || '16-sep-2026');
+
+        const metaText = `CÓDIGO: ${payload.formatCode || 'FOR-HSEQ-024'}\nVERSIÓN: ${formatVersion}\nFECHA: ${templateRevDate}`;
         rowCells.push({
           content: metaText,
           colSpan: 3,
@@ -186,7 +195,7 @@ export function convertWorksheetToPdf(
           styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
         });
         rowCells.push({
-          content: `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
+          content: payload.operatorSignatureDataUrl ? '' : `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
           colSpan: 4,
           styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
         });
@@ -198,7 +207,7 @@ export function convertWorksheetToPdf(
           styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
         });
         rowCells.push({
-          content: `${payload.sstaName || 'Responsable STTA'} (Firma Digital Verificada)`,
+          content: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable STTA'} (Firma Digital Verificada)`,
           colSpan: 4,
           styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
         });
@@ -488,37 +497,43 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
     });
 
     // Ajustar altura de filas de firmas para que queden holgadamente dentro de la celda
-    ws.getRow(38).height = 48;
-    ws.getRow(39).height = 48;
+    ws.getRow(38).height = 42;
+    ws.getRow(39).height = 42;
     ws.getRow(39).getCell(1).value = 'FIRMA RESPONSABLE / STTA';
-
-    // Alinear texto en la parte inferior de la celda para que no se sobreponga al trazo gráfico
-    ws.getRow(38).getCell(2).alignment = { vertical: 'bottom', horizontal: 'left' };
-    ws.getRow(39).getCell(2).alignment = { vertical: 'bottom', horizontal: 'left' };
 
     // Incrustar trazos gráficos de firma perfectamente contenidos dentro de la celda
     if (payload.operatorSignatureDataUrl?.startsWith('data:image')) {
+      ws.getRow(38).getCell(2).value = '';
       try {
         const opBuffer = Buffer.from(payload.operatorSignatureDataUrl.split(',')[1], 'base64');
         const opImgId = wb.addImage({ buffer: opBuffer as any, extension: 'png' });
         ws.addImage(opImgId, {
-          tl: { col: 1.1, row: 37.08 },
-          ext: { width: 110, height: 32 },
+          tl: { col: 1.2, row: 37.1 },
+          ext: { width: 130, height: 36 },
           editAs: 'oneCell',
         });
-      } catch {}
+      } catch (err) {
+        console.warn('Error incrustando firma operador en Excel:', err);
+      }
+    } else {
+      ws.getRow(38).getCell(2).value = `${payload.operatorName || 'Operador'} (Firma Verificada)`;
     }
 
     if (payload.sstaSignatureDataUrl?.startsWith('data:image')) {
+      ws.getRow(39).getCell(2).value = '';
       try {
         const sstaBuffer = Buffer.from(payload.sstaSignatureDataUrl.split(',')[1], 'base64');
         const sstaImgId = wb.addImage({ buffer: sstaBuffer as any, extension: 'png' });
         ws.addImage(sstaImgId, {
-          tl: { col: 1.1, row: 38.08 },
-          ext: { width: 110, height: 32 },
+          tl: { col: 1.2, row: 38.1 },
+          ext: { width: 130, height: 36 },
           editAs: 'oneCell',
         });
-      } catch {}
+      } catch (err) {
+        console.warn('Error incrustando firma STTA en Excel:', err);
+      }
+    } else {
+      ws.getRow(39).getCell(2).value = `${payload.sstaName || 'Responsable STTA'} (Firma Verificada)`;
     }
   } else if (isEstacion) {
     // ── Llenado de Formato Estación Total (FOR-HSEQ-025) ─────────────────────
@@ -700,7 +715,46 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
     });
   }
 
-  const excelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
+  // Saneamiento de rangos con enlaces externos huérfanos que corrompen el libro en MS Excel
+  wb.definedNames.model = (wb.definedNames.model || []).filter((d: any) => {
+    const isExternal = d.ranges?.some((r: string) => r.includes('[') || r.includes(']'));
+    return !isExternal && d.name !== 'DATOS';
+  });
+
+  const rawExcelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
+  let excelBuffer = rawExcelBuffer;
+
+  // Post-procesamiento estricto de integridad OpenXML con JSZip:
+  // 1. Elimina cualquier remanente de <definedName name="DATOS"> o referencias externas en xl/workbook.xml
+  try {
+    const JSZipModule = await import('jszip');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const JSZip = (JSZipModule as any).default || JSZipModule;
+    const zip = await JSZip.loadAsync(rawExcelBuffer);
+    let modified = false;
+
+    const wbEntry = zip.file('xl/workbook.xml');
+    if (wbEntry) {
+      let wbXml = await wbEntry.async('string');
+      if (wbXml.includes('DATOS') || wbXml.includes('&apos;[') || wbXml.includes('\'[')) {
+        wbXml = wbXml.replace(/<definedName name="DATOS">.*?<\/definedName>/g, '');
+        wbXml = wbXml.replace(/<definedName[^>]*>[^<]*\[\d+\][^<]*<\/definedName>/g, '');
+        zip.file('xl/workbook.xml', wbXml);
+        modified = true;
+      }
+    }
+
+    if (modified) {
+      excelBuffer = await zip.generateAsync({
+        type: 'nodebuffer',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 },
+      });
+    }
+  } catch (err) {
+    console.warn('Aviso en saneamiento OpenXML de libro Excel:', err);
+  }
+
   const excelBase64 = excelBuffer.toString('base64');
 
   const cleanFormat = (payload.formatCode || 'FOR-HSEQ').replace(/[^a-zA-Z0-9\-_]/g, '_');

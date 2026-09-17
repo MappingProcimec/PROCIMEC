@@ -282,6 +282,7 @@ export interface HseqFormatConfig {
   sections: readonly string[];
   items: DroneInspectionItemDef[];
   isDynamic?: boolean;
+  templateDate?: string;
 }
 
 export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
@@ -295,6 +296,7 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
       title: 'Inspección Pre-operacional de Estación Total',
       pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL ESTACIÓN TOTAL',
       version: '01',
+      templateDate: '10-sep-2026',
       equipmentLabel: 'Estación Total',
       defaultEquipment: 'Leica FlexLine TS07',
       defaultSerial: 'PROC-ET-001',
@@ -310,7 +312,8 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
     code: 'FOR-HSEQ-024',
     title: 'Inspección Pre-operacional de Drone',
     pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL DRONE',
-    version: '02',
+    version: '2',
+    templateDate: '16-sep-2026',
     equipmentLabel: 'Drone',
     defaultEquipment: 'DJI Mavic 3 Enterprise',
     defaultSerial: 'PROC-DRN-001',
@@ -323,7 +326,10 @@ export interface HseqPdfGenerationPayload {
   formatTitle?: string;
   formatCode?: string;
   version?: string;
+  templateVersion?: string;
+  templateDate?: string;
   equipmentLabel?: string;
+
   projectName: string;
   costCenter: string;
   location: string;
