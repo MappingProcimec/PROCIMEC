@@ -860,10 +860,10 @@ export default function HseqReportFormPage() {
                       )}
                     </div>
 
-                    {/* Firma SSTA */}
+                    {/* Firma Responsable / STTA */}
                     <div className="border border-border rounded-xl p-4 bg-gray-50/50 space-y-2.5">
                       <span className="text-xs font-bold text-text-secondary block">
-                        Responsable SSTA / SST <span className="text-error">*</span>
+                        Responsable / STTA <span className="text-error">*</span>
                       </span>
 
                       {sstaSignDataUrl ? (
@@ -872,7 +872,7 @@ export default function HseqReportFormPage() {
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={sstaSignDataUrl}
-                              alt="Firma SSTA"
+                              alt="Firma Responsable / STTA"
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>
@@ -891,10 +891,10 @@ export default function HseqReportFormPage() {
                         <button
                           type="button"
                           onClick={() => setIsSstaModalOpen(true)}
-                          className="btn btn-outline w-full text-xs"
+                          className="btn btn-outline w-full text-xs font-semibold hover:border-primary hover:text-primary transition-all"
                         >
                           <PenTool className="w-3.5 h-3.5" />
-                          <span>Capturar Firma SSTA</span>
+                          <span>Capturar Firma Responsable / STTA</span>
                         </button>
                       )}
                     </div>
@@ -955,12 +955,12 @@ export default function HseqReportFormPage() {
         }}
       />
 
-      {/* Modal Firma SSTA */}
+      {/* Modal Firma Responsable / STTA */}
       <DigitalSignatureModal
         isOpen={isSstaModalOpen}
         onClose={() => setIsSstaModalOpen(false)}
-        title="Firma Digital del Responsable SSTA / SST"
-        roleLabel="Seguridad y Salud en el Trabajo"
+        title="Firma Digital del Responsable / STTA"
+        roleLabel="Responsable / STTA"
         initialName={sstaSignName}
         onSaveSignature={(name, dataUrl) => {
           setSstaSignName(name);

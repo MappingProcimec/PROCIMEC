@@ -222,19 +222,19 @@ export function DigitalSignatureModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overscroll-none touch-none animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[92vh] overscroll-contain">
         {/* Header Modal */}
-        <div className="bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-800 p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
+        <div className="bg-[#1E2229] border-b border-[#EAA023]/30 p-4 sm:p-5 text-white flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-white/15 rounded-xl backdrop-blur-md">
-              <PenTool className="w-5 h-5 text-teal-200" />
+            <div className="p-2 bg-[#EAA023]/15 border border-[#EAA023]/30 rounded-xl backdrop-blur-md">
+              <PenTool className="w-5 h-5 text-[#EAA023]" />
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base leading-snug">{title}</h3>
-              <p className="text-[11px] sm:text-xs text-teal-100 font-medium">Firma Digital Oficial • {roleLabel}</p>
+              <h3 className="font-bold text-sm sm:text-base leading-snug text-white">{title}</h3>
+              <p className="text-[11px] sm:text-xs text-gray-300 font-medium">Firma Digital Oficial • {roleLabel}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -244,7 +244,7 @@ export function DigitalSignatureModal({
           {/* Paso 1: Verificación de Identidad (Nombre Completo) */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-              <UserCheck className="w-4 h-4 text-teal-600" />
+              <UserCheck className="w-4 h-4 text-[#EAA023]" />
               1. Nombre Completo de Quien Firma <span className="text-red-500">*</span>
             </label>
             <input
@@ -254,8 +254,8 @@ export function DigitalSignatureModal({
                 setFullName(e.target.value);
                 if (e.target.value.trim().length >= 3) setErrorMsg('');
               }}
-              placeholder="Ej: Marcelo Barraza / Ing. Inspector SSTA"
-              className="w-full text-sm font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition-all"
+              placeholder="Ej: Marcelo Barraza / Ing. Inspector STTA"
+              className="w-full text-sm font-medium px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-[#EAA023] focus:border-[#EAA023] outline-none transition-all"
             />
             <p className="text-[11px] text-slate-500">
               {isNameValid ? (
@@ -292,7 +292,7 @@ export function DigitalSignatureModal({
               style={{ touchAction: 'none' }}
               className={`relative border-2 rounded-2xl overflow-hidden touch-none select-none transition-all ${
                 isNameValid
-                  ? 'border-dashed border-teal-400 bg-white shadow-inner cursor-crosshair'
+                  ? 'border-dashed border-[#EAA023] bg-white shadow-inner cursor-crosshair'
                   : 'border-slate-200 bg-slate-100 opacity-60 cursor-not-allowed'
               }`}
             >
@@ -342,9 +342,13 @@ export function DigitalSignatureModal({
             type="button"
             onClick={handleConfirm}
             disabled={!isNameValid || !hasDrawn}
-            className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 rounded-xl shadow-md transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className={`px-5 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
+              isNameValid && hasDrawn
+                ? 'bg-[#EAA023] hover:bg-[#d48b17] text-[#1E2229] shadow-md active:scale-[0.98] cursor-pointer'
+                : 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed shadow-none'
+            }`}
           >
-            <Check className="w-4 h-4" />
+            <Check className="w-4 h-4 stroke-[2.5]" />
             Confirmar y Guardar Firma
           </button>
         </div>

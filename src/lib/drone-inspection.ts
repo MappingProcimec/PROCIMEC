@@ -7,6 +7,31 @@ import autoTable from 'jspdf-autotable';
 import { PROCIMEC_LOGO_BASE64 } from './logo-base64';
 import { getDriveClient } from './hseq-drive';
 
+import crypto from 'crypto';
+
+// Parche de integridad para ExcelJS: evita error de "problema con contenido" en MS Excel generando GUIDs únicos
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ExtLstXform = require('exceljs/lib/xlsx/xform/drawing/ext-lst-xform');
+  if (ExtLstXform?.prototype) {
+    ExtLstXform.prototype.render = function (xmlStream: any) {
+      const guid = `{${crypto.randomUUID().toUpperCase()}}`;
+      xmlStream.openNode(this.tag);
+      xmlStream.openNode('a:ext', {
+        uri: '{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}',
+      });
+      xmlStream.leafNode('a16:creationId', {
+        'xmlns:a16': 'http://schemas.microsoft.com/office/drawing/2014/main',
+        id: guid,
+      });
+      xmlStream.closeNode();
+      xmlStream.closeNode();
+    };
+  }
+} catch (err) {
+  console.warn('Aviso: parche ExtLstXform no inicializado:', err);
+}
+
 export * from './hseq-definitions';
 import {
   DRONE_INSPECTION_ITEMS,
@@ -90,19 +115,27 @@ export function convertWorksheetToPdf(
       const rowCells: any[] = [];
 
       if (r === 1) {
+        // Encabezado institucional canónico (Logo + Título + Bloque técnico Código/Versión/Fecha)
+        logoCellPos = { rowIdx: tableBody.length, colIdx: 0 };
         rowCells.push({
-          content: String(row.getCell(1).value || ''),
-          colSpan: 5,
-          styles: { halign: 'right', fontSize: 6.5, fontStyle: 'bold', fillColor: [245, 247, 250] },
+          content: '',
+          colSpan: 1,
+          styles: { halign: 'center', valign: 'middle', minCellHeight: 12 },
+        });
+        rowCells.push({
+          content: String(payload.formatTitle || 'INSPECCIÓN PRE-OPERACIONAL DRONE').toUpperCase(),
+          colSpan: 1,
+          styles: { halign: 'center', fontSize: 10, fontStyle: 'bold', valign: 'middle' },
+        });
+        const metaText = `CÓDIGO: ${payload.formatCode || 'FOR-HSEQ-024'}\nVERSIÓN: ${payload.version || '2'}\nFECHA: ${payload.inspectionDate || ''}`;
+        rowCells.push({
+          content: metaText,
+          colSpan: 3,
+          styles: { halign: 'center', fontSize: 6.5, fontStyle: 'bold', valign: 'middle', fillColor: [248, 250, 252] },
         });
       } else if (r === 2) {
-        logoCellPos = { rowIdx: tableBody.length, colIdx: 0 };
-        rowCells.push({ content: '', colSpan: 1, styles: { halign: 'center' } }); // Celda de Logo Procimec
-        rowCells.push({
-          content: String(row.getCell(2).value || 'INSPECCIÓN PRE-OPERACIONAL DRONE'),
-          colSpan: 4,
-          styles: { halign: 'center', fontSize: 11, fontStyle: 'bold', valign: 'middle' },
-        });
+        // Fila 2 de Excel integrada en el encabezado institucional superior
+        continue;
       } else if (r >= 3 && r <= 8) {
         rowCells.push({
           content: String(row.getCell(1).value || ''),
@@ -148,26 +181,26 @@ export function convertWorksheetToPdf(
       } else if (r === 38) {
         operatorSignRowIdx = tableBody.length;
         rowCells.push({
-          content: String(row.getCell(1).value || 'FIRMA RESPONSABLE DEL EQUIPO'),
+          content: 'FIRMA RESPONSABLE DEL EQUIPO',
           colSpan: 1,
-          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 11 },
+          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
         });
         rowCells.push({
-          content: String(row.getCell(2).value || ''),
+          content: `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
           colSpan: 4,
-          styles: { fontSize: 6.5, minCellHeight: 11 },
+          styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
         });
       } else if (r === 39) {
         sstaSignRowIdx = tableBody.length;
         rowCells.push({
-          content: String(row.getCell(1).value || 'FIRMA RESPONSABLE SSTA O PROYECTO'),
+          content: 'FIRMA RESPONSABLE / STTA',
           colSpan: 1,
-          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 11 },
+          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
         });
         rowCells.push({
-          content: String(row.getCell(2).value || ''),
+          content: `${payload.sstaName || 'Responsable STTA'} (Firma Digital Verificada)`,
           colSpan: 4,
-          styles: { fontSize: 6.5, minCellHeight: 11 },
+          styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
         });
       } else if (r === 40) {
         let t = row.getCell(1).value || row.getCell(2).value;
@@ -311,19 +344,19 @@ export function convertWorksheetToPdf(
           doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', data.cell.x + 1.5, data.cell.y + 0.8, isLandscape ? 26 : 23, isLandscape ? 8.5 : 7.5);
         } catch {}
       }
-      // Estampar firma digital del Operador
+      // Estampar firma digital del Operador (sin sobreescribir el texto inferior)
       if (data.row.index === operatorSignRowIdx && data.column.index === 1) {
         if (payload.operatorSignatureDataUrl && payload.operatorSignatureDataUrl.startsWith('data:image')) {
           try {
-            doc.addImage(payload.operatorSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 9);
+            doc.addImage(payload.operatorSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 0.8, 28, 7.5);
           } catch {}
         }
       }
-      // Estampar firma digital del SSTA
+      // Estampar firma digital del Responsable / STTA (sin sobreescribir el texto inferior)
       if (data.row.index === sstaSignRowIdx && data.column.index === 1) {
         if (payload.sstaSignatureDataUrl && payload.sstaSignatureDataUrl.startsWith('data:image')) {
           try {
-            doc.addImage(payload.sstaSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 1, 35, 9);
+            doc.addImage(payload.sstaSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 0.8, 28, 7.5);
           } catch {}
         }
       }
@@ -427,7 +460,7 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
       '{{serial_drone}}': payload.equipmentSerial || payload.droneSerial || 'PROC-DRN-001',
       '{{serial}}': payload.equipmentSerial || payload.droneSerial || 'PROC-DRN-001',
       '{{firma_op}}': `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
-      '{{firma_ss}}': `${payload.sstaName || 'Responsable SSTA'} (Firma Digital Verificada)`,
+      '{{firma_ss}}': `${payload.sstaName || 'Responsable STTA'} (Firma Digital Verificada)`,
       '{{observaciones}}': payload.generalObservations || 'Sin observaciones.',
       '{{punto_critico}}': payload.criticalPoint || 'Ninguno',
     };
@@ -454,14 +487,24 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
       });
     });
 
-    // Incrustar trazos gráficos de firma en celdas de firma
+    // Ajustar altura de filas de firmas para que queden holgadamente dentro de la celda
+    ws.getRow(38).height = 48;
+    ws.getRow(39).height = 48;
+    ws.getRow(39).getCell(1).value = 'FIRMA RESPONSABLE / STTA';
+
+    // Alinear texto en la parte inferior de la celda para que no se sobreponga al trazo gráfico
+    ws.getRow(38).getCell(2).alignment = { vertical: 'bottom', horizontal: 'left' };
+    ws.getRow(39).getCell(2).alignment = { vertical: 'bottom', horizontal: 'left' };
+
+    // Incrustar trazos gráficos de firma perfectamente contenidos dentro de la celda
     if (payload.operatorSignatureDataUrl?.startsWith('data:image')) {
       try {
         const opBuffer = Buffer.from(payload.operatorSignatureDataUrl.split(',')[1], 'base64');
         const opImgId = wb.addImage({ buffer: opBuffer as any, extension: 'png' });
         ws.addImage(opImgId, {
-          tl: { col: 1.2, row: 37.1 },
-          ext: { width: 130, height: 40 },
+          tl: { col: 1.1, row: 37.08 },
+          ext: { width: 110, height: 32 },
+          editAs: 'oneCell',
         });
       } catch {}
     }
@@ -471,8 +514,9 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
         const sstaBuffer = Buffer.from(payload.sstaSignatureDataUrl.split(',')[1], 'base64');
         const sstaImgId = wb.addImage({ buffer: sstaBuffer as any, extension: 'png' });
         ws.addImage(sstaImgId, {
-          tl: { col: 1.2, row: 38.1 },
-          ext: { width: 130, height: 40 },
+          tl: { col: 1.1, row: 38.08 },
+          ext: { width: 110, height: 32 },
+          editAs: 'oneCell',
         });
       } catch {}
     }

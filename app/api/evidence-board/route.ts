@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     const supabase = createAdminClient();
 
     let query = supabase
-      .from('hseq_drone_inspections')
+      .from('hseq_inspections')
       .select('*, projects(id, name, cost_center, client), users(id, full_name, email, division_id, divisions!users_division_id_fkey(name))')
       .order('created_at', { ascending: false });
 
@@ -65,10 +65,26 @@ export async function GET(req: NextRequest) {
       query = query.range(offset, offset + limit - 1);
     }
 
-    const { data: rows, error } = await query;
+    let { data: rows, error } = await query;
+
+    // Fallback retrocompatible a hseq_drone_inspections si aún no se ha ejecutado la migración 017
+    if (error && (error.code === 'PGRST205' || error.message?.includes('not find the table'))) {
+      let fallbackQuery = supabase
+        .from('hseq_drone_inspections')
+        .select('*, projects(id, name, cost_center, client), users(id, full_name, email, division_id, divisions!users_division_id_fkey(name))')
+        .order('created_at', { ascending: false });
+
+      if (!fetchAllParam) {
+        fallbackQuery = fallbackQuery.range(offset, offset + limit - 1);
+      }
+
+      const fbRes = await fallbackQuery;
+      rows = fbRes.data;
+      error = fbRes.error;
+    }
 
     if (error) {
-      console.error('Error consultando hseq_drone_inspections para tablero:', error);
+      console.error('Error consultando hseq_inspections para tablero:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

@@ -345,42 +345,104 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    // 7. Persistir en la Base de Datos Supabase (Ley 1 de PROCIMEC)
-    const { data: inserted, error: dbErr } = await supabase
-      .from('hseq_drone_inspections')
-      .insert({
-        project_id: projectId,
-        user_id: session.user.id,
-        status: hasAnomalies ? 'submitted' : 'approved',
-        cost_center: costCenter || null,
-        location: location || null,
-        inspection_date: inspectionDate,
-        drone_brand_model: brandModel,
-        drone_serial: serial || null,
-        items_responses: enrichedItemsResponses,
-        critical_point: criticalPoint || 'Ninguno',
-        general_observations: generalObservations || null,
-        operator_name: operatorName,
-        operator_signature_data: operatorSignatureDataUrl,
-        ssta_name: sstaName,
-        ssta_signature_data: sstaSignatureDataUrl,
-        drive_file_id: driveFileId,
-        drive_web_view_link: driveWebViewLink,
-        pdf_filename: fileName,
-        division_name: divisionName,
-        format_code: formatConfig.code,
-        format_title: formatConfig.title,
-        excel_filename: excelFileName,
-        excel_url: excelUrl,
-        pdf_url: pdfUrl,
-        has_anomalies: hasAnomalies,
-        non_compliant_items: nonCompliantItems,
-      })
+    // 7. Persistir en la Base de Datos Supabase (Tabla Canónica hseq_inspections)
+    const fullPayload = {
+      project_id: projectId,
+      user_id: session.user.id,
+      status: hasAnomalies ? 'submitted' : 'approved',
+      cost_center: costCenter || null,
+      location: location || null,
+      inspection_date: inspectionDate,
+      equipment_brand_model: brandModel,
+      equipment_serial: serial || null,
+      drone_brand_model: brandModel,
+      drone_serial: serial || null,
+      items_responses: enrichedItemsResponses,
+      critical_point: criticalPoint || 'Ninguno',
+      general_observations: generalObservations || null,
+      operator_name: operatorName,
+      operator_signature_data: operatorSignatureDataUrl,
+      ssta_name: sstaName,
+      ssta_signature_data: sstaSignatureDataUrl,
+      drive_file_id: driveFileId,
+      drive_web_view_link: driveWebViewLink,
+      pdf_filename: fileName,
+      pdf_storage_path: pdfStoragePath,
+      pdf_url: pdfUrl,
+      division_name: divisionName,
+      format_code: formatConfig.code,
+      format_title: formatConfig.title,
+      excel_filename: excelFileName,
+      excel_storage_path: excelStoragePath,
+      excel_url: excelUrl,
+      has_anomalies: hasAnomalies,
+      non_compliant_items: nonCompliantItems,
+    };
+
+    let inserted: any = null;
+    let dbErr: any = null;
+
+    // Intento 1: Tabla canónica hseq_inspections
+    const res1 = await supabase
+      .from('hseq_inspections')
+      .insert(fullPayload)
       .select()
       .single();
 
+    if (!res1.error) {
+      inserted = res1.data;
+    } else {
+      console.warn('Aviso insertando en hseq_inspections, probando tabla hseq_drone_inspections:', res1.error.message);
+      // Intento 2: Tabla hseq_drone_inspections con payload completo
+      const res2 = await supabase
+        .from('hseq_drone_inspections')
+        .insert(fullPayload)
+        .select()
+        .single();
+
+      if (!res2.error) {
+        inserted = res2.data;
+      } else {
+        console.warn('Aviso insertando con payload completo en hseq_drone_inspections, aplicando fallback resiliente:', res2.error.message);
+        // Intento 3: Columnas base en hseq_drone_inspections (por si faltan columnas de migración 016 en Supabase)
+        const basePayload = {
+          project_id: projectId,
+          user_id: session.user.id,
+          status: hasAnomalies ? 'submitted' : 'approved',
+          cost_center: costCenter || null,
+          location: location || null,
+          inspection_date: inspectionDate,
+          drone_brand_model: brandModel,
+          drone_serial: serial || null,
+          items_responses: enrichedItemsResponses,
+          critical_point: criticalPoint || 'Ninguno',
+          general_observations: generalObservations || null,
+          operator_name: operatorName,
+          operator_signature_data: operatorSignatureDataUrl,
+          ssta_name: sstaName,
+          ssta_signature_data: sstaSignatureDataUrl,
+          drive_file_id: driveFileId,
+          drive_web_view_link: driveWebViewLink,
+          pdf_filename: fileName,
+        };
+
+        const res3 = await supabase
+          .from('hseq_drone_inspections')
+          .insert(basePayload)
+          .select()
+          .single();
+
+        if (!res3.error) {
+          inserted = res3.data;
+        } else {
+          dbErr = res3.error;
+          console.error('Error definitivo insertando inspección en base de datos:', dbErr);
+        }
+      }
+    }
+
     if (dbErr) {
-      console.error('Error insertando en hseq_drone_inspections:', dbErr);
+      console.error('Error insertando inspección en BD:', dbErr);
       return NextResponse.json({
         ok: true,
         recordId: null,
@@ -389,7 +451,7 @@ export async function POST(req: NextRequest) {
         excelFileName,
         excelBase64,
         webViewLink: driveWebViewLink,
-        dbWarning: `El registro se generó en PDF y Excel oficial, pero la tabla hseq_drone_inspections requiere ejecutar la migración 015 en Supabase: ${dbErr.message}`,
+        dbWarning: `El registro se generó en PDF y Excel oficial, pero la tabla hseq_inspections requiere ejecutar la migración 017 en Supabase: ${dbErr.message}`,
         driveWarning,
       });
     }
