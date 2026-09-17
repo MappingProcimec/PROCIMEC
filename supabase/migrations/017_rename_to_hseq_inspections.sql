@@ -85,8 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_hseq_inspections_user_id ON public.hseq_inspectio
 CREATE INDEX IF NOT EXISTS idx_hseq_inspections_date ON public.hseq_inspections(inspection_date);
 CREATE INDEX IF NOT EXISTS idx_hseq_inspections_created_at ON public.hseq_inspections(created_at DESC);
 
--- 5. Vista de retrocompatibilidad para lecturas anteriores
-CREATE OR REPLACE VIEW public.hseq_drone_inspections AS
-  SELECT * FROM public.hseq_inspections;
+-- 5. Eliminar la vista/nombre anterior hseq_drone_inspections para dejar únicamente hseq_inspections
+DROP VIEW IF EXISTS public.hseq_drone_inspections CASCADE;
 
 COMMENT ON TABLE public.hseq_inspections IS 'Registro canónico de inspecciones pre-operacionales HSEQ (Drones, Estación Total, Georadar, etc.)';
