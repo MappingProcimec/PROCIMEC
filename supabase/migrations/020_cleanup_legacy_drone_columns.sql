@@ -3,11 +3,15 @@
 -- Normaliza definitivamente public.hseq_inspections como tabla genérica multi-equipo
 -- ==============================================================================
 
--- 1. Asegurar columna equipment_name
+-- 1. Eliminar la vista/tabla obsoleta hseq_drone_inspections PRIMERO con CASCADE
+DROP VIEW IF EXISTS public.hseq_drone_inspections CASCADE;
+DROP TABLE IF EXISTS public.hseq_drone_inspections CASCADE;
+
+-- 2. Asegurar columna equipment_name
 ALTER TABLE IF EXISTS public.hseq_inspections
 ADD COLUMN IF NOT EXISTS equipment_name TEXT;
 
--- 2. Migrar cualquier valor remanente antes de eliminar columnas
+-- 3. Migrar cualquier valor remanente antes de eliminar columnas
 DO $$
 BEGIN
   IF EXISTS (
@@ -29,12 +33,12 @@ BEGIN
   END IF;
 END $$;
 
--- 3. Eliminar columnas obsoletas que contienen 'drone'
+-- 4. Eliminar columnas obsoletas que contienen 'drone' con CASCADE
 ALTER TABLE IF EXISTS public.hseq_inspections
-DROP COLUMN IF EXISTS drone_brand_model,
-DROP COLUMN IF EXISTS drone_serial;
+DROP COLUMN IF EXISTS drone_brand_model CASCADE,
+DROP COLUMN IF EXISTS drone_serial CASCADE;
 
--- 4. Normalizar divisiones canónicas en registros existentes
+-- 5. Normalizar divisiones canónicas en registros existentes
 UPDATE public.hseq_inspections
 SET 
   division_name = 'Mapping',
@@ -50,6 +54,3 @@ SET
 WHERE 
   format_code = 'FOR-HSEQ-025' 
   OR LOWER(COALESCE(format_title, '')) LIKE '%estaci%';
-
--- 5. Eliminar la tabla obsoleta hseq_drone_inspections si aún persiste
-DROP TABLE IF EXISTS public.hseq_drone_inspections CASCADE;
