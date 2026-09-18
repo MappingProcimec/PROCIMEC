@@ -13,6 +13,21 @@ const DRONE_REGEX = /024|drone/i;
 const ESTACION_REGEX = /025|estaci[oó]n/i;
 const NON_OBS_SET = new Set(['ninguna', 'ninguno', 'ningun', 'sin observaciones', 'n/a', 'na', '']);
 
+function normalizeDivision(rawName?: string | null): 'Mapping' | 'Ingeniería' {
+  if (!rawName) return 'Mapping';
+  const norm = rawName.trim().toLowerCase();
+  if (
+    norm.includes('ing') ||
+    norm.includes('topo') ||
+    norm.includes('geof') ||
+    norm.includes('cad') ||
+    norm.includes('bim')
+  ) {
+    return 'Ingeniería';
+  }
+  return 'Mapping';
+}
+
 interface InspectionRow {
   id: string;
   project_id: string;
@@ -163,11 +178,12 @@ export async function GET(req: NextRequest) {
           ? Boolean(meta.has_anomalies)
           : nonCompliantCodes.length > 0 || hasCritical || hasCustomObservations;
 
-      const divisionName =
+      const rawDivision =
         (typeof (row as any).division_name === 'string' && (row as any).division_name) ||
         (typeof meta.division === 'string' && meta.division) ||
         row.users?.divisions?.name ||
-        'Mapping / Drones';
+        (isEstacion ? 'Ingeniería' : 'Mapping');
+      const divisionName = normalizeDivision(rawDivision);
 
       const dateStr = row.inspection_date || row.created_at?.split('T')[0] || '';
       let timeStr = '';
@@ -182,8 +198,16 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      const equipmentStr = row.drone_brand_model || (typeof meta.equipment_brand_model === 'string' && meta.equipment_brand_model) || 'Equipo General';
-      const serialStr = row.drone_serial || (typeof meta.equipment_serial === 'string' && meta.equipment_serial) || 'S/N';
+      const equipmentStr =
+        (typeof (row as any).equipment_brand_model === 'string' && (row as any).equipment_brand_model) ||
+        row.drone_brand_model ||
+        (typeof meta.equipment_brand_model === 'string' && meta.equipment_brand_model) ||
+        'Equipo General';
+      const serialStr =
+        (typeof (row as any).equipment_serial === 'string' && (row as any).equipment_serial) ||
+        row.drone_serial ||
+        (typeof meta.equipment_serial === 'string' && meta.equipment_serial) ||
+        'S/N';
       const pdfUrlStr = (typeof meta.pdf_url === 'string' && meta.pdf_url) || row.drive_web_view_link || '';
       const excelUrlStr = (typeof meta.excel_url === 'string' && meta.excel_url) || '';
       const excelFileStr = (typeof meta.excel_filename === 'string' && meta.excel_filename) || row.pdf_filename?.replace(/\.pdf$/i, '.xlsx') || `Inspeccion_${formatCode}.xlsx`;
@@ -192,6 +216,8 @@ export async function GET(req: NextRequest) {
         id: row.id,
         formatCode,
         formatTitle,
+        code: formatCode,
+        formatName: formatTitle,
         projectId: row.project_id,
         projectName: row.projects?.name || 'Proyecto General',
         projectCode: row.projects?.cost_center || row.cost_center || 'CC-PROY',

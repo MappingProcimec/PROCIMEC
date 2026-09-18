@@ -48,18 +48,20 @@ export default function EvidenceBoardToolPage() {
   const [search, setSearch] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('all');
   const [selectedProject, setSelectedProject] = useState('all');
+  const [selectedEquipment, setSelectedEquipment] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'conforme' | 'alerta' | 'observaciones'>('all');
   const [selectedFormat, setSelectedFormat] = useState('all');
   const [selectedLocator, setSelectedLocator] = useState('all');
 
   // Column Specific Filters
   const [colFilterProjectText, setColFilterProjectText] = useState('');
+  const [colFilterEquipmentText, setColFilterEquipmentText] = useState('');
   const [colFilterDate, setColFilterDate] = useState('');
   const [showColumnFilters, setShowColumnFilters] = useState(true);
 
   // Sorting
   const [sortField, setSortField] = useState<
-    'division' | 'format' | 'project' | 'locator' | 'date' | 'status' | null
+    'division' | 'format' | 'project' | 'equipment' | 'locator' | 'date' | 'status' | null
   >('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
@@ -97,13 +99,14 @@ export default function EvidenceBoardToolPage() {
   const uniqueProjects = Array.from(
     new Map(evidences.map((e) => [e.projectName, { name: e.projectName, code: e.projectCode }])).values()
   );
+  const uniqueEquipments = Array.from(new Set(evidences.map((e) => e.equipment).filter(Boolean)));
   const uniqueFormats = Array.from(
     new Map(evidences.map((e) => [e.code, { code: e.code, name: e.formatName }])).values()
   );
   const uniqueLocators = Array.from(new Set(evidences.map((e) => e.locatorName).filter(Boolean)));
 
   // Sorting handler
-  const handleSort = (field: 'division' | 'format' | 'project' | 'locator' | 'date' | 'status') => {
+  const handleSort = (field: 'division' | 'format' | 'project' | 'equipment' | 'locator' | 'date' | 'status') => {
     if (sortField === field) {
       if (sortDirection === 'asc') {
         setSortDirection('desc');
@@ -116,7 +119,7 @@ export default function EvidenceBoardToolPage() {
     }
   };
 
-  const getSortIcon = (field: 'division' | 'format' | 'project' | 'locator' | 'date' | 'status') => {
+  const getSortIcon = (field: 'division' | 'format' | 'project' | 'equipment' | 'locator' | 'date' | 'status') => {
     if (sortField !== field) return <span className="text-gray-300 font-normal ml-1">↕</span>;
     return <span className="text-teal-600 font-black ml-1">{sortDirection === 'asc' ? '▲' : '▼'}</span>;
   };
@@ -126,10 +129,12 @@ export default function EvidenceBoardToolPage() {
     setSearch('');
     setSelectedDivision('all');
     setSelectedProject('all');
+    setSelectedEquipment('all');
     setSelectedFormat('all');
     setSelectedLocator('all');
     setSelectedStatus('all');
     setColFilterProjectText('');
+    setColFilterEquipmentText('');
     setColFilterDate('');
     setSortField('date');
     setSortDirection('desc');
@@ -139,10 +144,12 @@ export default function EvidenceBoardToolPage() {
     Boolean(search) ||
     selectedDivision !== 'all' ||
     selectedProject !== 'all' ||
+    selectedEquipment !== 'all' ||
     selectedFormat !== 'all' ||
     selectedLocator !== 'all' ||
     selectedStatus !== 'all' ||
     Boolean(colFilterProjectText) ||
+    Boolean(colFilterEquipmentText) ||
     Boolean(colFilterDate);
 
   // Filter and Sorting logic combined
@@ -162,6 +169,7 @@ export default function EvidenceBoardToolPage() {
 
       const matchesDivision = selectedDivision === 'all' || ev.divisionName === selectedDivision;
       const matchesProject = selectedProject === 'all' || ev.projectName === selectedProject;
+      const matchesEquipment = selectedEquipment === 'all' || ev.equipment === selectedEquipment;
       const matchesFormat = selectedFormat === 'all' || ev.code === selectedFormat;
       const matchesLocator = selectedLocator === 'all' || ev.locatorName === selectedLocator;
 
@@ -170,9 +178,13 @@ export default function EvidenceBoardToolPage() {
       const matchesColProject =
         !projQ ||
         ev.projectName.toLowerCase().includes(projQ) ||
-        ev.equipment.toLowerCase().includes(projQ) ||
-        (ev.costCenter && ev.costCenter.toLowerCase().includes(projQ)) ||
-        (ev.serial && ev.serial.toLowerCase().includes(projQ));
+        (ev.costCenter && ev.costCenter.toLowerCase().includes(projQ));
+
+      const eqQ = colFilterEquipmentText.toLowerCase();
+      const matchesColEquipment =
+        !eqQ ||
+        ev.equipment.toLowerCase().includes(eqQ) ||
+        (ev.serial && ev.serial.toLowerCase().includes(eqQ));
 
       const matchesColDate = !colFilterDate || ev.date.includes(colFilterDate);
 
@@ -189,9 +201,11 @@ export default function EvidenceBoardToolPage() {
         matchesSearch &&
         matchesDivision &&
         matchesProject &&
+        matchesEquipment &&
         matchesFormat &&
         matchesLocator &&
         matchesColProject &&
+        matchesColEquipment &&
         matchesColDate &&
         matchesStatus
       );
@@ -216,6 +230,10 @@ export default function EvidenceBoardToolPage() {
           valA = a.projectName || '';
           valB = b.projectName || '';
           break;
+        case 'equipment':
+          valA = a.equipment || '';
+          valB = b.equipment || '';
+          break;
         case 'locator':
           valA = a.locatorName || '';
           valB = b.locatorName || '';
@@ -238,10 +256,12 @@ export default function EvidenceBoardToolPage() {
     search,
     selectedDivision,
     selectedProject,
+    selectedEquipment,
     selectedFormat,
     selectedLocator,
     selectedStatus,
     colFilterProjectText,
+    colFilterEquipmentText,
     colFilterDate,
     sortField,
     sortDirection,
@@ -403,6 +423,20 @@ export default function EvidenceBoardToolPage() {
                 ))}
               </select>
 
+              {/* Equipment Filter */}
+              <select
+                value={selectedEquipment}
+                onChange={(e) => setSelectedEquipment(e.target.value)}
+                className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              >
+                <option value="all">⚙️ Todos los Equipos</option>
+                {uniqueEquipments.map((eq) => (
+                  <option key={eq} value={eq}>
+                    {eq}
+                  </option>
+                ))}
+              </select>
+
               {/* Format Filter */}
               <select
                 value={selectedFormat}
@@ -507,8 +541,19 @@ export default function EvidenceBoardToolPage() {
                       title="Ordenar por Proyecto"
                     >
                       <div className="flex items-center gap-1">
-                        <span>Proyecto / Equipo</span>
+                        <span>Proyecto</span>
                         {getSortIcon('project')}
+                      </div>
+                    </th>
+
+                    <th
+                      onClick={() => handleSort('equipment')}
+                      className="px-4 py-3 cursor-pointer hover:bg-gray-100/80 transition-colors select-none group"
+                      title="Ordenar por Equipo"
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>Equipo</span>
+                        {getSortIcon('equipment')}
                       </div>
                     </th>
 
@@ -585,12 +630,12 @@ export default function EvidenceBoardToolPage() {
                         </select>
                       </th>
 
-                      {/* Filtro Columna: Proyecto / Equipo */}
+                      {/* Filtro Columna: Proyecto */}
                       <th className="p-2 font-normal">
                         <div className="relative">
                           <input
                             type="text"
-                            placeholder="Buscar proyecto o equipo..."
+                            placeholder="Buscar proyecto o CC..."
                             value={colFilterProjectText}
                             onChange={(e) => setColFilterProjectText(e.target.value)}
                             className="w-full text-[11px] px-2 py-1 pr-5 rounded-md border border-border bg-white text-text-primary placeholder:text-gray-400 focus:ring-1 focus:ring-teal-500 focus:outline-none"
@@ -599,6 +644,28 @@ export default function EvidenceBoardToolPage() {
                             <button
                               type="button"
                               onClick={() => setColFilterProjectText('')}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-[10px]"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </th>
+
+                      {/* Filtro Columna: Equipo */}
+                      <th className="p-2 font-normal">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Buscar equipo o serial..."
+                            value={colFilterEquipmentText}
+                            onChange={(e) => setColFilterEquipmentText(e.target.value)}
+                            className="w-full text-[11px] px-2 py-1 pr-5 rounded-md border border-border bg-white text-text-primary placeholder:text-gray-400 focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                          />
+                          {colFilterEquipmentText && (
+                            <button
+                              type="button"
+                              onClick={() => setColFilterEquipmentText('')}
                               className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-[10px]"
                             >
                               ✕
@@ -679,7 +746,7 @@ export default function EvidenceBoardToolPage() {
                 <tbody className="divide-y divide-border">
                   {loading && (
                     <tr>
-                      <td colSpan={7} className="text-center py-12 text-text-muted">
+                      <td colSpan={8} className="text-center py-12 text-text-muted">
                         <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600 mb-2"></div>
                         <p>Cargando evidencias y auditoría desde la base de datos...</p>
                       </td>
@@ -688,7 +755,7 @@ export default function EvidenceBoardToolPage() {
 
                   {!loading && error && (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-red-600">
+                      <td colSpan={8} className="text-center py-8 text-red-600">
                         <p className="font-semibold">Error cargando evidencias:</p>
                         <p className="text-xs mt-1">{error}</p>
                       </td>
@@ -712,13 +779,22 @@ export default function EvidenceBoardToolPage() {
                         </p>
                       </td>
 
-                      {/* Proyecto y Equipo */}
+                      {/* Proyecto */}
                       <td className="px-4 py-3">
                         <span className="font-semibold text-text-primary block">{ev.projectName}</span>
-                        <p className="text-[10px] text-text-muted mt-0.5">
-                          {ev.costCenter && <span className="mr-2">CC: {ev.costCenter}</span>}
-                          <span>⚙️ {ev.equipment} {ev.serial ? `(${ev.serial})` : ''}</span>
-                        </p>
+                        {ev.costCenter && (
+                          <span className="text-[10px] text-text-muted mt-0.5 block font-mono">
+                            CC: {ev.costCenter}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Equipo */}
+                      <td className="px-4 py-3">
+                        <span className="font-semibold text-text-primary block">{ev.equipment}</span>
+                        <span className="text-[10px] text-text-muted mt-0.5 block font-mono">
+                          {ev.serial ? `S/N: ${ev.serial}` : 'Sin serial'}
+                        </span>
                       </td>
 
                       {/* Localizador */}
@@ -793,7 +869,7 @@ export default function EvidenceBoardToolPage() {
 
                   {!loading && !error && filteredEvidences.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="text-center py-10 text-text-muted">
+                      <td colSpan={8} className="text-center py-10 text-text-muted">
                         No se encontraron evidencias que coincidan con los filtros seleccionados.
                       </td>
                     </tr>

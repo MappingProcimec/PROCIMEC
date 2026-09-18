@@ -33,13 +33,11 @@ try {
 }
 
 export * from './hseq-definitions';
-import {
-  DRONE_INSPECTION_ITEMS,
-  ESTACION_TOTAL_ITEMS,
+import type {
   HseqPdfGenerationPayload,
   DronePdfGenerationPayload,
-  getHseqFormatConfig,
 } from './hseq-definitions';
+import { getHseqFormatConfig } from './hseq-definitions';
 
 // ─── Conversión Fiel de Hoja de Cálculo Excel (.xlsx) a PDF ───────────────────
 export function convertWorksheetToPdf(
@@ -50,15 +48,20 @@ export function convertWorksheetToPdf(
   pdfBase64: string;
   pdfBuffer: Buffer;
 } {
-  // 1. Detectar dimensión y orientación de la hoja
+  // 1. Detectar dimensión y orientación de la hoja con contenido real
   let maxCol = 5;
-  for (let r = 1; r <= Math.min(ws.rowCount, 25); r++) {
-    ws.getRow(r).eachCell((c, col) => {
-      if (col > maxCol) maxCol = col;
+  for (let r = 1; r <= Math.min(ws.rowCount, 45); r++) {
+    const row = ws.getRow(r);
+    row.eachCell((c, col) => {
+      const v = c.value;
+      if (v !== null && v !== undefined && String(v).trim() !== '') {
+        if (col > maxCol && col <= 15) {
+          maxCol = col;
+        }
+      }
     });
   }
-  maxCol = Math.min(maxCol, 26);
-  const isLandscape = maxCol > 10;
+  const isLandscape = maxCol > 8;
 
   const doc = new jsPDF({
     orientation: isLandscape ? 'landscape' : 'portrait',
@@ -289,13 +292,27 @@ export function convertWorksheetToPdf(
 
         const mergeInfo = mergeMap.get(`${r},${c}`);
         if (mergeInfo) {
-          if (mergeInfo.colSpan > 1) cellDef.colSpan = mergeInfo.colSpan;
+          const safeColSpan = Math.min(mergeInfo.colSpan, Math.max(1, maxCol - c + 1));
+          if (safeColSpan > 1) cellDef.colSpan = safeColSpan;
           if (mergeInfo.rowSpan > 1) cellDef.rowSpan = mergeInfo.rowSpan;
         }
 
         cellDef.styles.fontSize = isLandscape ? 5.2 : 6.5;
         if (cell.font?.bold) cellDef.styles.fontStyle = 'bold';
         if (cell.font?.italic) cellDef.styles.fontStyle = (cellDef.styles.fontStyle || '') + 'italic';
+
+        if (cell.alignment?.horizontal) {
+          cellDef.styles.halign = cell.alignment.horizontal;
+        }
+        if (cell.alignment?.vertical) {
+          cellDef.styles.valign = cell.alignment.vertical;
+        }
+
+        if (strVal.trim() === 'X') {
+          cellDef.styles.halign = 'center';
+          cellDef.styles.valign = 'middle';
+          cellDef.styles.fontStyle = 'bold';
+        }
 
         if (cell.alignment?.horizontal) {
           cellDef.styles.halign = cell.alignment.horizontal;
@@ -388,6 +405,96 @@ export function convertWorksheetToPdf(
   };
 }
 
+// ─── Motor Universal de Reemplazo de Marcadores y Tokens de Checklist ────────
+export function applyUniversalPlaceholders(
+  ws: ExcelJS.Worksheet,
+  payload: HseqPdfGenerationPayload
+): {
+  opSignatureCell: { row: number; col: number } | null;
+  sstaSignatureCell: { row: number; col: number } | null;
+  hasTaggedChecklist: boolean;
+} {
+  let opSignatureCell: { row: number; col: number } | null = null;
+  let sstaSignatureCell: { row: number; col: number } | null = null;
+  let hasTaggedChecklist = false;
+
+  const replacements: Record<string, string> = {
+    nombre_proyecto: payload.projectName || '',
+    proyecto: payload.projectName || '',
+    centro_costos: payload.costCenter || '',
+    centro_costo: payload.costCenter || '',
+    ciudad_ubicacion: payload.location || '',
+    ubicacion: payload.location || '',
+    ciudad: payload.location || '',
+    fecha: payload.inspectionDate || '',
+    fecha_inspeccion: payload.inspectionDate || '',
+    marca_modelo: payload.equipmentBrandModel || payload.droneBrandModel || 'Estándar',
+    modelo: payload.equipmentBrandModel || payload.droneBrandModel || 'Estándar',
+    serial: payload.equipmentSerial || payload.droneSerial || 'PROC-EQ-001',
+    serial_drone: payload.equipmentSerial || payload.droneSerial || 'PROC-DRN-001',
+    serial_akula: payload.serialAkula || payload.equipmentSerial || 'AKU-001',
+    serial_computadora: payload.serialComputadora || payload.equipmentSerial || 'TB-001',
+    firma_op: payload.operatorSignatureDataUrl ? '' : `${payload.operatorName || 'Operador'} (Firma Verificada)`,
+    firma_ss: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable STTA'} (Firma Verificada)`,
+    observaciones: payload.generalObservations || 'Sin observaciones.',
+    punto_critico: payload.criticalPoint || 'Ninguno',
+  };
+
+  ws.eachRow((row: any, r: number) => {
+    row.eachCell((cell: any, c: number) => {
+      if (typeof cell.value === 'string') {
+        let text = cell.value;
+
+        // Detectar anclajes de firmas
+        if (text.includes('firma_op') || text.includes('FIRMA_OP')) {
+          opSignatureCell = { row: r, col: c };
+        }
+        if (
+          text.includes('firma_ss') ||
+          text.includes('FIRMA_SS') ||
+          text.includes('firma_stta') ||
+          text.includes('firma_ssta')
+        ) {
+          sstaSignatureCell = { row: r, col: c };
+        }
+
+        // 1. Reemplazo de ítems de checklist: {[1.1_si]}, {{1.1_si}}, [1.1_si], {[1_1_si]}, etc.
+        const itemPattern = /(?:\{\[|\{\{|\[)([0-9A-Za-z\._\-]+)_(si|no|na)(?:\]\}|\}\}|\]|\})/gi;
+        if (itemPattern.test(text)) {
+          hasTaggedChecklist = true;
+          text = text.replace(
+            /(?:\{\[|\{\{|\[)([0-9A-Za-z\._\-]+)_(si|no|na)(?:\]\}|\}\}|\]|\})/gi,
+            (_: string, code: string, opt: string) => {
+              const normCode = code.replace(/_/g, '.');
+              const userResp = payload.itemsResponses[normCode] || payload.itemsResponses[code];
+              if (userResp && userResp.toUpperCase() === opt.toUpperCase()) {
+                return 'X';
+              }
+              return '';
+            }
+          );
+          if (text.trim() === 'X') {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          }
+        }
+
+        // 2. Reemplazo de metadatos generales
+        for (const [tag, val] of Object.entries(replacements)) {
+          const regex = new RegExp(`(?:\\{\\[|\\{\\{|\\[)${tag}(?:\\]\\}|\\}\\}|\\]|\\})`, 'gi');
+          text = text.replace(regex, val);
+        }
+
+        // 3. Limpiar cualquier marcador residual no reemplazado
+        text = text.replace(/(?:\{\[|\{\{)[^}\]]*(?:\]\}|\}\})/g, '').trim();
+
+        cell.value = text;
+      }
+    });
+  });
+
+  return { opSignatureCell, sstaSignatureCell, hasTaggedChecklist };
+}
+
 // ─── Llenado y Generación de la Plantilla Excel Original de Carpeta 24 ─────────
 export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & {
   templateType?: 'drone' | 'estacion_total' | 'generic';
@@ -454,48 +561,42 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
 
   const ws = wb.worksheets[0];
 
+  // 1. Ejecutar escáner universal de etiquetas {[...]}, {{...}}, [...] e ítems de respuestas
+  const { opSignatureCell, sstaSignatureCell, hasTaggedChecklist } = applyUniversalPlaceholders(ws, payload);
+
+  // Incrustar firmas digitales en las celdas detectadas por etiquetas si están disponibles
+  if (opSignatureCell && payload.operatorSignatureDataUrl?.startsWith('data:image')) {
+    try {
+      const opBuffer = Buffer.from(payload.operatorSignatureDataUrl.split(',')[1], 'base64');
+      const opImgId = wb.addImage({ buffer: opBuffer as any, extension: 'png' });
+      ws.getRow(opSignatureCell.row).height = Math.max(ws.getRow(opSignatureCell.row).height || 0, 42);
+      ws.addImage(opImgId, {
+        tl: { col: opSignatureCell.col - 1 + 0.2, row: opSignatureCell.row - 1 + 0.1 },
+        ext: { width: 130, height: 36 },
+        editAs: 'oneCell',
+      });
+    } catch (err) {
+      console.warn('Aviso incrustando firma de operador detectada:', err);
+    }
+  }
+
+  if (sstaSignatureCell && payload.sstaSignatureDataUrl?.startsWith('data:image')) {
+    try {
+      const sstaBuffer = Buffer.from(payload.sstaSignatureDataUrl.split(',')[1], 'base64');
+      const sstaImgId = wb.addImage({ buffer: sstaBuffer as any, extension: 'png' });
+      ws.getRow(sstaSignatureCell.row).height = Math.max(ws.getRow(sstaSignatureCell.row).height || 0, 42);
+      ws.addImage(sstaImgId, {
+        tl: { col: sstaSignatureCell.col - 1 + 0.2, row: sstaSignatureCell.row - 1 + 0.1 },
+        ext: { width: 130, height: 36 },
+        editAs: 'oneCell',
+      });
+    } catch (err) {
+      console.warn('Aviso incrustando firma de STTA detectada:', err);
+    }
+  }
+
   if (isDrone) {
     // ── Llenado de Formato Drone (FOR-HSEQ-024) ────────────────────────────────
-    const replacements: Record<string, string> = {
-      '{{nombre_proyecto}}': payload.projectName || '',
-      '{{proyecto}}': payload.projectName || '',
-      '{{centro_costos}}': payload.costCenter || '',
-      '{{centro_costo}}': payload.costCenter || '',
-      '{{ciudad_ubicacion}}': payload.location || '',
-      '{{ubicacion}}': payload.location || '',
-      '{{ciudad}}': payload.location || '',
-      '{{fecha}}': payload.inspectionDate || '',
-      '{{marca_modelo}}': payload.equipmentBrandModel || payload.droneBrandModel || 'DJI Mavic 3 Enterprise',
-      '{{serial_drone}}': payload.equipmentSerial || payload.droneSerial || 'PROC-DRN-001',
-      '{{serial}}': payload.equipmentSerial || payload.droneSerial || 'PROC-DRN-001',
-      '{{firma_op}}': `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
-      '{{firma_ss}}': `${payload.sstaName || 'Responsable STTA'} (Firma Digital Verificada)`,
-      '{{observaciones}}': payload.generalObservations || 'Sin observaciones.',
-      '{{punto_critico}}': payload.criticalPoint || 'Ninguno',
-    };
-
-    const items = payload.items && payload.items.length > 0 ? payload.items : DRONE_INSPECTION_ITEMS;
-    for (const item of items) {
-      const resp = payload.itemsResponses[item.code] || '';
-      replacements[`{{${item.code}_si}}`] = resp === 'SI' ? 'X' : '';
-      replacements[`{{${item.code}_no}}`] = resp === 'NO' ? 'X' : '';
-      replacements[`{{${item.code}_na}}`] = resp === 'NA' ? 'X' : '';
-    }
-
-    ws.eachRow((row: any) => {
-      row.eachCell((cell: any) => {
-        if (typeof cell.value === 'string') {
-          let text = cell.value;
-          for (const [k, v] of Object.entries(replacements)) {
-            if (text.includes(k)) {
-              text = text.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), v);
-            }
-          }
-          cell.value = text;
-        }
-      });
-    });
-
     // Ajustar altura de filas de firmas para que queden holgadamente dentro de la celda
     ws.getRow(38).height = 42;
     ws.getRow(39).height = 42;
@@ -535,40 +636,8 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
     } else {
       ws.getRow(39).getCell(2).value = `${payload.sstaName || 'Responsable STTA'} (Firma Verificada)`;
     }
-  } else if (isEstacion) {
-    // ── Llenado de Formato Estación Total (FOR-HSEQ-025) ─────────────────────
-    const replacements: Record<string, string> = {
-      '{{proyecto}}': payload.projectName || '',
-      '{{ubicacion}}': payload.location || '',
-    };
-
-    ws.eachRow((row: any, rowNumber: number) => {
-      row.eachCell((cell: any, colNumber: number) => {
-        if (typeof cell.value === 'string') {
-          let text = cell.value;
-          for (const [k, v] of Object.entries(replacements)) {
-            if (text.includes(k)) {
-              text = text.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), v);
-            }
-          }
-          cell.value = text;
-        }
-
-        // Fila 3: Centro de Costos
-        if (rowNumber === 3 && colNumber === 25 && payload.costCenter) {
-          cell.value = `CENTRO DE COSTO: ${payload.costCenter}`;
-        }
-
-        // Fila 6: Marca/Modelo y Serial
-        if (rowNumber === 6 && colNumber === 3 && (payload.equipmentBrandModel || payload.droneBrandModel)) {
-          cell.value = payload.equipmentBrandModel || payload.droneBrandModel;
-        }
-        if (rowNumber === 6 && colNumber === 12 && (payload.equipmentSerial || payload.droneSerial)) {
-          cell.value = payload.equipmentSerial || payload.droneSerial;
-        }
-      });
-    });
-
+  } else if (isEstacion && !hasTaggedChecklist) {
+    // ── Llenado de Formato Estación Total Oficial Semanal (FOR-HSEQ-025) ─────
     // Identificar columna del día inspeccionado (Lunes=5, Martes=8, etc.)
     const dateObj = new Date(payload.inspectionDate + 'T12:00:00Z');
     const dayOfWeek = isNaN(dateObj.getTime()) ? 1 : dateObj.getDay();
@@ -591,9 +660,13 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
       }
     });
 
-    // Firmas
-    ws.getRow(26).getCell(5).value = `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`;
-    ws.getRow(27).getCell(5).value = `${payload.sstaName || 'Responsable SSTA'} (Firma Digital Verificada)`;
+    // Firmas si no había anclaje de tags
+    if (!opSignatureCell) {
+      ws.getRow(26).getCell(5).value = `${payload.operatorName || 'Operador'} (Firma Verificada)`;
+    }
+    if (!sstaSignatureCell) {
+      ws.getRow(27).getCell(5).value = `${payload.sstaName || 'Responsable STTA'} (Firma Verificada)`;
+    }
 
     // Observaciones (fila 30 a 36 según el día)
     const dayObsRow = dayOfWeek === 0 ? 36 : 30 + (dayOfWeek - 1);
@@ -603,45 +676,8 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
 
     // Punto crítico
     ws.getRow(38).getCell(4).value = payload.criticalPoint || 'Ninguno';
-  } else {
-    // ── Llenado de Formato Dinámico / Nuevo ─────────────────────────────────
-    const replacements: Record<string, string> = {
-      '{{nombre_proyecto}}': payload.projectName || '',
-      '{{proyecto}}': payload.projectName || '',
-      '[PROYECTO]': payload.projectName || '',
-      '{{centro_costos}}': payload.costCenter || '',
-      '{{centro_costo}}': payload.costCenter || '',
-      '{{ciudad_ubicacion}}': payload.location || '',
-      '{{ubicacion}}': payload.location || '',
-      '{{fecha}}': payload.inspectionDate || '',
-      '[FECHA]': payload.inspectionDate || '',
-      '{{marca_modelo}}': payload.equipmentBrandModel || payload.droneBrandModel || 'Estándar',
-      '{{serial}}': payload.equipmentSerial || payload.droneSerial || 'PROC-EQ-001',
-      '{{serial_drone}}': payload.equipmentSerial || payload.droneSerial || 'PROC-EQ-001',
-      '{{serial_akula}}': payload.serialAkula || payload.equipmentSerial || 'AKU-001',
-      '{{serial_computadora}}': payload.serialComputadora || payload.equipmentSerial || 'TB-001',
-      '{{firma_op}}': `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
-      '{{firma_ss}}': `${payload.sstaName || 'Responsable SSTA'} (Firma Digital Verificada)`,
-      '{{observaciones}}': payload.generalObservations || 'Sin observaciones.',
-      '{{punto_critico}}': payload.criticalPoint || 'Ninguno',
-    };
-
-    // 1. Reemplazo de marcadores de texto
-    ws.eachRow((row: any) => {
-      row.eachCell((cell: any) => {
-        if (typeof cell.value === 'string') {
-          let text = cell.value;
-          for (const [k, v] of Object.entries(replacements)) {
-            if (text.includes(k)) {
-              text = text.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), v);
-            }
-          }
-          cell.value = text;
-        }
-      });
-    });
-
-    // 2. Detectar columnas para SI, NO, NA en encabezados de tabla (filas 8 a 16)
+  } else if (!hasTaggedChecklist) {
+    // ── Llenado de Formato Dinámico con Detección de Columnas SI / NO / NA ──
     let colSi = 3;
     let colNo = 4;
     let colNa = 5;
@@ -663,7 +699,7 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
       }
     }
 
-    // 3. Escribir 'X' en las respuestas de los ítems
+    // Escribir 'X' en las respuestas de los ítems
     const items = payload.items && payload.items.length > 0 ? payload.items : [];
     for (const item of items) {
       const resp = payload.itemsResponses[item.code];
@@ -690,29 +726,6 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
         targetRow.getCell(targetCol).alignment = { vertical: 'middle', horizontal: 'center' };
       }
     }
-
-    // 4. Inyectar metadatos en etiquetas adyacentes
-    ws.eachRow((row: any, r: number) => {
-      row.eachCell((cell: any, c: number) => {
-        const txt = String(cell.value || '').trim().toUpperCase();
-        if ((txt === 'PROYECTO:' || txt === 'PROYECTO') && payload.projectName) {
-          const next = row.getCell(c + 1);
-          if (!next.value) next.value = payload.projectName;
-        }
-        if ((txt === 'FECHA:' || txt === 'FECHA') && payload.inspectionDate) {
-          const next = row.getCell(c + 1);
-          if (!next.value) next.value = payload.inspectionDate;
-        }
-        if ((txt.includes('RESPONSABLE') || txt.includes('OPERADOR')) && payload.operatorName) {
-          const next = row.getCell(c + 1);
-          if (!next.value) next.value = `${payload.operatorName} (Firma Digital)`;
-        }
-        if ((txt.includes('OBSERVACIONES') || txt.includes('NOTAS')) && payload.generalObservations) {
-          const below = ws.getRow(r + 1).getCell(c);
-          if (!below.value) below.value = payload.generalObservations;
-        }
-      });
-    });
   }
 
   // Saneamiento de rangos con enlaces externos huérfanos que corrompen el libro en MS Excel

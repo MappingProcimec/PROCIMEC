@@ -14,6 +14,21 @@ import { sendHseqAlertEmail } from '@/lib/hseq-mailer';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function normalizeDivision(rawName?: string | null): 'Mapping' | 'Ingeniería' {
+  if (!rawName) return 'Mapping';
+  const norm = rawName.trim().toLowerCase();
+  if (
+    norm.includes('ing') ||
+    norm.includes('topo') ||
+    norm.includes('geof') ||
+    norm.includes('cad') ||
+    norm.includes('bim')
+  ) {
+    return 'Ingeniería';
+  }
+  return 'Mapping';
+}
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -201,7 +216,7 @@ export async function POST(req: NextRequest) {
     let driveFileId: string | null = null;
     let driveWebViewLink: string | null = null;
     const driveWarning: string | null = null;
-    let divisionName = formatConfig.formatType === 'drone' ? 'Mapping / Drones' : 'Ingeniería / Topografía';
+    let rawDivision = formatConfig.formatType === 'drone' ? 'Mapping' : 'Ingeniería';
 
     // Disparar las 4 operaciones I/O concurrentemente con Promise.allSettled
     const [pdfStorageRes, excelStorageRes, driveUploadRes, userProfileRes] = await Promise.allSettled([
@@ -269,7 +284,7 @@ export async function POST(req: NextRequest) {
       driveWebViewLink = pdfUrl;
     }
 
-    // Procesar resultados de Task 4 (División del usuario)
+    // Procesar resultados de Task 4 (División del usuario normalizada canónicamente)
     if (userProfileRes.status === 'fulfilled') {
       interface UserProfileWithDiv {
         division_id?: string | null;
@@ -277,9 +292,10 @@ export async function POST(req: NextRequest) {
       }
       const typedProfile = userProfileRes.value.data as unknown as UserProfileWithDiv | null;
       if (typedProfile?.divisions?.name) {
-        divisionName = typedProfile.divisions.name;
+        rawDivision = typedProfile.divisions.name;
       }
     }
+    const divisionName = normalizeDivision(rawDivision);
 
     // 6. Detectar si hay variaciones respecto a la condición óptima o Puntos Críticos
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -397,7 +413,7 @@ export async function POST(req: NextRequest) {
     let inserted: any = null;
     let dbErr: any = null;
 
-    // Intento 1: Tabla canónica hseq_inspections
+    // Intento 1: Tabla canónica hseq_inspections con payload completo
     const res1 = await supabase
       .from('hseq_inspections')
       .insert(fullPayload)
@@ -407,52 +423,45 @@ export async function POST(req: NextRequest) {
     if (!res1.error) {
       inserted = res1.data;
     } else {
-      console.warn('Aviso insertando en hseq_inspections, probando tabla hseq_drone_inspections:', res1.error.message);
-      // Intento 2: Tabla hseq_drone_inspections con payload completo
+      console.warn('Aviso insertando con payload completo en hseq_inspections, aplicando fallback a columnas esenciales:', res1.error.message);
+      // Intento 2: Fallback en hseq_inspections omitiendo columnas accesorias
+      const basePayload = {
+        project_id: projectId,
+        user_id: session.user.id,
+        status: hasAnomalies ? 'submitted' : 'approved',
+        cost_center: costCenter || null,
+        location: location || null,
+        inspection_date: inspectionDate,
+        equipment_brand_model: brandModel,
+        equipment_serial: serial || null,
+        drone_brand_model: brandModel,
+        drone_serial: serial || null,
+        items_responses: enrichedItemsResponses,
+        critical_point: criticalPoint || 'Ninguno',
+        general_observations: generalObservations || null,
+        operator_name: operatorName,
+        operator_signature_data: operatorSignatureDataUrl,
+        ssta_name: sstaName,
+        ssta_signature_data: sstaSignatureDataUrl,
+        drive_file_id: driveFileId,
+        drive_web_view_link: driveWebViewLink,
+        pdf_filename: fileName,
+        division_name: divisionName,
+        format_code: formatConfig.code,
+        format_title: formatConfig.title,
+      };
+
       const res2 = await supabase
-        .from('hseq_drone_inspections')
-        .insert(fullPayload)
+        .from('hseq_inspections')
+        .insert(basePayload)
         .select()
         .single();
 
       if (!res2.error) {
         inserted = res2.data;
       } else {
-        console.warn('Aviso insertando con payload completo en hseq_drone_inspections, aplicando fallback resiliente:', res2.error.message);
-        // Intento 3: Columnas base en hseq_drone_inspections (por si faltan columnas de migración 016 en Supabase)
-        const basePayload = {
-          project_id: projectId,
-          user_id: session.user.id,
-          status: hasAnomalies ? 'submitted' : 'approved',
-          cost_center: costCenter || null,
-          location: location || null,
-          inspection_date: inspectionDate,
-          drone_brand_model: brandModel,
-          drone_serial: serial || null,
-          items_responses: enrichedItemsResponses,
-          critical_point: criticalPoint || 'Ninguno',
-          general_observations: generalObservations || null,
-          operator_name: operatorName,
-          operator_signature_data: operatorSignatureDataUrl,
-          ssta_name: sstaName,
-          ssta_signature_data: sstaSignatureDataUrl,
-          drive_file_id: driveFileId,
-          drive_web_view_link: driveWebViewLink,
-          pdf_filename: fileName,
-        };
-
-        const res3 = await supabase
-          .from('hseq_drone_inspections')
-          .insert(basePayload)
-          .select()
-          .single();
-
-        if (!res3.error) {
-          inserted = res3.data;
-        } else {
-          dbErr = res3.error;
-          console.error('Error definitivo insertando inspección en base de datos:', dbErr);
-        }
+        dbErr = res2.error;
+        console.error('Error definitivo insertando inspección en hseq_inspections:', dbErr);
       }
     }
 

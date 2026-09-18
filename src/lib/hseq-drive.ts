@@ -334,25 +334,46 @@ export async function injectDataIntoExcelBuffer(
   const respVal = textPlaceholders.LOCALIZADOR || textPlaceholders.RESPONSABLE || textPlaceholders.responsable || '';
   const obsVal = textPlaceholders.OBSERVACIONES || textPlaceholders.NOTAS || textPlaceholders.observaciones || '';
 
-  // 1. Reemplazo directo de marcadores entre corchetes [TAG] o {{TAG}}
-  const entries = Object.entries(textPlaceholders);
-  if (entries.length > 0) {
-    worksheet.eachRow((row: any) => {
-      row.eachCell((cell: any) => {
-        if (cell.value && typeof cell.value === 'string') {
-          let updated = cell.value;
-          for (const [tag, val] of entries) {
-            const regexBracket = new RegExp(`\\[${tag}\\]`, 'gi');
-            const regexCurly = new RegExp(`\\{\\{${tag}\\}\\}`, 'gi');
-            updated = updated.replace(regexBracket, val).replace(regexCurly, val);
-          }
-          if (updated !== cell.value) {
-            cell.value = updated;
+  // 1. Reemplazo universal de marcadores {[TAG]}, {{TAG}}, [TAG] e ítems de respuesta {[1.1_si]}
+  worksheet.eachRow((row: any) => {
+    row.eachCell((cell: any) => {
+      if (cell.value && typeof cell.value === 'string') {
+        let text = cell.value;
+
+        // 1a. Reemplazo de ítems de checklist: {[1.1_si]}, {{1.1_si}}, [1.1_si], {[1_1_si]}, etc.
+        const itemPattern = /(?:\{\[|\{\{|\[)([0-9A-Za-z\._\-]+)_(si|no|na)(?:\]\}|\}\}|\]|\})/gi;
+        if (itemPattern.test(text)) {
+          text = text.replace(
+            /(?:\{\[|\{\{|\[)([0-9A-Za-z\._\-]+)_(si|no|na)(?:\]\}|\}\}|\]|\})/gi,
+            (_: string, code: string, opt: string) => {
+              const normCode = code.replace(/_/g, '.');
+              const userResp = textPlaceholders[normCode] || textPlaceholders[code];
+              if (userResp && userResp.toUpperCase() === opt.toUpperCase()) {
+                return 'X';
+              }
+              return '';
+            }
+          );
+          if (text.trim() === 'X') {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
           }
         }
-      });
+
+        // 1b. Reemplazo de metadatos generales con soporte universal de delimitadores
+        for (const [tag, val] of Object.entries(textPlaceholders)) {
+          const regex = new RegExp(`(?:\\{\\[|\\{\\{|\\[)${tag}(?:\\]\\}|\\}\\}|\\]|\\})`, 'gi');
+          text = text.replace(regex, val);
+        }
+
+        // 1c. Limpiar cualquier marcador residual no reemplazado
+        text = text.replace(/(?:\{\[|\{\{)[^}\]]*(?:\]\}|\}\})/g, '').trim();
+
+        if (text !== cell.value) {
+          cell.value = text;
+        }
+      }
     });
-  }
+  });
 
   // 2. Si las celdas tienen títulos estándar sin corchetes (ej. "FECHA:", "PROYECTO:"), escribir en celda contigua
   worksheet.eachRow((row: any, rowNumber: number) => {
