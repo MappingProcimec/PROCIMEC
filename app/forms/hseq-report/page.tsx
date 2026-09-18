@@ -12,7 +12,7 @@ import {
   getOptimalResponses,
   HseqFormatConfig,
 } from '@/lib/hseq-definitions';
-import { PenTool, AlertCircle, Check } from 'lucide-react';
+import { PenTool, AlertCircle, Check, FileSpreadsheet, ExternalLink, ClipboardList, Sparkles, Loader2 } from 'lucide-react';
 
 interface HseqTemplateOption {
   id: string;
@@ -56,7 +56,7 @@ async function fetchActiveProjects(): Promise<ProjectOption[]> {
   return (json.data ?? []) as ProjectOption[];
 }
 
-export default function HseqReportFormPage() {
+export default function HseqReportPage() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
 
@@ -70,11 +70,12 @@ export default function HseqReportFormPage() {
     return new Date(d.getTime() - offset).toISOString().split('T')[0];
   });
 
-  // Datos del equipo según formato
-  const [equipmentBrandModel, setEquipmentBrandModel] = useState('DJI Mavic 3 Enterprise');
-  const [equipmentSerial, setEquipmentSerial] = useState('PROC-DRN-001');
-  const [gprAkulaSerial, setGprAkulaSerial] = useState('PROC-AKU-001');
-  const [gprPcSerial, setGprPcSerial] = useState('PROC-TB-001');
+  // Datos del equipo según formato (divididos canónicamente: Equipo, Marca/Modelo y Serial)
+  const [equipmentName, setEquipmentName] = useState('Drone');
+  const [equipmentBrandModel, setEquipmentBrandModel] = useState('');
+  const [equipmentSerial, setEquipmentSerial] = useState('');
+  const [gprAkulaSerial, setGprAkulaSerial] = useState('');
+  const [gprPcSerial, setGprPcSerial] = useState('');
 
   // Checklist reactivo
   const [itemsResponses, setItemsResponses] = useState<Record<string, 'SI' | 'NO' | 'NA'>>({});
@@ -233,15 +234,17 @@ export default function HseqReportFormPage() {
     return str.includes('027') || str.includes('gpr') || str.includes('georadar');
   }, [formatConfig]);
 
-  // Sincronizar equipo y serial por defecto cuando se resuelve el esquema
+  // Sincronizar equipo y marca/modelo por defecto cuando se resuelve el esquema (serial siempre vacío por defecto)
   useEffect(() => {
     if (formatConfig) {
+      if (formatConfig.equipmentName) {
+        setEquipmentName(formatConfig.equipmentName);
+      }
       if (formatConfig.defaultEquipment) {
         setEquipmentBrandModel(formatConfig.defaultEquipment);
       }
-      if (formatConfig.defaultSerial) {
-        setEquipmentSerial(formatConfig.defaultSerial);
-      }
+      // Serial del equipo queda vacío predeterminado
+      setEquipmentSerial('');
     }
   }, [formatConfig]);
 
@@ -281,6 +284,31 @@ export default function HseqReportFormPage() {
       return;
     }
 
+    // Validar datos de equipo obligatorios
+    if (!equipmentName.trim()) {
+      setSubmitError('El campo Equipo / Herramienta es obligatorio.');
+      return;
+    }
+
+    if (!equipmentBrandModel.trim()) {
+      setSubmitError('La Marca y Modelo del equipo es obligatoria.');
+      return;
+    }
+
+    const effectiveSerial = isGprFormat
+      ? `Akula: ${gprAkulaSerial.trim()} | PC: ${gprPcSerial.trim()}`
+      : equipmentSerial.trim();
+
+    if (isGprFormat) {
+      if (!gprAkulaSerial.trim() || !gprPcSerial.trim()) {
+        setSubmitError('Los números de serial para Akula y Computadora son obligatorios.');
+        return;
+      }
+    } else if (!effectiveSerial) {
+      setSubmitError('El Número de Serial del equipo es obligatorio.');
+      return;
+    }
+
     // Validar ítems
     const totalRequired = formatConfig.items.length;
     const answeredCount = Object.keys(itemsResponses).length;
@@ -297,7 +325,7 @@ export default function HseqReportFormPage() {
     }
 
     if (!sstaSignName.trim() || !sstaSignDataUrl) {
-      setSubmitError('La firma digital del Responsable SSTA es obligatoria.');
+      setSubmitError('La firma digital del Responsable/SSTA es obligatoria.');
       return;
     }
 
@@ -306,10 +334,6 @@ export default function HseqReportFormPage() {
       const proj = selectedProject;
       const costCenter = proj?.cost_center || proj?.code || 'PROCIMEC';
       const location = proj?.location || 'En campo';
-
-      const effectiveSerial = isGprFormat
-        ? `Akula: ${gprAkulaSerial.trim()} | PC: ${gprPcSerial.trim()}`
-        : equipmentSerial;
 
       const res = await fetch('/api/hseq/drone-inspection', {
         method: 'POST',
@@ -327,7 +351,8 @@ export default function HseqReportFormPage() {
           costCenter,
           location,
           inspectionDate,
-          equipmentBrandModel,
+          equipmentName: equipmentName.trim(),
+          equipmentBrandModel: equipmentBrandModel.trim(),
           equipmentSerial: effectiveSerial,
           serialAkula: isGprFormat ? gprAkulaSerial.trim() : undefined,
           serialComputadora: isGprFormat ? gprPcSerial.trim() : undefined,
@@ -488,7 +513,7 @@ export default function HseqReportFormPage() {
                   onClick={downloadLocalPdf}
                   className="btn btn-primary shadow-sm"
                 >
-                  <span>⬇️</span> Descargar PDF Oficial
+                  <Check className="w-4 h-4" /> Descargar PDF Oficial
                 </button>
               )}
 
@@ -498,7 +523,7 @@ export default function HseqReportFormPage() {
                   onClick={downloadLocalExcel}
                   className="btn bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-colors"
                 >
-                  <span>📊</span> Descargar Plantilla Excel Diligenciada (.xlsx)
+                  <FileSpreadsheet className="w-4 h-4" /> Descargar Plantilla Excel Diligenciada (.xlsx)
                 </button>
               )}
 
@@ -509,7 +534,7 @@ export default function HseqReportFormPage() {
                   rel="noopener noreferrer"
                   className="btn btn-outline"
                 >
-                  <span>📄</span> Ver en Google Drive
+                  <ExternalLink className="w-4 h-4" /> Ver en Google Drive
                 </a>
               )}
 
@@ -572,7 +597,7 @@ export default function HseqReportFormPage() {
 
               {isLoadingSchema && (
                 <div className="text-xs text-primary animate-pulse flex items-center gap-1.5 py-1">
-                  <span>⚙️</span> Extrayendo preguntas y lista de verificación del formato...
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Extrayendo preguntas y lista de verificación del formato...
                 </div>
               )}
 
@@ -642,14 +667,28 @@ export default function HseqReportFormPage() {
 
                     <div>
                       <label className="label label-required text-xs">
-                        {isGprFormat ? 'Marca y Modelo GPR' : `${formatConfig.equipmentLabel} / Marca y Modelo`}
+                        Equipo / Herramienta
+                      </label>
+                      <input
+                        type="text"
+                        value={equipmentName}
+                        onChange={(e) => setEquipmentName(e.target.value)}
+                        required
+                        placeholder="Ej. Drone, Estación Total, Georadar (GPR)"
+                        className="input text-xs bg-slate-50 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="label label-required text-xs">
+                        Marca y Modelo
                       </label>
                       <input
                         type="text"
                         value={equipmentBrandModel}
                         onChange={(e) => setEquipmentBrandModel(e.target.value)}
                         required
-                        placeholder={isGprFormat ? 'Ej. Geoscanners Akula 9000B' : 'Ej. DJI Mavic 3 / Leica TS07'}
+                        placeholder={isGprFormat ? 'Ej. Geoscanners Akula 9000B' : 'Ej. DJI Mavic 3 Enterprise / Leica TS07'}
                         className="input text-xs"
                       />
                     </div>
@@ -684,15 +723,15 @@ export default function HseqReportFormPage() {
                         </div>
                       </div>
                     ) : (
-                      <div>
-                        <label className="label label-required text-xs">Serial del Equipo</label>
+                      <div className="sm:col-span-2">
+                        <label className="label label-required text-xs">Número de Serial</label>
                         <input
                           type="text"
                           value={equipmentSerial}
                           onChange={(e) => setEquipmentSerial(e.target.value)}
                           required
-                          placeholder="Ej. PROC-DRN-001 / PROC-ET-001"
-                          className="input text-xs"
+                          placeholder="Ingresa el serial del equipo (ej. PROC-DRN-001 / 184920)"
+                          className="input text-xs font-mono"
                         />
                       </div>
                     )}
@@ -716,56 +755,55 @@ export default function HseqReportFormPage() {
                       onClick={handleMarkAllOptimal}
                       className="btn btn-sm btn-accent self-start sm:self-auto"
                     >
-                      <span>✨</span> Marcar todo en estado óptimo
+                      <Sparkles className="w-3.5 h-3.5" /> Marcar todo en estado óptimo
                     </button>
                   </div>
 
-                  {/* Tabla / Tarjetas de Ítems agrupados por Sección */}
-                  <div className="space-y-4">
-                    {formatConfig.sections.map((sec) => {
-                      const sectionItems = formatConfig.items.filter((it) => it.section === sec);
-                      return (
-                        <div key={sec} className="border border-border rounded-xl overflow-hidden">
-                          <div className="bg-gray-50 px-3.5 py-2 border-b border-border">
-                            <span className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                              {sec}
-                            </span>
-                          </div>
+                  <div className="space-y-6">
+                    {formatConfig.sections.map((secName) => {
+                      const secItems = formatConfig.items.filter((it) => it.section === secName);
+                      if (secItems.length === 0) return null;
 
-                          <div className="divide-y divide-border/60">
-                            {sectionItems.map((item) => {
+                      return (
+                        <div key={secName} className="space-y-3">
+                          <h4 className="text-xs font-bold text-primary bg-primary-50 px-3 py-1.5 rounded-lg border border-primary-100 uppercase tracking-wide">
+                            {secName}
+                          </h4>
+
+                          <div className="space-y-2">
+                            {secItems.map((item) => {
                               const currentVal = itemsResponses[item.code];
                               return (
                                 <div
                                   key={item.code}
-                                  className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/50 transition-colors"
+                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl border border-border hover:border-gray-300 bg-white transition-colors"
                                 >
-                                  <div className="flex items-start gap-2.5 flex-1">
-                                    <span className="text-xs font-mono font-bold text-primary bg-primary-50 px-1.5 py-0.5 rounded border border-primary-200 flex-shrink-0">
+                                  <div className="flex items-start gap-2 max-w-xl">
+                                    <span className="text-xs font-mono font-bold text-primary min-w-[32px] pt-0.5">
                                       {item.code}
                                     </span>
-                                    <p className="text-xs text-text-primary leading-snug">
+                                    <span className="text-xs text-text-primary leading-tight">
                                       {item.description}
-                                    </p>
+                                    </span>
                                   </div>
 
-                                  {/* Botones de Opción: SI, NO, NA */}
-                                  <div className="flex items-center gap-1.5 self-end sm:self-center">
+                                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
                                     {(['SI', 'NO', 'NA'] as const).map((val) => {
                                       const isSelected = currentVal === val;
-                                      let activeClass = 'bg-gray-100 text-text-secondary border-border';
-                                      if (isSelected) {
-                                        if (val === 'SI') activeClass = 'bg-emerald-600 text-white border-emerald-600 shadow-sm';
-                                        else if (val === 'NO') activeClass = 'bg-rose-600 text-white border-rose-600 shadow-sm';
-                                        else activeClass = 'bg-slate-600 text-white border-slate-600 shadow-sm';
-                                      }
-
                                       return (
                                         <button
                                           key={val}
                                           type="button"
                                           onClick={() => handleItemResponse(item.code, val)}
-                                          className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all ${activeClass}`}
+                                          className={`px-3 py-1 text-xs font-bold rounded-lg border transition-all ${
+                                            isSelected
+                                              ? val === 'SI'
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                                : val === 'NO'
+                                                ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                                                : 'bg-slate-600 text-white border-slate-600 shadow-sm'
+                                              : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'
+                                          }`}
                                         >
                                           {val}
                                         </button>
@@ -862,10 +900,10 @@ export default function HseqReportFormPage() {
                       )}
                     </div>
 
-                    {/* Firma Responsable / STTA */}
+                    {/* Firma Responsable/SSTA */}
                     <div className="border border-border rounded-xl p-4 bg-gray-50/50 space-y-2.5">
                       <span className="text-xs font-bold text-text-secondary block">
-                        Responsable / STTA <span className="text-error">*</span>
+                        Responsable/SSTA <span className="text-error">*</span>
                       </span>
 
                       {sstaSignDataUrl ? (
@@ -874,7 +912,7 @@ export default function HseqReportFormPage() {
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={sstaSignDataUrl}
-                              alt="Firma Responsable / STTA"
+                              alt="Firma Responsable/SSTA"
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>
@@ -896,7 +934,7 @@ export default function HseqReportFormPage() {
                           className="btn btn-outline w-full text-xs font-semibold hover:border-primary hover:text-primary transition-all"
                         >
                           <PenTool className="w-3.5 h-3.5" />
-                          <span>Capturar Firma Responsable / STTA</span>
+                          <span>Capturar Firma Responsable/SSTA</span>
                         </button>
                       )}
                     </div>
@@ -915,7 +953,7 @@ export default function HseqReportFormPage() {
                   >
                     {isSubmitting ? (
                       <>
-                        <span className="animate-spin text-sm">⚙️</span> Generando PDF Oficial...
+                        <Loader2 className="w-4 h-4 animate-spin" /> Generando PDF Oficial...
                       </>
                     ) : (
                       <>
@@ -931,7 +969,7 @@ export default function HseqReportFormPage() {
             {/* Estado Vacío: Selección Pendiente */}
             {!selectedTemplateId && (
               <div className="card p-10 text-center space-y-2 border-dashed">
-                <span className="text-3xl block">📋</span>
+                <ClipboardList className="w-8 h-8 text-primary/40 mx-auto" />
                 <p className="text-sm font-bold text-text-primary">
                   Selecciona un formato para comenzar
                 </p>
@@ -957,12 +995,12 @@ export default function HseqReportFormPage() {
         }}
       />
 
-      {/* Modal Firma Responsable / STTA */}
+      {/* Modal Firma Responsable/SSTA */}
       <DigitalSignatureModal
         isOpen={isSstaModalOpen}
         onClose={() => setIsSstaModalOpen(false)}
-        title="Firma Digital del Responsable / STTA"
-        roleLabel="Responsable / STTA"
+        title="Firma Digital del Responsable/SSTA"
+        roleLabel="Responsable/SSTA"
         initialName={sstaSignName}
         onSaveSignature={(name, dataUrl) => {
           setSstaSignName(name);

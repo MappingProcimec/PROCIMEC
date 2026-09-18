@@ -108,6 +108,9 @@ export function convertWorksheetToPdf(
   let logoCellPos: { rowIdx: number; colIdx: number } | null = null;
 
   const isDroneFormat = !isLandscape && maxCol <= 6;
+  const isEstacion = /estaci[oó]n|total|025/i.test(`${payload.formatCode || ''} ${payload.formatTitle || ''}`);
+  const dateObj = new Date((payload.inspectionDate || new Date().toISOString().split('T')[0]) + 'T12:00:00Z');
+  const dayOfWeek = isNaN(dateObj.getTime()) ? 1 : dateObj.getDay();
 
   if (isDroneFormat) {
     // ── Formato Oficial Drone (Exact Fit a 1 Sola Página A4) ──
@@ -205,12 +208,12 @@ export function convertWorksheetToPdf(
       } else if (r === 39) {
         sstaSignRowIdx = tableBody.length;
         rowCells.push({
-          content: 'FIRMA RESPONSABLE / STTA',
+          content: 'FIRMA RESPONSABLE/SSTA',
           colSpan: 1,
           styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
         });
         rowCells.push({
-          content: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable STTA'} (Firma Digital Verificada)`,
+          content: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Digital Verificada)`,
           colSpan: 4,
           styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
         });
@@ -259,6 +262,11 @@ export function convertWorksheetToPdf(
       const rowCells: any[] = [];
       let rowHasVal = false;
 
+      const firstCellStr = String(row.getCell(1).value || '') + ' ' + String(row.getCell(2).value || '');
+      const isSignatureRow =
+        (isEstacion && (r === 26 || r === 27)) ||
+        /FIRMA RESPONSABLE/i.test(firstCellStr);
+
       for (let c = 1; c <= maxCol; c++) {
         if (mergedCellsToSkip.has(`${r},${c}`)) continue;
 
@@ -281,7 +289,7 @@ export function convertWorksheetToPdf(
         if (/FIRMA RESPONSABLE DEL EQUIPO/i.test(strVal)) {
           operatorSignRowIdx = tableBody.length;
         }
-        if (/FIRMA RESPONSABLE SSTA/i.test(strVal)) {
+        if (/FIRMA RESPONSABLE[\s\/]*(?:SSTA|STTA)/i.test(strVal)) {
           sstaSignRowIdx = tableBody.length;
         }
 
@@ -332,6 +340,10 @@ export function convertWorksheetToPdf(
           cellDef.styles.textColor = [15, 23, 42];
         }
 
+        if (isSignatureRow) {
+          cellDef.styles.minCellHeight = 14;
+        }
+
         rowCells.push(cellDef);
       }
 
@@ -370,19 +382,43 @@ export function convertWorksheetToPdf(
           doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', data.cell.x + 1.5, data.cell.y + 0.8, isLandscape ? 26 : 23, isLandscape ? 8.5 : 7.5);
         } catch {}
       }
-      // Estampar firma digital del Operador (sin sobreescribir el texto inferior)
-      if (data.row.index === operatorSignRowIdx && data.column.index === 1) {
-        if (payload.operatorSignatureDataUrl && payload.operatorSignatureDataUrl.startsWith('data:image')) {
+      // Estampar firma digital del Operador estrictamente contenida dentro de la celda
+      if (data.row.index === operatorSignRowIdx) {
+        const isTargetCol = isDroneFormat
+          ? data.column.index === 1
+          : isEstacion
+          ? data.column.index === (dayOfWeek === 0 ? 7 : dayOfWeek)
+          : data.column.index === 1;
+
+        if (isTargetCol && payload.operatorSignatureDataUrl && payload.operatorSignatureDataUrl.startsWith('data:image')) {
           try {
-            doc.addImage(payload.operatorSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 0.8, 28, 7.5);
+            const padX = 2;
+            const padY = 1.5;
+            const drawW = Math.min(26, Math.max(10, data.cell.width - padX * 2));
+            const drawH = Math.min(8.5, Math.max(6, data.cell.height - padY * 2));
+            const drawX = data.cell.x + (data.cell.width - drawW) / 2;
+            const drawY = data.cell.y + (data.cell.height - drawH) / 2;
+            doc.addImage(payload.operatorSignatureDataUrl, 'PNG', drawX, drawY, drawW, drawH);
           } catch {}
         }
       }
-      // Estampar firma digital del Responsable / STTA (sin sobreescribir el texto inferior)
-      if (data.row.index === sstaSignRowIdx && data.column.index === 1) {
-        if (payload.sstaSignatureDataUrl && payload.sstaSignatureDataUrl.startsWith('data:image')) {
+      // Estampar firma digital del Responsable / SSTA estrictamente contenida dentro de la celda
+      if (data.row.index === sstaSignRowIdx) {
+        const isTargetCol = isDroneFormat
+          ? data.column.index === 1
+          : isEstacion
+          ? data.column.index === (dayOfWeek === 0 ? 7 : dayOfWeek)
+          : data.column.index === 1;
+
+        if (isTargetCol && payload.sstaSignatureDataUrl && payload.sstaSignatureDataUrl.startsWith('data:image')) {
           try {
-            doc.addImage(payload.sstaSignatureDataUrl, 'PNG', data.cell.x + 3, data.cell.y + 0.8, 28, 7.5);
+            const padX = 2;
+            const padY = 1.5;
+            const drawW = Math.min(26, Math.max(10, data.cell.width - padX * 2));
+            const drawH = Math.min(8.5, Math.max(6, data.cell.height - padY * 2));
+            const drawX = data.cell.x + (data.cell.width - drawW) / 2;
+            const drawY = data.cell.y + (data.cell.height - drawH) / 2;
+            doc.addImage(payload.sstaSignatureDataUrl, 'PNG', drawX, drawY, drawW, drawH);
           } catch {}
         }
       }
@@ -419,6 +455,14 @@ export function applyUniversalPlaceholders(
   let hasTaggedChecklist = false;
 
   const replacements: Record<string, string> = {
+    formato: payload.formatTitle || '',
+    nombre_formato: payload.formatTitle || '',
+    titulo_formato: payload.formatTitle || '',
+    codigo_formato: payload.formatCode || '',
+    codigo: payload.formatCode || '',
+    equipo: payload.equipmentName || '',
+    herramienta: payload.equipmentName || '',
+    equipo_herramienta: payload.equipmentName || '',
     nombre_proyecto: payload.projectName || '',
     proyecto: payload.projectName || '',
     centro_costos: payload.costCenter || '',
@@ -428,14 +472,18 @@ export function applyUniversalPlaceholders(
     ciudad: payload.location || '',
     fecha: payload.inspectionDate || '',
     fecha_inspeccion: payload.inspectionDate || '',
-    marca_modelo: payload.equipmentBrandModel || payload.droneBrandModel || 'Estándar',
-    modelo: payload.equipmentBrandModel || payload.droneBrandModel || 'Estándar',
-    serial: payload.equipmentSerial || payload.droneSerial || 'PROC-EQ-001',
-    serial_drone: payload.equipmentSerial || payload.droneSerial || 'PROC-DRN-001',
-    serial_akula: payload.serialAkula || payload.equipmentSerial || 'AKU-001',
-    serial_computadora: payload.serialComputadora || payload.equipmentSerial || 'TB-001',
+    marca_modelo: payload.equipmentBrandModel || payload.droneBrandModel || '',
+    marca_y_modelo: payload.equipmentBrandModel || payload.droneBrandModel || '',
+    modelo: payload.equipmentBrandModel || payload.droneBrandModel || '',
+    marca: payload.equipmentBrandModel || payload.droneBrandModel || '',
+    serial: payload.equipmentSerial || payload.droneSerial || '',
+    serial_drone: payload.equipmentSerial || payload.droneSerial || '',
+    serial_akula: payload.serialAkula || payload.equipmentSerial || '',
+    serial_computadora: payload.serialComputadora || payload.equipmentSerial || '',
     firma_op: payload.operatorSignatureDataUrl ? '' : `${payload.operatorName || 'Operador'} (Firma Verificada)`,
-    firma_ss: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable STTA'} (Firma Verificada)`,
+    firma_ss: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`,
+    firma_ssta: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`,
+    firma_stta: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`,
     observaciones: payload.generalObservations || 'Sin observaciones.',
     punto_critico: payload.criticalPoint || 'Ninguno',
   };
@@ -491,6 +539,12 @@ export function applyUniversalPlaceholders(
       }
     });
   });
+
+  // Proteger celda B2 (título del formato) para evitar que quede vacía por limpieza de tags
+  const b2 = ws.getCell('B2');
+  if ((!b2.value || String(b2.value).trim() === '') && payload.formatTitle) {
+    b2.value = payload.formatTitle.toUpperCase();
+  }
 
   return { opSignatureCell, sstaSignatureCell, hasTaggedChecklist };
 }
@@ -591,7 +645,7 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
         editAs: 'oneCell',
       });
     } catch (err) {
-      console.warn('Aviso incrustando firma de STTA detectada:', err);
+      console.warn('Aviso incrustando firma de SSTA detectada:', err);
     }
   }
 
@@ -600,7 +654,7 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
     // Ajustar altura de filas de firmas para que queden holgadamente dentro de la celda
     ws.getRow(38).height = 42;
     ws.getRow(39).height = 42;
-    ws.getRow(39).getCell(1).value = 'FIRMA RESPONSABLE / STTA';
+    ws.getRow(39).getCell(1).value = 'FIRMA RESPONSABLE/SSTA';
 
     // Incrustar trazos gráficos de firma perfectamente contenidos dentro de la celda
     if (payload.operatorSignatureDataUrl?.startsWith('data:image')) {
@@ -631,10 +685,10 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
           editAs: 'oneCell',
         });
       } catch (err) {
-        console.warn('Error incrustando firma STTA en Excel:', err);
+        console.warn('Error incrustando firma SSTA en Excel:', err);
       }
     } else {
-      ws.getRow(39).getCell(2).value = `${payload.sstaName || 'Responsable STTA'} (Firma Verificada)`;
+      ws.getRow(39).getCell(2).value = `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`;
     }
   } else if (isEstacion && !hasTaggedChecklist) {
     // ── Llenado de Formato Estación Total Oficial Semanal (FOR-HSEQ-025) ─────
@@ -662,10 +716,40 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
 
     // Firmas si no había anclaje de tags
     if (!opSignatureCell) {
-      ws.getRow(26).getCell(5).value = `${payload.operatorName || 'Operador'} (Firma Verificada)`;
+      if (payload.operatorSignatureDataUrl?.startsWith('data:image')) {
+        ws.getRow(26).getCell(dayBaseCol).value = '';
+        try {
+          const opBuffer = Buffer.from(payload.operatorSignatureDataUrl.split(',')[1], 'base64');
+          const opImgId = wb.addImage({ buffer: opBuffer as any, extension: 'png' });
+          ws.addImage(opImgId, {
+            tl: { col: (dayBaseCol - 1) + 0.1, row: 25.1 },
+            ext: { width: 90, height: 32 },
+            editAs: 'oneCell',
+          });
+        } catch (err) {
+          console.warn('Error incrustando firma operador en Estación Total Excel:', err);
+        }
+      } else {
+        ws.getRow(26).getCell(dayBaseCol).value = `${payload.operatorName || 'Operador'} (Firma Verificada)`;
+      }
     }
     if (!sstaSignatureCell) {
-      ws.getRow(27).getCell(5).value = `${payload.sstaName || 'Responsable STTA'} (Firma Verificada)`;
+      if (payload.sstaSignatureDataUrl?.startsWith('data:image')) {
+        ws.getRow(27).getCell(dayBaseCol).value = '';
+        try {
+          const sstaBuffer = Buffer.from(payload.sstaSignatureDataUrl.split(',')[1], 'base64');
+          const sstaImgId = wb.addImage({ buffer: sstaBuffer as any, extension: 'png' });
+          ws.addImage(sstaImgId, {
+            tl: { col: (dayBaseCol - 1) + 0.1, row: 26.1 },
+            ext: { width: 90, height: 32 },
+            editAs: 'oneCell',
+          });
+        } catch (err) {
+          console.warn('Error incrustando firma SSTA en Estación Total Excel:', err);
+        }
+      } else {
+        ws.getRow(27).getCell(dayBaseCol).value = `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`;
+      }
     }
 
     // Observaciones (fila 30 a 36 según el día)

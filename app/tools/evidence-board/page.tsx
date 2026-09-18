@@ -1,8 +1,19 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
+import {
+  Building2,
+  UserCheck,
+  CheckCircle2,
+  AlertTriangle,
+  ChevronDown,
+  Eye,
+  FileText,
+  FileSpreadsheet,
+  ExternalLink,
+} from 'lucide-react';
 
 interface EvidenceItem {
   id: string;
@@ -13,6 +24,8 @@ interface EvidenceItem {
   costCenter: string;
   location: string;
   equipment: string;
+  equipmentName?: string;
+  equipmentBrandModel?: string;
   serial: string;
   locatorName: string;
   sstaName: string;
@@ -37,6 +50,99 @@ interface EvidenceItem {
   nonCompliantCount: number;
   operatorSignatureData?: string | null;
   sstaSignatureData?: string | null;
+}
+
+function EvidenceActionsDropdown({
+  evidence,
+  onAudit,
+}: {
+  evidence: EvidenceItem;
+  onAudit: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border border-border bg-white text-text-primary hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+      >
+        <span>Acciones</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 z-50 mt-1 w-44 origin-top-right rounded-xl border border-border bg-white p-1 shadow-lg ring-1 ring-black/5 focus:outline-none animate-in fade-in zoom-in-95 duration-100">
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              onAudit();
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-primary hover:bg-teal-50 hover:text-teal-900 transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+            <span>Auditar</span>
+          </button>
+
+          {evidence.pdfUrl && (
+            <a
+              href={evidence.pdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setIsOpen(false)}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-primary hover:bg-rose-50 hover:text-rose-900 transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
+              <span>Ver PDF</span>
+            </a>
+          )}
+
+          {evidence.excelUrl && (
+            <a
+              href={evidence.excelUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setIsOpen(false)}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-primary hover:bg-emerald-50 hover:text-emerald-900 transition-colors"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+              <span>Descargar Excel</span>
+            </a>
+          )}
+
+          {evidence.driveLink && (
+            <a
+              href={evidence.driveLink}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setIsOpen(false)}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-primary hover:bg-blue-50 hover:text-blue-900 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+              <span>Google Drive</span>
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function EvidenceBoardToolPage() {
@@ -766,8 +872,9 @@ export default function EvidenceBoardToolPage() {
                     <tr key={ev.id} className="hover:bg-gray-50/80 transition-colors">
                       {/* División */}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 font-semibold text-[11px] px-2.5 py-1 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
-                          🏢 {ev.divisionName}
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-[11px] px-2.5 py-1 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                          <Building2 className="w-3.5 h-3.5 text-teal-700" />
+                          <span>{ev.divisionName}</span>
                         </span>
                       </td>
 
@@ -800,9 +907,10 @@ export default function EvidenceBoardToolPage() {
                       {/* Localizador */}
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1 font-medium text-amber-950 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md text-[11px]">
-                          📍 {ev.locatorName}
+                          <UserCheck className="w-3 h-3 text-amber-700" />
+                          <span>{ev.locatorName}</span>
                         </span>
-                        <span className="text-[10px] text-text-muted block mt-0.5">SSTA: {ev.sstaName}</span>
+                        <span className="text-[10px] text-text-muted block mt-0.5">Responsable/SSTA: {ev.sstaName}</span>
                       </td>
 
                       {/* Fecha */}
@@ -815,12 +923,12 @@ export default function EvidenceBoardToolPage() {
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         {ev.status === 'conforme' ? (
                           <span className="badge bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1">
-                            <span>🟢</span> Conforme
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Conforme
                           </span>
                         ) : (
                           <div className="inline-flex flex-col items-center">
                             <span className="badge bg-red-50 text-red-700 border border-red-200 text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1 animate-pulse">
-                              <span>🚨</span> Alerta de Seguridad
+                              <AlertTriangle className="w-3 h-3 text-rose-600" /> Alerta de Seguridad
                             </span>
                             {ev.nonCompliantCount > 0 && (
                               <span className="text-[9px] text-red-600 font-semibold mt-0.5">
@@ -831,38 +939,12 @@ export default function EvidenceBoardToolPage() {
                         )}
                       </td>
 
-                      {/* Acciones */}
-                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-1">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedEvidence(ev)}
-                          className="btn bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs px-2 py-1 rounded-lg font-semibold transition-colors"
-                          title="Ver auditoría de respuestas X, observaciones y puntos críticos"
-                        >
-                          👁️ Auditar
-                        </button>
-                        {ev.pdfUrl && (
-                          <a
-                            href={ev.pdfUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="btn bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs px-2 py-1 rounded-lg font-semibold transition-colors"
-                            title="Descargar PDF Oficial"
-                          >
-                            📄 PDF
-                          </a>
-                        )}
-                        {ev.excelUrl && (
-                          <a
-                            href={ev.excelUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="btn bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs px-2 py-1 rounded-lg font-semibold transition-colors"
-                            title="Descargar Plantilla Excel (.xlsx)"
-                          >
-                            📊 Excel
-                          </a>
-                        )}
+                      {/* Acciones Agrupadas en Menú Desplegable */}
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <EvidenceActionsDropdown
+                          evidence={ev}
+                          onAudit={() => setSelectedEvidence(ev)}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -1047,7 +1129,7 @@ export default function EvidenceBoardToolPage() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
                   {Object.entries(selectedEvidence.itemsResponses).map(([code, val]) => {
-                    const expected = selectedEvidence.optimalMap?.[code] || (['1.2', '1.4', '2.2'].includes(code) ? 'NO' : 'SI');
+                    const expected = selectedEvidence.optimalMap?.[code] || 'SI';
                     const isVariation = expected !== 'NA' && String(val).toUpperCase() !== expected;
 
                     return (
@@ -1099,7 +1181,7 @@ export default function EvidenceBoardToolPage() {
 
                 <div className="border border-border rounded-xl p-3.5 bg-surface text-xs space-y-1.5">
                   <span className="font-bold text-text-secondary block text-[11px]">
-                    Firma Responsable SSTA o Proyecto:
+                    Firma Responsable/SSTA:
                   </span>
                   <span className="font-semibold text-text-primary block">{selectedEvidence.sstaName}</span>
                   {selectedEvidence.sstaSignatureData && (
@@ -1107,7 +1189,7 @@ export default function EvidenceBoardToolPage() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={selectedEvidence.sstaSignatureData}
-                        alt="Firma SSTA"
+                        alt="Firma Responsable/SSTA"
                         className="h-10 object-contain"
                       />
                     </div>
@@ -1137,7 +1219,7 @@ export default function EvidenceBoardToolPage() {
                     rel="noreferrer"
                     className="btn bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-sm"
                   >
-                    <span>📄</span> Ver / Descargar PDF Oficial
+                    <FileText className="w-3.5 h-3.5" /> Ver / Descargar PDF Oficial
                   </a>
                 )}
                 {selectedEvidence.excelUrl && (
@@ -1147,7 +1229,7 @@ export default function EvidenceBoardToolPage() {
                     rel="noreferrer"
                     className="btn bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-sm"
                   >
-                    <span>📊</span> Descargar Plantilla Excel (.xlsx)
+                    <FileSpreadsheet className="w-3.5 h-3.5" /> Descargar Plantilla Excel (.xlsx)
                   </a>
                 )}
               </div>

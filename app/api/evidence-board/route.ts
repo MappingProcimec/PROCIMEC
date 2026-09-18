@@ -154,14 +154,19 @@ export async function GET(req: NextRequest) {
           ? meta.non_compliant_items
           : null;
 
+      const formatOptMap = isEstacion
+        ? estacionOptimalMap
+        : isDrone
+        ? droneOptimalMap
+        : getOptimalResponses(formatCode);
+      const optimalMap: Record<string, string> = { ...formatOptMap };
+
       let nonCompliantCodes: string[] = [];
-      let optimalMap: Record<string, string> = {};
 
       if (storedNonCompliant) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         nonCompliantCodes = storedNonCompliant.map((it: any) => (typeof it === 'string' ? it : it.code || ''));
       } else {
-        optimalMap = isEstacion ? estacionOptimalMap : droneOptimalMap;
         nonCompliantCodes = Object.entries(responses)
           .filter(([code, val]) => {
             const expected = optimalMap[code];
@@ -178,11 +183,13 @@ export async function GET(req: NextRequest) {
           ? Boolean(meta.has_anomalies)
           : nonCompliantCodes.length > 0 || hasCritical || hasCustomObservations;
 
+      const canonicalFormatDivision = isDrone ? 'Mapping' : isEstacion ? 'Ingeniería' : null;
       const rawDivision =
+        canonicalFormatDivision ||
         (typeof (row as any).division_name === 'string' && (row as any).division_name) ||
         (typeof meta.division === 'string' && meta.division) ||
         row.users?.divisions?.name ||
-        (isEstacion ? 'Ingeniería' : 'Mapping');
+        'Ingeniería';
       const divisionName = normalizeDivision(rawDivision);
 
       const dateStr = row.inspection_date || row.created_at?.split('T')[0] || '';
@@ -198,16 +205,23 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      const equipmentStr =
+      const equipmentNameStr =
+        (typeof (row as any).equipment_name === 'string' && (row as any).equipment_name) ||
+        (typeof meta.equipment_name === 'string' && meta.equipment_name) ||
+        (isDrone ? 'Drone' : isEstacion ? 'Estación Total' : 'Equipo');
+
+      const brandModelStr =
         (typeof (row as any).equipment_brand_model === 'string' && (row as any).equipment_brand_model) ||
         row.drone_brand_model ||
         (typeof meta.equipment_brand_model === 'string' && meta.equipment_brand_model) ||
-        'Equipo General';
+        'Estándar';
+
       const serialStr =
         (typeof (row as any).equipment_serial === 'string' && (row as any).equipment_serial) ||
         row.drone_serial ||
         (typeof meta.equipment_serial === 'string' && meta.equipment_serial) ||
-        'S/N';
+        '';
+
       const pdfUrlStr = (typeof meta.pdf_url === 'string' && meta.pdf_url) || row.drive_web_view_link || '';
       const excelUrlStr = (typeof meta.excel_url === 'string' && meta.excel_url) || '';
       const excelFileStr = (typeof meta.excel_filename === 'string' && meta.excel_filename) || row.pdf_filename?.replace(/\.pdf$/i, '.xlsx') || `Inspeccion_${formatCode}.xlsx`;
@@ -223,10 +237,12 @@ export async function GET(req: NextRequest) {
         projectCode: row.projects?.cost_center || row.cost_center || 'CC-PROY',
         costCenter: row.cost_center || row.projects?.cost_center || '',
         location: row.location || '',
-        equipment: equipmentStr,
+        equipmentName: equipmentNameStr,
+        equipmentBrandModel: brandModelStr,
+        equipment: `${equipmentNameStr} - ${brandModelStr}`,
         serial: serialStr,
         locatorName: row.operator_name || row.users?.full_name || 'Localizador / Operador',
-        sstaName: row.ssta_name || 'Responsable SSTA',
+        sstaName: row.ssta_name || 'Responsable/SSTA',
         date: dateStr,
         time: timeStr,
         fileName: row.pdf_filename || `Inspeccion_${formatCode}.pdf`,

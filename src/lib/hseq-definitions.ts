@@ -215,8 +215,9 @@ export const ESTACION_TOTAL_ITEMS: DroneInspectionItemDef[] = [
 
 /**
  * Clasificador lingüístico de condiciones seguras HSEQ:
- * - Si la pregunta indaga por daños, averías o defectos -> Condición segura y óptima es 'NO' (no presenta daño).
- * - Si la pregunta evalúa operatividad, limpieza o buen estado -> Condición segura y óptima es 'SI'.
+ * - Si la pregunta evalúa operatividad, limpieza, suavidad o buen estado -> Condición segura y óptima es 'SI'.
+ * - Si la pregunta contiene frases preposicionales como 'sin daños', 'sin fisuras', 'sin empalmes' -> Condición segura y óptima es 'SI'.
+ * - Solo si la pregunta indaga directamente por la presencia o existencia de defectos ('presenta golpes', 'presenta fisuras', 'presenta corrosión') -> Condición segura y óptima es 'NO'.
  */
 export function inferOptimalResponse(itemDescription: string): 'SI' | 'NO' {
   const norm = itemDescription
@@ -224,24 +225,41 @@ export function inferOptimalResponse(itemDescription: string): 'SI' | 'NO' {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
 
-  const defectKeywords = [
-    'golpe', 'grieta', 'fisur', 'corrosi', 'fuga', 'rotur', 'roto', 'rota',
-    'oxid', 'averi', 'dañ', 'holgur', 'desgast', 'rayon', 'pelad',
-    'deforma', 'derram', 'fall', 'cortocircuit', 'calentamient', 'suelt',
-    'vencid', 'filtraci', 'quebrad', 'rajad'
+  // 1. Detección de descriptores de operatividad y buen estado (siempre 'SI')
+  const positiveWords = [
+    'buen estado', 'funciona', 'funcional', 'limpio', 'limpia',
+    'operativo', 'operativa', 'suave', 'suaves', 'adecuado', 'adecuada',
+    'suficiente', 'completo', 'completa', 'ajustado', 'ajustada',
+    'alineado', 'alineada', 'calibrado', 'calibrada', 'legible', 'intacto', 'intacta'
   ];
 
-  for (const kw of defectKeywords) {
-    if (norm.includes(kw)) {
-      // Excepción si dice "sin golpes", "libre de grietas", "no presenta corrosión", etc.
-      if (
-        norm.includes(`sin ${kw}`) ||
-        norm.includes(`libre de ${kw}`) ||
-        norm.includes(`no presenta ${kw}`) ||
-        norm.includes(`sin signos de ${kw}`)
-      ) {
-        return 'SI';
-      }
+  for (const pw of positiveWords) {
+    if (norm.includes(pw)) {
+      return 'SI';
+    }
+  }
+
+  // 2. Detección de ausencia de fallas (ej. "sin empalmes o fisuras", "sin rayones", "libre de")
+  if (
+    norm.includes('sin ') ||
+    norm.includes('libre de') ||
+    norm.includes('no presenta') ||
+    norm.includes('sin signos')
+  ) {
+    return 'SI';
+  }
+
+  // 3. Consultas directas de presencia de fallas, averías o daños ('NO')
+  const defectPhrases = [
+    'presenta golpe', 'presenta grieta', 'presenta fisur', 'presenta corrosi',
+    'presenta da', 'presenta fuga', 'presenta averi', 'presenta holgur',
+    'presenta oxid', 'presenta calentamient', 'presenta derram', 'presenta rotur',
+    'presenta cortocircuit', 'presenta deformaci', 'presencia de', 'se evidencian',
+    'piezas rotas', 'cables rotos', 'dañado', 'averiado', 'defectuoso'
+  ];
+
+  for (const dp of defectPhrases) {
+    if (norm.includes(dp)) {
       return 'NO';
     }
   }
@@ -276,6 +294,8 @@ export interface HseqFormatConfig {
   title: string;
   pdfTitle: string;
   version: string;
+  division: 'Mapping' | 'Ingeniería';
+  equipmentName: string;
   equipmentLabel: string;
   defaultEquipment: string;
   defaultSerial: string;
@@ -296,12 +316,89 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
       title: 'Inspección Pre-operacional de Estación Total',
       pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL ESTACIÓN TOTAL',
       version: '01',
+      division: 'Ingeniería',
+      equipmentName: 'Estación Total',
       templateDate: '10-sep-2026',
       equipmentLabel: 'Estación Total',
       defaultEquipment: 'Leica FlexLine TS07',
-      defaultSerial: 'PROC-ET-001',
+      defaultSerial: '',
       sections: ESTACION_TOTAL_SECTIONS,
       items: ESTACION_TOTAL_ITEMS,
+    };
+  }
+
+  if (norm.includes('gpr') || norm.includes('georadar') || norm.includes('027')) {
+    return {
+      id: 'hseq-georadar',
+      formatType: 'generic',
+      code: 'FOR-HSEQ-027',
+      title: 'Inspección Pre-operacional Georadar GPR',
+      pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL GEORADAR GPR',
+      version: '01',
+      division: 'Mapping',
+      equipmentName: 'Georadar (GPR)',
+      templateDate: '10-sep-2026',
+      equipmentLabel: 'Georadar GPR',
+      defaultEquipment: 'Sensors & Software Noggin',
+      defaultSerial: '',
+      sections: ['1. ESTRUCTURA Y RUEDAS', '2. ANTENA Y AKULA', '3. COMPUTADORA Y CONTROL'],
+      items: [
+        { code: '1.1', section: '1. ESTRUCTURA Y RUEDAS', description: 'Chasis y estructura en buen estado general', optimal: 'SI' },
+        { code: '1.2', section: '1. ESTRUCTURA Y RUEDAS', description: 'Ruedas giran suavemente y odómetro funciona', optimal: 'SI' },
+        { code: '2.1', section: '2. ANTENA Y AKULA', description: 'Antena GPR limpia y sin roturas en la base', optimal: 'SI' },
+        { code: '2.2', section: '2. ANTENA Y AKULA', description: 'Unidad Akula enciende y conecta correctamente', optimal: 'SI' },
+        { code: '3.1', section: '3. COMPUTADORA Y CONTROL', description: 'Computador o tablet operativa con suficiente carga', optimal: 'SI' },
+        { code: '3.2', section: '3. COMPUTADORA Y CONTROL', description: 'Cables de datos sin empalmes o fisuras', optimal: 'SI' },
+      ],
+    };
+  }
+
+  if (norm.includes('gps') || norm.includes('gnss') || norm.includes('026')) {
+    return {
+      id: 'hseq-gps-diferencial',
+      formatType: 'generic',
+      code: 'FOR-HSEQ-026',
+      title: 'Inspección Pre-operacional GPS Diferencial GNSS',
+      pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL GPS DIFERENCIAL GNSS',
+      version: '01',
+      division: 'Ingeniería',
+      equipmentName: 'GPS Diferencial (GNSS)',
+      templateDate: '10-sep-2026',
+      equipmentLabel: 'GPS Diferencial',
+      defaultEquipment: 'Trimble R12 / R10',
+      defaultSerial: '',
+      sections: ['1. RECEPTOR BASE Y ROVER', '2. COLECTORA DE DATOS', '3. BATERÍAS Y ACCESORIOS'],
+      items: [
+        { code: '1.1', section: '1. RECEPTOR BASE Y ROVER', description: 'Receptores encienden y reciben señal satelital', optimal: 'SI' },
+        { code: '1.2', section: '1. RECEPTOR BASE Y ROVER', description: 'Carcasa presenta golpes o fisuras', optimal: 'NO' },
+        { code: '2.1', section: '2. COLECTORA DE DATOS', description: 'Colectora en buen estado y software operativo', optimal: 'SI' },
+        { code: '3.1', section: '3. BATERÍAS Y ACCESORIOS', description: 'Baterías cargadas y en buen estado', optimal: 'SI' },
+        { code: '3.2', section: '3. BATERÍAS Y ACCESORIOS', description: 'Trípode y bastón firmes y funcionales', optimal: 'SI' },
+      ],
+    };
+  }
+
+  if (norm.includes('localizador') || norm.includes('tuber') || norm.includes('028') || norm.includes('rd8100')) {
+    return {
+      id: 'hseq-localizador-tuberias',
+      formatType: 'generic',
+      code: 'FOR-HSEQ-028',
+      title: 'Inspección Pre-operacional Localizador de Tuberías',
+      pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL LOCALIZADOR DE TUBERÍAS',
+      version: '01',
+      division: 'Ingeniería',
+      equipmentName: 'Localizador de Tuberías (RD8100)',
+      templateDate: '10-sep-2026',
+      equipmentLabel: 'Localizador de Tuberías',
+      defaultEquipment: 'Radiodetection RD8100',
+      defaultSerial: '',
+      sections: ['1. TRANSMISOR (TX)', '2. RECEPTOR (RX)', '3. CABLES Y ACCESORIOS'],
+      items: [
+        { code: '1.1', section: '1. TRANSMISOR (TX)', description: 'Transmisor enciende y modula frecuencias correctamente', optimal: 'SI' },
+        { code: '1.2', section: '1. TRANSMISOR (TX)', description: 'Carcasa presenta golpes o roturas', optimal: 'NO' },
+        { code: '2.1', section: '2. RECEPTOR (RX)', description: 'Receptor enciende, pantalla legible y altavoz funciona', optimal: 'SI' },
+        { code: '3.1', section: '3. CABLES Y ACCESORIOS', description: 'Pinzas de conexión y cables en buen estado', optimal: 'SI' },
+      ],
     };
   }
 
@@ -313,10 +410,12 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
     title: 'Inspección Pre-operacional de Drone',
     pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL DRONE',
     version: '2',
+    division: 'Mapping',
+    equipmentName: 'Drone',
     templateDate: '16-sep-2026',
     equipmentLabel: 'Drone',
     defaultEquipment: 'DJI Mavic 3 Enterprise',
-    defaultSerial: 'PROC-DRN-001',
+    defaultSerial: '',
     sections: DRONE_INSPECTION_SECTIONS,
     items: DRONE_INSPECTION_ITEMS,
   };
@@ -329,6 +428,7 @@ export interface HseqPdfGenerationPayload {
   templateVersion?: string;
   templateDate?: string;
   equipmentLabel?: string;
+  equipmentName?: string;
 
   projectName: string;
   costCenter: string;
@@ -351,3 +451,4 @@ export interface HseqPdfGenerationPayload {
 }
 
 export type DronePdfGenerationPayload = HseqPdfGenerationPayload;
+

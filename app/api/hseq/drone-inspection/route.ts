@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       templateDate,
       customItems = [],
       customSections = [],
+      equipmentName,
       droneBrandModel,
       droneSerial,
       equipmentBrandModel,
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     if (!sstaName || !sstaSignatureDataUrl) {
       return NextResponse.json(
-        { error: 'La firma digital del Responsable SSTA es obligatoria con nombre completo verificado.' },
+        { error: 'La firma digital del Responsable/SSTA es obligatoria con nombre completo verificado.' },
         { status: 400 }
       );
     }
@@ -122,8 +123,10 @@ export async function POST(req: NextRequest) {
         version: templateVersion || '2',
         templateDate: templateDate || '16-sep-2026',
         equipmentLabel: equipmentBrandModel ? 'Equipo' : 'Equipo / Herramienta',
+        equipmentName: equipmentName || 'Equipo',
+        division: 'Ingeniería',
         defaultEquipment: equipmentBrandModel || 'Equipo Estándar',
-        defaultSerial: equipmentSerial || 'PROC-EQ-001',
+        defaultSerial: equipmentSerial || '',
         sections: customSections.length > 0 ? customSections : ['1. GENERAL'],
         items: customItems,
         isDynamic: true,
@@ -158,12 +161,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const brandModel =
-      equipmentBrandModel || droneBrandModel || formatConfig.defaultEquipment;
-    const serial =
+    // Separación canónica y validación estricta de Equipo, Marca/Modelo y Serial
+    const effectiveEquipmentName = (
+      equipmentName ||
+      formatConfig.equipmentName ||
+      (isDrone ? 'Drone' : isEstacion ? 'Estación Total' : 'Equipo')
+    ).trim();
+
+    const brandModel = (
+      equipmentBrandModel ||
+      droneBrandModel ||
+      ''
+    ).trim();
+
+    const serial = (
       serialAkula && serialComputadora
         ? `Akula: ${serialAkula} | PC: ${serialComputadora}`
-        : serialAkula || serialComputadora || equipmentSerial || droneSerial || formatConfig.defaultSerial;
+        : serialAkula || serialComputadora || equipmentSerial || droneSerial || ''
+    ).trim();
+
+    if (!effectiveEquipmentName) {
+      return NextResponse.json(
+        { error: 'El campo Equipo / Herramienta es obligatorio.' },
+        { status: 400 }
+      );
+    }
+
+    if (!brandModel) {
+      return NextResponse.json(
+        { error: 'La Marca y Modelo del equipo es obligatoria.' },
+        { status: 400 }
+      );
+    }
+
+    if (!serial) {
+      return NextResponse.json(
+        { error: 'El Número de Serial del equipo es obligatorio.' },
+        { status: 400 }
+      );
+    }
 
     const payloadForGeneration = {
       formatTitle: formatConfig.pdfTitle,
@@ -171,6 +207,7 @@ export async function POST(req: NextRequest) {
       version: formatConfig.version,
       templateVersion: formatConfig.version,
       templateDate: formatConfig.templateDate,
+      equipmentName: effectiveEquipmentName,
       equipmentLabel: formatConfig.equipmentLabel,
       projectName: projectName || 'Proyecto',
       costCenter: costCenter || '',
@@ -216,7 +253,7 @@ export async function POST(req: NextRequest) {
     let driveFileId: string | null = null;
     let driveWebViewLink: string | null = null;
     const driveWarning: string | null = null;
-    let rawDivision = formatConfig.formatType === 'drone' ? 'Mapping' : 'Ingeniería';
+    const rawDivision = formatConfig.division || (formatConfig.formatType === 'drone' ? 'Mapping' : 'Ingeniería');
 
     // Disparar las 4 operaciones I/O concurrentemente con Promise.allSettled
     const [pdfStorageRes, excelStorageRes, driveUploadRes, userProfileRes] = await Promise.allSettled([
@@ -284,18 +321,19 @@ export async function POST(req: NextRequest) {
       driveWebViewLink = pdfUrl;
     }
 
-    // Procesar resultados de Task 4 (División del usuario normalizada canónicamente)
-    if (userProfileRes.status === 'fulfilled') {
+    // Procesar resultados de Task 4: La división canónica del formato tiene prioridad absoluta sobre la cuenta del usuario
+    let effectiveDivision = formatConfig.division;
+    if (!effectiveDivision && userProfileRes.status === 'fulfilled') {
       interface UserProfileWithDiv {
         division_id?: string | null;
         divisions?: { name?: string } | null;
       }
       const typedProfile = userProfileRes.value.data as unknown as UserProfileWithDiv | null;
       if (typedProfile?.divisions?.name) {
-        rawDivision = typedProfile.divisions.name;
+        effectiveDivision = typedProfile.divisions.name;
       }
     }
-    const divisionName = normalizeDivision(rawDivision);
+    const divisionName = normalizeDivision(effectiveDivision || rawDivision);
 
     // 6. Detectar si hay variaciones respecto a la condición óptima o Puntos Críticos
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -309,9 +347,9 @@ export async function POST(req: NextRequest) {
         const itemObj = it as unknown as { code: string; description?: string; title?: string; optimal: string };
         return {
           code: itemObj.code,
-          description: itemObj.description || itemObj.title || '',
-          response: String(itemsResponses[it.code] || '').toUpperCase(),
+          description: itemObj.description || itemObj.title || itemObj.code,
           expected: itemObj.optimal,
+          actual: String(itemsResponses[itemObj.code] || '').toUpperCase(),
         };
       });
 
@@ -358,6 +396,7 @@ export async function POST(req: NextRequest) {
         division: divisionName,
         format_code: formatConfig.code,
         format_title: formatConfig.title,
+        equipment_name: effectiveEquipmentName,
         equipment_label: formatConfig.equipmentLabel,
         equipment_brand_model: brandModel,
         equipment_serial: serial,
@@ -384,6 +423,7 @@ export async function POST(req: NextRequest) {
       cost_center: costCenter || null,
       location: location || null,
       inspection_date: inspectionDate,
+      equipment_name: effectiveEquipmentName,
       equipment_brand_model: brandModel,
       equipment_serial: serial || null,
       drone_brand_model: brandModel,
@@ -413,7 +453,7 @@ export async function POST(req: NextRequest) {
     let inserted: any = null;
     let dbErr: any = null;
 
-    // Intento 1: Tabla canónica hseq_inspections con payload completo
+    // Intento 1: Tabla canónica hseq_inspections con payload completo (incluyendo equipment_name)
     const res1 = await supabase
       .from('hseq_inspections')
       .insert(fullPayload)
@@ -423,37 +463,13 @@ export async function POST(req: NextRequest) {
     if (!res1.error) {
       inserted = res1.data;
     } else {
-      console.warn('Aviso insertando con payload completo en hseq_inspections, aplicando fallback a columnas esenciales:', res1.error.message);
-      // Intento 2: Fallback en hseq_inspections omitiendo columnas accesorias
-      const basePayload = {
-        project_id: projectId,
-        user_id: session.user.id,
-        status: hasAnomalies ? 'submitted' : 'approved',
-        cost_center: costCenter || null,
-        location: location || null,
-        inspection_date: inspectionDate,
-        equipment_brand_model: brandModel,
-        equipment_serial: serial || null,
-        drone_brand_model: brandModel,
-        drone_serial: serial || null,
-        items_responses: enrichedItemsResponses,
-        critical_point: criticalPoint || 'Ninguno',
-        general_observations: generalObservations || null,
-        operator_name: operatorName,
-        operator_signature_data: operatorSignatureDataUrl,
-        ssta_name: sstaName,
-        ssta_signature_data: sstaSignatureDataUrl,
-        drive_file_id: driveFileId,
-        drive_web_view_link: driveWebViewLink,
-        pdf_filename: fileName,
-        division_name: divisionName,
-        format_code: formatConfig.code,
-        format_title: formatConfig.title,
-      };
-
+      console.warn('Aviso insertando con payload completo en hseq_inspections, aplicando fallback resiliente:', res1.error.message);
+      // Intento 2: Fallback omitiendo equipment_name si la columna aún no ha sido migrada
+      const basePayloadWithoutEquipmentName = { ...fullPayload };
+      delete (basePayloadWithoutEquipmentName as any).equipment_name;
       const res2 = await supabase
         .from('hseq_inspections')
-        .insert(basePayload)
+        .insert(basePayloadWithoutEquipmentName)
         .select()
         .single();
 
