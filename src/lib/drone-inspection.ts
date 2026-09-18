@@ -39,6 +39,33 @@ import type {
 } from './hseq-definitions';
 import { getHseqFormatConfig, ESTACION_TOTAL_ITEMS } from './hseq-definitions';
 
+// ─── Extractor Universal de Texto Seguro de Celdas Excel ──────────────────────
+export function getExcelCellValueAsString(val: any): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string') return val.trim();
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (val instanceof Date) return val.toISOString().split('T')[0];
+  if (typeof val === 'object') {
+    if (Array.isArray(val.richText)) {
+      return val.richText
+        .map((t: any) => (t && typeof t === 'object' ? t.text || '' : String(t || '')))
+        .join('')
+        .trim();
+    }
+    if (val.result !== undefined && val.result !== null) {
+      return getExcelCellValueAsString(val.result);
+    }
+    if (typeof val.text === 'string') {
+      return val.text.trim();
+    }
+    if (typeof val.text === 'object') {
+      return getExcelCellValueAsString(val.text);
+    }
+    return '';
+  }
+  return String(val).trim();
+}
+
 // ─── Conversión Fiel de Hoja de Cálculo Excel (.xlsx) a PDF ───────────────────
 export function convertWorksheetToPdf(
   ws: ExcelJS.Worksheet,
@@ -107,13 +134,18 @@ export function convertWorksheetToPdf(
   let sstaSignRowIdx = -1;
   let logoCellPos: { rowIdx: number; colIdx: number } | null = null;
 
-  const isDroneFormat = !isLandscape && maxCol <= 6;
+  const isPortraitTable = !isLandscape && maxCol <= 6;
   const isEstacion = /estaci[oó]n|total|025/i.test(`${payload.formatCode || ''} ${payload.formatTitle || ''}`);
   const dateObj = new Date((payload.inspectionDate || new Date().toISOString().split('T')[0]) + 'T12:00:00Z');
   const dayOfWeek = isNaN(dateObj.getTime()) ? 1 : dateObj.getDay();
 
-  if (isDroneFormat) {
-    // ── Formato Oficial Drone (Exact Fit a 1 Sola Página A4) ──
+  if (isPortraitTable) {
+    // ── Formato Oficial Vertical Canónico (Drone, Estación Total u otros portrait) ──
+    let hasEmittedOperatorSign = false;
+    let hasEmittedSstaSign = false;
+    let hasEmittedObservations = false;
+    let hasEmittedCriticalPoint = false;
+
     for (let r = 1; r <= ws.rowCount; r++) {
       if (r === 9 || r === 43) continue; // Separadores vacíos en la plantilla Excel
 
@@ -129,20 +161,20 @@ export function convertWorksheetToPdf(
           styles: { halign: 'center', valign: 'middle', minCellHeight: 12 },
         });
         rowCells.push({
-          content: String(payload.formatTitle || 'INSPECCIÓN PRE-OPERACIONAL DRONE').toUpperCase(),
+          content: String(payload.formatTitle || 'INSPECCIÓN PRE-OPERACIONAL').toUpperCase(),
           colSpan: 1,
           styles: { halign: 'center', fontSize: 10, fontStyle: 'bold', valign: 'middle' },
         });
 
         // Extraer metadatos de versión y fecha de revisión del formato oficial desde la celda A1 o payload
-        const rawHeaderMeta = String(ws.getRow(1).getCell(1).value || '');
+        const rawHeaderMeta = getExcelCellValueAsString(ws.getRow(1).getCell(1).value);
         const verMatch = rawHeaderMeta.match(/versi[oó]n[:\s]*([a-zA-Z0-9\-_]+)/i);
         const dateMatch = rawHeaderMeta.match(/fecha[:\s]*([^\r\n]+)/i);
 
         const formatVersion = verMatch ? verMatch[1] : (payload.templateVersion || payload.version || '2');
         const templateRevDate = dateMatch ? dateMatch[1].trim() : (payload.templateDate || '16-sep-2026');
 
-        const metaText = `CÓDIGO: ${payload.formatCode || 'FOR-HSEQ-024'}\nVERSIÓN: ${formatVersion}\nFECHA: ${templateRevDate}`;
+        const metaText = `CÓDIGO: ${payload.formatCode || 'FOR-HSEQ'}\nVERSIÓN: ${formatVersion}\nFECHA: ${templateRevDate}`;
         rowCells.push({
           content: metaText,
           colSpan: 3,
@@ -153,25 +185,25 @@ export function convertWorksheetToPdf(
         continue;
       } else if (r >= 3 && r <= 8) {
         rowCells.push({
-          content: String(row.getCell(1).value || ''),
+          content: getExcelCellValueAsString(row.getCell(1).value),
           colSpan: 1,
           styles: { fontSize: 6.5, fontStyle: 'bold', fillColor: [248, 250, 252] },
         });
         rowCells.push({
-          content: String(row.getCell(2).value || ''),
+          content: getExcelCellValueAsString(row.getCell(2).value),
           colSpan: 4,
           styles: { fontSize: 6.5, fontStyle: 'normal' },
         });
       } else if (r === 10) {
         rowCells.push({
-          content: String(row.getCell(1).value || ''),
+          content: getExcelCellValueAsString(row.getCell(1).value) || 'MARQUE CON UNA "X" SEGÚN LO EVIDENCIADO',
           colSpan: 5,
           styles: { halign: 'center', fontSize: 7, fontStyle: 'bold', fillColor: [217, 217, 217] },
         });
       } else if (r === 11) {
         for (let c = 1; c <= 5; c++) {
           rowCells.push({
-            content: String(row.getCell(c).value || ''),
+            content: getExcelCellValueAsString(row.getCell(c).value),
             styles: {
               halign: c >= 3 || c === 1 ? 'center' : 'left',
               fontSize: 7,
@@ -180,89 +212,182 @@ export function convertWorksheetToPdf(
             },
           });
         }
-      } else if (r >= 12 && r <= 37) {
-        for (let c = 1; c <= 5; c++) {
-          const val = String(row.getCell(c).value || '');
+      } else if (r >= 12) {
+        const val1 = getExcelCellValueAsString(row.getCell(1).value);
+        const val2 = getExcelCellValueAsString(row.getCell(2).value);
+        const combined = (val1 + ' ' + val2).trim();
+
+        // 1. Detección de Fila de Firma del Operador / Responsable del Equipo
+        if (/FIRMA RESPONSABLE DEL EQUIPO|FIRMA OPERADOR|FIRMA RESPONSABLE.*EQUIPO/i.test(combined)) {
+          operatorSignRowIdx = tableBody.length;
+          hasEmittedOperatorSign = true;
           rowCells.push({
-            content: val,
-            styles: {
-              halign: c >= 3 || c === 1 ? 'center' : 'left',
-              fontSize: 6.5,
-              fontStyle: c === 1 || val === 'X' ? 'bold' : 'normal',
-              textColor: val === 'X' ? [15, 23, 42] : [0, 0, 0],
-            },
+            content: 'FIRMA RESPONSABLE DEL EQUIPO',
+            colSpan: 1,
+            styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
+          });
+          rowCells.push({
+            content: payload.operatorSignatureDataUrl ? '' : `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
+            colSpan: 4,
+            styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
           });
         }
-      } else if (r === 38) {
-        operatorSignRowIdx = tableBody.length;
-        rowCells.push({
-          content: 'FIRMA RESPONSABLE DEL EQUIPO',
-          colSpan: 1,
-          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
-        });
-        rowCells.push({
-          content: payload.operatorSignatureDataUrl ? '' : `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
-          colSpan: 4,
-          styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
-        });
-      } else if (r === 39) {
-        sstaSignRowIdx = tableBody.length;
-        rowCells.push({
-          content: 'FIRMA RESPONSABLE/SSTA',
-          colSpan: 1,
-          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
-        });
-        rowCells.push({
-          content: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Digital Verificada)`,
-          colSpan: 4,
-          styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
-        });
-      } else if (r === 40) {
-        let t = row.getCell(1).value || row.getCell(2).value;
-        if (typeof t === 'object' && (t as any).richText) t = (t as any).richText.map((x: any) => x.text).join('');
-        rowCells.push({
-          content: String(t || ''),
-          colSpan: 5,
-          styles: { fontSize: 5.5, fontStyle: 'italic', textColor: [80, 80, 80] },
-        });
-      } else if (r === 41) {
-        rowCells.push({
-          content: String(row.getCell(1).value || 'OBSERVACIONES:'),
-          colSpan: 5,
-          styles: { fontSize: 7, fontStyle: 'bold', fillColor: [217, 217, 217] },
-        });
-      } else if (r === 42) {
-        rowCells.push({
-          content: String(row.getCell(1).value || row.getCell(2).value || ''),
-          colSpan: 5,
-          styles: { fontSize: 6.5, minCellHeight: 7 },
-        });
-      } else if (r === 44) {
-        rowCells.push({
-          content: String(row.getCell(1).value || ''),
-          colSpan: 5,
-          styles: { fontSize: 7, fontStyle: 'bold', fillColor: [254, 242, 242], textColor: [185, 28, 28] },
-        });
-      } else if (r === 45) {
-        rowCells.push({
-          content: String(row.getCell(1).value || ''),
-          colSpan: 5,
-          styles: { fontSize: 6.5, minCellHeight: 6 },
-        });
+        // 2. Detección de Fila de Firma Responsable / SSTA
+        else if (/FIRMA RESPONSABLE[\s\/]*(?:SSTA|STTA|PROYECTO)|FIRMA.*SSTA/i.test(combined)) {
+          sstaSignRowIdx = tableBody.length;
+          hasEmittedSstaSign = true;
+          rowCells.push({
+            content: 'FIRMA RESPONSABLE/SSTA',
+            colSpan: 1,
+            styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
+          });
+          rowCells.push({
+            content: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Digital Verificada)`,
+            colSpan: 4,
+            styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
+          });
+        }
+        // 3. Fila de Nota Importante (limpia, sin ningún [object Object])
+        else if (/NOTA IMPORTANTE/i.test(combined)) {
+          rowCells.push({
+            content: combined,
+            colSpan: 5,
+            styles: { fontSize: 5.5, fontStyle: 'italic', textColor: [80, 80, 80] },
+          });
+        }
+        // 4. Fila de Observaciones
+        else if (/OBSERVACIONES/i.test(combined)) {
+          if (!hasEmittedObservations) {
+            hasEmittedObservations = true;
+            rowCells.push({
+              content: 'OBSERVACIONES:',
+              colSpan: 5,
+              styles: { fontSize: 7, fontStyle: 'bold', fillColor: [217, 217, 217] },
+            });
+            tableBody.push(rowCells);
+            tableBody.push([{
+              content: payload.generalObservations || 'Ninguna',
+              colSpan: 5,
+              styles: { fontSize: 6.5, minCellHeight: 6 },
+            }]);
+            continue;
+          }
+        }
+        // 5. Fila de Punto Crítico
+        else if (/PUNTO CR[IÍ]TICO/i.test(combined)) {
+          if (!hasEmittedCriticalPoint) {
+            hasEmittedCriticalPoint = true;
+            rowCells.push({
+              content: 'PUNTO CRÍTICO QUE INHABILITA EL EQUIPO PARA OPERARLO:',
+              colSpan: 5,
+              styles: { fontSize: 7, fontStyle: 'bold', fillColor: [254, 242, 242], textColor: [185, 28, 28] },
+            });
+            tableBody.push(rowCells);
+            tableBody.push([{
+              content: payload.criticalPoint || 'Ninguno',
+              colSpan: 5,
+              styles: { fontSize: 6.5, minCellHeight: 6 },
+            }]);
+            continue;
+          }
+        }
+        // 6. Filas de días en plantillas semanales no deseadas en PDF diario (LUNES, MARTES, etc.)
+        else if (/^(LUNES|MARTES|MI[EÉ]RCOLES|JUEVES|VIERNES|S[AÁ]BADO|DOMINGO):?/i.test(val1)) {
+          continue;
+        }
+        // 7. Fila de Ítem de Inspección regular
+        else if (val1 || val2) {
+          for (let c = 1; c <= 5; c++) {
+            const val = getExcelCellValueAsString(row.getCell(c).value);
+            rowCells.push({
+              content: val,
+              styles: {
+                halign: c >= 3 || c === 1 ? 'center' : 'left',
+                fontSize: 6.5,
+                fontStyle: c === 1 || val === 'X' ? 'bold' : 'normal',
+                textColor: val === 'X' ? [15, 23, 42] : [0, 0, 0],
+              },
+            });
+          }
+        }
       }
 
       if (rowCells.length > 0) {
         tableBody.push(rowCells);
       }
     }
+
+    // Asegurar que las secciones de firmas siempre existan si no fueron detectadas
+    if (!hasEmittedOperatorSign) {
+      operatorSignRowIdx = tableBody.length;
+      tableBody.push([
+        {
+          content: 'FIRMA RESPONSABLE DEL EQUIPO',
+          colSpan: 1,
+          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
+        },
+        {
+          content: payload.operatorSignatureDataUrl ? '' : `${payload.operatorName || 'Operador'} (Firma Digital Verificada)`,
+          colSpan: 4,
+          styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
+        },
+      ]);
+    }
+    if (!hasEmittedSstaSign) {
+      sstaSignRowIdx = tableBody.length;
+      tableBody.push([
+        {
+          content: 'FIRMA RESPONSABLE/SSTA',
+          colSpan: 1,
+          styles: { fontSize: 6.5, fontStyle: 'bold', minCellHeight: 14, valign: 'middle' },
+        },
+        {
+          content: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Digital Verificada)`,
+          colSpan: 4,
+          styles: { fontSize: 6, minCellHeight: 14, valign: 'bottom', halign: 'left', textColor: [40, 40, 40] },
+        },
+      ]);
+    }
+    if (!hasEmittedObservations) {
+      tableBody.push([
+        {
+          content: 'OBSERVACIONES:',
+          colSpan: 5,
+          styles: { fontSize: 7, fontStyle: 'bold', fillColor: [217, 217, 217] },
+        },
+      ]);
+      tableBody.push([
+        {
+          content: payload.generalObservations || 'Ninguna',
+          colSpan: 5,
+          styles: { fontSize: 6.5, minCellHeight: 6 },
+        },
+      ]);
+    }
+    if (!hasEmittedCriticalPoint) {
+      tableBody.push([
+        {
+          content: 'PUNTO CRÍTICO QUE INHABILITA EL EQUIPO PARA OPERARLO:',
+          colSpan: 5,
+          styles: { fontSize: 7, fontStyle: 'bold', fillColor: [254, 242, 242], textColor: [185, 28, 28] },
+        },
+      ]);
+      tableBody.push([
+        {
+          content: payload.criticalPoint || 'Ninguno',
+          colSpan: 5,
+          styles: { fontSize: 6.5, minCellHeight: 6 },
+        },
+      ]);
+    }
   } else {
-    // ── Formato Genérico / Horizontal (Estación Total u otros) ──
+    // ── Formato Genérico / Horizontal (Estación Total semanal u otros) ──
     for (let r = 1; r <= ws.rowCount; r++) {
       const row = ws.getRow(r);
       const rowCells: any[] = [];
       let rowHasVal = false;
 
-      const firstCellStr = String(row.getCell(1).value || '') + ' ' + String(row.getCell(2).value || '');
+      const firstCellStr = getExcelCellValueAsString(row.getCell(1).value) + ' ' + getExcelCellValueAsString(row.getCell(2).value);
       const isSignatureRow =
         (isEstacion && (r === 26 || r === 27)) ||
         /FIRMA RESPONSABLE/i.test(firstCellStr);
@@ -271,16 +396,8 @@ export function convertWorksheetToPdf(
         if (mergedCellsToSkip.has(`${r},${c}`)) continue;
 
         const cell = row.getCell(c);
-        let val = cell.value;
-        if (val !== null && val !== undefined && val !== '') rowHasVal = true;
-
-        if (val && typeof val === 'object' && (val as any).richText) {
-          val = (val as any).richText.map((t: any) => t.text).join('');
-        } else if (val && typeof val === 'object') {
-          val = (val as any).text || '';
-        }
-
-        const strVal = val === null || val === undefined ? '' : String(val);
+        const strVal = getExcelCellValueAsString(cell.value);
+        if (strVal !== '') rowHasVal = true;
 
         if (r <= 2 && c === 1 && !logoCellPos) {
           logoCellPos = { rowIdx: tableBody.length, colIdx: rowCells.length };
@@ -320,24 +437,11 @@ export function convertWorksheetToPdf(
           cellDef.styles.halign = 'center';
           cellDef.styles.valign = 'middle';
           cellDef.styles.fontStyle = 'bold';
+          cellDef.styles.textColor = [15, 23, 42];
         }
-
-        if (cell.alignment?.horizontal) {
-          cellDef.styles.halign = cell.alignment.horizontal;
-        } else if (c >= 3 && strVal === 'X') {
-          cellDef.styles.halign = 'center';
-        }
-
-        cellDef.styles.valign = 'middle';
 
         if (cell.fill && (cell.fill as any).type === 'pattern' && (cell.fill as any).pattern === 'solid') {
           cellDef.styles.fillColor = [217, 217, 217];
-        }
-
-        if (strVal === 'X') {
-          cellDef.styles.fontStyle = 'bold';
-          cellDef.styles.halign = 'center';
-          cellDef.styles.textColor = [15, 23, 42];
         }
 
         if (isSignatureRow) {
@@ -356,17 +460,17 @@ export function convertWorksheetToPdf(
   // 4. Renderizado con autoTable preservando exactamente la hoja
   autoTable(doc, {
     startY: 8,
-    margin: isDroneFormat ? { left: 10, right: 10, top: 8, bottom: 8 } : { left: 8, right: 8, top: 8, bottom: 8 },
+    margin: isPortraitTable ? { left: 10, right: 10, top: 8, bottom: 8 } : { left: 8, right: 8, top: 8, bottom: 8 },
     theme: 'grid',
     body: tableBody,
     styles: {
       lineColor: [120, 120, 120],
       lineWidth: 0.15,
-      cellPadding: isDroneFormat ? { top: 0.6, bottom: 0.6, left: 1, right: 1 } : (isLandscape ? 0.6 : 0.9),
+      cellPadding: isPortraitTable ? { top: 0.6, bottom: 0.6, left: 1, right: 1 } : (isLandscape ? 0.6 : 0.9),
       textColor: [0, 0, 0],
       valign: 'middle',
     },
-    columnStyles: isDroneFormat
+    columnStyles: isPortraitTable
       ? {
           0: { cellWidth: 26 },
           1: { cellWidth: 120 },
@@ -384,7 +488,7 @@ export function convertWorksheetToPdf(
       }
       // Estampar firma digital del Operador estrictamente contenida dentro de la celda
       if (data.row.index === operatorSignRowIdx) {
-        const isTargetCol = isDroneFormat
+        const isTargetCol = isPortraitTable
           ? data.column.index === 1
           : isEstacion
           ? data.column.index === (dayOfWeek === 0 ? 7 : dayOfWeek)
@@ -394,8 +498,8 @@ export function convertWorksheetToPdf(
           try {
             const padX = 2;
             const padY = 1.5;
-            const drawW = Math.min(26, Math.max(10, data.cell.width - padX * 2));
-            const drawH = Math.min(8.5, Math.max(6, data.cell.height - padY * 2));
+            const drawW = Math.min(32, Math.max(10, data.cell.width - padX * 2));
+            const drawH = Math.min(10, Math.max(6, data.cell.height - padY * 2));
             const drawX = data.cell.x + (data.cell.width - drawW) / 2;
             const drawY = data.cell.y + (data.cell.height - drawH) / 2;
             doc.addImage(payload.operatorSignatureDataUrl, 'PNG', drawX, drawY, drawW, drawH);
@@ -404,7 +508,7 @@ export function convertWorksheetToPdf(
       }
       // Estampar firma digital del Responsable / SSTA estrictamente contenida dentro de la celda
       if (data.row.index === sstaSignRowIdx) {
-        const isTargetCol = isDroneFormat
+        const isTargetCol = isPortraitTable
           ? data.column.index === 1
           : isEstacion
           ? data.column.index === (dayOfWeek === 0 ? 7 : dayOfWeek)
@@ -414,8 +518,8 @@ export function convertWorksheetToPdf(
           try {
             const padX = 2;
             const padY = 1.5;
-            const drawW = Math.min(26, Math.max(10, data.cell.width - padX * 2));
-            const drawH = Math.min(8.5, Math.max(6, data.cell.height - padY * 2));
+            const drawW = Math.min(32, Math.max(10, data.cell.width - padX * 2));
+            const drawH = Math.min(10, Math.max(6, data.cell.height - padY * 2));
             const drawX = data.cell.x + (data.cell.width - drawW) / 2;
             const drawY = data.cell.y + (data.cell.height - drawH) / 2;
             doc.addImage(payload.sstaSignatureDataUrl, 'PNG', drawX, drawY, drawW, drawH);
@@ -490,6 +594,12 @@ export function applyUniversalPlaceholders(
 
   ws.eachRow((row: any, r: number) => {
     row.eachCell((cell: any, c: number) => {
+      let rawVal = cell.value;
+      if (rawVal && typeof rawVal === 'object' && (rawVal as any).richText) {
+        rawVal = getExcelCellValueAsString(rawVal);
+        cell.value = rawVal;
+      }
+
       if (typeof cell.value === 'string') {
         let text = cell.value;
 
@@ -651,12 +761,10 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
 
   if (isDrone) {
     // ── Llenado de Formato Drone (FOR-HSEQ-024) ────────────────────────────────
-    // Ajustar altura de filas de firmas para que queden holgadamente dentro de la celda
     ws.getRow(38).height = 42;
     ws.getRow(39).height = 42;
     ws.getRow(39).getCell(1).value = 'FIRMA RESPONSABLE/SSTA';
 
-    // Incrustar trazos gráficos de firma perfectamente contenidos dentro de la celda
     if (payload.operatorSignatureDataUrl?.startsWith('data:image')) {
       ws.getRow(38).getCell(2).value = '';
       try {
@@ -691,11 +799,11 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
       ws.getRow(39).getCell(2).value = `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`;
     }
   } else if (isEstacion && !hasTaggedChecklist) {
-    // ── Llenado de Formato Estación Total Oficial Semanal (FOR-HSEQ-025) ─────
-    // Identificar columna del día inspeccionado (Lunes=5, Martes=8, etc.)
+    // ── Llenado de Formato Estación Total Oficial (Semanal o Diario) ─────
+    const isWeekly = ws.columnCount > 8;
     const dateObj = new Date(payload.inspectionDate + 'T12:00:00Z');
     const dayOfWeek = isNaN(dateObj.getTime()) ? 1 : dateObj.getDay();
-    const dayBaseCol = dayOfWeek === 0 ? 23 : 5 + (dayOfWeek - 1) * 3;
+    const dayBaseCol = isWeekly ? (dayOfWeek === 0 ? 23 : 5 + (dayOfWeek - 1) * 3) : 3;
 
     // Ítems de inspección (filas 11 a 25)
     const items = payload.items && payload.items.length > 0 ? payload.items : ESTACION_TOTAL_ITEMS;
@@ -714,52 +822,56 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
       }
     });
 
+    const sigCol = isWeekly ? dayBaseCol : 2;
     // Firmas si no había anclaje de tags
     if (!opSignatureCell) {
       if (payload.operatorSignatureDataUrl?.startsWith('data:image')) {
-        ws.getRow(26).getCell(dayBaseCol).value = '';
+        ws.getRow(26).getCell(sigCol).value = '';
         try {
           const opBuffer = Buffer.from(payload.operatorSignatureDataUrl.split(',')[1], 'base64');
           const opImgId = wb.addImage({ buffer: opBuffer as any, extension: 'png' });
           ws.addImage(opImgId, {
-            tl: { col: (dayBaseCol - 1) + 0.1, row: 25.1 },
-            ext: { width: 90, height: 32 },
+            tl: { col: (sigCol - 1) + 0.1, row: 25.1 },
+            ext: { width: isWeekly ? 90 : 130, height: 32 },
             editAs: 'oneCell',
           });
         } catch (err) {
           console.warn('Error incrustando firma operador en Estación Total Excel:', err);
         }
       } else {
-        ws.getRow(26).getCell(dayBaseCol).value = `${payload.operatorName || 'Operador'} (Firma Verificada)`;
+        ws.getRow(26).getCell(sigCol).value = `${payload.operatorName || 'Operador'} (Firma Verificada)`;
       }
     }
     if (!sstaSignatureCell) {
       if (payload.sstaSignatureDataUrl?.startsWith('data:image')) {
-        ws.getRow(27).getCell(dayBaseCol).value = '';
+        ws.getRow(27).getCell(sigCol).value = '';
         try {
           const sstaBuffer = Buffer.from(payload.sstaSignatureDataUrl.split(',')[1], 'base64');
           const sstaImgId = wb.addImage({ buffer: sstaBuffer as any, extension: 'png' });
           ws.addImage(sstaImgId, {
-            tl: { col: (dayBaseCol - 1) + 0.1, row: 26.1 },
-            ext: { width: 90, height: 32 },
+            tl: { col: (sigCol - 1) + 0.1, row: 26.1 },
+            ext: { width: isWeekly ? 90 : 130, height: 32 },
             editAs: 'oneCell',
           });
         } catch (err) {
           console.warn('Error incrustando firma SSTA en Estación Total Excel:', err);
         }
       } else {
-        ws.getRow(27).getCell(dayBaseCol).value = `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`;
+        ws.getRow(27).getCell(sigCol).value = `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`;
       }
     }
 
-    // Observaciones (fila 30 a 36 según el día)
-    const dayObsRow = dayOfWeek === 0 ? 36 : 30 + (dayOfWeek - 1);
-    if (dayObsRow >= 30 && dayObsRow <= 36) {
-      ws.getRow(dayObsRow).getCell(4).value = payload.generalObservations || 'Conforme.';
+    // Observaciones
+    if (isWeekly) {
+      const dayObsRow = dayOfWeek === 0 ? 36 : 30 + (dayOfWeek - 1);
+      if (dayObsRow >= 30 && dayObsRow <= 36) {
+        ws.getRow(dayObsRow).getCell(4).value = payload.generalObservations || 'Conforme.';
+      }
+      ws.getRow(38).getCell(4).value = payload.criticalPoint || 'Ninguno';
+    } else {
+      ws.getRow(30).getCell(1).value = `OBSERVACIONES: ${payload.generalObservations || 'Conforme.'}`;
+      ws.getRow(38).getCell(1).value = `PUNTO CRÍTICO QUE INHABILITA EL EQUIPO PARA OPERARLO: ${payload.criticalPoint || 'Ninguno'}`;
     }
-
-    // Punto crítico
-    ws.getRow(38).getCell(4).value = payload.criticalPoint || 'Ninguno';
   } else if (!hasTaggedChecklist) {
     // ── Llenado de Formato Dinámico con Detección de Columnas SI / NO / NA ──
     let colSi = 3;

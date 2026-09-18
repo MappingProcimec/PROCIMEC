@@ -121,9 +121,20 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      const fileAndCode = `${row.pdf_filename || ''} ${String(meta.format_code || '')}`;
-      const isDrone = DRONE_REGEX.test(fileAndCode);
-      const isEstacion = ESTACION_REGEX.test(fileAndCode);
+      const candidateString = [
+        row.pdf_filename,
+        (row as any).format_code,
+        (row as any).format_title,
+        (row as any).equipment_name,
+        meta.format_code,
+        meta.format_title,
+        meta.equipment_name,
+        row.equipment_brand_model,
+        (row as any).drone_brand_model,
+      ].filter(Boolean).join(' ');
+
+      const isDrone = DRONE_REGEX.test(candidateString);
+      const isEstacion = ESTACION_REGEX.test(candidateString);
 
       const formatCode =
         (typeof (row as any).format_code === 'string' && (row as any).format_code) ||
@@ -193,14 +204,25 @@ export async function GET(req: NextRequest) {
         'Ingeniería';
       const divisionName = normalizeDivision(rawDivision);
 
-      const dateStr = row.inspection_date || row.created_at?.split('T')[0] || '';
+      let dateStr = row.inspection_date || '';
       let timeStr = '';
       if (row.created_at) {
         try {
-          timeStr = new Date(row.created_at).toLocaleTimeString('es-CO', {
+          const d = new Date(row.created_at);
+          if (!dateStr) {
+            dateStr = new Intl.DateTimeFormat('en-CA', {
+              timeZone: 'America/Bogota',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+            }).format(d);
+          }
+          timeStr = new Intl.DateTimeFormat('es-CO', {
+            timeZone: 'America/Bogota',
             hour: '2-digit',
             minute: '2-digit',
-          });
+            hour12: true,
+          }).format(d);
         } catch {
           timeStr = '';
         }

@@ -495,7 +495,7 @@ export default function EvidenceBoardToolPage() {
                 onChange={(e) => setSelectedDivision(e.target.value)}
                 className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
               >
-                <option value="all">🏢 Todas las Divisiones</option>
+                <option value="all">Todas las Divisiones</option>
                 {uniqueDivisions.map((div) => (
                   <option key={div} value={div}>
                     División: {div}
@@ -509,10 +509,10 @@ export default function EvidenceBoardToolPage() {
                 onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta' | 'observaciones')}
                 className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
               >
-                <option value="all">🔘 Todos los Estados</option>
-                <option value="conforme">🟢 Conforme (Sin fallas)</option>
-                <option value="alerta">🔴 Alertas / Variaciones</option>
-                <option value="observaciones">📝 Con Observaciones</option>
+                <option value="all">Todos los Estados</option>
+                <option value="conforme">Conforme (Sin fallas)</option>
+                <option value="alerta">Alertas / Variaciones</option>
+                <option value="observaciones">Con Observaciones</option>
               </select>
 
               {/* Project Filter */}
@@ -521,7 +521,7 @@ export default function EvidenceBoardToolPage() {
                 onChange={(e) => setSelectedProject(e.target.value)}
                 className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
               >
-                <option value="all">📁 Todos los Proyectos</option>
+                <option value="all">Todos los Proyectos</option>
                 {uniqueProjects.map((p) => (
                   <option key={p.name} value={p.name}>
                     {p.name} {p.code ? `(${p.code})` : ''}
@@ -535,7 +535,7 @@ export default function EvidenceBoardToolPage() {
                 onChange={(e) => setSelectedEquipment(e.target.value)}
                 className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
               >
-                <option value="all">⚙️ Todos los Equipos</option>
+                <option value="all">Todos los Equipos</option>
                 {uniqueEquipments.map((eq) => (
                   <option key={eq} value={eq}>
                     {eq}
@@ -549,7 +549,7 @@ export default function EvidenceBoardToolPage() {
                 onChange={(e) => setSelectedFormat(e.target.value)}
                 className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
               >
-                <option value="all">📋 Todos los Formatos</option>
+                <option value="all">Todos los Formatos</option>
                 {uniqueFormats.map((f) => (
                   <option key={f.code} value={f.code}>
                     {f.code}
@@ -563,7 +563,7 @@ export default function EvidenceBoardToolPage() {
                 onChange={(e) => setSelectedLocator(e.target.value)}
                 className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
               >
-                <option value="all">📍 Todos los Localizadores</option>
+                <option value="all">Todos los Localizadores</option>
                 {uniqueLocators.map((loc) => (
                   <option key={loc} value={loc}>
                     {loc}
@@ -787,7 +787,7 @@ export default function EvidenceBoardToolPage() {
                           onChange={(e) => setSelectedLocator(e.target.value)}
                           className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
                         >
-                          <option value="all">📍 Todos ({uniqueLocators.length})</option>
+                          <option value="all">Todos ({uniqueLocators.length})</option>
                           {uniqueLocators.map((loc) => (
                             <option key={loc} value={loc}>
                               {loc}
@@ -824,10 +824,10 @@ export default function EvidenceBoardToolPage() {
                           onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta' | 'observaciones')}
                           className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none font-medium"
                         >
-                          <option value="all">🔘 Todos</option>
-                          <option value="conforme">🟢 Conformes</option>
-                          <option value="alerta">🚨 Alertas / Variaciones</option>
-                          <option value="observaciones">📝 Con Observaciones</option>
+                          <option value="all">Todos</option>
+                          <option value="conforme">Conformes</option>
+                          <option value="alerta">Alertas / Variaciones</option>
+                          <option value="observaciones">Con Observaciones</option>
                         </select>
                       </th>
 
@@ -1070,11 +1070,11 @@ export default function EvidenceBoardToolPage() {
                 </div>
                 <div>
                   <span className="text-[10px] text-text-muted block font-semibold uppercase">Localizador</span>
-                  <span className="font-bold text-amber-900">📍 {selectedEvidence.locatorName}</span>
+                  <span className="font-bold text-amber-900">{selectedEvidence.locatorName}</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-text-muted block font-semibold uppercase">Responsable SSTA</span>
-                  <span className="font-medium text-text-primary">🛡️ {selectedEvidence.sstaName}</span>
+                  <span className="font-medium text-text-primary">{selectedEvidence.sstaName}</span>
                 </div>
               </div>
 

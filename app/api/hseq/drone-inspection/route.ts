@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
         templateDate: templateDate || '16-sep-2026',
         equipmentLabel: equipmentBrandModel ? 'Equipo' : 'Equipo / Herramienta',
         equipmentName: equipmentName || 'Equipo',
-        division: 'Ingeniería',
+        division: isDrone ? 'Mapping' : 'Ingeniería',
         defaultEquipment: equipmentBrandModel || 'Equipo Estándar',
         defaultSerial: equipmentSerial || '',
         sections: customSections.length > 0 ? customSections : ['1. GENERAL'],
@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
     let driveFileId: string | null = null;
     let driveWebViewLink: string | null = null;
     const driveWarning: string | null = null;
-    const rawDivision = formatConfig.division || (formatConfig.formatType === 'drone' ? 'Mapping' : 'Ingeniería');
+    const rawDivision = (isDrone ? 'Mapping' : formatConfig.division) || (formatConfig.formatType === 'drone' ? 'Mapping' : 'Ingeniería');
 
     // Disparar las 4 operaciones I/O concurrentemente con Promise.allSettled
     const [pdfStorageRes, excelStorageRes, driveUploadRes, userProfileRes] = await Promise.allSettled([
@@ -322,7 +322,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Procesar resultados de Task 4: La división canónica del formato tiene prioridad absoluta sobre la cuenta del usuario
-    let effectiveDivision = formatConfig.division;
+    let effectiveDivision = isDrone ? 'Mapping' : formatConfig.division;
     if (!effectiveDivision && userProfileRes.status === 'fulfilled') {
       interface UserProfileWithDiv {
         division_id?: string | null;
