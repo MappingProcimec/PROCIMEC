@@ -37,7 +37,7 @@ import type {
   HseqPdfGenerationPayload,
   DronePdfGenerationPayload,
 } from './hseq-definitions';
-import { getHseqFormatConfig } from './hseq-definitions';
+import { getHseqFormatConfig, ESTACION_TOTAL_ITEMS } from './hseq-definitions';
 
 // ─── Conversión Fiel de Hoja de Cálculo Excel (.xlsx) a PDF ───────────────────
 export function convertWorksheetToPdf(
