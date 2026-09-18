@@ -37,8 +37,9 @@ interface InspectionRow {
   cost_center?: string | null;
   location?: string | null;
   inspection_date?: string | null;
-  drone_brand_model?: string | null;
-  drone_serial?: string | null;
+  equipment_name?: string | null;
+  equipment_brand_model?: string | null;
+  equipment_serial?: string | null;
   items_responses?: Record<string, unknown> | null;
   critical_point?: string | null;
   general_observations?: string | null;
@@ -211,15 +212,15 @@ export async function GET(req: NextRequest) {
         (isDrone ? 'Drone' : isEstacion ? 'Estación Total' : 'Equipo');
 
       const brandModelStr =
-        (typeof (row as any).equipment_brand_model === 'string' && (row as any).equipment_brand_model) ||
-        row.drone_brand_model ||
+        row.equipment_brand_model ||
         (typeof meta.equipment_brand_model === 'string' && meta.equipment_brand_model) ||
+        (typeof (row as any).drone_brand_model === 'string' && (row as any).drone_brand_model) ||
         'Estándar';
 
       const serialStr =
-        (typeof (row as any).equipment_serial === 'string' && (row as any).equipment_serial) ||
-        row.drone_serial ||
+        row.equipment_serial ||
         (typeof meta.equipment_serial === 'string' && meta.equipment_serial) ||
+        (typeof (row as any).drone_serial === 'string' && (row as any).drone_serial) ||
         '';
 
       const pdfUrlStr = (typeof meta.pdf_url === 'string' && meta.pdf_url) || row.drive_web_view_link || '';

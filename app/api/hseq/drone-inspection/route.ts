@@ -426,8 +426,6 @@ export async function POST(req: NextRequest) {
       equipment_name: effectiveEquipmentName,
       equipment_brand_model: brandModel,
       equipment_serial: serial || null,
-      drone_brand_model: brandModel,
-      drone_serial: serial || null,
       items_responses: enrichedItemsResponses,
       critical_point: criticalPoint || 'Ninguno',
       general_observations: generalObservations || null,
