@@ -258,7 +258,7 @@ export interface DashboardStats {
 
 // ─── Multi-división: Tools, Forms, Roles, Divisions ──────────────────────────
 
-export type ToolCategory = 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq';
+export type ToolCategory = 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq' | 'rrhh';
 
 export type ToolSlug =
   | 'gsf-processor'

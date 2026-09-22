@@ -22,6 +22,8 @@ const CATEGORY_COLOR: Record<string, string> = {
   cad: 'bg-amber-50 text-amber-700',
   admin: 'bg-purple-50 text-purple-700',
   universal: 'bg-emerald-50 text-emerald-700',
+  hseq: 'bg-teal-50 text-teal-700',
+  rrhh: 'bg-indigo-50 text-indigo-700',
 };
 
 async function fetchRoles(): Promise<Role[]> {

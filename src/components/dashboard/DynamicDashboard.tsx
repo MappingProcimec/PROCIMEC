@@ -33,6 +33,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   admin: 'Administración',
   universal: 'Universal',
   hseq: 'HSEQ / Calidad y Seguridad',
+  rrhh: 'Recursos Humanos / RRHH',
 };
 
 const CATEGORY_CHIP: Record<string, string> = {
@@ -41,6 +42,7 @@ const CATEGORY_CHIP: Record<string, string> = {
   admin: 'bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100',
   universal: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100',
   hseq: 'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100',
+  rrhh: 'bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100',
 };
 
 export function DynamicDashboard({ data }: { data: DashboardData }) {

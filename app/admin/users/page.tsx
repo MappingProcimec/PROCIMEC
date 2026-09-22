@@ -25,6 +25,7 @@ import {
   FileText,
   RotateCcw,
   Info,
+  Users,
 } from 'lucide-react';
 
 interface DivisionOption { id: string; name: string }
@@ -84,10 +85,19 @@ const SYSTEM_BADGE: Record<string, string> = {
   admin: 'badge-primary', pending: 'badge-warning', operator: 'badge-accent', localizador: 'badge-accent', dibujo: 'badge-success',
 };
 
+function getRoleBadgeClass(roleName?: string, userRole: string = 'localizador'): string {
+  if (!roleName) return SYSTEM_BADGE[userRole] ?? 'badge-accent';
+  const lower = roleName.toLowerCase();
+  if (lower.includes('hseq')) return 'bg-teal-100 text-teal-800 border border-teal-200';
+  if (lower.includes('rrhh') || lower.includes('humano')) return 'bg-indigo-100 text-indigo-800 border border-indigo-200';
+  if (lower.includes('dibujo') || lower.includes('cad')) return 'badge-success';
+  return SYSTEM_BADGE[userRole] ?? 'badge-accent';
+}
+
 function userDisplayBadge(user: User, roleOptions: RoleOption[] = [], rolesById?: Map<string, RoleOption>) {
   if (user.role === 'admin') return { label: 'Administrador', badge: 'badge-primary' };
   if (user.role === 'pending') return { label: 'Pendiente', badge: 'badge-warning' };
-  if (user.roles?.name) return { label: user.roles.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+  if (user.roles?.name) return { label: user.roles.name, badge: getRoleBadgeClass(user.roles.name, user.role) };
 
   // Buscar en user_division_roles si no está directo en user.roles
   const udrList = user.user_division_roles;
@@ -96,7 +106,7 @@ function userDisplayBadge(user: User, roleOptions: RoleOption[] = [], rolesById?
       const udrRoleId = udrList[i].role_id;
       if (udrRoleId) {
         const foundRole = rolesById ? rolesById.get(udrRoleId) : roleOptions.find(r => r.id === udrRoleId);
-        if (foundRole) return { label: foundRole.name, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+        if (foundRole) return { label: foundRole.name, badge: getRoleBadgeClass(foundRole.name, user.role) };
       }
     }
   }
@@ -104,17 +114,21 @@ function userDisplayBadge(user: User, roleOptions: RoleOption[] = [], rolesById?
   return { label: user.role === 'dibujo' ? 'Dibujo' : 'Localizador', badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
 }
 
-const TOOL_CATEGORY_STYLES: Record<string, { label: string; type: 'gpr' | 'cad' | 'admin' | 'universal'; bg: string; text: string }> = {
+const TOOL_CATEGORY_STYLES: Record<string, { label: string; type: string; bg: string; text: string }> = {
   gpr: { label: 'GPR / Geofísica', type: 'gpr', bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800' },
   cad: { label: 'CAD / BIM', type: 'cad', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-800' },
-  admin: { label: 'Administración', type: 'admin', bg: 'bg-gray-100 border-gray-200', text: 'text-gray-800' },
+  admin: { label: 'Administración', type: 'admin', bg: 'bg-purple-50 border-purple-200', text: 'text-purple-800' },
   universal: { label: 'Universal', type: 'universal', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800' },
+  hseq: { label: 'HSEQ / Seguridad', type: 'hseq', bg: 'bg-teal-50 border-teal-200', text: 'text-teal-800' },
+  rrhh: { label: 'RRHH / Gestión Humana', type: 'rrhh', bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-800' },
 };
 
-function ToolCategoryIcon({ type }: { type: 'gpr' | 'cad' | 'admin' | 'universal' | string }) {
+function ToolCategoryIcon({ type }: { type: string }) {
   if (type === 'gpr') return <Radio className="w-4 h-4 text-accent" strokeWidth={1.75} />;
   if (type === 'cad') return <PenTool className="w-4 h-4 text-slate-700" strokeWidth={1.75} />;
-  if (type === 'admin') return <ShieldCheck className="w-4 h-4 text-primary" strokeWidth={1.75} />;
+  if (type === 'admin') return <ShieldCheck className="w-4 h-4 text-purple-600" strokeWidth={1.75} />;
+  if (type === 'hseq') return <ShieldCheck className="w-4 h-4 text-teal-600" strokeWidth={1.75} />;
+  if (type === 'rrhh') return <Users className="w-4 h-4 text-indigo-600" strokeWidth={1.75} />;
   return <Globe className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />;
 }
 

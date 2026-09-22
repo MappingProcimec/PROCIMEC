@@ -27,6 +27,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   admin: 'Administración',
   universal: 'Universal',
   hseq: 'HSEQ / Calidad y Seguridad',
+  rrhh: 'Recursos Humanos / RRHH',
 };
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -35,6 +36,7 @@ const CATEGORY_COLOR: Record<string, string> = {
   admin: 'border-purple-200 bg-purple-50',
   universal: 'border-emerald-200 bg-emerald-50',
   hseq: 'border-teal-200 bg-teal-50',
+  rrhh: 'border-indigo-200 bg-indigo-50',
 };
 
 async function fetchRole(id: string): Promise<RoleDetail> {
