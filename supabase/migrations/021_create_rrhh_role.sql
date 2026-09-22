@@ -2,10 +2,14 @@
 -- Migración 021: Registrar Rol RRHH (Recursos Humanos) y Categoría de Herramientas
 -- ==============================================================================
 
--- 1. Extender ENUM tool_category con valor 'rrhh'
+-- NOTA: En PostgreSQL, ALTER TYPE ADD VALUE debe confirmarse (commit)
+-- antes de que el nuevo valor pueda ser utilizado en un UPDATE.
+-- Por eso en Supabase SQL Editor se ejecutan en 2 pasos:
+
+-- PASO 1 (Ejecutar primero):
 ALTER TYPE tool_category ADD VALUE IF NOT EXISTS 'rrhh';
 
--- 2. Actualizar categoría de Control de Asistencia a 'rrhh'
+-- PASO 2 (Ejecutar después):
 UPDATE tools
 SET category = 'rrhh'
 WHERE slug = 'attendance-tracker';
