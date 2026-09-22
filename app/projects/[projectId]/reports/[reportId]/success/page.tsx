@@ -57,8 +57,6 @@ export default function SuccessPage() {
         }
       } catch (err) {
         console.warn('No se pudo cargar detalles del reporte:', err);
-      } finally {
-        setLoading(false);
       }
     }
     loadReportInfo();
