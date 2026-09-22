@@ -148,6 +148,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Forzar título canónico en mayúsculas
+    if (formatConfig.title) {
+      formatConfig.title = formatConfig.title.toUpperCase().trim();
+    }
+    if (formatConfig.pdfTitle) {
+      formatConfig.pdfTitle = formatConfig.pdfTitle.toUpperCase().trim();
+    }
+
+    // Salvaguardas canónicas de condiciones óptimas PROCIMEC
+    if (formatConfig.code.includes('028') || formatConfig.title.toLowerCase().includes('localizador')) {
+      formatConfig.items = (formatConfig.items || []).map((it: any) => {
+        if (it.code === '1.2' || it.code === '2.2') return { ...it, optimal: 'NO' as const };
+        return { ...it, optimal: 'SI' as const };
+      });
+    } else if (formatConfig.code.includes('027') || formatConfig.title.toLowerCase().includes('gpr') || formatConfig.title.toLowerCase().includes('georadar')) {
+      formatConfig.items = (formatConfig.items || []).map((it: any) => ({ ...it, optimal: 'SI' as const }));
+    } else if (formatConfig.code.includes('026') || formatConfig.title.toLowerCase().includes('gps')) {
+      formatConfig.items = (formatConfig.items || []).map((it: any) => {
+        if (it.code === '1.4') return { ...it, optimal: 'SI' as const };
+        if (it.code === '3.1' || it.code === '1.2' || it.code === '2.2') return { ...it, optimal: 'NO' as const };
+        return { ...it, optimal: 'SI' as const };
+      });
+    }
+
     // Validar que todos los ítems de este formato específico estén evaluados
     const requiredItems = formatConfig.items || [];
     const missingCodes = requiredItems

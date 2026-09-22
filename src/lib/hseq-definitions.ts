@@ -333,6 +333,7 @@ export function getOptimalResponses(
       }
     }
     map['1.2'] = 'NO';
+    map['2.2'] = 'NO';
     return map;
   }
 
@@ -370,7 +371,7 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
       id: 'hseq-estacion-total',
       formatType: 'estacion_total',
       code: 'FOR-HSEQ-025',
-      title: 'Inspección Pre-operacional de Estación Total',
+      title: 'INSPECCIÓN PRE-OPERACIONAL DE ESTACIÓN TOTAL',
       pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL ESTACIÓN TOTAL',
       version: '01',
       division: 'Ingeniería',
@@ -389,7 +390,7 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
       id: 'hseq-georadar',
       formatType: 'generic',
       code: 'FOR-HSEQ-027',
-      title: 'Inspección Pre-operacional Georadar GPR',
+      title: 'INSPECCIÓN PRE-OPERACIONAL DE GEORADAR (GPR)',
       pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL GEORADAR GPR',
       version: '01',
       division: 'Mapping',
@@ -415,7 +416,7 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
       id: 'hseq-gps-diferencial',
       formatType: 'generic',
       code: 'FOR-HSEQ-026',
-      title: 'Inspección Pre-operacional GPS Diferencial GNSS',
+      title: 'INSPECCIÓN PRE-OPERACIONAL DE GPS',
       pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL GPS DIFERENCIAL GNSS',
       version: '01',
       division: 'Ingeniería',
@@ -440,7 +441,7 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
       id: 'hseq-localizador-tuberias',
       formatType: 'generic',
       code: 'FOR-HSEQ-028',
-      title: 'Inspección Pre-operacional Localizador de Tuberías',
+      title: 'INSPECCIÓN PRE-OPERACIONAL DE LOCALIZADOR ELECTROMAGNÉTICO',
       pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL LOCALIZADOR DE TUBERÍAS',
       version: '01',
       division: 'Ingeniería',
@@ -454,6 +455,7 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
         { code: '1.1', section: '1. TRANSMISOR (TX)', description: 'Transmisor enciende y modula frecuencias correctamente', optimal: 'SI' },
         { code: '1.2', section: '1. TRANSMISOR (TX)', description: 'Carcasa presenta golpes o roturas', optimal: 'NO' },
         { code: '2.1', section: '2. RECEPTOR (RX)', description: 'Receptor enciende, pantalla legible y altavoz funciona', optimal: 'SI' },
+        { code: '2.2', section: '2. RECEPTOR (RX)', description: 'Receptor presenta golpes, fisuras o anomalías', optimal: 'NO' },
         { code: '3.1', section: '3. CABLES Y ACCESORIOS', description: 'Pinzas de conexión y cables en buen estado', optimal: 'SI' },
       ],
     };
@@ -464,7 +466,7 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
     id: 'hseq-drone-preoperational',
     formatType: 'drone',
     code: 'FOR-HSEQ-024',
-    title: 'Inspección Pre-operacional de Drone',
+    title: 'INSPECCIÓN PRE-OPERACIONAL DE DRONE',
     pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL DRONE',
     version: '2',
     division: 'Mapping',

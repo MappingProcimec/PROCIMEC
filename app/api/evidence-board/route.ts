@@ -149,10 +149,11 @@ export async function GET(req: NextRequest) {
         (typeof meta.format_code === 'string' && meta.format_code) ||
         (isEstacion ? 'FOR-HSEQ-025' : isDrone ? 'FOR-HSEQ-024' : 'FOR-HSEQ');
 
-      const formatTitle =
+      const formatTitle = (
         (typeof (row as any).format_title === 'string' && (row as any).format_title) ||
         (typeof meta.format_title === 'string' && meta.format_title) ||
-        (isEstacion ? 'Inspección Pre-operacional Estación Total' : isDrone ? 'Inspección Pre-operacional Drone' : 'Inspección Pre-operacional');
+        (isEstacion ? 'INSPECCIÓN PRE-OPERACIONAL DE ESTACIÓN TOTAL' : isDrone ? 'INSPECCIÓN PRE-OPERACIONAL DE DRONE' : 'INSPECCIÓN PRE-OPERACIONAL')
+      ).toUpperCase().trim();
 
       // Evaluar condición de seguridad y variaciones
       const criticalText = (row.critical_point || '').trim();

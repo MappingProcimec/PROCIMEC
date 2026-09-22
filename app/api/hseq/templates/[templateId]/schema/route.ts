@@ -146,7 +146,16 @@ export async function GET(
         if (it.code === '3.1' || it.code === '1.2' || it.code === '2.2') return { ...it, optimal: 'NO' as const };
         return { ...it, optimal: 'SI' as const };
       });
+    } else if (schema.code.includes('028') || schema.title.toLowerCase().includes('localizador')) {
+      // En Localizador Electromagnético (FOR-HSEQ-028): 1.2 es 'NO', 2.2 es 'NO', resto 'SI'
+      schema.items = schema.items.map((it) => {
+        if (it.code === '1.2' || it.code === '2.2') return { ...it, optimal: 'NO' as const };
+        return { ...it, optimal: 'SI' as const };
+      });
     }
+
+    schema.title = (schema.title || 'INSPECCIÓN PRE-OPERACIONAL').toUpperCase().trim();
+    schema.pdfTitle = (schema.pdfTitle || schema.title).toUpperCase().trim();
 
     schemaCache.set(templateId, {
       schema,

@@ -207,7 +207,7 @@ export default function EvidenceBoardToolPage() {
   const uniqueFormats = Array.from(
     new Map(
       evidences.map((e) => {
-        const title = e.formatName || e.code;
+        const title = (e.formatName || e.code || '').toUpperCase().trim();
         return [title, { code: e.code, title }];
       })
     ).values()
@@ -284,8 +284,8 @@ export default function EvidenceBoardToolPage() {
       const matchesDivision = selectedDivision === 'all' || ev.divisionName === selectedDivision;
       const matchesFormat =
         selectedFormat === 'all' ||
-        ev.formatName === selectedFormat ||
-        ev.code === selectedFormat;
+        (ev.formatName || '').toUpperCase().trim() === selectedFormat.toUpperCase().trim() ||
+        (ev.code || '').toUpperCase().trim() === selectedFormat.toUpperCase().trim();
       const matchesLocator = selectedLocator === 'all' || ev.locatorName === selectedLocator;
 
       // Column filters

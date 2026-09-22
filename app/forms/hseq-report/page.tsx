@@ -176,7 +176,7 @@ export default function HseqReportPage() {
       extra.push({
         id: 'hseq-drone-preoperational',
         code: 'FOR-HSEQ-024',
-        title: 'Inspección Pre-operacional de Drone',
+        title: 'INSPECCIÓN PRE-OPERACIONAL DE DRONE',
         name: 'FOR-HSEQ-024 Inspección Pre-operacional de Drone.xlsx',
         folderName: '24. Procedimientos y formatos',
         folderId: 'folder-24',
@@ -188,7 +188,7 @@ export default function HseqReportPage() {
       extra.push({
         id: 'hseq-estacion-total',
         code: 'FOR-HSEQ-025',
-        title: 'Inspección Pre-operacional de Estación Total',
+        title: 'INSPECCIÓN PRE-OPERACIONAL DE ESTACIÓN TOTAL',
         name: 'FOR-HSEQ-025 Inspección Pre-operacional de Estación Total.xlsx',
         folderName: '24. Procedimientos y formatos',
         folderId: 'folder-24',
@@ -196,7 +196,10 @@ export default function HseqReportPage() {
       });
     }
 
-    return [...raw, ...extra];
+    return [...raw, ...extra].map((t) => ({
+      ...t,
+      title: (t.title || '').toUpperCase().trim(),
+    }));
   }, [templatesData]);
 
   // Plantilla seleccionada
@@ -290,6 +293,12 @@ export default function HseqReportPage() {
       for (const it of formatConfig.items) {
         optimalMap[it.code] = 'SI';
       }
+    }
+
+    // Para Localizador Electromagnético (028): 1.2 es NO, 2.2 es NO, resto SI
+    if (formatConfig.code.includes('028') || formatConfig.title.toLowerCase().includes('localizador')) {
+      optimalMap['1.2'] = 'NO';
+      optimalMap['2.2'] = 'NO';
     }
 
     setItemsResponses(optimalMap);

@@ -142,40 +142,38 @@ export function parseFormatName(rawName: string): { code: string; title: string 
 
   // 1. Mapeo Canónico Oficial de Formatos de Inspección PROCIMEC
   if (norm.includes('drone') || norm.includes('dron')) {
-    return { code: 'FOR-HSEQ-024', title: 'Inspección Pre-operacional de Drone' };
+    return { code: 'FOR-HSEQ-024', title: 'INSPECCIÓN PRE-OPERACIONAL DE DRONE' };
   }
   if (norm.includes('estacion') || norm.includes('total')) {
-    return { code: 'FOR-HSEQ-025', title: 'Inspección Pre-operacional de Estación Total' };
+    return { code: 'FOR-HSEQ-025', title: 'INSPECCIÓN PRE-OPERACIONAL DE ESTACIÓN TOTAL' };
   }
   if (norm.includes('gps')) {
-    return { code: 'FOR-HSEQ-026', title: 'Inspección Pre-operacional de GPS' };
+    return { code: 'FOR-HSEQ-026', title: 'INSPECCIÓN PRE-OPERACIONAL DE GPS' };
   }
   if (norm.includes('gpr') || norm.includes('georadar') || norm.includes('penetrating radar')) {
-    return { code: 'FOR-HSEQ-027', title: 'Inspección Pre-operacional de Georadar (GPR)' };
+    return { code: 'FOR-HSEQ-027', title: 'INSPECCIÓN PRE-OPERACIONAL DE GEORADAR (GPR)' };
   }
   if (norm.includes('localizador') || norm.includes('electromagnetico')) {
-    return { code: 'FOR-HSEQ-028', title: 'Inspección Pre-operacional de Localizador Electromagnético' };
+    return { code: 'FOR-HSEQ-028', title: 'INSPECCIÓN PRE-OPERACIONAL DE LOCALIZADOR ELECTROMAGNÉTICO' };
   }
   if (norm.includes('vehiculo') || norm.includes('camioneta') || norm.includes('carro')) {
-    return { code: 'FOR-HSEQ-029', title: 'Inspección Pre-operacional de Vehículo' };
+    return { code: 'FOR-HSEQ-029', title: 'INSPECCIÓN PRE-OPERACIONAL DE VEHÍCULO' };
   }
 
   // 2. Si el nombre trae un código completo, ej. FOR-HSEQ-030 o FOR-010
   const fullCodeMatch = withoutExt.match(/^(FOR-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)[\s\-_:]+(.*)$/i);
   if (fullCodeMatch && fullCodeMatch[1] && fullCodeMatch[2]?.trim()) {
     const code = fullCodeMatch[1].toUpperCase().trim();
-    let title = fullCodeMatch[2].trim();
-    title = title.charAt(0).toUpperCase() + title.slice(1);
+    let title = fullCodeMatch[2].trim().toUpperCase();
     return { code, title };
   }
 
   // 3. Formato genérico con FOR- o sin prefijo
-  let clean = withoutExt.replace(/^FOR[\-_:\s]*/i, '').trim();
-  clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+  let clean = withoutExt.replace(/^FOR[\-_:\s]*/i, '').trim().toUpperCase();
 
   return {
     code: 'FOR-HSEQ',
-    title: clean || 'Inspección Técnica',
+    title: clean || 'INSPECCIÓN TÉCNICA',
   };
 }
 
@@ -1037,7 +1035,7 @@ export async function parseExcelTemplateSchema(
 
   const nameFallback = parseFormatName(fallbackName || '');
   const finalCode = (detectedCode && detectedCode.length > 5 && detectedCode !== 'FOR-') ? detectedCode : nameFallback.code;
-  const finalTitle = nameFallback.title || detectedTitle || 'Inspección Pre-operacional';
+  const finalTitle = (nameFallback.title || detectedTitle || 'INSPECCIÓN PRE-OPERACIONAL').toUpperCase().trim();
   const pdfTitle = finalTitle.toUpperCase();
 
   // Etiqueta de equipo sugerida
