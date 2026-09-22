@@ -427,18 +427,34 @@ export async function PUT(request: NextRequest) {
         console.warn('Aviso: Generación de .docx en Drive omitida (Drive no disponible):', docxErr);
       }
 
-      // 9. Actualizar field_reports con la URL del PDF, la ruta de storage y la síntesis de IA
-      await supabase
+      // 9. Actualizar field_reports con la URL del PDF, la ruta de storage y la síntesis de IA (tolerante al esquema)
+      const extendedUpdate = {
+        pdf_report_url: pdfReportUrl || null,
+        pdf_storage_path: pdfStoragePath || null,
+        ai_summary: aiSummary,
+        docx_drive_file_id: docxDriveFileId || fieldReport.docx_drive_file_id || null,
+        docx_drive_url: docxDriveUrl || pdfReportUrl || fieldReport.docx_drive_url || null,
+        status: 'submitted',
+      };
+
+      const baseUpdate = {
+        docx_drive_url: docxDriveUrl || pdfReportUrl || fieldReport.docx_drive_url || null,
+        additional_notes: aiSummary || fieldReport.additional_notes || null,
+        status: 'submitted',
+      };
+
+      const { error: updateErr1 } = await supabase
         .from('field_reports')
-        .update({
-          pdf_report_url: pdfReportUrl || null,
-          pdf_storage_path: pdfStoragePath || null,
-          ai_summary: aiSummary,
-          docx_drive_file_id: docxDriveFileId || fieldReport.docx_drive_file_id || null,
-          docx_drive_url: docxDriveUrl || fieldReport.docx_drive_url || null,
-          status: 'submitted',
-        })
+        .update(extendedUpdate)
         .eq('id', fieldReportId);
+
+      if (updateErr1) {
+        console.warn('Aviso: Columnas extendidas no presentes en field_reports, usando esquema base:', updateErr1.message);
+        await supabase
+          .from('field_reports')
+          .update(baseUpdate)
+          .eq('id', fieldReportId);
+      }
 
       return NextResponse.json({
         data: {

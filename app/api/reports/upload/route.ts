@@ -53,33 +53,63 @@ export async function POST(request: NextRequest) {
 
     const publicUrl = publicUrlData?.publicUrl || '';
 
-    // 2. Registrar en la tabla report_files de Supabase
-    const { data: savedFile, error: fileDbError } = await supabase
+    // 2. Registrar en la tabla report_files de Supabase (tolerante al esquema actual)
+    let savedFile: { id: string } | null = null;
+
+    // Intento 1: con columnas extendidas (si la migración 021 fue ejecutada)
+    const extendedPayload = {
+      field_report_id: fieldReportId,
+      file_type: fileType,
+      original_name: file.name,
+      drive_file_id: storagePath,
+      drive_webview_url: publicUrl,
+      drive_download_url: publicUrl,
+      storage_path: storagePath,
+      storage_url: publicUrl,
+      caption: caption || null,
+      size_bytes: file.size,
+      mime_type: file.type || 'application/octet-stream',
+    };
+
+    const basePayload = {
+      field_report_id: fieldReportId,
+      file_type: fileType,
+      original_name: file.name,
+      drive_file_id: storagePath,
+      drive_webview_url: publicUrl,
+      drive_download_url: publicUrl,
+      caption: caption || null,
+      size_bytes: file.size,
+      mime_type: file.type || 'application/octet-stream',
+    };
+
+    const { data: res1, error: err1 } = await supabase
       .from('report_files')
-      .insert({
-        field_report_id: fieldReportId,
-        file_type: fileType,
-        original_name: file.name,
-        drive_file_id: 'supabase_storage', // Retrocompatibilidad
-        drive_webview_url: publicUrl,       // Retrocompatibilidad para visores anteriores
-        storage_path: storagePath,
-        storage_url: publicUrl,
-        caption: caption || null,
-        size_bytes: file.size,
-        mime_type: file.type || 'application/octet-stream',
-      })
+      .insert(extendedPayload)
       .select()
       .single();
 
-    if (fileDbError) {
-      console.error('Error al registrar archivo en base de datos:', fileDbError);
-      return NextResponse.json({ error: `Error en base de datos: ${fileDbError.message}` }, { status: 500 });
+    if (err1) {
+      // Fallback inmediato con las columnas nativas del schema existente
+      const { data: res2, error: err2 } = await supabase
+        .from('report_files')
+        .insert(basePayload)
+        .select()
+        .single();
+
+      if (err2) {
+        console.error('Error al registrar archivo en base de datos:', err2);
+        return NextResponse.json({ error: `Error en base de datos: ${err2.message}` }, { status: 500 });
+      }
+      savedFile = res2;
+    } else {
+      savedFile = res1;
     }
 
     return NextResponse.json({
       success: true,
       data: {
-        id: savedFile.id,
+        id: savedFile?.id || '',
         originalName: file.name,
         storagePath,
         storageUrl: publicUrl,

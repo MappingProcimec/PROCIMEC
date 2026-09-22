@@ -23,7 +23,10 @@ interface ReportDetails {
   report_date: string;
   localizador_name: string;
   pdf_report_url?: string;
+  pdf_storage_path?: string;
   ai_summary?: string;
+  docx_drive_url?: string;
+  additional_notes?: string;
   projects?: {
     name: string;
     client: string;
@@ -62,12 +65,12 @@ export default function SuccessPage() {
     loadReportInfo();
   }, [projectId, reportId]);
 
-  const pdfUrl = report?.pdf_report_url || initialPdfUrl;
+  const pdfUrl = report?.pdf_report_url || (report?.docx_drive_url?.includes('http') ? report.docx_drive_url : '') || initialPdfUrl;
   const projectName = report?.projects?.name || 'Proyecto';
   const clientName = report?.projects?.client || 'Cliente';
   const reportDate = report?.report_date || new Date().toISOString().split('T')[0];
   const localizadorName = report?.localizador_name || 'Localizador';
-  const aiSummary = report?.ai_summary || '';
+  const aiSummary = report?.ai_summary || report?.additional_notes || '';
 
   // Texto profesional para WhatsApp
   const whatsappMessage = `*PROCIMEC — REPORTE DIARIO DE OPERACIÓN GPR*
