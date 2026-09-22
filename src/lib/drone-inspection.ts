@@ -609,10 +609,28 @@ export function applyUniversalPlaceholders(
     firma_op: payload.operatorSignatureDataUrl ? '' : `${payload.operatorName || 'Operador'} (Firma Verificada)`,
     firma_ss: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`,
     firma_ssta: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`,
-    firma_stta: payload.sstaSignatureDataUrl ? '' : `${payload.sstaName || 'Responsable/SSTA'} (Firma Verificada)`,
     observaciones: payload.generalObservations || 'Sin observaciones.',
     punto_critico: payload.criticalPoint || 'Ninguno',
   };
+
+  if (payload.vehicleData) {
+    const vd = payload.vehicleData;
+    if (vd.placa) replacements.placa = vd.placa;
+    if (vd.kilometraje) replacements.kilometraje = vd.kilometraje;
+    if (vd.nombre_conductor) replacements.nombre_conductor = vd.nombre_conductor;
+    if (vd.cedula_conductor) replacements.cedula_conductor = vd.cedula_conductor;
+    if (vd.venc_tarjeta_propiedad) replacements.venc_tarjeta_propiedad = vd.venc_tarjeta_propiedad;
+    if (vd.venc_soat) replacements.venc_soat = vd.venc_soat;
+    if (vd.venc_tecnomecanica) replacements.venc_tecnomecanica = vd.venc_tecnomecanica;
+    if (vd.venc_licencia) replacements.venc_licencia = vd.venc_licencia;
+    if (vd.venc_manejo_defensivo) replacements.venc_manejo_defensivo = vd.venc_manejo_defensivo;
+    if (vd.venc_botiquin) replacements.venc_botiquin = vd.venc_botiquin;
+    if (vd.venc_extintor) replacements.venc_extintor = vd.venc_extintor;
+    if (vd.venc_bateria) replacements.venc_bateria = vd.venc_bateria;
+    replacements.contratante_si = vd.revisado_contratante === 'SI' || vd.contratante_si === 'X' ? 'X' : '';
+    replacements.contratante_no = vd.revisado_contratante === 'NO' || vd.contratante_no === 'X' ? 'X' : '';
+    replacements.contratante_na = vd.revisado_contratante === 'NA' || vd.contratante_na === 'X' ? 'X' : '';
+  }
 
   ws.eachRow((row: any, r: number) => {
     row.eachCell((cell: any, c: number) => {

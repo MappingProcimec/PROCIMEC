@@ -310,6 +310,7 @@ export async function GET(req: NextRequest) {
         nonCompliantCount: nonCompliantCodes.length,
         operatorSignatureData: row.operator_signature_data || null,
         sstaSignatureData: row.ssta_signature_data || null,
+        vehicleData: meta.vehicle_data || (row as any).vehicle_data || null,
       };
     });
 

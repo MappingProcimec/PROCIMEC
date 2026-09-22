@@ -77,6 +77,20 @@ export default function HseqReportPage() {
   const [gprAkulaSerial, setGprAkulaSerial] = useState('');
   const [gprPcSerial, setGprPcSerial] = useState('');
 
+  // Datos específicos del vehículo (FOR-HSEQ-029: Conductor y Vencimiento de Documentos)
+  const [vehicleKilometraje, setVehicleKilometraje] = useState('');
+  const [conductorName, setConductorName] = useState('');
+  const [conductorCedula, setConductorCedula] = useState('');
+  const [vencTarjetaPropiedad, setVencTarjetaPropiedad] = useState('Vigente');
+  const [vencSoat, setVencSoat] = useState('');
+  const [vencTecnomecanica, setVencTecnomecanica] = useState('');
+  const [vencLicencia, setVencLicencia] = useState('');
+  const [vencManejoDefensivo, setVencManejoDefensivo] = useState('');
+  const [revisadoContratante, setRevisadoContratante] = useState<'SI' | 'NO' | 'NA'>('SI');
+  const [vencBotiquin, setVencBotiquin] = useState('');
+  const [vencExtintor, setVencExtintor] = useState('');
+  const [vencBateria, setVencBateria] = useState('');
+
   // Checklist reactivo
   const [itemsResponses, setItemsResponses] = useState<Record<string, 'SI' | 'NO' | 'NA'>>({});
   const [criticalPoint, setCriticalPoint] = useState('Ninguno');
@@ -109,11 +123,13 @@ export default function HseqReportPage() {
   useEffect(() => {
     if (session?.user?.name) {
       if (!operatorSignName) setOperatorSignName(session.user.name);
+      if (!conductorName) setConductorName(session.user.name);
     } else if (session?.user?.email) {
       const fallback = session.user.email.split('@')[0];
       if (!operatorSignName) setOperatorSignName(fallback);
+      if (!conductorName) setConductorName(fallback);
     }
-  }, [session, operatorSignName]);
+  }, [session, operatorSignName, conductorName]);
 
   // 2. Consulta de Proyectos
   const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
@@ -428,6 +444,23 @@ export default function HseqReportPage() {
           equipmentSerial: effectiveSerial,
           serialAkula: isGprFormat ? gprAkulaSerial.trim() : undefined,
           serialComputadora: isGprFormat ? gprPcSerial.trim() : undefined,
+          vehicleData: isVehiculoFormat
+            ? {
+                placa: effectiveSerial,
+                kilometraje: vehicleKilometraje.trim(),
+                nombre_conductor: conductorName.trim() || operatorSignName.trim(),
+                cedula_conductor: conductorCedula.trim(),
+                venc_tarjeta_propiedad: vencTarjetaPropiedad.trim(),
+                venc_soat: vencSoat.trim(),
+                venc_tecnomecanica: vencTecnomecanica.trim(),
+                venc_licencia: vencLicencia.trim(),
+                venc_manejo_defensivo: vencManejoDefensivo.trim(),
+                revisado_contratante: revisadoContratante,
+                venc_botiquin: vencBotiquin.trim(),
+                venc_extintor: vencExtintor.trim(),
+                venc_bateria: vencBateria.trim(),
+              }
+            : undefined,
           itemsResponses,
           criticalPoint,
           generalObservations,
@@ -802,22 +835,191 @@ export default function HseqReportPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="sm:col-span-2">
-                        <label className="label label-required text-xs">
-                          {isVehiculoFormat ? 'Placa del Vehículo' : 'Número de Serial'}
-                        </label>
-                        <input
-                          type="text"
-                          value={equipmentSerial}
-                          onChange={(e) => setEquipmentSerial(e.target.value)}
-                          required
-                          placeholder={isVehiculoFormat ? 'Ej. ABC-123 / WKL-456' : 'Ej. PROC-DRN-001 / 184920 / SN-2024-X'}
-                          className="input text-xs font-mono uppercase"
-                        />
-                      </div>
+                      <>
+                        <div>
+                          <label className="label label-required text-xs">
+                            {isVehiculoFormat ? 'Placa del Vehículo' : 'Número de Serial'}
+                          </label>
+                          <input
+                            type="text"
+                            value={equipmentSerial}
+                            onChange={(e) => setEquipmentSerial(e.target.value)}
+                            required
+                            placeholder={isVehiculoFormat ? 'Ej. ABC-123' : 'Ej. PROC-DRN-001 / 184920 / SN-2024-X'}
+                            className="input text-xs font-mono uppercase"
+                          />
+                        </div>
+
+                        {isVehiculoFormat && (
+                          <div>
+                            <label className="label label-required text-xs">Kilometraje Actual</label>
+                            <input
+                              type="text"
+                              value={vehicleKilometraje}
+                              onChange={(e) => setVehicleKilometraje(e.target.value)}
+                              required
+                              placeholder="Ej. 84,350 km"
+                              className="input text-xs font-mono"
+                            />
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
+
+                {/* SECCIONES ESPECÍFICAS DE VEHÍCULO (FOR-HSEQ-029) */}
+                {isVehiculoFormat && (
+                  <>
+                    {/* I. Conductor Asignado */}
+                    <div className="card p-6 space-y-4">
+                      <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider border-b border-border pb-2.5 flex items-center justify-between">
+                        <span>I. Conductor Asignado</span>
+                        <span className="badge badge-primary text-[10px]">Vehículo</span>
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="label label-required text-xs">Nombre Completo del Conductor</label>
+                          <input
+                            type="text"
+                            value={conductorName}
+                            onChange={(e) => setConductorName(e.target.value)}
+                            required
+                            placeholder="Ej. Juan Pérez Rodríguez"
+                            className="input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label label-required text-xs">Documento de Identidad (C.C.)</label>
+                          <input
+                            type="text"
+                            value={conductorCedula}
+                            onChange={(e) => setConductorCedula(e.target.value)}
+                            required
+                            placeholder="Ej. 1020304050"
+                            className="input text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* II. Verificación de Vencimiento de Documentos y Elementos */}
+                    <div className="card p-6 space-y-4">
+                      <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider border-b border-border pb-2.5 flex items-center justify-between">
+                        <span>II. Verificación de Vencimiento de Documentos y Elementos</span>
+                        <span className="text-[11px] text-text-muted font-normal lowercase">Fechas de vigencia del vehículo</span>
+                      </h3>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="label text-xs">Tarjeta de Propiedad</label>
+                          <input
+                            type="text"
+                            value={vencTarjetaPropiedad}
+                            onChange={(e) => setVencTarjetaPropiedad(e.target.value)}
+                            placeholder="Ej. Vigente / Al día"
+                            className="input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label label-required text-xs">Vencimiento SOAT</label>
+                          <input
+                            type="date"
+                            value={vencSoat}
+                            onChange={(e) => setVencSoat(e.target.value)}
+                            required
+                            className="input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label label-required text-xs">Vencimiento Tecnomecánica y Gases</label>
+                          <input
+                            type="date"
+                            value={vencTecnomecanica}
+                            onChange={(e) => setVencTecnomecanica(e.target.value)}
+                            required
+                            className="input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label label-required text-xs">Vencimiento Licencia de Conducción</label>
+                          <input
+                            type="date"
+                            value={vencLicencia}
+                            onChange={(e) => setVencLicencia(e.target.value)}
+                            required
+                            className="input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label text-xs">Vencimiento Curso Manejo Defensivo</label>
+                          <input
+                            type="date"
+                            value={vencManejoDefensivo}
+                            onChange={(e) => setVencManejoDefensivo(e.target.value)}
+                            className="input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label text-xs">Revisado por Contratante</label>
+                          <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                            {(['SI', 'NO', 'NA'] as const).map((opt) => (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => setRevisadoContratante(opt)}
+                                className={`py-1.5 text-xs font-bold rounded-lg border transition-colors ${
+                                  revisadoContratante === opt
+                                    ? 'bg-teal-600 text-white border-teal-600'
+                                    : 'bg-white text-text-secondary border-border hover:bg-slate-50'
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="label text-xs">Vencimiento Botiquín</label>
+                          <input
+                            type="date"
+                            value={vencBotiquin}
+                            onChange={(e) => setVencBotiquin(e.target.value)}
+                            className="input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label text-xs">Vencimiento Extintor</label>
+                          <input
+                            type="date"
+                            value={vencExtintor}
+                            onChange={(e) => setVencExtintor(e.target.value)}
+                            className="input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="label text-xs">Vencimiento Garantía Batería</label>
+                          <input
+                            type="date"
+                            value={vencBateria}
+                            onChange={(e) => setVencBateria(e.target.value)}
+                            className="input text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* 3. Lista de Chequeo Oficial del Formato */}
                 <div className="card p-6 space-y-4">

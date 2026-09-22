@@ -562,6 +562,25 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
   };
 }
 
+export interface VehicleInspectionData {
+  placa?: string;
+  kilometraje?: string;
+  nombre_conductor?: string;
+  cedula_conductor?: string;
+  venc_tarjeta_propiedad?: string;
+  venc_soat?: string;
+  venc_tecnomecanica?: string;
+  venc_licencia?: string;
+  venc_manejo_defensivo?: string;
+  contratante_si?: string;
+  contratante_no?: string;
+  contratante_na?: string;
+  revisado_contratante?: 'SI' | 'NO' | 'NA';
+  venc_botiquin?: string;
+  venc_extintor?: string;
+  venc_bateria?: string;
+}
+
 export interface HseqPdfGenerationPayload {
   formatTitle?: string;
   formatCode?: string;
@@ -581,6 +600,7 @@ export interface HseqPdfGenerationPayload {
   equipmentSerial?: string;
   serialAkula?: string;
   serialComputadora?: string;
+  vehicleData?: VehicleInspectionData;
   items?: DroneInspectionItemDef[];
   itemsResponses: Record<string, 'SI' | 'NO' | 'NA'>;
   criticalPoint?: string;

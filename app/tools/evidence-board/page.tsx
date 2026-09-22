@@ -17,7 +17,10 @@ import {
   ExternalLink,
   Search,
   X,
+  Car,
+  ShieldCheck,
 } from 'lucide-react';
+import type { VehicleInspectionData } from '@/lib/hseq-definitions';
 
 interface EvidenceItem {
   id: string;
@@ -55,6 +58,7 @@ interface EvidenceItem {
   nonCompliantCount: number;
   operatorSignatureData?: string | null;
   sstaSignatureData?: string | null;
+  vehicleData?: VehicleInspectionData | null;
 }
 
 function EvidenceActionsDropdown({
@@ -1016,6 +1020,84 @@ export default function EvidenceBoardToolPage() {
                 </div>
               </div>
 
+              {/* Vehicle Inspection Data Card (FOR-HSEQ-029) */}
+              {selectedEvidence.vehicleData && (
+                <div className="border border-amber-200 bg-amber-50/40 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-2 border-b border-amber-200/60 pb-2 text-xs font-bold text-amber-950 uppercase tracking-wider">
+                    <Car className="w-4 h-4 text-amber-700" strokeWidth={1.75} />
+                    <span>Datos del Vehículo y Verificación Documental (FOR-HSEQ-029)</span>
+                  </div>
+
+                  {/* Conductor y Vehículo */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-white p-3 rounded-lg border border-amber-100">
+                    <div>
+                      <span className="text-[10px] text-text-muted block font-semibold uppercase">Conductor Asignado</span>
+                      <span className="font-bold text-text-primary">{selectedEvidence.vehicleData.nombre_conductor || selectedEvidence.locatorName}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-text-muted block font-semibold uppercase">Documento / C.C.</span>
+                      <span className="font-mono text-text-primary">{selectedEvidence.vehicleData.cedula_conductor || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-text-muted block font-semibold uppercase">Placa del Vehículo</span>
+                      <span className="font-mono font-bold text-amber-900 uppercase">{selectedEvidence.vehicleData.placa || selectedEvidence.serial || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-text-muted block font-semibold uppercase">Kilometraje Registrado</span>
+                      <span className="font-mono font-semibold text-text-primary">{selectedEvidence.vehicleData.kilometraje ? `${selectedEvidence.vehicleData.kilometraje} km` : 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  {/* Vencimiento Documentos */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-700" strokeWidth={1.75} />
+                      Vencimiento de Documentos y Elementos
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
+                      <div className="p-2 rounded-lg bg-white border border-border">
+                        <span className="text-[10px] text-text-muted block font-medium">Tarjeta de Propiedad</span>
+                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_tarjeta_propiedad || 'N/A'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white border border-border">
+                        <span className="text-[10px] text-text-muted block font-medium">SOAT</span>
+                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_soat || 'N/A'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white border border-border">
+                        <span className="text-[10px] text-text-muted block font-medium">Tecnomecánica / Gases</span>
+                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_tecnomecanica || 'N/A'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white border border-border">
+                        <span className="text-[10px] text-text-muted block font-medium">Licencia de Conducción</span>
+                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_licencia || 'N/A'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white border border-border">
+                        <span className="text-[10px] text-text-muted block font-medium">Manejo Defensivo</span>
+                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_manejo_defensivo || 'N/A'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white border border-border">
+                        <span className="text-[10px] text-text-muted block font-medium">Revisado Contratante</span>
+                        <span className="font-bold text-[11px] text-text-primary">
+                          {selectedEvidence.vehicleData.contratante_si ? 'SI' : selectedEvidence.vehicleData.contratante_no ? 'NO' : selectedEvidence.vehicleData.contratante_na ? 'N/A' : (selectedEvidence.vehicleData.revisado_contratante || 'N/A')}
+                        </span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white border border-border">
+                        <span className="text-[10px] text-text-muted block font-medium">Botiquín</span>
+                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_botiquin || 'N/A'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white border border-border">
+                        <span className="text-[10px] text-text-muted block font-medium">Extintor</span>
+                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_extintor || 'N/A'}</span>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white border border-border">
+                        <span className="text-[10px] text-text-muted block font-medium">Batería Garantía</span>
+                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_bateria || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Critical Point & Observations */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Puntos Críticos */}
@@ -1025,7 +1107,7 @@ export default function EvidenceBoardToolPage() {
                     : 'border-border bg-white text-text-primary'
                 }`}>
                   <span className="font-bold block uppercase tracking-wider text-[11px] mb-1 flex items-center gap-1.5">
-                    <span>⚠️</span> Punto Crítico Reportado:
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-600" strokeWidth={1.75} /> Punto Crítico Reportado:
                   </span>
                   <p className="leading-relaxed">
                     {selectedEvidence.criticalPoint || 'Ninguno'}
@@ -1041,7 +1123,7 @@ export default function EvidenceBoardToolPage() {
                   }`}
                 >
                   <span className="font-bold block uppercase tracking-wider text-[11px] mb-1 flex items-center gap-1.5 text-text-primary">
-                    <span>📝</span> Observaciones Generales:
+                    <FileText className="w-3.5 h-3.5 text-blue-600" strokeWidth={1.75} /> Observaciones Generales:
                     {selectedEvidence.hasObservations && (
                       <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-800 font-bold border border-blue-200">
                         Novedad Notificada a HSEQ
