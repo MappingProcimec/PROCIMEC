@@ -6,7 +6,7 @@ const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development',
+  disable: process.env.NODE_ENV === 'development' || process.env.DISABLE_PWA === 'true',
   runtimeCaching: [
     {
       urlPattern: /\/api\/.*/i,
@@ -25,15 +25,31 @@ const withPWA = require('next-pwa')({
 
 const nextConfig = {
   reactStrictMode: true,
+  swcMinify: true,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: 'drive.google.com' },
     ],
   },
-  // Required for googleapis and exceljs on server
+  // Required for heavy node libraries on server
   experimental: {
-    serverComponentsExternalPackages: ['googleapis', 'google-auth-library', 'exceljs'],
+    optimizePackageImports: [
+      'lucide-react',
+      'date-fns',
+      '@tanstack/react-query',
+      'recharts',
+    ],
+    serverComponentsExternalPackages: [
+      'googleapis',
+      'google-auth-library',
+      'exceljs',
+      'docx',
+      'nodemailer',
+    ],
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {

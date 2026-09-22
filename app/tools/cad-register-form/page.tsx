@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { useSession } from 'next-auth/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Navbar } from '@/components/layout/Navbar';
+import { CheckCircle2, AlertTriangle, PenTool, Check, X } from 'lucide-react';
 
 // ─── Tipo de Proyecto ─────────────────────────────────────────────────────────
 interface Project {
@@ -53,10 +54,14 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
         type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
       }`}
     >
-      <span className="text-lg">{type === 'success' ? '🎉' : '⚠️'}</span>
+      {type === 'success' ? (
+        <CheckCircle2 className="w-5 h-5 text-white shrink-0" strokeWidth={1.75} />
+      ) : (
+        <AlertTriangle className="w-5 h-5 text-white shrink-0" strokeWidth={1.75} />
+      )}
       <span>{message}</span>
-      <button onClick={onClose} className="ml-3 opacity-80 hover:opacity-100 font-bold text-base">
-        ×
+      <button onClick={onClose} className="ml-3 opacity-80 hover:opacity-100 p-1 rounded-lg">
+        <X className="w-4 h-4 text-white" strokeWidth={2} />
       </button>
     </div>
   );
@@ -163,7 +168,7 @@ export default function CadRegisterFormPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface pb-20">
+    <div className="min-h-[100dvh] bg-surface pb-20">
       <Navbar />
       {/* Toast notification */}
       {toast && (
@@ -175,7 +180,8 @@ export default function CadRegisterFormPage() {
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center gap-2 mb-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-              ✏️ CAD / BIM
+              <PenTool className="w-3.5 h-3.5 text-amber-300" strokeWidth={1.75} />
+              CAD / BIM
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
@@ -193,8 +199,8 @@ export default function CadRegisterFormPage() {
         {lastSuccess && (
           <div className="mb-6 bg-emerald-50 border-2 border-emerald-400 rounded-2xl p-5 shadow-lg animate-fade-in flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold text-lg flex-shrink-0 shadow-sm">
-                ✓
+              <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Check className="w-5 h-5 text-white" strokeWidth={2.5} />
               </div>
               <div>
                 <p className="font-bold text-emerald-900 text-base">¡Actividad registrada con éxito!</p>

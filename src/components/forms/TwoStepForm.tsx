@@ -115,9 +115,15 @@ export default function TwoStepForm({
     } catch { /* ignore parse errors */ }
   }, [draftKey]);
 
-  // Autosave draft
+  // Autosave draft con debounce (350ms) para evitar bloqueos del hilo principal al teclear
   useEffect(() => {
-    try { localStorage.setItem(draftKey, JSON.stringify(values)); } catch { /* ignore */ }
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey, JSON.stringify(values));
+      } catch { /* ignore */ }
+    }, 350);
+
+    return () => clearTimeout(timer);
   }, [values, draftKey]);
 
   const clearDraft = useCallback(() => {

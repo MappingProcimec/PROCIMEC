@@ -42,6 +42,32 @@ const defaultSection3: Section3Data = {
   photoFiles: [],
 };
 
+// Almacenamiento con debounce para evitar llamadas síncronas masivas a localStorage al teclear metrajes
+let persistTimeout: NodeJS.Timeout | null = null;
+
+const debouncedLocalStorage = {
+  getItem: (name: string): string | null => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(name);
+  },
+  setItem: (name: string, value: string): void => {
+    if (typeof window === 'undefined') return;
+    if (persistTimeout) clearTimeout(persistTimeout);
+    persistTimeout = setTimeout(() => {
+      try {
+        localStorage.setItem(name, value);
+      } catch (e) {
+        console.warn('Error al persistir borrador GPR:', e);
+      }
+    }, 400);
+  },
+  removeItem: (name: string): void => {
+    if (typeof window === 'undefined') return;
+    if (persistTimeout) clearTimeout(persistTimeout);
+    localStorage.removeItem(name);
+  },
+};
+
 export const useFormStore = create<FormStore>()(
   persist(
     (set) => ({
@@ -129,7 +155,7 @@ export const useFormStore = create<FormStore>()(
     }),
     {
       name: 'gpr_form_draft_v2',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => debouncedLocalStorage),
       // Exclude File objects from localStorage as they are non-serializable
       partialize: (state) => ({
         projectId: state.projectId,

@@ -12,7 +12,7 @@ import {
   getOptimalResponses,
   HseqFormatConfig,
 } from '@/lib/hseq-definitions';
-import { PenTool, AlertCircle, Check, FileSpreadsheet, ExternalLink, ClipboardList, Sparkles, Loader2 } from 'lucide-react';
+import { PenTool, AlertCircle, Check, FileSpreadsheet, ExternalLink, ClipboardList, Sparkles, Loader2, ShieldCheck } from 'lucide-react';
 
 interface HseqTemplateOption {
   id: string;
@@ -440,7 +440,7 @@ export default function HseqReportPage() {
   const answeredCount = Object.keys(itemsResponses).length;
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-[100dvh] bg-surface">
       <Navbar />
 
       {/* Franja Azul Institucional PROCIMEC (page-hero) */}
@@ -448,7 +448,7 @@ export default function HseqReportPage() {
         <div className="max-w-4xl mx-auto">
           <BackButton href="/dashboard" label="Volver al Tablero" />
           <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2">
-            <span>🛡️</span> Inspecciones HSEQ
+            <ShieldCheck className="w-7 h-7 text-accent" strokeWidth={1.75} /> Inspecciones HSEQ
           </h1>
           <p className="text-white/70 text-sm mt-1">
             Formatos oficiales de inspección y control pre-operacional en campo

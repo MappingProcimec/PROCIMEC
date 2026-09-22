@@ -31,7 +31,10 @@ interface Step1Props {
 
 export function Step1({ onNext }: Step1Props) {
   const { data: session } = useSession();
-  const { section1, updateSection1, projectId: storeProjectId, setProjectId } = useFormStore();
+  const section1 = useFormStore((s) => s.section1);
+  const updateSection1 = useFormStore((s) => s.updateSection1);
+  const storeProjectId = useFormStore((s) => s.projectId);
+  const setProjectId = useFormStore((s) => s.setProjectId);
 
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
