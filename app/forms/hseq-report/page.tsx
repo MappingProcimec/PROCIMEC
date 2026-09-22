@@ -81,7 +81,7 @@ export default function HseqReportPage() {
   const [vehicleKilometraje, setVehicleKilometraje] = useState('');
   const [conductorName, setConductorName] = useState('');
   const [conductorCedula, setConductorCedula] = useState('');
-  const [vencTarjetaPropiedad, setVencTarjetaPropiedad] = useState('Vigente');
+  const [vencTarjetaPropiedad, setVencTarjetaPropiedad] = useState('');
   const [vencSoat, setVencSoat] = useState('');
   const [vencTecnomecanica, setVencTecnomecanica] = useState('');
   const [vencLicencia, setVencLicencia] = useState('');
@@ -607,8 +607,9 @@ export default function HseqReportPage() {
             </div>
 
             {generatedPdfResult.driveError && (
-              <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3 rounded-xl text-center">
-                ℹ️ {generatedPdfResult.driveError}
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3 rounded-xl text-center flex items-center justify-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" strokeWidth={1.75} />
+                <span>{generatedPdfResult.driveError}</span>
               </div>
             )}
 
@@ -914,12 +915,12 @@ export default function HseqReportPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                         <div>
-                          <label className="label text-xs">Tarjeta de Propiedad</label>
+                          <label className="label label-required text-xs">Vencimiento Tarjeta de Propiedad</label>
                           <input
-                            type="text"
+                            type="date"
                             value={vencTarjetaPropiedad}
                             onChange={(e) => setVencTarjetaPropiedad(e.target.value)}
-                            placeholder="Ej. Vigente / Al día"
+                            required
                             className="input text-xs"
                           />
                         </div>
