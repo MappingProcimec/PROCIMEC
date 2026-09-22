@@ -63,6 +63,7 @@ export interface OperationalRow {
 export interface DetectedUtility {
   id: string; // local uuid
   type: string;
+  diameter?: string;
   estimated_depth_m: number | '';
   confidence: 'Alta' | 'Media' | 'Baja' | '';
   description: string;

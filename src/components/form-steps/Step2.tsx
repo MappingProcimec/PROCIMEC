@@ -48,6 +48,7 @@ export function Step2({ onNext, onBack }: Step2Props) {
     setUtilities([...utilities, {
       id: uuidv4(),
       type: '',
+      diameter: '',
       estimated_depth_m: '',
       confidence: '',
       description: '',
@@ -192,7 +193,7 @@ export function Step2({ onNext, onBack }: Step2Props) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="form-group sm:col-span-2">
+                <div className="form-group sm:col-span-1">
                   <label className="label">Tipo de servicio / anomalía</label>
                   <select className="select" value={util.type}
                     onChange={e => updateUtility(util.id, 'type', e.target.value)}>
@@ -200,7 +201,13 @@ export function Step2({ onNext, onBack }: Step2Props) {
                     {UTILITY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
-                <div className="form-group">
+                <div className="form-group sm:col-span-1">
+                  <label className="label">Diámetro / Dimensión</label>
+                  <input type="text" className="input" placeholder='Ej: Ø 4", 110 mm, 2"'
+                    value={util.diameter || ''}
+                    onChange={e => updateUtility(util.id, 'diameter', e.target.value)} />
+                </div>
+                <div className="form-group sm:col-span-1">
                   <label className="label">Prof. Est. (m)</label>
                   <input type="number" min="0" step="0.01" className="input" placeholder="0.00"
                     value={util.estimated_depth_m}

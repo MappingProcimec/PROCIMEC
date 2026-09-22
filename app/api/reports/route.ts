@@ -305,6 +305,8 @@ export async function PUT(request: NextRequest) {
         code: project.code,
         location: project.location,
         cost_center: project.cost_center,
+        description: project.description,
+        contract_number: project.contract_number,
       };
 
       const reportContext: GprReportContext = {

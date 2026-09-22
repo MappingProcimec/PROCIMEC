@@ -79,15 +79,18 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
   let curY = 32;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 2. CUADRO DE IDENTIFICACIÓN DEL PROYECTO (Requisito fundamental)
+  // 2. CUADRO DE IDENTIFICACIÓN DEL PROYECTO (Con descripción y alcance)
   // ─────────────────────────────────────────────────────────────────────────────
+  const hasDesc = Boolean(project.description && project.description.trim().length > 0);
+  const projectBoxHeight = hasDesc ? 31 : 25;
+
   doc.setFillColor(...COLOR_LIGHT_BG);
   doc.setDrawColor(...COLOR_BORDER);
-  doc.roundedRect(marginX, curY, contentWidth, 24, 2, 2, 'FD');
+  doc.roundedRect(marginX, curY, contentWidth, projectBoxHeight, 2, 2, 'FD');
 
-  // Barra vertical de acento
+  // Barra vertical de acento ámbar
   doc.setFillColor(...COLOR_AMBER);
-  doc.rect(marginX, curY, 3, 24, 'F');
+  doc.rect(marginX, curY, 3, projectBoxHeight, 'F');
 
   doc.setTextColor(...COLOR_CHARCOAL);
   doc.setFont('helvetica', 'bold');
@@ -111,6 +114,16 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
   doc.setFontSize(8);
   doc.text(project.location || 'Localización técnica de obra', marginX + 26, curY + 17.5);
 
+  if (hasDesc) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.2);
+    doc.text('ALCANCE / OBJETO:', marginX + 6, curY + 24.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.2);
+    const shortDesc = doc.splitTextToSize(project.description || '', contentWidth - 45);
+    doc.text(shortDesc[0] || '', marginX + 36, curY + 24.5);
+  }
+
   // Columna derecha del cuadro de proyecto
   const colRightX = marginX + 115;
   doc.setFont('helvetica', 'bold');
@@ -129,7 +142,7 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
   doc.setFont('helvetica', 'normal');
   doc.text(report.localizador_name || 'Personal Técnico', colRightX + 24, curY + 17.5);
 
-  curY += 28;
+  curY += projectBoxHeight + 4;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // 3. SÍNTESIS TÉCNICA OPERACIONAL (Google Gemini AI)
@@ -140,7 +153,7 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
 
   const cleanSummary = (aiSummary || 'Síntesis técnica en procesamiento').trim();
   const summaryLines = doc.splitTextToSize(cleanSummary, contentWidth - 10);
-  const summaryBoxHeight = Math.max(22, 10 + summaryLines.length * 4.2);
+  const summaryBoxHeight = Math.max(24, 11 + summaryLines.length * 4.2);
 
   doc.roundedRect(marginX, curY, contentWidth, summaryBoxHeight, 2, 2, 'FD');
 
@@ -200,36 +213,50 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
   curY = (doc as any).lastAutoTable.finalY + 5;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 5. RESUMEN OPERACIONAL Y VOLUMETRÍA DE EXPLORACIÓN
+  // 5. RESUMEN OPERACIONAL Y VOLUMETRÍA DE EXPLORACIÓN (Campos exactos del formulario)
   // ─────────────────────────────────────────────────────────────────────────────
   const operationalRows = report.operational_summary || [];
   const totalMl = operationalRows.reduce((sum, r) => sum + (Number(r.ml) || 0), 0);
   const totalM2 = operationalRows.reduce((sum, r) => sum + (Number(r.m2) || 0), 0);
 
-  const operTableBody = operationalRows.map((row, idx) => [
-    row.axis || `Tramo ${idx + 1}`,
-    row.start_abs || '0+000',
-    row.end_abs || '0+000',
-    row.road_side || 'Única',
-    (Number(row.ml) || 0).toFixed(2),
-    (Number(row.m2) || 0).toFixed(2),
-    row.surface_type || 'Asfalto'
-  ]);
+  const operTableBody = operationalRows.map((row, idx) => {
+    const sectorName = row.sector || row.axis || `Sector / Tramo ${idx + 1}`;
+    const mlVal = (Number(row.ml) || 0).toFixed(2);
+    const m2Val = (Number(row.m2) || 0).toFixed(2);
+    const maxDepth = row.max_depth_m
+      ? `${Number(row.max_depth_m).toFixed(2)} m`
+      : report.global_max_depth
+      ? `${Number(report.global_max_depth).toFixed(2)} m`
+      : '—';
+    const obs = row.observations || row.surface_type || 'Conforme';
+
+    return [
+      sectorName,
+      `${mlVal} ML`,
+      `${m2Val} M²`,
+      maxDepth,
+      obs,
+    ];
+  });
 
   // Si no hay filas, incluir fila informativa
   if (operTableBody.length === 0) {
-    operTableBody.push(['Exploración continua de área', '0+000', '0+000', 'Completo', '0.00', '0.00', 'Pavimento']);
+    operTableBody.push([
+      'Exploración continua de área',
+      '0.00 ML',
+      '0.00 M²',
+      report.global_max_depth ? `${Number(report.global_max_depth).toFixed(2)} m` : '1.50 m',
+      'Sin observaciones registradas'
+    ]);
   }
 
-  // Fila de totales
+  // Fila de totales en negrita aclarando el área de exploración
   operTableBody.push([
     'TOTAL GENERAL DE EXPLORACIÓN',
-    '',
-    '',
-    '',
     `${totalMl.toFixed(2)} ML`,
-    `${totalM2.toFixed(2)} M²`,
-    ''
+    `${totalM2.toFixed(2)} M² (ÁREA EXPLORACIÓN)`,
+    report.global_max_depth ? `${Number(report.global_max_depth).toFixed(2)} m` : '—',
+    '—'
   ]);
 
   autoTable(doc, {
@@ -248,22 +275,18 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
       fontSize: 7.2,
     },
     columnStyles: {
-      0: { cellWidth: 46 },
-      1: { cellWidth: 22, halign: 'center' },
-      2: { cellWidth: 22, halign: 'center' },
-      3: { cellWidth: 26, halign: 'center' },
-      4: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
-      5: { cellWidth: 22, halign: 'right' },
-      6: { cellWidth: 24, halign: 'center' },
+      0: { cellWidth: 62 },
+      1: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+      2: { cellWidth: 38, halign: 'right', fontStyle: 'bold' },
+      3: { cellWidth: 22, halign: 'center' },
+      4: { cellWidth: 38 },
     },
     head: [[
-      'EJE / TRAMO INSPECCIONADO',
-      'ABS. INICIO',
-      'ABS. FIN',
-      'CALZADA',
+      'SECTOR / TRAMO INSPECCIONADO',
       'LONGITUD (ML)',
-      'ÁREA (M²)',
-      'SUPERFICIE'
+      'ÁREA DE EXPLORACIÓN (M²)',
+      'PROF. MÁX (m)',
+      'OBSERVACIONES TÉCNICAS'
     ]],
     body: operTableBody,
     didParseCell: (data) => {
@@ -279,20 +302,29 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
   curY = (doc as any).lastAutoTable.finalY + 5;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 6. REDES SUBTERRÁNEAS DETECTADAS Y HALLAZGOS TÉCNICOS
+  // 6. REDES SUBTERRÁNEAS DETECTADAS Y HALLAZGOS (Con Diámetro y Confianza)
   // ─────────────────────────────────────────────────────────────────────────────
   const utilities = report.detected_utilities || [];
-  const utilBody = utilities.map((u) => [
-    u.utility_type || 'Servicio No Identificado',
-    u.material || 'N/A',
-    u.estimated_depth_m ? `${Number(u.estimated_depth_m).toFixed(2)} m` : '—',
-    u.detection_method || 'GPR (Reflexión)',
-    u.cad_priority || report.cad_priority || 'Media',
-    u.notes || 'Identificado en perfilograma'
-  ]);
+  const utilBody = utilities.map((u) => {
+    const serviceType = u.type || u.utility_type || 'Servicio Subterráneo';
+    const diameter = u.diameter || u.material || '—';
+    const estimatedDepth = u.estimated_depth_m
+      ? `${Number(u.estimated_depth_m).toFixed(2)} m`
+      : '—';
+    const confidence = u.confidence || report.cad_priority || 'Media';
+    const details = u.description || u.notes || 'Identificado en perfilograma';
+
+    return [
+      serviceType,
+      diameter,
+      estimatedDepth,
+      confidence,
+      details,
+    ];
+  });
 
   if (utilBody.length === 0) {
-    utilBody.push(['No se identificaron interferencias directas en la traza', '—', '—', 'GPR', 'Baja', 'Sin anomalías']);
+    utilBody.push(['No se identificaron interferencias directas en la traza', '—', '—', 'Alta', 'Sin anomalías registradas']);
   }
 
   // Verificar si cabe en la página actual o requerir salto
@@ -316,13 +348,19 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
       fontStyle: 'bold',
       fontSize: 7.2,
     },
+    columnStyles: {
+      0: { cellWidth: 44, fontStyle: 'bold' },
+      1: { cellWidth: 28, halign: 'center' },
+      2: { cellWidth: 24, halign: 'center' },
+      3: { cellWidth: 28, halign: 'center' },
+      4: { cellWidth: 62 },
+    },
     head: [[
-      'TIPO DE SERVICIO / RED',
-      'MATERIAL',
+      'TIPO DE SERVICIO / ANOMALÍA',
+      'DIÁMETRO / DIMENSIÓN',
       'PROF. ESTIMADA',
-      'MÉTODO DETECCIÓN',
-      'PRIORIDAD CAD',
-      'OBSERVACIONES / DETALLES'
+      'NIVEL CONFIANZA',
+      'DESCRIPCIÓN Y UBICACIÓN'
     ]],
     body: utilBody,
   });

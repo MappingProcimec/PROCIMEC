@@ -118,9 +118,15 @@ export async function sendGprReportEmail(payload: GprEmailPayload): Promise<{ ok
                       <td style="padding: 4px 0; font-size: 13px; color: #475569;"><strong>Localizador:</strong></td>
                       <td style="padding: 4px 0; font-size: 13px; color: #0F172A;">${payload.report.localizador_name}</td>
                     </tr>
+                    ${payload.project.description ? `
+                    <tr>
+                      <td style="padding: 4px 0; font-size: 13px; color: #475569;"><strong>Objeto / Alcance:</strong></td>
+                      <td style="padding: 4px 0; font-size: 13px; color: #0F172A;">${payload.project.description}</td>
+                    </tr>
+                    ` : ''}
                     <tr>
                       <td style="padding: 4px 0; font-size: 13px; color: #475569;"><strong>Volumetría:</strong></td>
-                      <td style="padding: 4px 0; font-size: 13px; color: #D97706; font-weight: bold;">${totalMl.toFixed(1)} ML · ${totalM2.toFixed(1)} M²</td>
+                      <td style="padding: 4px 0; font-size: 13px; color: #D97706; font-weight: bold;">${totalMl.toFixed(1)} ML · ${totalM2.toFixed(1)} M² (Área de Exploración Subsuperficial)</td>
                     </tr>
                   </table>
 
