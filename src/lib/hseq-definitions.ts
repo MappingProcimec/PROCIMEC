@@ -277,21 +277,69 @@ export function inferOptimalResponse(itemDescription: string): 'SI' | 'NO' {
 }
 
 export function getOptimalResponses(
-  formatTypeOrItems: 'drone' | 'estacion_total' | 'generic' | DroneInspectionItemDef[] = 'drone'
+  formatTypeOrCodeOrItems: string | DroneInspectionItemDef[] = 'drone'
 ): Record<string, 'SI' | 'NO' | 'NA'> {
-  let items: DroneInspectionItemDef[];
-
-  if (Array.isArray(formatTypeOrItems)) {
-    items = formatTypeOrItems;
-  } else if (formatTypeOrItems === 'estacion_total') {
-    items = ESTACION_TOTAL_ITEMS;
-  } else {
-    items = DRONE_INSPECTION_ITEMS;
+  if (Array.isArray(formatTypeOrCodeOrItems)) {
+    const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
+    for (const item of formatTypeOrCodeOrItems) {
+      map[item.code] = item.optimal || 'SI';
+    }
+    return map;
   }
 
+  const norm = String(formatTypeOrCodeOrItems || '').toLowerCase();
+
+  // 1. Estación Total (FOR-HSEQ-025)
+  if (norm.includes('025') || norm.includes('estacion')) {
+    const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
+    for (const item of ESTACION_TOTAL_ITEMS) {
+      map[item.code] = item.optimal;
+    }
+    return map;
+  }
+
+  // 2. Georadar / GPR (FOR-HSEQ-027) -> En Georadar GPR todas las respuestas óptimas son estrictamente 'SI'
+  if (norm.includes('027') || norm.includes('gpr') || norm.includes('georadar')) {
+    const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
+    for (let sec = 1; sec <= 10; sec++) {
+      for (let item = 1; item <= 20; item++) {
+        map[`${sec}.${item}`] = 'SI';
+      }
+    }
+    return map;
+  }
+
+  // 3. GPS Diferencial GNSS (FOR-HSEQ-026) -> 1.4 es 'SI', 3.1 es 'NO', 1.2 es 'NO', 2.2 es 'NO', resto 'SI'
+  if (norm.includes('026') || norm.includes('gps') || norm.includes('gnss')) {
+    const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
+    for (let sec = 1; sec <= 10; sec++) {
+      for (let item = 1; item <= 20; item++) {
+        map[`${sec}.${item}`] = 'SI';
+      }
+    }
+    map['1.2'] = 'NO';
+    map['1.4'] = 'SI';
+    map['2.2'] = 'NO';
+    map['3.1'] = 'NO';
+    return map;
+  }
+
+  // 4. Localizador de Tuberías (FOR-HSEQ-028)
+  if (norm.includes('028') || norm.includes('localizador')) {
+    const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
+    for (let sec = 1; sec <= 10; sec++) {
+      for (let item = 1; item <= 20; item++) {
+        map[`${sec}.${item}`] = 'SI';
+      }
+    }
+    map['1.2'] = 'NO';
+    return map;
+  }
+
+  // 5. Drone (FOR-HSEQ-024)
   const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
-  for (const item of items) {
-    map[item.code] = item.optimal || inferOptimalResponse(item.description);
+  for (const item of DRONE_INSPECTION_ITEMS) {
+    map[item.code] = item.optimal;
   }
   return map;
 }

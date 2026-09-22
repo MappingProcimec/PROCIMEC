@@ -55,7 +55,15 @@ interface InspectionRow {
   drive_web_view_link?: string | null;
   pdf_filename?: string | null;
   projects?: { id?: string; name?: string; cost_center?: string; client?: string } | null;
-  users?: { id?: string; full_name?: string; email?: string; role?: string; division_id?: string | null; divisions?: { name?: string } | null } | null;
+  users?: {
+    id?: string;
+    full_name?: string;
+    email?: string;
+    role?: string;
+    division_id?: string | null;
+    divisions?: { name?: string } | null;
+    user_division_roles?: { division_id: string; divisions?: { name?: string } | null }[] | null;
+  } | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -78,7 +86,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from('hseq_inspections')
-      .select('*, projects(id, name, cost_center, client), users(id, full_name, email, role, division_id, divisions!users_division_id_fkey(name))')
+      .select('*, projects(id, name, cost_center, client), users(id, full_name, email, role, division_id, divisions!users_division_id_fkey(name), user_division_roles(division_id, divisions(name)))')
       .order('created_at', { ascending: false });
 
     if (!fetchAllParam) {
@@ -91,7 +99,7 @@ export async function GET(req: NextRequest) {
     if (error && (error.code === 'PGRST205' || error.message?.includes('not find the table'))) {
       let fallbackQuery = supabase
         .from('hseq_drone_inspections')
-        .select('*, projects(id, name, cost_center, client), users(id, full_name, email, division_id, divisions!users_division_id_fkey(name))')
+        .select('*, projects(id, name, cost_center, client), users(id, full_name, email, division_id, divisions!users_division_id_fkey(name), user_division_roles(division_id, divisions(name)))')
         .order('created_at', { ascending: false });
 
       if (!fetchAllParam) {
@@ -109,10 +117,6 @@ export async function GET(req: NextRequest) {
     }
 
     const typedRows = (rows || []) as unknown as InspectionRow[];
-
-    // Pre-cargar mapas óptimos una sola vez fuera del bucle map O(1)
-    const droneOptimalMap = getOptimalResponses('drone');
-    const estacionOptimalMap = getOptimalResponses('estacion_total');
 
     const evidences = typedRows.map((row) => {
       const rawResponses = (row.items_responses || {}) as Record<string, unknown>;
@@ -170,12 +174,7 @@ export async function GET(req: NextRequest) {
           ? meta.non_compliant_items
           : null;
 
-      const formatOptMap = isEstacion
-        ? estacionOptimalMap
-        : isDrone
-        ? droneOptimalMap
-        : getOptimalResponses(formatCode);
-      const optimalMap: Record<string, string> = { ...formatOptMap };
+      const optimalMap = getOptimalResponses(formatCode);
 
       let nonCompliantCodes: string[] = [];
 
@@ -199,14 +198,14 @@ export async function GET(req: NextRequest) {
           ? Boolean(meta.has_anomalies)
           : nonCompliantCodes.length > 0 || hasCritical || hasCustomObservations;
 
-      const canonicalFormatDivision = isDrone ? 'Mapping' : isEstacion ? 'Ingeniería' : null;
-      const rawDivision =
-        canonicalFormatDivision ||
-        (typeof (row as any).division_name === 'string' && (row as any).division_name) ||
-        (typeof meta.division === 'string' && meta.division) ||
-        row.users?.divisions?.name ||
-        'Ingeniería';
-      const divisionName = isDrone ? 'Mapping' : normalizeDivision(rawDivision);
+      // La división DEBE reflejar la división oficial a la que pertenece la persona que diligenció el formulario
+      const userUdrDivision = row.users?.user_division_roles?.[0]?.divisions?.name;
+      const userDirectDivision = row.users?.divisions?.name;
+      const rowSavedDivision = (typeof (row as any).division_name === 'string' && (row as any).division_name) || null;
+      const metaDivision = (typeof meta.division === 'string' && meta.division) || null;
+
+      const rawDivision = userUdrDivision || userDirectDivision || rowSavedDivision || metaDivision || 'Mapping';
+      const divisionName = normalizeDivision(rawDivision);
 
       const rawRole =
         (typeof (row as any).operator_role === 'string' && (row as any).operator_role) ||

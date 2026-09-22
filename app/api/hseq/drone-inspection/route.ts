@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
       // Task 4: Consultar división y rol del usuario autenticado
       supabase
         .from('users')
-        .select('role, division_id, roles(id, name), divisions!users_division_id_fkey(name)')
+        .select('role, division_id, roles(id, name), divisions!users_division_id_fkey(name), user_division_roles(division_id, divisions(name))')
         .eq('id', session.user.id)
         .single(),
     ]);
@@ -325,23 +325,24 @@ export async function POST(req: NextRequest) {
       driveWebViewLink = pdfUrl;
     }
 
-    // Procesar resultados de Task 4: La división canónica del formato tiene prioridad absoluta sobre la cuenta del usuario
+    // Procesar resultados de Task 4: La división oficial de la persona que llena la inspección tiene prioridad
     interface UserProfileWithDivAndRole {
       role?: string | null;
       roles?: { id?: string; name?: string } | null;
       division_id?: string | null;
       divisions?: { name?: string } | null;
+      user_division_roles?: { division_id: string; divisions?: { name?: string } | null }[] | null;
     }
     const typedProfile =
       userProfileRes.status === 'fulfilled'
         ? (userProfileRes.value.data as unknown as UserProfileWithDivAndRole | null)
         : null;
 
-    let effectiveDivision = isDrone ? 'Mapping' : formatConfig.division;
-    if (!effectiveDivision && typedProfile?.divisions?.name) {
-      effectiveDivision = typedProfile.divisions.name;
-    }
-    const divisionName = isDrone ? 'Mapping' : normalizeDivision(effectiveDivision || rawDivision);
+    const userPersonDivision =
+      typedProfile?.user_division_roles?.[0]?.divisions?.name ||
+      typedProfile?.divisions?.name;
+    const effectiveDivision = userPersonDivision || (isDrone ? 'Mapping' : formatConfig.division) || 'Mapping';
+    const divisionName = normalizeDivision(effectiveDivision);
 
     // Resolver y normalizar rol del usuario que llenó la inspección
     const rawRole =

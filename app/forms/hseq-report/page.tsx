@@ -255,11 +255,11 @@ export default function HseqReportPage() {
     setItemsResponses({});
   };
 
-  // Botón rápido: marcar todo en condición óptima según el mapa de este formato
+  // Botón rápido: marcar todo en condición óptima según el mapa canónico de este formato
   const handleMarkAllOptimal = () => {
     if (!formatConfig) return;
-    const optimalMap = getOptimalResponses(formatConfig.items);
-    // Salvaguarda canónica: si es formato de drone o cualquier ítem de corrosión, la condición óptima es estrictamente 'NO'
+    const optimalMap = getOptimalResponses(formatConfig.code || formatConfig.id || formatConfig.items);
+
     const isDrone =
       formatConfig.code.includes('024') ||
       formatConfig.title.toLowerCase().includes('drone') ||
@@ -269,9 +269,26 @@ export default function HseqReportPage() {
       optimalMap['1.4'] = 'NO';
     }
 
-    for (const it of formatConfig.items) {
-      if (it.description.toLowerCase().includes('corrosi')) {
-        optimalMap[it.code] = 'NO';
+    if (isDrone) {
+      for (const it of formatConfig.items) {
+        if (it.description.toLowerCase().includes('corrosi')) {
+          optimalMap[it.code] = 'NO';
+        }
+      }
+    }
+
+    // Para GPS Diferencial (026): 1.4 es SI, 3.1 es NO, 1.2 es NO, 2.2 es NO, resto SI
+    if (formatConfig.code.includes('026') || formatConfig.title.toLowerCase().includes('gps')) {
+      optimalMap['1.4'] = 'SI';
+      optimalMap['3.1'] = 'NO';
+      optimalMap['1.2'] = 'NO';
+      optimalMap['2.2'] = 'NO';
+    }
+
+    // Para Georadar GPR (027): Todas las condiciones óptimas son estrictamente SI
+    if (formatConfig.code.includes('027') || formatConfig.title.toLowerCase().includes('gpr') || formatConfig.title.toLowerCase().includes('georadar')) {
+      for (const it of formatConfig.items) {
+        optimalMap[it.code] = 'SI';
       }
     }
 

@@ -128,13 +128,23 @@ export async function GET(
 
     const schema = await parseExcelTemplateSchema(templateId, undefined, matched?.name || templateId);
 
-    // Salvaguarda canónica: si es un formato de drone, el ítem 1.4 (corrosión) siempre es 'NO'
+    // Salvaguardas canónicas por formato oficial PROCIMEC:
     if (schema.code.includes('024') || schema.title.toLowerCase().includes('drone')) {
       schema.items = schema.items.map((it) => {
         if (it.code === '1.4' || it.description.toLowerCase().includes('corrosi')) {
           return { ...it, optimal: 'NO' as const };
         }
         return it;
+      });
+    } else if (schema.code.includes('027') || schema.title.toLowerCase().includes('gpr') || schema.title.toLowerCase().includes('georadar')) {
+      // En Georadar GPR todas las respuestas óptimas son estrictamente 'SI'
+      schema.items = schema.items.map((it) => ({ ...it, optimal: 'SI' as const }));
+    } else if (schema.code.includes('026') || schema.title.toLowerCase().includes('gps') || schema.title.toLowerCase().includes('gnss')) {
+      // En GPS Diferencial: 1.4 es 'SI', 3.1 es 'NO', 1.2 es 'NO', 2.2 es 'NO', resto 'SI'
+      schema.items = schema.items.map((it) => {
+        if (it.code === '1.4') return { ...it, optimal: 'SI' as const };
+        if (it.code === '3.1' || it.code === '1.2' || it.code === '2.2') return { ...it, optimal: 'NO' as const };
+        return { ...it, optimal: 'SI' as const };
       });
     }
 

@@ -382,7 +382,6 @@ export default function EvidenceBoardToolPage() {
   const totalEvidences = evidences.length;
   const conformesCount = evidences.filter((e) => e.status === 'conforme').length;
   const alertasCount = evidences.filter((e) => e.status === 'alerta').length;
-  const divisionsCount = uniqueDivisions.length || 1;
 
   return (
     <div className="min-h-screen bg-surface">
@@ -394,14 +393,6 @@ export default function EvidenceBoardToolPage() {
           <BackButton href="/dashboard" label="Volver al Panel" />
           <div className="flex flex-wrap items-center justify-between gap-4 mt-3">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="badge bg-teal-500/20 text-teal-200 border border-teal-400/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                  HSEQ / Auditoría
-                </span>
-                <span className="badge bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                  Evidencias PDF &amp; Excel Sincronizadas
-                </span>
-              </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
                 <FileText className="w-7 h-7 text-amber-400" strokeWidth={1.75} /> Tablero de Evidencias y Control HSEQ
               </h1>
@@ -449,21 +440,50 @@ export default function EvidenceBoardToolPage() {
           </div>
         )}
 
-        {/* Metric Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-          <div className="card border border-border p-4 bg-white shadow-sm">
-            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Evidencias Totales</span>
+        {/* Metric Cards (Filtros Rápidos Interactivos) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <button
+            type="button"
+            onClick={() => setSelectedStatus('all')}
+            className={`card border text-left p-4 bg-white shadow-sm transition-all select-none active:scale-[0.98] ${
+              selectedStatus === 'all'
+                ? 'border-teal-500 ring-2 ring-teal-500/20'
+                : 'border-border hover:border-gray-300'
+            }`}
+            title="Clic para mostrar todas las evidencias"
+          >
+            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider block">Evidencias Totales</span>
             <p className="text-2xl font-bold text-text-primary mt-1">{loading ? '...' : totalEvidences}</p>
             <span className="text-[11px] text-teal-600 font-medium mt-0.5 block">PDF + Excel Respaldados</span>
-          </div>
-          <div className="card border border-border p-4 bg-white shadow-sm">
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedStatus(selectedStatus === 'conforme' ? 'all' : 'conforme')}
+            className={`card border text-left p-4 bg-white shadow-sm transition-all select-none active:scale-[0.98] ${
+              selectedStatus === 'conforme'
+                ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/30'
+                : 'border-border hover:border-gray-300'
+            }`}
+            title="Clic para filtrar únicamente evidencias conformes"
+          >
             <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 inline" strokeWidth={1.75} /> Conformes
             </span>
             <p className="text-2xl font-bold text-emerald-600 mt-1">{loading ? '...' : conformesCount}</p>
             <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">100% Aptos para operar</span>
-          </div>
-          <div className="card border border-border p-4 bg-white shadow-sm">
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedStatus(selectedStatus === 'alerta' ? 'all' : 'alerta')}
+            className={`card border text-left p-4 bg-white shadow-sm transition-all select-none active:scale-[0.98] ${
+              selectedStatus === 'alerta'
+                ? 'border-red-500 ring-2 ring-red-500/20 bg-red-50/30'
+                : 'border-border hover:border-gray-300'
+            }`}
+            title="Clic para filtrar inspecciones con alertas o puntos críticos"
+          >
             <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5 text-red-600 inline" strokeWidth={1.75} /> Con Alertas / Fallas
             </span>
@@ -471,16 +491,7 @@ export default function EvidenceBoardToolPage() {
               {loading ? '...' : alertasCount}
             </p>
             <span className="text-[11px] text-red-600 font-medium mt-0.5 block">Variaciones o Puntos Críticos</span>
-          </div>
-          <div className="card border border-border p-4 bg-white shadow-sm">
-            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-primary inline" strokeWidth={1.75} /> Divisiones Activas
-            </span>
-            <p className="text-2xl font-bold text-primary mt-1">{loading ? '...' : divisionsCount}</p>
-            <span className="text-[11px] text-text-muted font-medium mt-0.5 block">
-              {uniqueDivisions.slice(0, 2).join(', ') || 'Mapping, Ingeniería'}
-            </span>
-          </div>
+          </button>
         </div>
 
         {/* Global Search and Filter Summary Bar */}
