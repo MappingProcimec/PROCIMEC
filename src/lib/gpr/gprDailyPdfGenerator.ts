@@ -2,7 +2,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PROCIMEC_LOGO_BASE64 } from '@/lib/logo-base64';
-import { ProjectContext, GprReportContext } from './geminiGprSummary';
+import { ProjectContext, GprReportContext, parseProjectDescriptionAndTargets, formatDiameter } from './geminiGprSummary';
 
 export interface ReportPhoto {
   original_name: string;
@@ -38,50 +38,55 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
 
   // Paleta de colores oficial PROCIMEC (AGENTS.md)
   const COLOR_CHARCOAL = [30, 34, 41] as const; // #1E2229
-  const COLOR_AMBER = [234, 160, 35] as const;  // #EAA023
+  const COLOR_AMBER = [234, 160, 35] as const; // #EAA023
   const COLOR_MUTED = [100, 116, 139] as const; // #64748B
-  const COLOR_LIGHT_BG = [248, 250, 252] as const; // #F8FAFC
-  const COLOR_BORDER = [226, 232, 240] as const; // #E2E8F0
+  const COLOR_LIGHT_BG = [248, 249, 250] as const;
+  const COLOR_BORDER = [226, 232, 240] as const;
+
+  let curY = 12;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 1. ENCABEZADO CORPORATIVO
+  // 1. HEADER CORPORATIVO (Logo e Identidad de Marca)
   // ─────────────────────────────────────────────────────────────────────────────
-  // Franja superior carbón
-  doc.setFillColor(...COLOR_CHARCOAL);
-  doc.rect(0, 0, pageWidth, 24, 'F');
-
-  // Franja de acento ámbar
-  doc.setFillColor(...COLOR_AMBER);
-  doc.rect(0, 24, pageWidth, 2, 'F');
-
-  // Logo PROCIMEC
   try {
-    doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', marginX, 3.5, 36, 16);
-  } catch (err) {
-    console.warn('No se pudo renderizar logo en PDF:', err);
+    doc.addImage(PROCIMEC_LOGO_BASE64, 'PNG', marginX, curY - 2, 42, 14);
+  } catch {
+    doc.setFillColor(...COLOR_CHARCOAL);
+    doc.rect(marginX, curY - 2, 42, 14, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('PROCIMEC', marginX + 4, curY + 6);
   }
 
-  // Título institucional
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(...COLOR_CHARCOAL);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('PROCIMEC MAPPING E INGENIERÍA S.A.S.', marginX + 40, 10);
+  doc.text('PROCIMEC MAPPING E INGENIERÍA S.A.S.', marginX + 46, curY + 3);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
   doc.setTextColor(...COLOR_AMBER);
-  doc.text('REPORTE DIARIO DE OPERACIÓN EN CAMPO — GEORADAR (GPR)', marginX + 40, 15);
+  doc.setFontSize(8.5);
+  doc.text('REPORTE DIARIO DE OPERACIÓN EN CAMPO — GEORADAR (GPR)', marginX + 46, curY + 7.5);
 
-  doc.setFontSize(7);
-  doc.setTextColor(200, 205, 215);
-  doc.text('DIVISIÓN GEOFÍSICA & MODELADO SUBTERRÁNEO CAD/BIM', marginX + 40, 19.5);
+  doc.setTextColor(100, 116, 139);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.text('DIVISIÓN GEOFÍSICA & MODELADO SUBTERRÁNEO CAD/BIM', marginX + 46, curY + 11.5);
 
-  let curY = 32;
+  curY += 16;
+
+  // Línea divisoria técnica
+  doc.setDrawColor(...COLOR_AMBER);
+  doc.setLineWidth(0.8);
+  doc.line(marginX, curY, pageWidth - marginX, curY);
+
+  curY += 4;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 2. CUADRO DE IDENTIFICACIÓN DEL PROYECTO (Con descripción y alcance)
+  // 2. CUADRO DE IDENTIFICACIÓN DEL PROYECTO (Con descripción y alcance limpio)
   // ─────────────────────────────────────────────────────────────────────────────
-  const hasDesc = Boolean(project.description && project.description.trim().length > 0);
+  const { cleanDescription, formattedTargetText, targetMl, targetM2 } = parseProjectDescriptionAndTargets(project.description);
+  const hasDesc = Boolean(cleanDescription || formattedTargetText);
   const projectBoxHeight = hasDesc ? 31 : 25;
 
   doc.setFillColor(...COLOR_LIGHT_BG);
@@ -120,7 +125,17 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
     doc.text('ALCANCE / OBJETO:', marginX + 6, curY + 24.5);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.2);
-    const shortDesc = doc.splitTextToSize(project.description || '', contentWidth - 45);
+
+    let displayScope = cleanDescription || 'Exploración y localización de servicios subterráneos';
+    if (targetMl || targetM2) {
+      const targetsPart = [
+        targetMl ? `${targetMl.toLocaleString('es-CO')} ML` : null,
+        targetM2 ? `${targetM2.toLocaleString('es-CO')} m² área exploración` : null
+      ].filter(Boolean).join(' / ');
+      displayScope = `${displayScope} | Meta: ${targetsPart}`;
+    }
+
+    const shortDesc = doc.splitTextToSize(displayScope, contentWidth - 45);
     doc.text(shortDesc[0] || '', marginX + 36, curY + 24.5);
   }
 
@@ -307,7 +322,7 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
   const utilities = report.detected_utilities || [];
   const utilBody = utilities.map((u) => {
     const serviceType = u.type || u.utility_type || 'Servicio Subterráneo';
-    const diameter = u.diameter || u.material || '—';
+    const diameter = formatDiameter(u.diameter) || u.material || '—';
     const estimatedDepth = u.estimated_depth_m
       ? `${Number(u.estimated_depth_m).toFixed(2)} m`
       : '—';
