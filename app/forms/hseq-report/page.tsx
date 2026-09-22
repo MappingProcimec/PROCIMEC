@@ -234,17 +234,17 @@ export default function HseqReportPage() {
     return str.includes('027') || str.includes('gpr') || str.includes('georadar');
   }, [formatConfig]);
 
-  // Sincronizar equipo y marca/modelo por defecto cuando se resuelve el esquema (serial siempre vacío por defecto)
+  // Sincronizar equipo por defecto (Marca/Modelo y Serial quedan siempre vacíos con ejemplo y obligatorios)
   useEffect(() => {
     if (formatConfig) {
       if (formatConfig.equipmentName) {
         setEquipmentName(formatConfig.equipmentName);
       }
-      if (formatConfig.defaultEquipment) {
-        setEquipmentBrandModel(formatConfig.defaultEquipment);
-      }
-      // Serial del equipo queda vacío predeterminado
+      // Marca/Modelo y Serial quedan siempre vacíos por defecto (obligatorios por el usuario)
+      setEquipmentBrandModel('');
       setEquipmentSerial('');
+      setGprAkulaSerial('');
+      setGprPcSerial('');
     }
   }, [formatConfig]);
 
@@ -258,7 +258,24 @@ export default function HseqReportPage() {
   // Botón rápido: marcar todo en condición óptima según el mapa de este formato
   const handleMarkAllOptimal = () => {
     if (!formatConfig) return;
-    setItemsResponses(getOptimalResponses(formatConfig.items));
+    const optimalMap = getOptimalResponses(formatConfig.items);
+    // Salvaguarda canónica: si es formato de drone o cualquier ítem de corrosión, la condición óptima es estrictamente 'NO'
+    const isDrone =
+      formatConfig.code.includes('024') ||
+      formatConfig.title.toLowerCase().includes('drone') ||
+      formatConfig.id.toLowerCase().includes('drone');
+
+    if (isDrone && optimalMap['1.4']) {
+      optimalMap['1.4'] = 'NO';
+    }
+
+    for (const it of formatConfig.items) {
+      if (it.description.toLowerCase().includes('corrosi')) {
+        optimalMap[it.code] = 'NO';
+      }
+    }
+
+    setItemsResponses(optimalMap);
   };
 
   // Manejo de respuesta individual en checklist
@@ -359,6 +376,7 @@ export default function HseqReportPage() {
           itemsResponses,
           criticalPoint,
           generalObservations,
+          userRole: (session?.user as any)?.role || undefined,
           operatorName: operatorSignName,
           operatorSignatureDataUrl: operatorSignDataUrl,
           sstaName: sstaSignName,
@@ -688,7 +706,7 @@ export default function HseqReportPage() {
                         value={equipmentBrandModel}
                         onChange={(e) => setEquipmentBrandModel(e.target.value)}
                         required
-                        placeholder={isGprFormat ? 'Ej. Geoscanners Akula 9000B' : 'Ej. DJI Mavic 3 Enterprise / Leica TS07'}
+                        placeholder={isGprFormat ? 'Ej. Geoscanners Akula 9000B / Sensors & Software' : 'Ej. DJI Mavic 3 Enterprise / Leica TS07 / Trimble R12'}
                         className="input text-xs"
                       />
                     </div>
@@ -730,7 +748,7 @@ export default function HseqReportPage() {
                           value={equipmentSerial}
                           onChange={(e) => setEquipmentSerial(e.target.value)}
                           required
-                          placeholder="Ingresa el serial del equipo (ej. PROC-DRN-001 / 184920)"
+                          placeholder="Ej. PROC-DRN-001 / 184920 / SN-2024-X"
                           className="input text-xs font-mono"
                         />
                       </div>

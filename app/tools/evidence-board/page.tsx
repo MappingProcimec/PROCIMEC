@@ -28,6 +28,7 @@ interface EvidenceItem {
   equipmentBrandModel?: string;
   serial: string;
   locatorName: string;
+  operatorRole?: string;
   sstaName: string;
   date: string;
   time: string;
@@ -207,9 +208,18 @@ export default function EvidenceBoardToolPage() {
   );
   const uniqueEquipments = Array.from(new Set(evidences.map((e) => e.equipment).filter(Boolean)));
   const uniqueFormats = Array.from(
-    new Map(evidences.map((e) => [e.code, { code: e.code, name: e.formatName }])).values()
+    new Map(
+      evidences.map((e) => {
+        const title = e.formatName || e.code;
+        return [title, { code: e.code, title }];
+      })
+    ).values()
   );
-  const uniqueLocators = Array.from(new Set(evidences.map((e) => e.locatorName).filter(Boolean)));
+  const uniqueLocators = Array.from(
+    new Map(
+      evidences.map((e) => [e.locatorName, { name: e.locatorName, role: e.operatorRole }])
+    ).values()
+  );
 
   // Sorting handler
   const handleSort = (field: 'division' | 'format' | 'project' | 'equipment' | 'locator' | 'date' | 'status') => {
@@ -266,6 +276,7 @@ export default function EvidenceBoardToolPage() {
         !search ||
         ev.fileName.toLowerCase().includes(s) ||
         ev.locatorName.toLowerCase().includes(s) ||
+        (ev.operatorRole && ev.operatorRole.toLowerCase().includes(s)) ||
         ev.formatName.toLowerCase().includes(s) ||
         ev.projectName.toLowerCase().includes(s) ||
         ev.equipment.toLowerCase().includes(s) ||
@@ -276,7 +287,10 @@ export default function EvidenceBoardToolPage() {
       const matchesDivision = selectedDivision === 'all' || ev.divisionName === selectedDivision;
       const matchesProject = selectedProject === 'all' || ev.projectName === selectedProject;
       const matchesEquipment = selectedEquipment === 'all' || ev.equipment === selectedEquipment;
-      const matchesFormat = selectedFormat === 'all' || ev.code === selectedFormat;
+      const matchesFormat =
+        selectedFormat === 'all' ||
+        ev.formatName === selectedFormat ||
+        ev.code === selectedFormat;
       const matchesLocator = selectedLocator === 'all' || ev.locatorName === selectedLocator;
 
       // Column filters
@@ -401,7 +415,7 @@ export default function EvidenceBoardToolPage() {
                 <span>📋</span> Tablero de Evidencias y Control HSEQ
               </h1>
               <p className="text-white/80 text-sm mt-1 max-w-2xl">
-                Consolidado centralizado de evidencias oficiales generadas en campo por los <strong className="text-amber-300 font-semibold">Localizadores</strong>. Monitoreo en tiempo real de respuestas, anomalías, observaciones y puntos críticos por división.
+                Consolidado centralizado de evidencias oficiales generadas en campo por los <strong className="text-amber-300 font-semibold">Responsables y Operadores</strong>. Monitoreo en tiempo real de respuestas, anomalías, observaciones y puntos críticos por división.
               </p>
             </div>
 
@@ -551,8 +565,8 @@ export default function EvidenceBoardToolPage() {
               >
                 <option value="all">Todos los Formatos</option>
                 {uniqueFormats.map((f) => (
-                  <option key={f.code} value={f.code}>
-                    {f.code}
+                  <option key={f.title} value={f.title}>
+                    {f.title}
                   </option>
                 ))}
               </select>
@@ -563,10 +577,10 @@ export default function EvidenceBoardToolPage() {
                 onChange={(e) => setSelectedLocator(e.target.value)}
                 className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
               >
-                <option value="all">Todos los Localizadores</option>
+                <option value="all">Todos los Responsables</option>
                 {uniqueLocators.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {loc}
+                  <option key={loc.name} value={loc.name}>
+                    {loc.name} {loc.role ? `(${loc.role})` : ''}
                   </option>
                 ))}
               </select>
@@ -666,10 +680,10 @@ export default function EvidenceBoardToolPage() {
                     <th
                       onClick={() => handleSort('locator')}
                       className="px-4 py-3 cursor-pointer hover:bg-gray-100/80 transition-colors select-none group"
-                      title="Ordenar por Localizador"
+                      title="Ordenar por Responsable"
                     >
                       <div className="flex items-center gap-1">
-                        <span>Localizador Responsable</span>
+                        <span>Responsable y Rol</span>
                         {getSortIcon('locator')}
                       </div>
                     </th>
@@ -729,8 +743,8 @@ export default function EvidenceBoardToolPage() {
                         >
                           <option value="all">📋 Todos ({uniqueFormats.length})</option>
                           {uniqueFormats.map((f) => (
-                            <option key={f.code} value={f.code}>
-                              {f.code}
+                            <option key={f.title} value={f.title} title={`${f.code} - ${f.title}`}>
+                              {f.title}
                             </option>
                           ))}
                         </select>
@@ -780,7 +794,7 @@ export default function EvidenceBoardToolPage() {
                         </div>
                       </th>
 
-                      {/* Filtro Columna: Localizador */}
+                      {/* Filtro Columna: Responsable */}
                       <th className="p-2 font-normal">
                         <select
                           value={selectedLocator}
@@ -789,8 +803,8 @@ export default function EvidenceBoardToolPage() {
                         >
                           <option value="all">Todos ({uniqueLocators.length})</option>
                           {uniqueLocators.map((loc) => (
-                            <option key={loc} value={loc}>
-                              {loc}
+                            <option key={loc.name} value={loc.name}>
+                              {loc.name} {loc.role ? `(${loc.role})` : ''}
                             </option>
                           ))}
                         </select>
@@ -904,13 +918,20 @@ export default function EvidenceBoardToolPage() {
                         </span>
                       </td>
 
-                      {/* Localizador */}
+                      {/* Responsable y Rol */}
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center gap-1 font-medium text-amber-950 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md text-[11px]">
-                          <UserCheck className="w-3 h-3 text-amber-700" />
-                          <span>{ev.locatorName}</span>
-                        </span>
-                        <span className="text-[10px] text-text-muted block mt-0.5">Responsable/SSTA: {ev.sstaName}</span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="inline-flex items-center gap-1 font-semibold text-text-primary text-[11px]">
+                            <UserCheck className="w-3.5 h-3.5 text-primary" />
+                            <span>{ev.locatorName}</span>
+                          </span>
+                          {ev.operatorRole && (
+                            <span className="badge bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                              {ev.operatorRole}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-text-muted">SSTA: {ev.sstaName}</span>
+                        </div>
                       </td>
 
                       {/* Fecha */}
@@ -1069,8 +1090,13 @@ export default function EvidenceBoardToolPage() {
                   <span className="font-medium text-text-primary">{selectedEvidence.serial || 'S/N'}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-text-muted block font-semibold uppercase">Localizador</span>
-                  <span className="font-bold text-amber-900">{selectedEvidence.locatorName}</span>
+                  <span className="text-[10px] text-text-muted block font-semibold uppercase">Responsable / Rol</span>
+                  <span className="font-bold text-amber-900 block">{selectedEvidence.locatorName}</span>
+                  {selectedEvidence.operatorRole && (
+                    <span className="badge bg-amber-100 text-amber-900 text-[10px] font-bold px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                      {selectedEvidence.operatorRole}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] text-text-muted block font-semibold uppercase">Responsable SSTA</span>

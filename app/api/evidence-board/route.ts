@@ -16,8 +16,12 @@ const NON_OBS_SET = new Set(['ninguna', 'ninguno', 'ningun', 'sin observaciones'
 function normalizeDivision(rawName?: string | null): 'Mapping' | 'Ingeniería' {
   if (!rawName) return 'Mapping';
   const norm = rawName.trim().toLowerCase();
+  if (norm.includes('mapping')) {
+    return 'Mapping';
+  }
   if (
-    norm.includes('ing') ||
+    norm.startsWith('ing') ||
+    norm.includes('ingenier') ||
     norm.includes('topo') ||
     norm.includes('geof') ||
     norm.includes('cad') ||
@@ -51,7 +55,7 @@ interface InspectionRow {
   drive_web_view_link?: string | null;
   pdf_filename?: string | null;
   projects?: { id?: string; name?: string; cost_center?: string; client?: string } | null;
-  users?: { id?: string; full_name?: string; email?: string; division_id?: string | null; divisions?: { name?: string } | null } | null;
+  users?: { id?: string; full_name?: string; email?: string; role?: string; division_id?: string | null; divisions?: { name?: string } | null } | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -74,7 +78,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from('hseq_inspections')
-      .select('*, projects(id, name, cost_center, client), users(id, full_name, email, division_id, divisions!users_division_id_fkey(name))')
+      .select('*, projects(id, name, cost_center, client), users(id, full_name, email, role, division_id, divisions!users_division_id_fkey(name))')
       .order('created_at', { ascending: false });
 
     if (!fetchAllParam) {
@@ -202,7 +206,25 @@ export async function GET(req: NextRequest) {
         (typeof meta.division === 'string' && meta.division) ||
         row.users?.divisions?.name ||
         'Ingeniería';
-      const divisionName = normalizeDivision(rawDivision);
+      const divisionName = isDrone ? 'Mapping' : normalizeDivision(rawDivision);
+
+      const rawRole =
+        (typeof (row as any).operator_role === 'string' && (row as any).operator_role) ||
+        (typeof meta.operator_role === 'string' && meta.operator_role) ||
+        (typeof meta.user_role === 'string' && meta.user_role) ||
+        row.users?.role ||
+        'Operador';
+
+      const operatorRole =
+        rawRole === 'admin'
+          ? 'Administrador'
+          : rawRole === 'localizador'
+          ? 'Localizador'
+          : rawRole === 'operator'
+          ? 'Operador'
+          : rawRole === 'dibujo'
+          ? 'Dibujo'
+          : String(rawRole);
 
       let dateStr = row.inspection_date || '';
       let timeStr = '';
@@ -264,7 +286,8 @@ export async function GET(req: NextRequest) {
         equipmentBrandModel: brandModelStr,
         equipment: `${equipmentNameStr} - ${brandModelStr}`,
         serial: serialStr,
-        locatorName: row.operator_name || row.users?.full_name || 'Localizador / Operador',
+        locatorName: row.operator_name || row.users?.full_name || 'Responsable',
+        operatorRole,
         sstaName: row.ssta_name || 'Responsable/SSTA',
         date: dateStr,
         time: timeStr,

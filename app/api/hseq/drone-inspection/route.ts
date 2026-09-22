@@ -17,8 +17,12 @@ export const revalidate = 0;
 function normalizeDivision(rawName?: string | null): 'Mapping' | 'Ingeniería' {
   if (!rawName) return 'Mapping';
   const norm = rawName.trim().toLowerCase();
+  if (norm.includes('mapping')) {
+    return 'Mapping';
+  }
   if (
-    norm.includes('ing') ||
+    norm.startsWith('ing') ||
+    norm.includes('ingenier') ||
     norm.includes('topo') ||
     norm.includes('geof') ||
     norm.includes('cad') ||
@@ -287,10 +291,10 @@ export async function POST(req: NextRequest) {
         });
       })(),
 
-      // Task 4: Consultar división del usuario autenticado
+      // Task 4: Consultar división y rol del usuario autenticado
       supabase
         .from('users')
-        .select('division_id, divisions!users_division_id_fkey(name)')
+        .select('role, division_id, roles(id, name), divisions!users_division_id_fkey(name)')
         .eq('id', session.user.id)
         .single(),
     ]);
@@ -322,18 +326,40 @@ export async function POST(req: NextRequest) {
     }
 
     // Procesar resultados de Task 4: La división canónica del formato tiene prioridad absoluta sobre la cuenta del usuario
-    let effectiveDivision = isDrone ? 'Mapping' : formatConfig.division;
-    if (!effectiveDivision && userProfileRes.status === 'fulfilled') {
-      interface UserProfileWithDiv {
-        division_id?: string | null;
-        divisions?: { name?: string } | null;
-      }
-      const typedProfile = userProfileRes.value.data as unknown as UserProfileWithDiv | null;
-      if (typedProfile?.divisions?.name) {
-        effectiveDivision = typedProfile.divisions.name;
-      }
+    interface UserProfileWithDivAndRole {
+      role?: string | null;
+      roles?: { id?: string; name?: string } | null;
+      division_id?: string | null;
+      divisions?: { name?: string } | null;
     }
-    const divisionName = normalizeDivision(effectiveDivision || rawDivision);
+    const typedProfile =
+      userProfileRes.status === 'fulfilled'
+        ? (userProfileRes.value.data as unknown as UserProfileWithDivAndRole | null)
+        : null;
+
+    let effectiveDivision = isDrone ? 'Mapping' : formatConfig.division;
+    if (!effectiveDivision && typedProfile?.divisions?.name) {
+      effectiveDivision = typedProfile.divisions.name;
+    }
+    const divisionName = isDrone ? 'Mapping' : normalizeDivision(effectiveDivision || rawDivision);
+
+    // Resolver y normalizar rol del usuario que llenó la inspección
+    const rawRole =
+      body.userRole ||
+      typedProfile?.roles?.name ||
+      typedProfile?.role ||
+      (session.user as any)?.role ||
+      'Operador';
+    const roleCapitalized =
+      rawRole === 'admin'
+        ? 'Administrador'
+        : rawRole === 'localizador'
+        ? 'Localizador'
+        : rawRole === 'operator'
+        ? 'Operador'
+        : rawRole === 'dibujo'
+        ? 'Dibujo'
+        : String(rawRole);
 
     // 6. Detectar si hay variaciones respecto a la condición óptima o Puntos Críticos
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -394,6 +420,8 @@ export async function POST(req: NextRequest) {
       ...itemsResponses,
       _meta: {
         division: divisionName,
+        user_role: roleCapitalized,
+        operator_role: roleCapitalized,
         format_code: formatConfig.code,
         format_title: formatConfig.title,
         equipment_name: effectiveEquipmentName,
@@ -430,6 +458,7 @@ export async function POST(req: NextRequest) {
       critical_point: criticalPoint || 'Ninguno',
       general_observations: generalObservations || null,
       operator_name: operatorName,
+      operator_role: roleCapitalized,
       operator_signature_data: operatorSignatureDataUrl,
       ssta_name: sstaName,
       ssta_signature_data: sstaSignatureDataUrl,
@@ -451,7 +480,7 @@ export async function POST(req: NextRequest) {
     let inserted: any = null;
     let dbErr: any = null;
 
-    // Intento 1: Tabla canónica hseq_inspections con payload completo (incluyendo equipment_name)
+    // Intento 1: Tabla canónica hseq_inspections con payload completo (incluyendo equipment_name y operator_role)
     const res1 = await supabase
       .from('hseq_inspections')
       .insert(fullPayload)
@@ -462,22 +491,23 @@ export async function POST(req: NextRequest) {
       inserted = res1.data;
     } else {
       console.warn('Aviso insertando con payload completo en hseq_inspections, aplicando fallback resiliente:', res1.error.message);
-      // Intento 2: Fallback omitiendo equipment_name si la columna aún no ha sido migrada
+      // Intento 2: Fallback omitiendo columnas opcionales si aún no han sido migradas
       const basePayloadWithoutEquipmentName = { ...fullPayload };
       delete (basePayloadWithoutEquipmentName as any).equipment_name;
+      delete (basePayloadWithoutEquipmentName as any).operator_role;
       const res2 = await supabase
         .from('hseq_inspections')
         .insert(basePayloadWithoutEquipmentName)
         .select()
         .single();
 
-      if (!res2.error) {
-        inserted = res2.data;
-      } else {
-        dbErr = res2.error;
-        console.error('Error definitivo insertando inspección en hseq_inspections:', dbErr);
-      }
+    if (!res2.error) {
+      inserted = res2.data;
+    } else {
+      dbErr = res2.error;
+      console.error('Error definitivo insertando inspección en hseq_inspections:', dbErr);
     }
+  }
 
     if (dbErr) {
       console.error('Error insertando inspección en BD:', dbErr);

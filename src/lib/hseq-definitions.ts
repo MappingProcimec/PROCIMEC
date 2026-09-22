@@ -250,12 +250,21 @@ export function inferOptimalResponse(itemDescription: string): 'SI' | 'NO' {
   }
 
   // 3. Consultas directas de presencia de fallas, averías o daños ('NO')
+  const defectKeywords = [
+    'corrosi', 'oxid', 'golpe', 'grieta', 'fisur', 'fuga', 'averi', 'holgur',
+    'calentamient', 'derram', 'rotur', 'cortocircuit', 'deformaci',
+    'dañado', 'dañada', 'dañados', 'averiado', 'averiada', 'defectuoso', 'defectuosa',
+    'piezas rotas', 'cables rotos'
+  ];
+
+  for (const dw of defectKeywords) {
+    if (norm.includes(dw)) {
+      return 'NO';
+    }
+  }
+
   const defectPhrases = [
-    'presenta golpe', 'presenta grieta', 'presenta fisur', 'presenta corrosi',
-    'presenta da', 'presenta fuga', 'presenta averi', 'presenta holgur',
-    'presenta oxid', 'presenta calentamient', 'presenta derram', 'presenta rotur',
-    'presenta cortocircuit', 'presenta deformaci', 'presencia de', 'se evidencian',
-    'piezas rotas', 'cables rotos', 'dañado', 'averiado', 'defectuoso'
+    'presenta', 'presentan', 'presenten', 'presencia de', 'se evidencia', 'se evidencian'
   ];
 
   for (const dp of defectPhrases) {

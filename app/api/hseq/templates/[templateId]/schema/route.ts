@@ -102,7 +102,41 @@ export async function GET(
   try {
     const templates = await scanHseqTemplates(false);
     const matched = templates.find((t) => t.id === templateId);
+    const candidateName = (matched?.name || matched?.title || templateId).toLowerCase();
+
+    // Si coincide con Drone por nombre de archivo o título en Drive
+    if (candidateName.includes('024') || candidateName.includes('drone')) {
+      const droneCfg = getHseqFormatConfig('drone');
+      const schema: DynamicFormatSchema = {
+        id: templateId,
+        formatType: 'drone',
+        code: droneCfg.code,
+        title: droneCfg.title,
+        pdfTitle: droneCfg.pdfTitle,
+        version: droneCfg.version,
+        equipmentLabel: droneCfg.equipmentLabel,
+        defaultEquipment: '',
+        defaultSerial: '',
+        sections: Array.from(DRONE_INSPECTION_SECTIONS),
+        items: DRONE_INSPECTION_ITEMS,
+        isDynamic: false,
+      };
+
+      schemaCache.set(templateId, { schema, timestamp: Date.now() });
+      return NextResponse.json({ ok: true, schema, cached: false });
+    }
+
     const schema = await parseExcelTemplateSchema(templateId, undefined, matched?.name || templateId);
+
+    // Salvaguarda canónica: si es un formato de drone, el ítem 1.4 (corrosión) siempre es 'NO'
+    if (schema.code.includes('024') || schema.title.toLowerCase().includes('drone')) {
+      schema.items = schema.items.map((it) => {
+        if (it.code === '1.4' || it.description.toLowerCase().includes('corrosi')) {
+          return { ...it, optimal: 'NO' as const };
+        }
+        return it;
+      });
+    }
 
     schemaCache.set(templateId, {
       schema,
