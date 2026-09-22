@@ -7,6 +7,7 @@ import { generateFieldReportDocx } from '@/lib/docx-generator';
 import { FieldReport, Project, ReportFile, AppUser } from '@/types';
 import { generateGprExecutiveSummary, ProjectContext, GprReportContext } from '@/lib/gpr/geminiGprSummary';
 import { generateGprDailyPdf, ReportPhoto } from '@/lib/gpr/gprDailyPdfGenerator';
+import { sendGprReportEmail } from '@/lib/gpr/gprMailer';
 
 export const dynamic = 'force-dynamic';
 
@@ -454,6 +455,25 @@ export async function PUT(request: NextRequest) {
           .from('field_reports')
           .update(baseUpdate)
           .eq('id', fieldReportId);
+      }
+
+      // 10. Despachar correo automático a mapping@procimecingenieria.com y al usuario que llena el formulario
+      try {
+        const userEmail = session.user.email;
+        const recipients = [userEmail].filter(Boolean) as string[];
+        sendGprReportEmail({
+          recipients,
+          project: projectContext,
+          report: reportContext,
+          aiSummary,
+          pdfBuffer,
+          pdfReportUrl,
+          files: (files || []) as unknown as ReportFile[],
+        }).catch((mailErr) => {
+          console.warn('Aviso: Error asíncrono despachando correo de reporte GPR:', mailErr);
+        });
+      } catch (mailSyncErr) {
+        console.warn('Aviso: Error iniciando envío de correo:', mailSyncErr);
       }
 
       return NextResponse.json({
