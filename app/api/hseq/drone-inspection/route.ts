@@ -170,6 +170,11 @@ export async function POST(req: NextRequest) {
         if (it.code === '3.1' || it.code === '1.2' || it.code === '2.2') return { ...it, optimal: 'NO' as const };
         return { ...it, optimal: 'SI' as const };
       });
+    } else if (formatConfig.code.includes('029') || formatConfig.title.toLowerCase().includes('vehiculo') || formatConfig.title.toLowerCase().includes('camioneta')) {
+      formatConfig.items = (formatConfig.items || []).map((it: any) => {
+        if (it.code === '1.6' || it.description?.toLowerCase().includes('fuga')) return { ...it, optimal: 'NO' as const };
+        return { ...it, optimal: 'SI' as const };
+      });
     }
 
     // Validar que todos los ítems de este formato específico estén evaluados

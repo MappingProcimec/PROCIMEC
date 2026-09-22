@@ -337,13 +337,76 @@ export function getOptimalResponses(
     return map;
   }
 
-  // 5. Drone (FOR-HSEQ-024)
+  // 5. Vehículo (FOR-HSEQ-029)
+  if (norm.includes('029') || norm.includes('vehiculo') || norm.includes('camioneta') || norm.includes('carro')) {
+    const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
+    for (let sec = 1; sec <= 10; sec++) {
+      for (let item = 1; item <= 25; item++) {
+        map[`${sec}.${item}`] = 'SI';
+      }
+    }
+    map['1.6'] = 'NO';
+    return map;
+  }
+
+  // 6. Drone (FOR-HSEQ-024)
   const map: Record<string, 'SI' | 'NO' | 'NA'> = {};
   for (const item of DRONE_INSPECTION_ITEMS) {
     map[item.code] = item.optimal;
   }
   return map;
 }
+
+export const VEHICULO_INSPECTION_SECTIONS = [
+  '1. REVISIÓN DEL MOTOR',
+  '2. REVISIÓN DEL INTERIOR',
+  '3. REVISION DEL EXTERIOR',
+  '4. REVISION DE MECANISMOS Y ACCESORIOS',
+  '5. EQUIPO DE CARRETERA',
+  '6. INSPECCION DE SEGURIDAD',
+] as const;
+
+export const VEHICULO_INSPECTION_ITEMS: DroneInspectionItemDef[] = [
+  { code: '1.1', section: '1. REVISIÓN DEL MOTOR', description: 'Nivel y estado del aceite del motor', optimal: 'SI' },
+  { code: '1.2', section: '1. REVISIÓN DEL MOTOR', description: 'Nivel y estado del líquido refrigerante', optimal: 'SI' },
+  { code: '1.3', section: '1. REVISIÓN DEL MOTOR', description: 'Nivel del líquido de frenos (solo para sistema de frenos hidráulico)', optimal: 'SI' },
+  { code: '1.4', section: '1. REVISIÓN DEL MOTOR', description: 'Nivel y estado del aceite hidráulico de la dirección', optimal: 'SI' },
+  { code: '1.5', section: '1. REVISIÓN DEL MOTOR', description: 'Nivel del líquido lavavidrios', optimal: 'SI' },
+  { code: '1.6', section: '1. REVISIÓN DEL MOTOR', description: 'Se evidencian fugas en el motor', optimal: 'NO' },
+  { code: '2.1', section: '2. REVISIÓN DEL INTERIOR', description: 'Nivel del combustible', optimal: 'SI' },
+  { code: '2.2', section: '2. REVISIÓN DEL INTERIOR', description: 'Temperatura', optimal: 'SI' },
+  { code: '2.3', section: '2. REVISIÓN DEL INTERIOR', description: 'Funcionamiento acelerador, freno y embrague', optimal: 'SI' },
+  { code: '2.4', section: '2. REVISIÓN DEL INTERIOR', description: 'Estado del sistema de dirección', optimal: 'SI' },
+  { code: '2.5', section: '2. REVISIÓN DEL INTERIOR', description: 'Control de cambios', optimal: 'SI' },
+  { code: '2.6', section: '2. REVISIÓN DEL INTERIOR', description: 'Limpiaparabrisas', optimal: 'SI' },
+  { code: '2.7', section: '2. REVISIÓN DEL INTERIOR', description: 'Mandos e interruptores', optimal: 'SI' },
+  { code: '2.8', section: '2. REVISIÓN DEL INTERIOR', description: 'Estado de pito y corneta', optimal: 'SI' },
+  { code: '3.1', section: '3. REVISION DEL EXTERIOR', description: 'Estado de las luces delanteras', optimal: 'SI' },
+  { code: '3.2', section: '3. REVISION DEL EXTERIOR', description: 'Luces direccionales', optimal: 'SI' },
+  { code: '3.3', section: '3. REVISION DEL EXTERIOR', description: 'Luces laterales', optimal: 'SI' },
+  { code: '3.4', section: '3. REVISION DEL EXTERIOR', description: 'Luces traseras', optimal: 'SI' },
+  { code: '3.5', section: '3. REVISION DEL EXTERIOR', description: 'Luces de estacionamiento o emergencia', optimal: 'SI' },
+  { code: '3.6', section: '3. REVISION DEL EXTERIOR', description: 'Luz de reverso', optimal: 'SI' },
+  { code: '3.7', section: '3. REVISION DEL EXTERIOR', description: 'Estado y presión de las llantas', optimal: 'SI' },
+  { code: '3.8', section: '3. REVISION DEL EXTERIOR', description: 'Llanta de repuesto', optimal: 'SI' },
+  { code: '3.9', section: '3. REVISION DEL EXTERIOR', description: 'Licuadora', optimal: 'SI' },
+  { code: '4.1', section: '4. REVISION DE MECANISMOS Y ACCESORIOS', description: 'Silla del conductor', optimal: 'SI' },
+  { code: '4.2', section: '4. REVISION DE MECANISMOS Y ACCESORIOS', description: 'Cinturones de seguridad', optimal: 'SI' },
+  { code: '4.3', section: '4. REVISION DE MECANISMOS Y ACCESORIOS', description: 'Sillas de los pasajeros', optimal: 'SI' },
+  { code: '5.1', section: '5. EQUIPO DE CARRETERA', description: '1 Gato con capacidad para elevar el vehículo', optimal: 'SI' },
+  { code: '5.2', section: '5. EQUIPO DE CARRETERA', description: '1 Chaleco reflectivo', optimal: 'SI' },
+  { code: '5.3', section: '5. EQUIPO DE CARRETERA', description: '2 Tacos para bloquear el vehículo', optimal: 'SI' },
+  { code: '5.4', section: '5. EQUIPO DE CARRETERA', description: '2 Señales de carretera triangulares', optimal: 'SI' },
+  { code: '5.5', section: '5. EQUIPO DE CARRETERA', description: '1 Par de guantes de trabajo en lona', optimal: 'SI' },
+  { code: '5.6', section: '5. EQUIPO DE CARRETERA', description: '1 Cruceta', optimal: 'SI' },
+  { code: '5.7', section: '5. EQUIPO DE CARRETERA', description: '1 Cable de iniciar', optimal: 'SI' },
+  { code: '5.8', section: '5. EQUIPO DE CARRETERA', description: '1 Extinguidor de fuego (capacidad mín. 10 lb)', optimal: 'SI' },
+  { code: '5.9', section: '5. EQUIPO DE CARRETERA', description: '2 Conos plásticos reflectivos de 50 cm de alto', optimal: 'SI' },
+  { code: '5.10', section: '5. EQUIPO DE CARRETERA', description: '1 Linterna auto recargable con adaptador al encendedor', optimal: 'SI' },
+  { code: '5.11', section: '5. EQUIPO DE CARRETERA', description: '1 Caja de herramientas (alicates, destornilladores, llaves)', optimal: 'SI' },
+  { code: '6.1', section: '6. INSPECCION DE SEGURIDAD', description: 'Cuenta con extintor / este se encuentra en buen estado', optimal: 'SI' },
+  { code: '6.2', section: '6. INSPECCION DE SEGURIDAD', description: 'Cuñas de seguridad', optimal: 'SI' },
+];
 
 export interface HseqFormatConfig {
   id: string;
@@ -458,6 +521,25 @@ export function getHseqFormatConfig(formatIdentifier = ''): HseqFormatConfig {
         { code: '2.2', section: '2. RECEPTOR (RX)', description: 'Receptor presenta golpes, fisuras o anomalías', optimal: 'NO' },
         { code: '3.1', section: '3. CABLES Y ACCESORIOS', description: 'Pinzas de conexión y cables en buen estado', optimal: 'SI' },
       ],
+    };
+  }
+
+  if (norm.includes('vehiculo') || norm.includes('camioneta') || norm.includes('029') || norm.includes('carro')) {
+    return {
+      id: 'hseq-vehiculo-preoperational',
+      formatType: 'generic',
+      code: 'FOR-HSEQ-029',
+      title: 'INSPECCIÓN PRE-OPERACIONAL DE VEHÍCULO',
+      pdfTitle: 'INSPECCIÓN PRE-OPERACIONAL VEHÍCULO',
+      version: '04',
+      division: 'Ingeniería',
+      equipmentName: 'Vehículo',
+      templateDate: '22-sep-2026',
+      equipmentLabel: 'Vehículo',
+      defaultEquipment: 'Camioneta 4x4',
+      defaultSerial: '',
+      sections: VEHICULO_INSPECTION_SECTIONS,
+      items: VEHICULO_INSPECTION_ITEMS,
     };
   }
 

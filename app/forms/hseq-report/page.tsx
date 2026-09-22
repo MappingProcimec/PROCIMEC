@@ -169,6 +169,9 @@ export default function HseqReportPage() {
     const hasEstacion = raw.some(
       (t) => t.code.includes('025') || t.title.toLowerCase().includes('estacion') || t.title.toLowerCase().includes('estación')
     );
+    const hasVehiculo = raw.some(
+      (t) => t.code.includes('029') || t.title.toLowerCase().includes('vehiculo') || t.title.toLowerCase().includes('vehículo')
+    );
 
     const extra: HseqTemplateOption[] = [];
 
@@ -190,6 +193,18 @@ export default function HseqReportPage() {
         code: 'FOR-HSEQ-025',
         title: 'INSPECCIÓN PRE-OPERACIONAL DE ESTACIÓN TOTAL',
         name: 'FOR-HSEQ-025 Inspección Pre-operacional de Estación Total.xlsx',
+        folderName: '24. Procedimientos y formatos',
+        folderId: 'folder-24',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+    }
+
+    if (!hasVehiculo) {
+      extra.push({
+        id: 'hseq-vehiculo-preoperational',
+        code: 'FOR-HSEQ-029',
+        title: 'INSPECCIÓN PRE-OPERACIONAL DE VEHÍCULO',
+        name: 'FOR-Inspección preoperacional del vehículo.xlsx',
         folderName: '24. Procedimientos y formatos',
         folderId: 'folder-24',
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -235,6 +250,13 @@ export default function HseqReportPage() {
     if (!formatConfig) return false;
     const str = `${formatConfig.code} ${formatConfig.title} ${formatConfig.id}`.toLowerCase();
     return str.includes('027') || str.includes('gpr') || str.includes('georadar');
+  }, [formatConfig]);
+
+  // Detectar si el formato seleccionado corresponde a Vehículo
+  const isVehiculoFormat = useMemo(() => {
+    if (!formatConfig) return false;
+    const str = `${formatConfig.code} ${formatConfig.title} ${formatConfig.id}`.toLowerCase();
+    return str.includes('029') || str.includes('vehiculo') || str.includes('camioneta');
   }, [formatConfig]);
 
   // Sincronizar equipo por defecto (Marca/Modelo y Serial quedan siempre vacíos con ejemplo y obligatorios)
@@ -299,6 +321,13 @@ export default function HseqReportPage() {
     if (formatConfig.code.includes('028') || formatConfig.title.toLowerCase().includes('localizador')) {
       optimalMap['1.2'] = 'NO';
       optimalMap['2.2'] = 'NO';
+    }
+
+    // Para Vehículo (029): 1.6 es NO (fugas en el motor), resto SI
+    if (formatConfig.code.includes('029') || formatConfig.title.toLowerCase().includes('vehiculo') || formatConfig.title.toLowerCase().includes('camioneta')) {
+      for (const it of formatConfig.items) {
+        optimalMap[it.code] = (it.code === '1.6' || it.description.toLowerCase().includes('fuga')) ? 'NO' : 'SI';
+      }
     }
 
     setItemsResponses(optimalMap);
@@ -711,14 +740,14 @@ export default function HseqReportPage() {
 
                     <div>
                       <label className="label label-required text-xs">
-                        Equipo / Herramienta
+                        {isVehiculoFormat ? 'Tipo de Vehículo' : 'Equipo / Herramienta'}
                       </label>
                       <input
                         type="text"
                         value={equipmentName}
                         onChange={(e) => setEquipmentName(e.target.value)}
                         required
-                        placeholder="Ej. Drone, Estación Total, Georadar (GPR)"
+                        placeholder={isVehiculoFormat ? 'Ej. Camioneta 4x4 / Vehículo' : 'Ej. Drone, Estación Total, Georadar (GPR)'}
                         className="input text-xs bg-slate-50 font-medium"
                       />
                     </div>
@@ -732,7 +761,13 @@ export default function HseqReportPage() {
                         value={equipmentBrandModel}
                         onChange={(e) => setEquipmentBrandModel(e.target.value)}
                         required
-                        placeholder={isGprFormat ? 'Ej. Geoscanners Akula 9000B / Sensors & Software' : 'Ej. DJI Mavic 3 Enterprise / Leica TS07 / Trimble R12'}
+                        placeholder={
+                          isVehiculoFormat
+                            ? 'Ej. Toyota Hilux 4x4 / Nissan Frontier / Renault Duster'
+                            : isGprFormat
+                            ? 'Ej. Geoscanners Akula 9000B / Sensors & Software'
+                            : 'Ej. DJI Mavic 3 Enterprise / Leica TS07 / Trimble R12'
+                        }
                         className="input text-xs"
                       />
                     </div>
@@ -768,14 +803,16 @@ export default function HseqReportPage() {
                       </div>
                     ) : (
                       <div className="sm:col-span-2">
-                        <label className="label label-required text-xs">Número de Serial</label>
+                        <label className="label label-required text-xs">
+                          {isVehiculoFormat ? 'Placa del Vehículo' : 'Número de Serial'}
+                        </label>
                         <input
                           type="text"
                           value={equipmentSerial}
                           onChange={(e) => setEquipmentSerial(e.target.value)}
                           required
-                          placeholder="Ej. PROC-DRN-001 / 184920 / SN-2024-X"
-                          className="input text-xs font-mono"
+                          placeholder={isVehiculoFormat ? 'Ej. ABC-123 / WKL-456' : 'Ej. PROC-DRN-001 / 184920 / SN-2024-X'}
+                          className="input text-xs font-mono uppercase"
                         />
                       </div>
                     )}

@@ -1153,6 +1153,22 @@ export async function parseExcelTemplateSchema(
       continue;
     }
 
+    const candidateSec = cellA || cellB;
+    const hasAnswers = Boolean(cellC || cellD || cellE);
+
+    // Si encontramos una fila con formato explícito de sección (ej. "1. REVISIÓN DEL MOTOR")
+    const isExplicitSection =
+      /^\d+\.\s+[A-Za-zÁ-Ú]/i.test(candidateSec) &&
+      !hasAnswers &&
+      candidateSec.length < 60;
+
+    if (isExplicitSection) {
+      tableHeaderFound = true;
+      currentSection = candidateSec.toUpperCase();
+      sectionsSet.add(currentSection);
+      continue;
+    }
+
     // Antes de encontrar la cabecera de la tabla, omitir toda fila de metadatos (Proyecto, Marca, Serial, etc.)
     if (!tableHeaderFound) {
       // Si la fila tiene un numeral explícito (ej. 1.1), significa que la tabla empezó
@@ -1170,8 +1186,6 @@ export async function parseExcelTemplateSchema(
 
     // Identificar si la fila es un encabezado de Sección
     // Ejemplo: Cell A o B tiene texto como "1. TRANSMISOR" o "SISTEMA ELÉCTRICO" y no hay respuestas C/D/E
-    const candidateSec = cellA || cellB;
-    const hasAnswers = Boolean(cellC || cellD || cellE);
     const isSectionHeader =
       Boolean(candidateSec) &&
       candidateSec.length > 3 &&
@@ -1191,11 +1205,23 @@ export async function parseExcelTemplateSchema(
     let itemCode = '';
     let itemDesc = '';
 
+    // Si la celda de respuestas contiene un tag como {{5.10_si}}, usar ese código para evitar truncamiento numérico de Excel (5.10 -> 5.1)
+    const tagMatch = (cellC + ' ' + cellD + ' ' + cellE).match(/(?:\{\[|\{\{|\[)([0-9A-Za-z\._\-]+)_(si|no|na)/i);
+    if (tagMatch && tagMatch[1]) {
+      itemCode = tagMatch[1].replace(/_/g, '.');
+    }
+
+    if (!itemCode) {
+      if (cellA && /^[0-9]+([\.\-][0-9]+)*$/i.test(cellA)) {
+        itemCode = cellA;
+      } else if (cellB && /^[0-9]+([\.\-][0-9]+)*$/i.test(cellB)) {
+        itemCode = cellB;
+      }
+    }
+
     if (cellA && /^[0-9]+([\.\-][0-9]+)*$/i.test(cellA)) {
-      itemCode = cellA;
       itemDesc = cellB || cellC;
     } else if (cellB && /^[0-9]+([\.\-][0-9]+)*$/i.test(cellB)) {
-      itemCode = cellB;
       itemDesc = cellC || cellD;
     } else {
       // Sin numeral explícito: usar la celda con texto descriptivo que no sea metadato
@@ -1207,7 +1233,7 @@ export async function parseExcelTemplateSchema(
       );
       if (candidates.length > 0) {
         itemDesc = candidates[0];
-        itemCode = `${sequentialIndex}`;
+        if (!itemCode) itemCode = `${sequentialIndex}`;
       }
     }
 

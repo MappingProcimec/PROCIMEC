@@ -152,6 +152,14 @@ export async function GET(
         if (it.code === '1.2' || it.code === '2.2') return { ...it, optimal: 'NO' as const };
         return { ...it, optimal: 'SI' as const };
       });
+    } else if (schema.code.includes('029') || schema.title.toLowerCase().includes('vehiculo') || schema.title.toLowerCase().includes('camioneta')) {
+      // En Vehículo (FOR-HSEQ-029): 1.6 es 'NO' (fugas en el motor), resto 'SI'
+      schema.equipmentLabel = 'Vehículo';
+      schema.defaultEquipment = 'Camioneta 4x4';
+      schema.items = schema.items.map((it) => {
+        if (it.code === '1.6' || it.description.toLowerCase().includes('fuga')) return { ...it, optimal: 'NO' as const };
+        return { ...it, optimal: 'SI' as const };
+      });
     }
 
     schema.title = (schema.title || 'INSPECCIÓN PRE-OPERACIONAL').toUpperCase().trim();
