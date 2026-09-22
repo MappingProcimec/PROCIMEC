@@ -295,7 +295,14 @@ export function convertWorksheetToPdf(
         else if (/^(LUNES|MARTES|MI[EÉ]RCOLES|JUEVES|VIERNES|S[AÁ]BADO|DOMINGO):?/i.test(val1)) {
           continue;
         }
-        // 7. Fila de Ítem de Inspección regular
+        // 7. Omitir filas residuales con el valor de observaciones o punto crítico ya emitidos para evitar duplicaciones
+        else if (
+          (hasEmittedObservations && !hasEmittedCriticalPoint && !/^\d+\./.test(val1.trim())) ||
+          (hasEmittedCriticalPoint && !/^\d+\./.test(val1.trim()))
+        ) {
+          continue;
+        }
+        // 8. Fila de Ítem de Inspección regular
         else if (val1 || val2) {
           for (let c = 1; c <= 5; c++) {
             const val = getExcelCellValueAsString(row.getCell(c).value);

@@ -9,10 +9,14 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
   Eye,
   FileText,
   FileSpreadsheet,
   ExternalLink,
+  Search,
+  X,
 } from 'lucide-react';
 
 interface EvidenceItem {
@@ -154,8 +158,6 @@ export default function EvidenceBoardToolPage() {
   // Global & General Filters
   const [search, setSearch] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('all');
-  const [selectedProject, setSelectedProject] = useState('all');
-  const [selectedEquipment, setSelectedEquipment] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'conforme' | 'alerta' | 'observaciones'>('all');
   const [selectedFormat, setSelectedFormat] = useState('all');
   const [selectedLocator, setSelectedLocator] = useState('all');
@@ -164,7 +166,6 @@ export default function EvidenceBoardToolPage() {
   const [colFilterProjectText, setColFilterProjectText] = useState('');
   const [colFilterEquipmentText, setColFilterEquipmentText] = useState('');
   const [colFilterDate, setColFilterDate] = useState('');
-  const [showColumnFilters, setShowColumnFilters] = useState(true);
 
   // Sorting
   const [sortField, setSortField] = useState<
@@ -203,10 +204,6 @@ export default function EvidenceBoardToolPage() {
 
   // Unique values for dropdown filters
   const uniqueDivisions = Array.from(new Set(evidences.map((e) => e.divisionName).filter(Boolean)));
-  const uniqueProjects = Array.from(
-    new Map(evidences.map((e) => [e.projectName, { name: e.projectName, code: e.projectCode }])).values()
-  );
-  const uniqueEquipments = Array.from(new Set(evidences.map((e) => e.equipment).filter(Boolean)));
   const uniqueFormats = Array.from(
     new Map(
       evidences.map((e) => {
@@ -236,16 +233,18 @@ export default function EvidenceBoardToolPage() {
   };
 
   const getSortIcon = (field: 'division' | 'format' | 'project' | 'equipment' | 'locator' | 'date' | 'status') => {
-    if (sortField !== field) return <span className="text-gray-300 font-normal ml-1">↕</span>;
-    return <span className="text-teal-600 font-black ml-1">{sortDirection === 'asc' ? '▲' : '▼'}</span>;
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 text-gray-400 ml-1 inline-block" strokeWidth={1.75} />;
+    return sortDirection === 'asc' ? (
+      <ChevronUp className="w-3.5 h-3.5 text-primary ml-1 inline-block" strokeWidth={2} />
+    ) : (
+      <ChevronDown className="w-3.5 h-3.5 text-primary ml-1 inline-block" strokeWidth={2} />
+    );
   };
 
   // Clear all filters
   const resetAllFilters = () => {
     setSearch('');
     setSelectedDivision('all');
-    setSelectedProject('all');
-    setSelectedEquipment('all');
     setSelectedFormat('all');
     setSelectedLocator('all');
     setSelectedStatus('all');
@@ -259,8 +258,6 @@ export default function EvidenceBoardToolPage() {
   const hasActiveFilters =
     Boolean(search) ||
     selectedDivision !== 'all' ||
-    selectedProject !== 'all' ||
-    selectedEquipment !== 'all' ||
     selectedFormat !== 'all' ||
     selectedLocator !== 'all' ||
     selectedStatus !== 'all' ||
@@ -285,8 +282,6 @@ export default function EvidenceBoardToolPage() {
         (ev.criticalPoint && ev.criticalPoint.toLowerCase().includes(s));
 
       const matchesDivision = selectedDivision === 'all' || ev.divisionName === selectedDivision;
-      const matchesProject = selectedProject === 'all' || ev.projectName === selectedProject;
-      const matchesEquipment = selectedEquipment === 'all' || ev.equipment === selectedEquipment;
       const matchesFormat =
         selectedFormat === 'all' ||
         ev.formatName === selectedFormat ||
@@ -320,8 +315,6 @@ export default function EvidenceBoardToolPage() {
       return (
         matchesSearch &&
         matchesDivision &&
-        matchesProject &&
-        matchesEquipment &&
         matchesFormat &&
         matchesLocator &&
         matchesColProject &&
@@ -375,8 +368,6 @@ export default function EvidenceBoardToolPage() {
     evidences,
     search,
     selectedDivision,
-    selectedProject,
-    selectedEquipment,
     selectedFormat,
     selectedLocator,
     selectedStatus,
@@ -412,7 +403,7 @@ export default function EvidenceBoardToolPage() {
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
-                <span>📋</span> Tablero de Evidencias y Control HSEQ
+                <FileText className="w-7 h-7 text-amber-400" strokeWidth={1.75} /> Tablero de Evidencias y Control HSEQ
               </h1>
               <p className="text-white/80 text-sm mt-1 max-w-2xl">
                 Consolidado centralizado de evidencias oficiales generadas en campo por los <strong className="text-amber-300 font-semibold">Responsables y Operadores</strong>. Monitoreo en tiempo real de respuestas, anomalías, observaciones y puntos críticos por división.
@@ -424,7 +415,7 @@ export default function EvidenceBoardToolPage() {
                 href="/forms/hseq-report"
                 className="btn bg-primary hover:bg-primary-hover text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
               >
-                <span>📝</span> Nueva Inspección HSEQ
+                <FileText className="w-3.5 h-3.5" strokeWidth={1.75} /> Nueva Inspección HSEQ
               </a>
             </div>
           </div>
@@ -438,8 +429,8 @@ export default function EvidenceBoardToolPage() {
         {alertasCount > 0 && (
           <div className="card border-2 border-red-300 bg-red-50/90 shadow-sm p-4 sm:p-5">
             <div className="flex flex-col sm:flex-row items-start gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-red-100 border border-red-200 text-red-600 flex items-center justify-center text-xl flex-shrink-0">
-                🚨
+              <div className="w-10 h-10 rounded-xl bg-red-100 border border-red-200 text-red-600 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-600" strokeWidth={1.75} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -466,19 +457,25 @@ export default function EvidenceBoardToolPage() {
             <span className="text-[11px] text-teal-600 font-medium mt-0.5 block">PDF + Excel Respaldados</span>
           </div>
           <div className="card border border-border p-4 bg-white shadow-sm">
-            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">🟢 Conformes</span>
+            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 inline" strokeWidth={1.75} /> Conformes
+            </span>
             <p className="text-2xl font-bold text-emerald-600 mt-1">{loading ? '...' : conformesCount}</p>
             <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">100% Aptos para operar</span>
           </div>
           <div className="card border border-border p-4 bg-white shadow-sm">
-            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">🔴 Con Alertas / Fallas</span>
+            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-600 inline" strokeWidth={1.75} /> Con Alertas / Fallas
+            </span>
             <p className={`text-2xl font-bold mt-1 ${alertasCount > 0 ? 'text-red-600' : 'text-text-muted'}`}>
               {loading ? '...' : alertasCount}
             </p>
             <span className="text-[11px] text-red-600 font-medium mt-0.5 block">Variaciones o Puntos Críticos</span>
           </div>
           <div className="card border border-border p-4 bg-white shadow-sm">
-            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">🏢 Divisiones Activas</span>
+            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-primary inline" strokeWidth={1.75} /> Divisiones Activas
+            </span>
             <p className="text-2xl font-bold text-primary mt-1">{loading ? '...' : divisionsCount}</p>
             <span className="text-[11px] text-text-muted font-medium mt-0.5 block">
               {uniqueDivisions.slice(0, 2).join(', ') || 'Mapping, Ingeniería'}
@@ -486,11 +483,11 @@ export default function EvidenceBoardToolPage() {
           </div>
         </div>
 
-        {/* Filters and Search Bar */}
-        <div className="card border border-border p-4 sm:p-5 bg-white shadow-sm space-y-3.5">
-          <div className="flex flex-col lg:flex-row gap-3 items-center justify-between">
+        {/* Global Search and Filter Summary Bar */}
+        <div className="card border border-border p-4 bg-white shadow-sm">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             {/* Search Input */}
-            <div className="relative w-full lg:w-80">
+            <div className="relative w-full sm:w-96">
               <input
                 type="text"
                 placeholder="Buscar por proyecto, localizador, equipo, serial..."
@@ -498,136 +495,37 @@ export default function EvidenceBoardToolPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full text-xs pl-8 pr-3 py-2.5 rounded-xl border border-border focus:ring-2 focus:ring-teal-500 focus:outline-none"
               />
-              <span className="absolute left-2.5 top-3 text-xs text-text-muted">🔍</span>
+              <Search className="w-3.5 h-3.5 text-text-muted absolute left-2.5 top-3" strokeWidth={1.75} />
             </div>
 
-            {/* Filter Dropdowns */}
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
-              {/* Division Filter */}
-              <select
-                value={selectedDivision}
-                onChange={(e) => setSelectedDivision(e.target.value)}
-                className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
-              >
-                <option value="all">Todas las Divisiones</option>
-                {uniqueDivisions.map((div) => (
-                  <option key={div} value={div}>
-                    División: {div}
-                  </option>
-                ))}
-              </select>
-
-              {/* Status Filter */}
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta' | 'observaciones')}
-                className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
-              >
-                <option value="all">Todos los Estados</option>
-                <option value="conforme">Conforme (Sin fallas)</option>
-                <option value="alerta">Alertas / Variaciones</option>
-                <option value="observaciones">Con Observaciones</option>
-              </select>
-
-              {/* Project Filter */}
-              <select
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-                className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
-              >
-                <option value="all">Todos los Proyectos</option>
-                {uniqueProjects.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.name} {p.code ? `(${p.code})` : ''}
-                  </option>
-                ))}
-              </select>
-
-              {/* Equipment Filter */}
-              <select
-                value={selectedEquipment}
-                onChange={(e) => setSelectedEquipment(e.target.value)}
-                className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
-              >
-                <option value="all">Todos los Equipos</option>
-                {uniqueEquipments.map((eq) => (
-                  <option key={eq} value={eq}>
-                    {eq}
-                  </option>
-                ))}
-              </select>
-
-              {/* Format Filter */}
-              <select
-                value={selectedFormat}
-                onChange={(e) => setSelectedFormat(e.target.value)}
-                className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
-              >
-                <option value="all">Todos los Formatos</option>
-                {uniqueFormats.map((f) => (
-                  <option key={f.title} value={f.title}>
-                    {f.title}
-                  </option>
-                ))}
-              </select>
-
-              {/* Locator Filter */}
-              <select
-                value={selectedLocator}
-                onChange={(e) => setSelectedLocator(e.target.value)}
-                className="text-xs px-3 py-2 rounded-xl border border-border bg-white text-text-primary focus:ring-2 focus:ring-teal-500 focus:outline-none"
-              >
-                <option value="all">Todos los Responsables</option>
-                {uniqueLocators.map((loc) => (
-                  <option key={loc.name} value={loc.name}>
-                    {loc.name} {loc.role ? `(${loc.role})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Action and Filter Status Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/60 text-xs">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowColumnFilters(!showColumnFilters)}
-                className={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold inline-flex items-center gap-1.5 transition-colors ${
-                  showColumnFilters
-                    ? 'bg-teal-50 text-teal-800 border-teal-300 shadow-xs'
-                    : 'bg-white text-text-secondary border-border hover:bg-gray-50'
-                }`}
-                title="Mostrar u ocultar la fila de filtros directos en cada columna"
-              >
-                <span>🔽</span> Filtros en Columnas: <strong className="text-teal-900">{showColumnFilters ? 'Visibles' : 'Ocultos'}</strong>
-              </button>
-
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end text-xs">
               {hasActiveFilters && (
                 <button
                   type="button"
                   onClick={resetAllFilters}
-                  className="text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 font-semibold hover:bg-red-100 transition-colors inline-flex items-center gap-1"
+                  className="px-3 py-2 rounded-xl bg-red-50 text-red-700 border border-red-200 font-semibold hover:bg-red-100 transition-colors inline-flex items-center gap-1.5 text-xs shadow-xs"
                   title="Restablecer todos los filtros y búsquedas"
                 >
-                  <span>✕</span> Limpiar Todos los Filtros
+                  <X className="w-3.5 h-3.5" strokeWidth={1.75} /> Limpiar Filtros
                 </button>
               )}
-            </div>
 
-            <div className="text-text-muted text-[11px] font-medium">
-              {hasActiveFilters ? (
-                <span className="text-teal-700 font-semibold">
-                  Mostrando {filteredEvidences.length} de {evidences.length} resultados filtrados
-                </span>
-              ) : (
-                <span>Total: {evidences.length} registros</span>
-              )}
+              <div className="text-text-muted text-[11px] font-medium">
+                {hasActiveFilters ? (
+                  <span className="text-teal-700 font-semibold">
+                    Mostrando {filteredEvidences.length} de {evidences.length} resultados filtrados
+                  </span>
+                ) : (
+                  <span>Total: {evidences.length} registros</span>
+                )}
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Evidence Table */}
-          <div className="border border-border rounded-xl overflow-hidden mt-3 shadow-xs">
+        {/* Evidence Table Card */}
+        <div className="card border border-border p-4 bg-white shadow-sm space-y-3">
+          <div className="border border-border rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-gray-50 border-b border-border text-text-muted font-bold uppercase tracking-wider text-[11px]">
@@ -715,153 +613,154 @@ export default function EvidenceBoardToolPage() {
                     </th>
                   </tr>
 
-                  {/* Fila 2: Filtros directos e interactivos en cada columna */}
-                  {showColumnFilters && (
-                    <tr className="bg-slate-100/90 border-t border-border lowercase tracking-normal">
-                      {/* Filtro Columna: División */}
-                      <th className="p-2 font-normal">
-                        <select
-                          value={selectedDivision}
-                          onChange={(e) => setSelectedDivision(e.target.value)}
-                          className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                        >
-                          <option value="all">🏢 Todas ({uniqueDivisions.length})</option>
-                          {uniqueDivisions.map((d) => (
-                            <option key={d} value={d}>
-                              {d}
-                            </option>
-                          ))}
-                        </select>
-                      </th>
+                  {/* Fila 2: Filtros directos e interactivos en cada columna (Siempre Visible) */}
+                  <tr className="bg-slate-100/90 border-t border-border lowercase tracking-normal">
+                    {/* Filtro Columna: División */}
+                    <th className="p-2 font-normal">
+                      <select
+                        value={selectedDivision}
+                        onChange={(e) => setSelectedDivision(e.target.value)}
+                        className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                      >
+                        <option value="all">Todas ({uniqueDivisions.length})</option>
+                        {uniqueDivisions.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </th>
 
-                      {/* Filtro Columna: Formato */}
-                      <th className="p-2 font-normal">
-                        <select
-                          value={selectedFormat}
-                          onChange={(e) => setSelectedFormat(e.target.value)}
-                          className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                        >
-                          <option value="all">📋 Todos ({uniqueFormats.length})</option>
-                          {uniqueFormats.map((f) => (
-                            <option key={f.title} value={f.title} title={`${f.code} - ${f.title}`}>
-                              {f.title}
-                            </option>
-                          ))}
-                        </select>
-                      </th>
+                    {/* Filtro Columna: Formato */}
+                    <th className="p-2 font-normal">
+                      <select
+                        value={selectedFormat}
+                        onChange={(e) => setSelectedFormat(e.target.value)}
+                        className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                      >
+                        <option value="all">Todos ({uniqueFormats.length})</option>
+                        {uniqueFormats.map((f) => (
+                          <option key={f.title} value={f.title} title={`${f.code} - ${f.title}`}>
+                            {f.title}
+                          </option>
+                        ))}
+                      </select>
+                    </th>
 
-                      {/* Filtro Columna: Proyecto */}
-                      <th className="p-2 font-normal">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="Buscar proyecto o CC..."
-                            value={colFilterProjectText}
-                            onChange={(e) => setColFilterProjectText(e.target.value)}
-                            className="w-full text-[11px] px-2 py-1 pr-5 rounded-md border border-border bg-white text-text-primary placeholder:text-gray-400 focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                          />
-                          {colFilterProjectText && (
-                            <button
-                              type="button"
-                              onClick={() => setColFilterProjectText('')}
-                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-[10px]"
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                      </th>
-
-                      {/* Filtro Columna: Equipo */}
-                      <th className="p-2 font-normal">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="Buscar equipo o serial..."
-                            value={colFilterEquipmentText}
-                            onChange={(e) => setColFilterEquipmentText(e.target.value)}
-                            className="w-full text-[11px] px-2 py-1 pr-5 rounded-md border border-border bg-white text-text-primary placeholder:text-gray-400 focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                          />
-                          {colFilterEquipmentText && (
-                            <button
-                              type="button"
-                              onClick={() => setColFilterEquipmentText('')}
-                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-[10px]"
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                      </th>
-
-                      {/* Filtro Columna: Responsable */}
-                      <th className="p-2 font-normal">
-                        <select
-                          value={selectedLocator}
-                          onChange={(e) => setSelectedLocator(e.target.value)}
-                          className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                        >
-                          <option value="all">Todos ({uniqueLocators.length})</option>
-                          {uniqueLocators.map((loc) => (
-                            <option key={loc.name} value={loc.name}>
-                              {loc.name} {loc.role ? `(${loc.role})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </th>
-
-                      {/* Filtro Columna: Fecha */}
-                      <th className="p-2 font-normal">
-                        <div className="relative">
-                          <input
-                            type="date"
-                            value={colFilterDate}
-                            onChange={(e) => setColFilterDate(e.target.value)}
-                            className="w-full text-[11px] px-1.5 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
-                          />
-                          {colFilterDate && (
-                            <button
-                              type="button"
-                              onClick={() => setColFilterDate('')}
-                              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-[10px]"
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                      </th>
-
-                      {/* Filtro Columna: Estado */}
-                      <th className="p-2 font-normal text-center">
-                        <select
-                          value={selectedStatus}
-                          onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta' | 'observaciones')}
-                          className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none font-medium"
-                        >
-                          <option value="all">Todos</option>
-                          <option value="conforme">Conformes</option>
-                          <option value="alerta">Alertas / Variaciones</option>
-                          <option value="observaciones">Con Observaciones</option>
-                        </select>
-                      </th>
-
-                      {/* Acción en Columna */}
-                      <th className="p-2 text-right font-normal">
-                        {hasActiveFilters ? (
+                    {/* Filtro Columna: Proyecto */}
+                    <th className="p-2 font-normal">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Buscar proyecto o CC..."
+                          value={colFilterProjectText}
+                          onChange={(e) => setColFilterProjectText(e.target.value)}
+                          className="w-full text-[11px] px-2 py-1 pr-5 rounded-md border border-border bg-white text-text-primary placeholder:text-gray-400 focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                        />
+                        {colFilterProjectText && (
                           <button
                             type="button"
-                            onClick={resetAllFilters}
-                            className="w-full text-[11px] font-bold text-teal-800 bg-teal-100/90 hover:bg-teal-200 border border-teal-300 py-1 px-2 rounded-md transition-colors inline-flex items-center justify-center gap-1"
-                            title="Limpiar todos los filtros activos"
+                            onClick={() => setColFilterProjectText('')}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            title="Limpiar"
                           >
-                            <span>✕</span> Limpiar
+                            <X className="w-3 h-3" strokeWidth={1.75} />
                           </button>
-                        ) : (
-                          <span className="text-[10px] text-text-muted block text-center py-1">Sin filtro</span>
                         )}
-                      </th>
-                    </tr>
-                  )}
+                      </div>
+                    </th>
+
+                    {/* Filtro Columna: Equipo */}
+                    <th className="p-2 font-normal">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Buscar equipo o serial..."
+                          value={colFilterEquipmentText}
+                          onChange={(e) => setColFilterEquipmentText(e.target.value)}
+                          className="w-full text-[11px] px-2 py-1 pr-5 rounded-md border border-border bg-white text-text-primary placeholder:text-gray-400 focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                        />
+                        {colFilterEquipmentText && (
+                          <button
+                            type="button"
+                            onClick={() => setColFilterEquipmentText('')}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            title="Limpiar"
+                          >
+                            <X className="w-3 h-3" strokeWidth={1.75} />
+                          </button>
+                        )}
+                      </div>
+                    </th>
+
+                    {/* Filtro Columna: Responsable */}
+                    <th className="p-2 font-normal">
+                      <select
+                        value={selectedLocator}
+                        onChange={(e) => setSelectedLocator(e.target.value)}
+                        className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                      >
+                        <option value="all">Todos ({uniqueLocators.length})</option>
+                        {uniqueLocators.map((loc) => (
+                          <option key={loc.name} value={loc.name}>
+                            {loc.name} {loc.role ? `(${loc.role})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </th>
+
+                    {/* Filtro Columna: Fecha */}
+                    <th className="p-2 font-normal">
+                      <div className="relative">
+                        <input
+                          type="date"
+                          value={colFilterDate}
+                          onChange={(e) => setColFilterDate(e.target.value)}
+                          className="w-full text-[11px] px-1.5 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                        />
+                        {colFilterDate && (
+                          <button
+                            type="button"
+                            onClick={() => setColFilterDate('')}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            title="Limpiar"
+                          >
+                            <X className="w-3 h-3" strokeWidth={1.75} />
+                          </button>
+                        )}
+                      </div>
+                    </th>
+
+                    {/* Filtro Columna: Estado */}
+                    <th className="p-2 font-normal text-center">
+                      <select
+                        value={selectedStatus}
+                        onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta' | 'observaciones')}
+                        className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none font-medium"
+                      >
+                        <option value="all">Todos</option>
+                        <option value="conforme">Conformes</option>
+                        <option value="alerta">Alertas / Variaciones</option>
+                        <option value="observaciones">Con Observaciones</option>
+                      </select>
+                    </th>
+
+                    {/* Acción en Columna */}
+                    <th className="p-2 text-right font-normal">
+                      {hasActiveFilters ? (
+                        <button
+                          type="button"
+                          onClick={resetAllFilters}
+                          className="w-full text-[11px] font-bold text-teal-800 bg-teal-100/90 hover:bg-teal-200 border border-teal-300 py-1 px-2 rounded-md transition-colors inline-flex items-center justify-center gap-1"
+                          title="Limpiar todos los filtros activos"
+                        >
+                          <X className="w-3 h-3" strokeWidth={1.75} /> Limpiar
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-text-muted block text-center py-1">Sin filtro</span>
+                      )}
+                    </th>
+                  </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {loading && (
@@ -986,8 +885,9 @@ export default function EvidenceBoardToolPage() {
             <span>
               Mostrando {filteredEvidences.length} de {evidences.length} evidencias en base de datos
             </span>
-            <span>
-              Respaldo en la nube: 📁 <strong>Supabase Storage (Bucket &apos;evidencias&apos;)</strong>
+            <span className="flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-primary inline" strokeWidth={1.75} />
+              Respaldo en la nube: <strong>Supabase Storage (Bucket &apos;evidencias&apos;)</strong>
             </span>
           </div>
         </div>
@@ -1002,7 +902,7 @@ export default function EvidenceBoardToolPage() {
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 bg-teal-800 text-white flex-shrink-0">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">📋</span>
+                <FileText className="w-6 h-6 text-white" strokeWidth={1.75} />
                 <div>
                   <h3 className="font-bold text-sm sm:text-base">
                     Auditoría de Inspección: {selectedEvidence.code}
@@ -1016,8 +916,9 @@ export default function EvidenceBoardToolPage() {
                 type="button"
                 onClick={() => setSelectedEvidence(null)}
                 className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-bold text-sm transition-colors"
+                title="Cerrar modal"
               >
-                ✕
+                <X className="w-4 h-4" strokeWidth={2} />
               </button>
             </div>
 
