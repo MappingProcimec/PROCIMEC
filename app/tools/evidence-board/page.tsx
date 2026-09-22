@@ -20,7 +20,11 @@ import {
   Car,
   ShieldCheck,
 } from 'lucide-react';
-import type { VehicleInspectionData } from '@/lib/hseq-definitions';
+import {
+  type VehicleInspectionData,
+  type VehicleDocumentAlert,
+  checkVehicleDocumentExpirations,
+} from '@/lib/hseq-definitions';
 
 interface EvidenceItem {
   id: string;
@@ -59,6 +63,7 @@ interface EvidenceItem {
   operatorSignatureData?: string | null;
   sstaSignatureData?: string | null;
   vehicleData?: VehicleInspectionData | null;
+  documentAlerts?: VehicleDocumentAlert[];
 }
 
 function EvidenceActionsDropdown({
@@ -149,6 +154,52 @@ function EvidenceActionsDropdown({
             </a>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function VehicleDocItem({
+  label,
+  value,
+  field,
+  alerts,
+}: {
+  label: string;
+  value?: string;
+  field: string;
+  alerts?: VehicleDocumentAlert[];
+}) {
+  const alert = alerts?.find((a) => a.field === field);
+  return (
+    <div
+      className={`p-2 rounded-lg border transition-colors ${
+        alert?.isExpired
+          ? 'bg-red-50/90 border-red-300 text-red-950'
+          : alert?.isExpiringSoon
+          ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+          : 'bg-white border-border text-text-primary'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-[10px] text-text-muted font-medium truncate">{label}</span>
+        {alert && (
+          <span
+            className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase ${
+              alert.isExpired ? 'bg-red-600 text-white' : 'bg-amber-600 text-white'
+            }`}
+          >
+            {alert.isExpired ? 'Vencido' : `${alert.daysRemaining}d`}
+          </span>
+        )}
+      </div>
+      <span className="font-mono text-[11px] font-semibold block mt-0.5">
+        {value || 'N/A'}
+      </span>
+      {alert && (
+        <span className="text-[10px] block font-medium mt-0.5 leading-tight opacity-90">
+          {alert.message}
+        </span>
       )}
     </div>
   );
@@ -941,43 +992,74 @@ export default function EvidenceBoardToolPage() {
             <div className="p-6 space-y-5 overflow-y-auto flex-1">
               
               {/* Alert or Conformance Banner */}
-              {selectedEvidence.hasAnomalies ? (
-                <div className="card border-2 border-red-300 bg-red-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">🚨</span>
-                    <div>
-                      <h4 className="text-xs font-bold text-red-900 uppercase tracking-wide">
-                        Inspección No Conforme / Alerta de Seguridad
-                      </h4>
-                      <p className="text-xs text-red-800 mt-0.5">
-                        Esta inspección contiene respuestas negativas (&apos;NO&apos;) o puntos críticos que alertan sobre el estado operativo del equipo.
-                      </p>
-                      {selectedEvidence.nonCompliantCodes.length > 0 && (
-                        <div className="mt-2 text-xs text-red-900">
-                          <strong>Ítems que no cumplen:</strong>{' '}
-                          <span className="font-mono font-bold bg-red-200/80 px-1.5 py-0.5 rounded">
-                            {selectedEvidence.nonCompliantCodes.join(', ')}
-                          </span>
-                        </div>
-                      )}
+              {(() => {
+                const activeDocAlerts =
+                  selectedEvidence.documentAlerts ||
+                  (selectedEvidence.vehicleData
+                    ? checkVehicleDocumentExpirations(selectedEvidence.vehicleData, selectedEvidence.date)
+                    : []);
+                const isNonCompliant = selectedEvidence.hasAnomalies || activeDocAlerts.length > 0;
+
+                return isNonCompliant ? (
+                  <div className="card border-2 border-red-300 bg-red-50 p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" strokeWidth={1.75} />
+                      <div className="flex-1">
+                        <h4 className="text-xs font-bold text-red-900 uppercase tracking-wide">
+                          Inspección No Conforme / Alerta de Seguridad
+                        </h4>
+                        <p className="text-xs text-red-800 mt-0.5">
+                          Esta inspección contiene respuestas que difieren del estándar, observaciones de campo o alertas de vencimiento documental.
+                        </p>
+                        {selectedEvidence.nonCompliantCodes.length > 0 && (
+                          <div className="mt-2 text-xs text-red-900">
+                            <strong>Ítems que no cumplen:</strong>{' '}
+                            <span className="font-mono font-bold bg-red-200/80 px-1.5 py-0.5 rounded">
+                              {selectedEvidence.nonCompliantCodes.join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        {activeDocAlerts.length > 0 && (
+                          <div className="mt-2.5 text-xs text-amber-950 bg-amber-100/90 border border-amber-200 p-2.5 rounded-lg space-y-1.5">
+                            <span className="font-bold flex items-center gap-1.5 text-amber-900 uppercase text-[11px]">
+                              <ShieldCheck className="w-3.5 h-3.5 text-amber-700" strokeWidth={1.75} />
+                              Documentación Próxima a Vencer o Vencida ({activeDocAlerts.length}):
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {activeDocAlerts.map((da) => (
+                                <span
+                                  key={da.field}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                    da.isExpired
+                                      ? 'bg-red-200 text-red-900 border border-red-300'
+                                      : 'bg-amber-200 text-amber-900 border border-amber-300'
+                                  }`}
+                                >
+                                  {da.label}: {da.message} ({da.dateStr})
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="card border-2 border-emerald-300 bg-emerald-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">✅</span>
-                    <div>
-                      <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wide">
-                        Inspección 100% Conforme
-                      </h4>
-                      <p className="text-xs text-emerald-800 mt-0.5">
-                        Todos los parámetros de seguridad fueron evaluados positivamente. Equipo apto para operaciones.
-                      </p>
+                ) : (
+                  <div className="card border-2 border-emerald-300 bg-emerald-50 p-4">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" strokeWidth={1.75} />
+                      <div>
+                        <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wide">
+                          Inspección 100% Conforme
+                        </h4>
+                        <p className="text-xs text-emerald-800 mt-0.5">
+                          Todos los parámetros de seguridad fueron evaluados positivamente y la documentación se encuentra vigente.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* General Information Grid */}
               <div className="border border-border rounded-xl p-4 bg-surface grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -1054,46 +1136,83 @@ export default function EvidenceBoardToolPage() {
                       <ShieldCheck className="w-3.5 h-3.5 text-amber-700" strokeWidth={1.75} />
                       Vencimiento de Documentos y Elementos
                     </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
-                      <div className="p-2 rounded-lg bg-white border border-border">
-                        <span className="text-[10px] text-text-muted block font-medium">Tarjeta de Propiedad</span>
-                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_tarjeta_propiedad || 'N/A'}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-white border border-border">
-                        <span className="text-[10px] text-text-muted block font-medium">SOAT</span>
-                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_soat || 'N/A'}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-white border border-border">
-                        <span className="text-[10px] text-text-muted block font-medium">Tecnomecánica / Gases</span>
-                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_tecnomecanica || 'N/A'}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-white border border-border">
-                        <span className="text-[10px] text-text-muted block font-medium">Licencia de Conducción</span>
-                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_licencia || 'N/A'}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-white border border-border">
-                        <span className="text-[10px] text-text-muted block font-medium">Manejo Defensivo</span>
-                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_manejo_defensivo || 'N/A'}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-white border border-border">
-                        <span className="text-[10px] text-text-muted block font-medium">Revisado Contratante</span>
-                        <span className="font-bold text-[11px] text-text-primary">
-                          {selectedEvidence.vehicleData.contratante_si ? 'SI' : selectedEvidence.vehicleData.contratante_no ? 'NO' : selectedEvidence.vehicleData.contratante_na ? 'N/A' : (selectedEvidence.vehicleData.revisado_contratante || 'N/A')}
-                        </span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-white border border-border">
-                        <span className="text-[10px] text-text-muted block font-medium">Botiquín</span>
-                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_botiquin || 'N/A'}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-white border border-border">
-                        <span className="text-[10px] text-text-muted block font-medium">Extintor</span>
-                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_extintor || 'N/A'}</span>
-                      </div>
-                      <div className="p-2 rounded-lg bg-white border border-border">
-                        <span className="text-[10px] text-text-muted block font-medium">Batería Garantía</span>
-                        <span className="font-mono text-[11px] font-semibold text-text-primary">{selectedEvidence.vehicleData.venc_bateria || 'N/A'}</span>
-                      </div>
-                    </div>
+                    {(() => {
+                      const modalDocAlerts =
+                        selectedEvidence.documentAlerts ||
+                        checkVehicleDocumentExpirations(selectedEvidence.vehicleData, selectedEvidence.date);
+
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
+                          <VehicleDocItem
+                            label="Tarjeta de Propiedad"
+                            value={selectedEvidence.vehicleData.venc_tarjeta_propiedad}
+                            field="venc_tarjeta_propiedad"
+                            alerts={modalDocAlerts}
+                          />
+                          <VehicleDocItem
+                            label="SOAT"
+                            value={selectedEvidence.vehicleData.venc_soat}
+                            field="venc_soat"
+                            alerts={modalDocAlerts}
+                          />
+                          <VehicleDocItem
+                            label="Tecnomecánica / Gases"
+                            value={selectedEvidence.vehicleData.venc_tecnomecanica}
+                            field="venc_tecnomecanica"
+                            alerts={modalDocAlerts}
+                          />
+                          <VehicleDocItem
+                            label="Licencia de Conducción"
+                            value={selectedEvidence.vehicleData.venc_licencia}
+                            field="venc_licencia"
+                            alerts={modalDocAlerts}
+                          />
+                          <VehicleDocItem
+                            label="Manejo Defensivo"
+                            value={selectedEvidence.vehicleData.venc_manejo_defensivo}
+                            field="venc_manejo_defensivo"
+                            alerts={modalDocAlerts}
+                          />
+                          <div
+                            className={`p-2 rounded-lg border transition-colors ${
+                              selectedEvidence.vehicleData.contratante_no || selectedEvidence.vehicleData.revisado_contratante === 'NO'
+                                ? 'bg-red-50/90 border-red-300 text-red-950 font-bold'
+                                : 'bg-white border-border text-text-primary'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[10px] text-text-muted font-medium">Revisado Contratante</span>
+                              {(selectedEvidence.vehicleData.contratante_no || selectedEvidence.vehicleData.revisado_contratante === 'NO') && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white shrink-0 uppercase">
+                                  NO
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-bold text-[11px] block mt-0.5">
+                              {selectedEvidence.vehicleData.contratante_si ? 'SI' : selectedEvidence.vehicleData.contratante_no ? 'NO' : selectedEvidence.vehicleData.contratante_na ? 'N/A' : (selectedEvidence.vehicleData.revisado_contratante || 'N/A')}
+                            </span>
+                          </div>
+                          <VehicleDocItem
+                            label="Botiquín"
+                            value={selectedEvidence.vehicleData.venc_botiquin}
+                            field="venc_botiquin"
+                            alerts={modalDocAlerts}
+                          />
+                          <VehicleDocItem
+                            label="Extintor"
+                            value={selectedEvidence.vehicleData.venc_extintor}
+                            field="venc_extintor"
+                            alerts={modalDocAlerts}
+                          />
+                          <VehicleDocItem
+                            label="Batería Garantía"
+                            value={selectedEvidence.vehicleData.venc_bateria}
+                            field="venc_bateria"
+                            alerts={modalDocAlerts}
+                          />
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

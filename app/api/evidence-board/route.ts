@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
-import { getOptimalResponses } from '@/lib/hseq-definitions';
+import { getOptimalResponses, checkVehicleDocumentExpirations } from '@/lib/hseq-definitions';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -192,12 +192,17 @@ export async function GET(req: NextRequest) {
           .map(([code]) => code);
       }
 
+      const vehicleData = meta.vehicle_data || (row as any).vehicle_data || null;
+      const documentAlerts = checkVehicleDocumentExpirations(vehicleData, row.inspection_date || undefined);
+      const hasDocumentAlerts = documentAlerts.length > 0;
+
       const hasAnomalies =
-        (row as any).has_anomalies !== undefined && (row as any).has_anomalies !== null
+        hasDocumentAlerts ||
+        ((row as any).has_anomalies !== undefined && (row as any).has_anomalies !== null
           ? Boolean((row as any).has_anomalies)
           : meta.has_anomalies !== undefined
           ? Boolean(meta.has_anomalies)
-          : nonCompliantCodes.length > 0 || hasCritical || hasCustomObservations;
+          : nonCompliantCodes.length > 0 || hasCritical || hasCustomObservations);
 
       // La división DEBE reflejar la división oficial a la que pertenece la persona que diligenció el formulario
       const userUdrDivision = row.users?.user_division_roles?.[0]?.divisions?.name;
@@ -310,7 +315,8 @@ export async function GET(req: NextRequest) {
         nonCompliantCount: nonCompliantCodes.length,
         operatorSignatureData: row.operator_signature_data || null,
         sstaSignatureData: row.ssta_signature_data || null,
-        vehicleData: meta.vehicle_data || (row as any).vehicle_data || null,
+        vehicleData,
+        documentAlerts,
       };
     });
 

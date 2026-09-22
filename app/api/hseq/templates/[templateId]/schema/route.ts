@@ -153,11 +153,12 @@ export async function GET(
         return { ...it, optimal: 'SI' as const };
       });
     } else if (schema.code.includes('029') || schema.title.toLowerCase().includes('vehiculo') || schema.title.toLowerCase().includes('camioneta')) {
-      // En Vehículo (FOR-HSEQ-029): 1.6 es 'NO' (fugas en el motor), resto 'SI'
+      // En Vehículo (FOR-HSEQ-029): 1.6 es 'NO' (fugas en el motor), 3.9 es 'NA' (licuadora), resto 'SI'
       schema.equipmentLabel = 'Vehículo';
       schema.defaultEquipment = 'Camioneta 4x4';
       schema.items = schema.items.map((it) => {
         if (it.code === '1.6' || it.description.toLowerCase().includes('fuga')) return { ...it, optimal: 'NO' as const };
+        if (it.code === '3.9' || it.description.toLowerCase().includes('licuadora')) return { ...it, optimal: 'NA' as const };
         return { ...it, optimal: 'SI' as const };
       });
     }

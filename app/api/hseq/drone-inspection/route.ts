@@ -7,6 +7,7 @@ import {
   fillHseqExcelTemplate,
   getHseqFormatConfig,
 } from '@/lib/drone-inspection';
+import { checkVehicleDocumentExpirations } from '@/lib/hseq-definitions';
 import { convertOfficeDocumentToPdf } from '@/lib/cloud-document-converter';
 import { HSEQ_EVIDENCE_FOLDER_ID, getUploadDriveClient } from '@/lib/hseq-drive';
 import { sendHseqAlertEmail } from '@/lib/hseq-mailer';
@@ -173,6 +174,7 @@ export async function POST(req: NextRequest) {
     } else if (formatConfig.code.includes('029') || formatConfig.title.toLowerCase().includes('vehiculo') || formatConfig.title.toLowerCase().includes('camioneta')) {
       formatConfig.items = (formatConfig.items || []).map((it: any) => {
         if (it.code === '1.6' || it.description?.toLowerCase().includes('fuga')) return { ...it, optimal: 'NO' as const };
+        if (it.code === '3.9' || it.description?.toLowerCase().includes('licuadora')) return { ...it, optimal: 'NA' as const };
         return { ...it, optimal: 'SI' as const };
       });
     }
@@ -421,9 +423,13 @@ export async function POST(req: NextRequest) {
       Boolean(generalObservations) &&
       !['ninguna', 'ninguno', 'ningun', 'sin observaciones', 'n/a', 'na', ''].includes(obsClean);
 
-    const hasAnomalies = nonCompliantItems.length > 0 || hasCriticalPoint || hasCustomObservations;
+    // Evaluar vencimiento de documentos y elementos del vehículo (alerta si vencen en <= 60 días o están vencidos)
+    const documentAlerts = checkVehicleDocumentExpirations(body.vehicleData, inspectionDate);
+    const hasDocumentAlerts = documentAlerts.length > 0;
 
-    // Disparar correo automático de alerta/notificación al responsable HSEQ si hay variaciones, punto crítico u observaciones
+    const hasAnomalies = nonCompliantItems.length > 0 || hasCriticalPoint || hasCustomObservations || hasDocumentAlerts;
+
+    // Disparar correo automático de alerta/notificación al responsable HSEQ si hay variaciones, punto crítico, observaciones o documentos por vencer
     if (hasAnomalies) {
       sendHseqAlertEmail({
         formatCode: formatConfig.code,
@@ -441,6 +447,7 @@ export async function POST(req: NextRequest) {
         generalObservations: hasCustomObservations ? generalObservations : undefined,
         pdfUrl: pdfUrl || driveWebViewLink || undefined,
         excelUrl: excelUrl || undefined,
+        documentAlerts: hasDocumentAlerts ? documentAlerts : undefined,
       }).catch((mailErr) => {
         console.error('Error despachando correo de alerta HSEQ:', mailErr);
       });
@@ -462,6 +469,7 @@ export async function POST(req: NextRequest) {
         serial_akula: serialAkula || null,
         serial_computadora: serialComputadora || null,
         vehicle_data: body.vehicleData || null,
+        document_alerts: documentAlerts,
         pdf_filename: fileName,
         pdf_url: pdfUrl,
         excel_filename: excelFileName,

@@ -339,10 +339,16 @@ export default function HseqReportPage() {
       optimalMap['2.2'] = 'NO';
     }
 
-    // Para Vehículo (029): 1.6 es NO (fugas en el motor), resto SI
+    // Para Vehículo (029): 1.6 es NO (fugas en el motor), 3.9 es NA (licuadora), resto SI
     if (formatConfig.code.includes('029') || formatConfig.title.toLowerCase().includes('vehiculo') || formatConfig.title.toLowerCase().includes('camioneta')) {
       for (const it of formatConfig.items) {
-        optimalMap[it.code] = (it.code === '1.6' || it.description.toLowerCase().includes('fuga')) ? 'NO' : 'SI';
+        if (it.code === '1.6' || it.description?.toLowerCase().includes('fuga')) {
+          optimalMap[it.code] = 'NO';
+        } else if (it.code === '3.9' || it.description?.toLowerCase().includes('licuadora')) {
+          optimalMap[it.code] = 'NA';
+        } else {
+          optimalMap[it.code] = 'SI';
+        }
       }
     }
 

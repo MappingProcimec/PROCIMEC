@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import type { VehicleDocumentAlert } from './hseq-definitions';
 
 export interface HseqAlertVariation {
   code: string;
@@ -23,6 +24,7 @@ export interface HseqAlertData {
   generalObservations?: string;
   pdfUrl?: string;
   excelUrl?: string;
+  documentAlerts?: VehicleDocumentAlert[];
 }
 
 export const HSEQ_RECIPIENT_EMAIL = process.env.HSEQ_ALERT_EMAIL || 'ghprocimec@gmail.com';
@@ -34,6 +36,7 @@ export async function sendHseqAlertEmail(data: HseqAlertData): Promise<{ ok: boo
   const smtpPort = Number(process.env.SMTP_PORT || 465);
 
   const hasVariations = Array.isArray(data.variations) && data.variations.length > 0;
+  const hasDocAlerts = Array.isArray(data.documentAlerts) && data.documentAlerts.length > 0;
   const hasCritical =
     Boolean(data.criticalPoint) &&
     !['ninguno', 'ninguna'].includes(data.criticalPoint!.trim().toLowerCase());
@@ -42,31 +45,43 @@ export async function sendHseqAlertEmail(data: HseqAlertData): Promise<{ ok: boo
     Boolean(data.generalObservations) &&
     !['ninguna', 'ninguno', 'ningun', 'sin observaciones', 'n/a', 'na', ''].includes(obsClean);
 
-  const isPureObservation = hasCustomObs && !hasVariations && !hasCritical;
+  const isPureObservation = hasCustomObs && !hasVariations && !hasCritical && !hasDocAlerts;
 
   const subject = isPureObservation
     ? `📝 NOTIFICACIÓN HSEQ [${data.formatCode}]: Observación Registrada en ${data.projectName}`
-    : `🚨 ALERTA HSEQ [${data.formatCode}]: Variación de Seguridad en ${data.projectName}`;
+    : hasDocAlerts && !hasVariations && !hasCritical
+    ? `⚠️ ALERTA HSEQ [${data.formatCode}]: Documentos por Vencer o Vencidos en ${data.projectName}`
+    : `🚨 ALERTA HSEQ [${data.formatCode}]: Variación de Seguridad / Documentos en ${data.projectName}`;
 
   const headerGradient = isPureObservation
     ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+    : hasDocAlerts && !hasVariations && !hasCritical
+    ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'
     : 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)';
 
   const headerTitle = isPureObservation
     ? '📝 NOTIFICACIÓN DE OBSERVACIÓN HSEQ'
+    : hasDocAlerts && !hasVariations && !hasCritical
+    ? '⚠️ ALERTA DE VENCIMIENTO DOCUMENTAL HSEQ'
     : '🚨 ALERTA DE SEGURIDAD HSEQ';
 
   const headerSubtitle = isPureObservation
     ? 'El operador ha registrado observaciones especiales durante la inspección'
-    : 'Se ha detectado una variación no conforme o punto crítico en la inspección';
+    : hasDocAlerts && !hasVariations && !hasCritical
+    ? 'Se han detectado documentos o elementos del vehículo próximos a vencer o vencidos'
+    : 'Se ha detectado una variación no conforme, documento vencido o punto crítico en la inspección';
 
   const alertBoxStyle = isPureObservation
     ? 'background: #f0f9ff; border-left: 4px solid #0284c7; color: #0369a1;'
+    : hasDocAlerts && !hasVariations && !hasCritical
+    ? 'background: #fff7ed; border-left: 4px solid #f97316; color: #9a3412;'
     : 'background: #fef2f2; border-left: 4px solid #ef4444; color: #991b1b;';
 
   const alertBoxContent = isPureObservation
     ? '<strong>ℹ️ Novedad Reportada:</strong> El colaborador ha registrado observaciones o condiciones especiales en el formulario que requieren conocimiento y seguimiento del área HSEQ.'
-    : '<strong>⚠️ Atención Inmediata:</strong> Una o más respuestas difieren del patrón de seguridad establecido en el catálogo o se reportó un punto crítico que compromete la operación normal.';
+    : hasDocAlerts && !hasVariations && !hasCritical
+    ? '<strong>⚠️ Documentación en Riesgo:</strong> Uno o más documentos del vehículo presentan fecha de vencimiento menor a 2 meses o se encuentran vencidos. Se requiere gestión preventiva inmediata.'
+    : '<strong>⚠️ Atención Inmediata:</strong> Una o más respuestas difieren del patrón de seguridad establecido, hay documentos por vencer o se reportó un punto crítico que compromete la operación normal.';
 
   // Formato HTML elegante y profesional
   const html = `
@@ -168,6 +183,49 @@ export async function sendHseqAlertEmail(data: HseqAlertData): Promise<{ ok: boo
                     <td>${v.description}</td>
                     <td style="text-align: center;"><span class="tag-danger">${v.response}</span></td>
                     <td style="text-align: center;"><span class="tag-success">${v.expected}</span></td>
+                  </tr>
+                `
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+          `
+              : ''
+          }
+
+          ${
+            hasDocAlerts
+              ? `
+            <h3 style="font-size: 14px; font-weight: 800; margin: 18px 0 6px; text-transform: uppercase; color: #c2410c;">
+              📅 Vencimiento de Documentos y Elementos (${data.documentAlerts!.length} en alerta)
+            </h3>
+            <p style="font-size: 12px; color: #64748b; margin: 0 0 10px;">
+              Los siguientes documentos o elementos del vehículo vencen en menos de 2 meses (entre 1 día y 60 días) o se encuentran vencidos:
+            </p>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Documento / Elemento</th>
+                  <th style="width: 25%; text-align: center;">Fecha Registrada</th>
+                  <th style="width: 35%; text-align: center;">Estado / Días Restantes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.documentAlerts!
+                  .map(
+                    (d) => `
+                  <tr>
+                    <td style="font-weight: 700;">${d.label}</td>
+                    <td style="text-align: center; font-family: monospace;">${d.dateStr}</td>
+                    <td style="text-align: center;">
+                      <span class="${d.isExpired ? 'tag-danger' : ''}" style="${
+                        !d.isExpired
+                          ? 'background: #ffedd5; color: #c2410c; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 11px;'
+                          : ''
+                      }">
+                        ${d.message}
+                      </span>
+                    </td>
                   </tr>
                 `
                   )

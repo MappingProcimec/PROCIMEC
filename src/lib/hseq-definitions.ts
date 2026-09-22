@@ -346,6 +346,7 @@ export function getOptimalResponses(
       }
     }
     map['1.6'] = 'NO';
+    map['3.9'] = 'NA';
     return map;
   }
 
@@ -389,7 +390,7 @@ export const VEHICULO_INSPECTION_ITEMS: DroneInspectionItemDef[] = [
   { code: '3.6', section: '3. REVISION DEL EXTERIOR', description: 'Luz de reverso', optimal: 'SI' },
   { code: '3.7', section: '3. REVISION DEL EXTERIOR', description: 'Estado y presión de las llantas', optimal: 'SI' },
   { code: '3.8', section: '3. REVISION DEL EXTERIOR', description: 'Llanta de repuesto', optimal: 'SI' },
-  { code: '3.9', section: '3. REVISION DEL EXTERIOR', description: 'Licuadora', optimal: 'SI' },
+  { code: '3.9', section: '3. REVISION DEL EXTERIOR', description: 'Licuadora', optimal: 'NA' },
   { code: '4.1', section: '4. REVISION DE MECANISMOS Y ACCESORIOS', description: 'Silla del conductor', optimal: 'SI' },
   { code: '4.2', section: '4. REVISION DE MECANISMOS Y ACCESORIOS', description: 'Cinturones de seguridad', optimal: 'SI' },
   { code: '4.3', section: '4. REVISION DE MECANISMOS Y ACCESORIOS', description: 'Sillas de los pasajeros', optimal: 'SI' },
@@ -579,6 +580,89 @@ export interface VehicleInspectionData {
   venc_botiquin?: string;
   venc_extintor?: string;
   venc_bateria?: string;
+}
+
+export interface VehicleDocumentAlert {
+  field: string;
+  label: string;
+  dateStr: string;
+  daysRemaining: number;
+  isExpired: boolean;
+  isExpiringSoon: boolean;
+  message: string;
+}
+
+/**
+ * Evalúa los vencimientos de documentos y elementos del vehículo (FOR-HSEQ-029).
+ * Detecta si algún documento está vencido o por vencer entre 1 día y 2 meses (60 días).
+ */
+export function checkVehicleDocumentExpirations(
+  vehicleData?: VehicleInspectionData | null,
+  referenceDateStr?: string | null
+): VehicleDocumentAlert[] {
+  if (!vehicleData) return [];
+
+  let refDate: Date;
+  if (referenceDateStr && /^\d{4}-\d{1,2}-\d{1,2}$/.test(referenceDateStr.trim())) {
+    const parts = referenceDateStr.trim().split('-');
+    refDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  } else {
+    refDate = new Date();
+  }
+  refDate.setHours(0, 0, 0, 0);
+
+  const docsToCheck: { key: keyof VehicleInspectionData; label: string }[] = [
+    { key: 'venc_tarjeta_propiedad', label: 'Tarjeta de Propiedad' },
+    { key: 'venc_soat', label: 'SOAT' },
+    { key: 'venc_tecnomecanica', label: 'Revisión Tecnomecánica y Gases' },
+    { key: 'venc_licencia', label: 'Licencia de Conducción' },
+    { key: 'venc_manejo_defensivo', label: 'Curso Manejo Defensivo' },
+    { key: 'venc_botiquin', label: 'Botiquín' },
+    { key: 'venc_extintor', label: 'Extintor' },
+    { key: 'venc_bateria', label: 'Garantía Batería' },
+  ];
+
+  const alerts: VehicleDocumentAlert[] = [];
+
+  for (const doc of docsToCheck) {
+    const rawVal = vehicleData[doc.key];
+    if (!rawVal || typeof rawVal !== 'string') continue;
+    const cleanStr = rawVal.trim();
+    const dateMatch = cleanStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (!dateMatch) continue;
+
+    const docDate = new Date(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]));
+    docDate.setHours(0, 0, 0, 0);
+
+    const diffMs = docDate.getTime() - refDate.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    // Si está vencido (< 0) o por vencer en 60 días o menos (1 día a 2 meses)
+    if (diffDays <= 60) {
+      let message = '';
+      if (diffDays < 0) {
+        message = `Venció hace ${Math.abs(diffDays)} día(s)`;
+      } else if (diffDays === 0) {
+        message = 'Vence hoy';
+      } else if (diffDays === 1) {
+        message = 'Vence mañana (1 día)';
+      } else {
+        message = `Vence en ${diffDays} días`;
+      }
+
+      alerts.push({
+        field: doc.key,
+        label: doc.label,
+        dateStr: cleanStr,
+        daysRemaining: diffDays,
+        isExpired: diffDays < 0,
+        isExpiringSoon: diffDays >= 0 && diffDays <= 60,
+        message,
+      });
+    }
+  }
+
+  return alerts;
 }
 
 export interface HseqPdfGenerationPayload {
