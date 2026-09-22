@@ -2,13 +2,8 @@
 -- Migración 021: Registrar Rol RRHH (Recursos Humanos) y Categoría de Herramientas
 -- ==============================================================================
 
--- 1. Extender ENUM tool_category con valor 'rrhh' si existe el enum
-DO $$ BEGIN
-  ALTER TYPE tool_category ADD VALUE IF NOT EXISTS 'rrhh';
-EXCEPTION
-  WHEN duplicate_object THEN NULL;
-  WHEN undefined_object THEN NULL;
-END $$;
+-- 1. Extender ENUM tool_category con valor 'rrhh'
+ALTER TYPE tool_category ADD VALUE IF NOT EXISTS 'rrhh';
 
 -- 2. Actualizar categoría de Control de Asistencia a 'rrhh'
 UPDATE tools
