@@ -4,137 +4,283 @@ import { Navbar } from '@/components/layout/Navbar';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import {
+  CheckCircle2,
+  FileText,
+  Download,
+  Share2,
+  Mail,
+  FolderOpen,
+  Plus,
+  ArrowRight,
+  Database,
+  Sparkles,
+  Layers,
+} from 'lucide-react';
+
+interface ReportDetails {
+  id: string;
+  report_date: string;
+  localizador_name: string;
+  pdf_report_url?: string;
+  ai_summary?: string;
+  projects?: {
+    name: string;
+    client: string;
+    code?: string;
+    location?: string;
+  };
+}
 
 export default function SuccessPage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const projectId = params.projectId as string;
+  const projectId = (params.projectId as string) || '';
+  const reportId = (params.reportId as string) || '';
+
+  const initialPdfUrl = searchParams.get('pdfUrl') || '';
   const folderUrl = searchParams.get('folderUrl') || '';
   const docxUrl = searchParams.get('docxUrl') || '';
-  const [showConfetti, setShowConfetti] = useState(true);
+
+  const [report, setReport] = useState<ReportDetails | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setShowConfetti(false), 3000);
-    return () => clearTimeout(t);
-  }, []);
+    async function loadReportInfo() {
+      try {
+        const res = await fetch(`/api/reports?projectId=${projectId}`);
+        if (res.ok) {
+          const json = await res.json();
+          const found = (json.data || []).find((r: ReportDetails) => r.id === reportId);
+          if (found) {
+            setReport(found);
+          }
+        }
+      } catch (err) {
+        console.warn('No se pudo cargar detalles del reporte:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadReportInfo();
+  }, [projectId, reportId]);
+
+  const pdfUrl = report?.pdf_report_url || initialPdfUrl;
+  const projectName = report?.projects?.name || 'Proyecto';
+  const clientName = report?.projects?.client || 'Cliente';
+  const reportDate = report?.report_date || new Date().toISOString().split('T')[0];
+  const localizadorName = report?.localizador_name || 'Localizador';
+  const aiSummary = report?.ai_summary || '';
+
+  // Texto profesional para WhatsApp
+  const whatsappMessage = `*PROCIMEC — REPORTE DIARIO DE OPERACIÓN GPR*
+📁 *Proyecto:* ${projectName}
+🏢 *Cliente:* ${clientName}
+📅 *Fecha:* ${reportDate}
+👷 *Localizador Responsable:* ${localizadorName}
+${aiSummary ? `\n*Síntesis Técnica Operacional (Google Gemini AI):*\n${aiSummary}\n` : ''}
+📄 *Descargar Reporte Oficial (PDF):*
+${pdfUrl || 'Disponible en plataforma PROCIMEC'}
+
+_Plataforma Integral PROCIMEC Mapping e Ingeniería_`;
+
+  const whatsappHref = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappMessage)}`;
+
+  // Enlace para correo (mailto)
+  const mailSubject = `Reporte Diario de Operación GPR — ${projectName} — ${reportDate}`;
+  const mailBody = `Estimado cliente (${clientName}),\n\nAdjuntamos la información del reporte diario de exploración con Georadar (GPR) correspondiente a la jornada del ${reportDate} en el proyecto ${projectName}.\n\nLocalizador Responsable: ${localizadorName}\n\n${aiSummary ? `Síntesis Técnica (IA):\n${aiSummary}\n\n` : ''}Puede consultar y descargar el Reporte Oficial en PDF en el siguiente enlace:\n${pdfUrl}\n\nAtentamente,\nPROCIMEC Mapping e Ingeniería S.A.S.`;
+  const mailHref = `mailto:?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-[100dvh] bg-surface pb-24">
       <Navbar />
 
-      <div className="max-w-2xl mx-auto px-4 py-10 pb-20">
-        {/* Success animation */}
-        <div className="text-center mb-8 animate-slide-up">
-          <div className={`inline-flex items-center justify-center w-24 h-24 bg-success rounded-3xl mb-5 shadow-lg transition-transform duration-500 ${showConfetti ? 'scale-110' : 'scale-100'}`}>
-            <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        {/* Banner de éxito */}
+        <div className="text-center mb-8 animate-fade-in">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 mb-4 shadow-sm">
+            <CheckCircle2 className="w-10 h-10" strokeWidth={1.75} />
           </div>
-          <h1 className="text-2xl font-bold text-text-primary mb-2">¡Registro guardado exitosamente!</h1>
-          <p className="text-text-secondary text-sm">
-            El reporte técnico ha sido generado y los archivos subidos a Google Drive.
+          <h1 className="text-2xl font-bold text-text-primary tracking-tight">
+            ¡Registro Almacenado con Éxito!
+          </h1>
+          <p className="text-text-muted text-sm mt-1">
+            Los datos operativos y archivos han sido guardados de manera segura en Supabase y el reporte oficial ha sido compilado.
           </p>
         </div>
 
-        {/* Summary card */}
-        <div className="card p-6 mb-5 animate-fade-in space-y-4">
-          <h2 className="font-bold text-text-primary flex items-center gap-2">
-            <svg className="w-5 h-5 text-success" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
-            </svg>
-            Resumen del registro
-          </h2>
-
-          <div className="space-y-2">
-            {[
-              { icon: '✅', label: 'Datos del operativo', status: 'Guardados en Supabase' },
-              { icon: '✅', label: 'Resumen operativo (soporte facturación)', status: 'Registrado' },
-              { icon: '✅', label: 'Hallazgos y anomalías', status: 'Registrados' },
-              { icon: '✅', label: 'Archivos subidos a Google Drive', status: 'Completado' },
-              { icon: '✅', label: 'Reporte Word (.docx) generado', status: docxUrl ? 'Disponible en Drive' : 'Guardado localmente' },
-            ].map(({ icon, label, status }) => (
-              <div key={label} className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0">
-                <span className="text-lg">{icon}</span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-text-primary">{label}</p>
-                </div>
-                <span className="text-xs text-success font-medium">{status}</span>
-              </div>
-            ))}
+        {/* Tarjeta de Síntesis de Google Gemini AI (si está disponible) */}
+        {aiSummary && (
+          <div className="card p-5 mb-5 bg-[#1E2229] border border-amber-500/30 text-white rounded-xl shadow-md animate-fade-in">
+            <div className="flex items-center gap-2 mb-2 text-amber-400">
+              <Sparkles className="w-4 h-4" strokeWidth={1.75} />
+              <span className="text-xs font-bold uppercase tracking-wider">
+                Síntesis Técnica Operacional (Google Gemini AI)
+              </span>
+            </div>
+            <p className="text-sm text-slate-200 leading-relaxed font-sans">
+              {aiSummary}
+            </p>
+            <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-white/50">
+              <span>Proyecto: <strong className="text-white/80">{projectName}</strong></span>
+              <span>Cliente: <strong className="text-white/80">{clientName}</strong></span>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Action buttons */}
-        <div className="space-y-3 animate-fade-in">
-          {/* Drive folder */}
-          {folderUrl && (
+        {/* Acciones principales de Distribución */}
+        <div className="space-y-3 mb-6">
+          {/* Descarga de PDF Oficial */}
+          {pdfUrl && (
             <a
-              href={folderUrl}
+              href={pdfUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="card p-4 flex items-center gap-4 hover:shadow-soft transition-all hover:-translate-y-0.5 group"
+              className="card p-4 flex items-center gap-4 border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition-all hover:-translate-y-0.5 group rounded-xl"
             >
-              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M4.5 9.75l7.5-6 7.5 6v9.75a.75.75 0 01-.75.75H5.25a.75.75 0 01-.75-.75V9.75z" opacity="0.3"/>
-                  <path fillRule="evenodd" d="M2.25 9L12 1.5 21.75 9v11.25A2.25 2.25 0 0119.5 22.5H4.5A2.25 2.25 0 012.25 20.25V9zM12 3.75L4.5 9.75v10.5a.75.75 0 00.75.75h13.5a.75.75 0 00.75-.75V9.75L12 3.75z" clipRule="evenodd"/>
-                </svg>
+              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 flex-shrink-0">
+                <FileText className="w-6 h-6" strokeWidth={1.75} />
               </div>
-              <div className="flex-1">
-                <p className="font-semibold text-text-primary text-sm">Abrir carpeta en Google Drive</p>
-                <p className="text-xs text-text-muted">Ver todos los archivos del levantamiento</p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-text-primary text-sm">Descargar Reporte Diario (PDF Oficial)</p>
+                  <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-semibold">
+                    Listo
+                  </span>
+                </div>
+                <p className="text-xs text-text-muted mt-0.5 truncate">
+                  Informe ejecutivo de campo con volumetría, hallazgos, síntesis IA y fotos
+                </p>
               </div>
-              <svg className="w-4 h-4 text-text-muted group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-              </svg>
+              <Download className="w-5 h-5 text-amber-500 group-hover:translate-y-0.5 transition-transform flex-shrink-0" strokeWidth={1.75} />
             </a>
           )}
 
-          {/* Download DOCX */}
+          {/* Enviar por WhatsApp al Cliente */}
+          <a
+            href={whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="card p-4 flex items-center gap-4 border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all hover:-translate-y-0.5 group rounded-xl"
+          >
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+              <Share2 className="w-6 h-6" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-text-primary text-sm">Enviar Reporte por WhatsApp</p>
+              <p className="text-xs text-text-muted mt-0.5">
+                Mensaje prediseñado para el cliente con síntesis técnica y enlace al PDF
+              </p>
+            </div>
+            <ArrowRight className="w-5 h-5 text-emerald-500 group-hover:translate-x-0.5 transition-transform flex-shrink-0" strokeWidth={1.75} />
+          </a>
+
+          {/* Enviar por Correo Electrónico */}
+          <a
+            href={mailHref}
+            className="card p-4 flex items-center gap-4 border border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 transition-all hover:-translate-y-0.5 group rounded-xl"
+          >
+            <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400 flex-shrink-0">
+              <Mail className="w-6 h-6" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-text-primary text-sm">Enviar por Correo Electrónico</p>
+              <p className="text-xs text-text-muted mt-0.5">
+                Abre tu cliente de correo con el asunto y cuerpo redactado para el cliente
+              </p>
+            </div>
+            <ArrowRight className="w-5 h-5 text-blue-500 group-hover:translate-x-0.5 transition-transform flex-shrink-0" strokeWidth={1.75} />
+          </a>
+
+          {/* Reporte Word en Drive (si está disponible) */}
           {docxUrl && (
             <a
               href={docxUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="card p-4 flex items-center gap-4 hover:shadow-soft transition-all hover:-translate-y-0.5 group border-primary/20"
+              className="card p-4 flex items-center gap-4 hover:shadow-sm transition-all hover:-translate-y-0.5 group rounded-xl"
             >
-              <div className="w-12 h-12 bg-primary-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                </svg>
+              <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 flex-shrink-0">
+                <FileText className="w-6 h-6" strokeWidth={1.75} />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-text-primary text-sm">Descargar Reporte Word (.docx)</p>
-                <p className="text-xs text-text-muted">Reporte técnico completo con soporte de facturación</p>
+                <p className="text-xs text-text-muted mt-0.5">Versión para edición técnica</p>
               </div>
-              <svg className="w-4 h-4 text-text-muted group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-              </svg>
+              <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-primary transition-colors flex-shrink-0" strokeWidth={1.75} />
             </a>
           )}
 
-          {/* Navigation buttons */}
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <Link href={`/projects/${projectId}/new-report`} className="btn-outline justify-center py-3">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Nuevo Registro
-            </Link>
-            <Link href="/projects" className="btn-primary justify-center py-3">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-              </svg>
-              Ir al Inicio
-            </Link>
-          </div>
+          {/* Carpeta en Google Drive (si está disponible) */}
+          {folderUrl && (
+            <a
+              href={folderUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card p-4 flex items-center gap-4 hover:shadow-sm transition-all hover:-translate-y-0.5 group rounded-xl"
+            >
+              <div className="w-12 h-12 rounded-xl bg-slate-500/10 flex items-center justify-center text-slate-500 flex-shrink-0">
+                <FolderOpen className="w-6 h-6" strokeWidth={1.75} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-text-primary text-sm">Abrir carpeta en Google Drive</p>
+                <p className="text-xs text-text-muted mt-0.5">Ver réplica en la nube</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-primary transition-colors flex-shrink-0" strokeWidth={1.75} />
+            </a>
+          )}
+        </div>
 
-          {/* View all reports */}
-          <Link href={`/projects/${projectId}/reports`}
-            className="text-center block text-sm text-text-muted hover:text-primary transition-colors py-2">
-            Ver todos los registros de este proyecto →
+        {/* Resumen de Integridad y Almacenamiento */}
+        <div className="card p-5 mb-6 rounded-xl border border-border">
+          <h2 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Database className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
+            Integridad del Almacenamiento en Supabase
+          </h2>
+
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+              <span className="text-text-secondary">Base de datos (field_reports):</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">Guardado en PostgreSQL</span>
+            </div>
+            <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+              <span className="text-text-secondary">Archivos y Evidencias (GPR, GPS, Fotos):</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">Bucket Supabase Storage</span>
+            </div>
+            <div className="flex items-center justify-between py-1.5 border-b border-border/50">
+              <span className="text-text-secondary">Síntesis Técnica:</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">Google Gemini AI</span>
+            </div>
+            <div className="flex items-center justify-between py-1.5">
+              <span className="text-text-secondary">Reporte Diario en PDF:</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">Generado & Almacenado</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Navegación inferior */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <Link
+            href={`/projects/${projectId}/new-report`}
+            className="btn-outline justify-center py-3 rounded-xl flex items-center gap-2 text-sm font-semibold"
+          >
+            <Plus className="w-4 h-4" strokeWidth={1.75} />
+            Nuevo Registro
+          </Link>
+          <Link
+            href={projectId ? `/projects/${projectId}/reports` : '/projects'}
+            className="btn-primary justify-center py-3 rounded-xl flex items-center gap-2 text-sm font-semibold"
+          >
+            <Layers className="w-4 h-4" strokeWidth={1.75} />
+            Ver Registros
           </Link>
         </div>
+
+        <Link
+          href={projectId ? `/projects/${projectId}` : '/projects'}
+          className="text-center block text-xs text-text-muted hover:text-amber-500 transition-colors py-2"
+        >
+          ← Volver a la vista del proyecto
+        </Link>
       </div>
     </div>
   );

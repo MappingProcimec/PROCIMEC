@@ -164,12 +164,12 @@ export function parseFormatName(rawName: string): { code: string; title: string 
   const fullCodeMatch = withoutExt.match(/^(FOR-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+)[\s\-_:]+(.*)$/i);
   if (fullCodeMatch && fullCodeMatch[1] && fullCodeMatch[2]?.trim()) {
     const code = fullCodeMatch[1].toUpperCase().trim();
-    let title = fullCodeMatch[2].trim().toUpperCase();
+    const title = fullCodeMatch[2].trim().toUpperCase();
     return { code, title };
   }
 
   // 3. Formato genérico con FOR- o sin prefijo
-  let clean = withoutExt.replace(/^FOR[\-_:\s]*/i, '').trim().toUpperCase();
+  const clean = withoutExt.replace(/^FOR[\-_:\s]*/i, '').trim().toUpperCase();
 
   return {
     code: 'FOR-HSEQ',

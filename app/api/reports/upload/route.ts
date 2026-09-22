@@ -1,0 +1,93 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { createAdminClient } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session || !['admin', 'localizador', 'operator', 'dibujo'].includes(session.user.role || '')) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file') as File | null;
+    const fieldReportId = formData.get('fieldReportId') as string | null;
+    const fileType = (formData.get('fileType') as string | null) || 'photo';
+    const caption = (formData.get('caption') as string | null) || '';
+
+    if (!file || !fieldReportId) {
+      return NextResponse.json({ error: 'Archivo y fieldReportId son obligatorios' }, { status: 400 });
+    }
+
+    const supabase = createAdminClient();
+
+    // Limpiar nombre de archivo y armar ruta en Supabase Storage
+    const timestamp = Date.now();
+    const cleanFileName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const storagePath = `field-reports/${fieldReportId}/${fileType}/${timestamp}_${cleanFileName}`;
+
+    // Convertir archivo a Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // 1. Subir a Supabase Storage (Bucket 'evidencias')
+    const { error: uploadError } = await supabase.storage
+      .from('evidencias')
+      .upload(storagePath, buffer, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('Error al subir a Supabase Storage:', uploadError);
+      return NextResponse.json({ error: `Error en almacenamiento: ${uploadError.message}` }, { status: 500 });
+    }
+
+    // Obtener URL pública
+    const { data: publicUrlData } = supabase.storage
+      .from('evidencias')
+      .getPublicUrl(storagePath);
+
+    const publicUrl = publicUrlData?.publicUrl || '';
+
+    // 2. Registrar en la tabla report_files de Supabase
+    const { data: savedFile, error: fileDbError } = await supabase
+      .from('report_files')
+      .insert({
+        field_report_id: fieldReportId,
+        file_type: fileType,
+        original_name: file.name,
+        drive_file_id: 'supabase_storage', // Retrocompatibilidad
+        drive_webview_url: publicUrl,       // Retrocompatibilidad para visores anteriores
+        storage_path: storagePath,
+        storage_url: publicUrl,
+        caption: caption || null,
+        size_bytes: file.size,
+        mime_type: file.type || 'application/octet-stream',
+      })
+      .select()
+      .single();
+
+    if (fileDbError) {
+      console.error('Error al registrar archivo en base de datos:', fileDbError);
+      return NextResponse.json({ error: `Error en base de datos: ${fileDbError.message}` }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: savedFile.id,
+        originalName: file.name,
+        storagePath,
+        storageUrl: publicUrl,
+        publicUrl,
+      },
+    }, { status: 201 });
+  } catch (err) {
+    console.error('Error en POST /api/reports/upload:', err);
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Error al procesar subida' }, { status: 500 });
+  }
+}

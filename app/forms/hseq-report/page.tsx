@@ -470,7 +470,7 @@ export default function HseqReportPage() {
           itemsResponses,
           criticalPoint,
           generalObservations,
-          userRole: (session?.user as any)?.role || undefined,
+          userRole: (session?.user as { role?: string })?.role || undefined,
           operatorName: operatorSignName,
           operatorSignatureDataUrl: operatorSignDataUrl,
           sstaName: sstaSignName,

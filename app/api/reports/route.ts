@@ -5,6 +5,10 @@ import { createAdminClient } from '@/lib/supabase';
 import { createProjectFolder, createSessionFolder, setFilePublicPermission, uploadFileToDrive } from '@/lib/drive';
 import { generateFieldReportDocx } from '@/lib/docx-generator';
 import { FieldReport, Project, ReportFile, AppUser } from '@/types';
+import { generateGprExecutiveSummary, ProjectContext, GprReportContext } from '@/lib/gpr/geminiGprSummary';
+import { generateGprDailyPdf, ReportPhoto } from '@/lib/gpr/gprDailyPdfGenerator';
+
+export const dynamic = 'force-dynamic';
 
 // GET /api/reports — list reports for assigned project or user
 export async function GET(request: NextRequest) {
@@ -17,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('field_reports')
-    .select('*, projects(cost_center, name, client), users(full_name)')
+    .select('*, projects(cost_center, name, client, location, code), users(full_name)')
     .order('created_at', { ascending: false });
 
   if (projectId) {
@@ -50,10 +54,10 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-// POST /api/reports — Create field report record + create Drive session folders
+// POST /api/reports — Create field report record (Supabase Primary + Optional Drive)
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || !['admin', 'localizador', 'operator'].includes(session.user.role || '')) {
+  if (!session || !['admin', 'localizador', 'operator', 'dibujo'].includes(session.user.role || '')) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
@@ -67,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Get project
+    // 1. Obtener proyecto canónico de la base de datos
     const { data: project, error: projError } = await supabase
       .from('projects')
       .select('*')
@@ -78,8 +82,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
     }
 
-    // Ensure Drive folder exists for project (lazy creation if missing)
+    // 2. Intentar crear o vincular carpetas en Google Drive (Tolerante a fallos / No bloqueante)
     let parentDriveFolderId = project.drive_folder_id;
+    let sessionFolderId: string | undefined;
+    let sessionFolderUrl: string | undefined;
+    let rawGprFolderId: string | undefined;
+    let gpsFolderId: string | undefined;
+    let photosFolderId: string | undefined;
+
     if (!parentDriveFolderId) {
       try {
         const newFolder = await createProjectFolder(project.cost_center || project.code, project.name);
@@ -88,21 +98,10 @@ export async function POST(request: NextRequest) {
           .from('projects')
           .update({ drive_folder_id: newFolder.id, drive_folder_url: newFolder.webViewLink })
           .eq('id', project.id);
-      } catch (e) {
-        console.error('Lazy Drive project folder creation error:', e);
-        return NextResponse.json(
-          { error: `Error al crear carpeta del proyecto en Drive: ${e instanceof Error ? e.message : 'Error desconocido'}` },
-          { status: 500 }
-        );
+      } catch (driveErr) {
+        console.warn('Aviso: Creación de carpeta de proyecto en Google Drive omitida (Drive no configurado o token expirado):', driveErr);
       }
     }
-
-    // Create Drive session folder
-    let sessionFolderId: string | undefined;
-    let sessionFolderUrl: string | undefined;
-    let rawGprFolderId: string | undefined;
-    let gpsFolderId: string | undefined;
-    let photosFolderId: string | undefined;
 
     if (parentDriveFolderId) {
       try {
@@ -116,21 +115,12 @@ export async function POST(request: NextRequest) {
         rawGprFolderId = rawGprFolder.id;
         gpsFolderId = gpsFolder.id;
         photosFolderId = photosFolder.id;
-      } catch (e) {
-        console.error('Drive session folder creation error:', e);
-        return NextResponse.json(
-          { error: `Error al crear carpetas en Google Drive: ${e instanceof Error ? e.message : 'Error desconocido'}` },
-          { status: 500 }
-        );
+      } catch (driveErr) {
+        console.warn('Aviso: Creación de subcarpetas en Google Drive omitida:', driveErr);
       }
-    } else {
-      return NextResponse.json(
-        { error: 'El proyecto no tiene carpeta en Google Drive. Configura GOOGLE_DRIVE_ROOT_FOLDER_ID y comparte la carpeta raíz con la service account.' },
-        { status: 500 }
-      );
     }
 
-    // Format fields to map to base database columns
+    // 3. Formatear campos para la base de datos
     const formattedEquipments = reportData.equipments_used && reportData.equipments_used.length > 0
       ? reportData.equipments_used.join(', ')
       : (reportData.gpr_equipment || 'GPR');
@@ -150,7 +140,7 @@ export async function POST(request: NextRequest) {
       reportData.rd_data_notes ? `Config RD: ${reportData.rd_data_notes}` : '',
     ].filter(Boolean).join(' | ') || null;
 
-    // Insert field report with base schema column names ONLY
+    // 4. Inserción directa en tabla field_reports de Supabase
     const { data: fieldReport, error: reportError } = await supabase
       .from('field_reports')
       .insert({
@@ -184,17 +174,18 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (reportError || !fieldReport) {
-      return NextResponse.json({ error: reportError?.message || 'Error al guardar el reporte' }, { status: 500 });
+      console.error('Error insertando field_report en Supabase:', reportError);
+      return NextResponse.json({ error: reportError?.message || 'Error al guardar el reporte en la base de datos' }, { status: 500 });
     }
 
     return NextResponse.json({
       data: {
         fieldReportId: fieldReport.id,
-        sessionFolderId,
-        sessionFolderUrl,
-        rawGprFolderId,
-        gpsFolderId,
-        photosFolderId,
+        sessionFolderId: sessionFolderId || null,
+        sessionFolderUrl: sessionFolderUrl || null,
+        rawGprFolderId: rawGprFolderId || null,
+        gpsFolderId: gpsFolderId || null,
+        photosFolderId: photosFolderId || null,
       },
     }, { status: 201 });
   } catch (err) {
@@ -203,28 +194,46 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT /api/reports — Record file or finalize docx report
+// PUT /api/reports — Registrar archivo o Finalizar reporte (Generación PDF con IA)
 export async function PUT(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || !['admin', 'localizador', 'operator'].includes(session.user.role || '')) {
+  if (!session || !['admin', 'localizador', 'operator', 'dibujo'].includes(session.user.role || '')) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
   try {
     const body = await request.json();
-    const { action, fieldReportId, fileType, originalName, driveFileId, caption, sizeBytes, mimeType } = body;
+    const {
+      action,
+      fieldReportId,
+      fileType,
+      originalName,
+      driveFileId,
+      storagePath,
+      storageUrl,
+      caption,
+      sizeBytes,
+      mimeType,
+    } = body;
 
     const supabase = createAdminClient();
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACCIÓN: add_file (Registro en base de datos)
+    // ─────────────────────────────────────────────────────────────────────────
     if (action === 'add_file') {
-      if (!fieldReportId || !driveFileId || !originalName) {
+      if (!fieldReportId || (!driveFileId && !storageUrl) || !originalName) {
         return NextResponse.json({ error: 'Faltan parámetros del archivo' }, { status: 400 });
       }
 
-      let webViewUrl = `https://drive.google.com/file/d/${driveFileId}/view`;
-      if (driveFileId !== 'pending') {
-        const permResult = await setFilePublicPermission(driveFileId);
-        if (permResult.webViewLink) webViewUrl = permResult.webViewLink;
+      let webViewUrl = storageUrl || '';
+      if (driveFileId && driveFileId !== 'pending' && driveFileId !== 'supabase_storage') {
+        try {
+          const permResult = await setFilePublicPermission(driveFileId);
+          if (permResult.webViewLink) webViewUrl = permResult.webViewLink;
+        } catch {
+          webViewUrl = `https://drive.google.com/file/d/${driveFileId}/view`;
+        }
       }
 
       const { data: savedFile, error: fileErr } = await supabase
@@ -233,8 +242,10 @@ export async function PUT(request: NextRequest) {
           field_report_id: fieldReportId,
           file_type: fileType,
           original_name: originalName,
-          drive_file_id: driveFileId,
+          drive_file_id: driveFileId || 'supabase_storage',
           drive_webview_url: webViewUrl,
+          storage_path: storagePath || null,
+          storage_url: storageUrl || null,
           caption: caption || null,
           size_bytes: sizeBytes || 0,
           mime_type: mimeType || null,
@@ -249,47 +260,146 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ data: savedFile });
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ACCIÓN: finalize (Generación de Reporte Corto en PDF con Google Gemini AI)
+    // ─────────────────────────────────────────────────────────────────────────
     if (action === 'finalize') {
       if (!fieldReportId) {
         return NextResponse.json({ error: 'ID de reporte requerido' }, { status: 400 });
       }
 
-      // Fetch complete report
-      const { data: fieldReport } = await supabase
+      // 1. Consultar reporte completo
+      const { data: fieldReport, error: repErr } = await supabase
         .from('field_reports')
         .select('*')
         .eq('id', fieldReportId)
         .single();
 
-      if (!fieldReport) {
+      if (repErr || !fieldReport) {
         return NextResponse.json({ error: 'Reporte no encontrado' }, { status: 404 });
       }
 
-      // Fetch project
-      const { data: project } = await supabase
+      // 2. Consultar proyecto obligatorio (El reporte debe tener en cuenta el proyecto)
+      const { data: project, error: projErr } = await supabase
         .from('projects')
         .select('*')
         .eq('id', fieldReport.project_id)
         .single();
 
-      // Fetch uploaded files
+      if (projErr || !project) {
+        return NextResponse.json({ error: 'Proyecto asociado no encontrado' }, { status: 404 });
+      }
+
+      // 3. Consultar archivos de evidencias fotográficas adjuntas
       const { data: files = [] } = await supabase
         .from('report_files')
         .select('*')
         .eq('field_report_id', fieldReportId);
 
-      // Fetch user
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+      // Contexto del proyecto y reporte para la IA y el PDF
+      const projectContext: ProjectContext = {
+        id: project.id,
+        name: project.name,
+        client: project.client,
+        code: project.code,
+        location: project.location,
+        cost_center: project.cost_center,
+      };
 
-      // Generate .docx
+      const reportContext: GprReportContext = {
+        report_date: fieldReport.report_date,
+        report_time: fieldReport.report_time,
+        localizador_name: fieldReport.localizador_name || 'Localizador',
+        gpr_equipment: fieldReport.gpr_equipment,
+        antenna_frequency: fieldReport.antenna_frequency,
+        positioning_equipment: fieldReport.positioning_equipment,
+        terrain_conditions: fieldReport.terrain_conditions,
+        weather_conditions: fieldReport.weather_conditions,
+        capture_method: fieldReport.capture_method,
+        operational_summary: fieldReport.operational_summary || [],
+        global_max_depth: fieldReport.global_max_depth,
+        detected_utilities: fieldReport.detected_utilities || [],
+        anomalies_notes: fieldReport.anomalies_notes,
+        site_restrictions: fieldReport.site_restrictions,
+        cad_priority: fieldReport.cad_priority,
+        processing_recommendations: fieldReport.processing_recommendations,
+      };
+
+      // 4. Preparar fotos de campo (descargando de Supabase Storage para embeber en base64 en el PDF)
+      const photoFiles = (files || []).filter((f: ReportFile) => f.file_type === 'photo');
+      const preparedPhotos: ReportPhoto[] = [];
+
+      for (const pf of photoFiles) {
+        try {
+          if (pf.storage_path) {
+            const { data: fileBlob } = await supabase.storage
+              .from('evidencias')
+              .download(pf.storage_path);
+
+            if (fileBlob) {
+              const arrayBuffer = await fileBlob.arrayBuffer();
+              const b64 = Buffer.from(arrayBuffer).toString('base64');
+              const mime = pf.mime_type || 'image/jpeg';
+              preparedPhotos.push({
+                original_name: pf.original_name,
+                caption: pf.caption,
+                base64: `data:${mime};base64,${b64}`,
+                storage_url: pf.storage_url,
+              });
+            }
+          }
+        } catch (photoErr) {
+          console.warn(`No se pudo procesar foto ${pf.original_name} para el PDF:`, photoErr);
+        }
+      }
+
+      // 5. Síntesis Técnica Ejecutiva con Google Gemini AI (o fallback inteligente)
+      let aiSummary = '';
+      try {
+        aiSummary = await generateGprExecutiveSummary(projectContext, reportContext);
+      } catch (aiErr) {
+        console.warn('Aviso en generación de síntesis con Gemini:', aiErr);
+        aiSummary = `Operación de georadar en el proyecto ${project.name} para ${project.client}. Exploración ejecutada por ${fieldReport.localizador_name} con registro fotográfico y volumétrico oficial consolidado en base de datos.`;
+      }
+
+      // 6. Generación del Reporte Corto Diario en PDF con jsPDF
+      const { fileName: pdfFileName, pdfBuffer } = await generateGprDailyPdf({
+        project: projectContext,
+        report: reportContext,
+        aiSummary,
+        photos: preparedPhotos,
+      });
+
+      // 7. Subir el PDF generado a Supabase Storage (Bucket 'evidencias')
+      const pdfStoragePath = `field-reports/${fieldReportId}/reportes/${Date.now()}_${pdfFileName}`;
+      const { error: pdfUploadErr } = await supabase.storage
+        .from('evidencias')
+        .upload(pdfStoragePath, pdfBuffer, {
+          contentType: 'application/pdf',
+          upsert: true,
+        });
+
+      let pdfReportUrl = '';
+      if (!pdfUploadErr) {
+        const { data: pdfUrlData } = supabase.storage
+          .from('evidencias')
+          .getPublicUrl(pdfStoragePath);
+        pdfReportUrl = pdfUrlData?.publicUrl || '';
+      } else {
+        console.error('Error subiendo PDF a Supabase Storage:', pdfUploadErr);
+      }
+
+      // 8. Opcional: Generar .docx y subir a Drive si Drive está configurado (sin bloquear si falla)
       let docxDriveFileId: string | undefined;
       let docxDriveUrl: string | undefined;
 
       try {
+        const { data: userRecord } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
         const docxBuffer = await generateFieldReportDocx({
           report: fieldReport as unknown as FieldReport,
           project: project as unknown as Project,
@@ -313,32 +423,31 @@ export async function PUT(request: NextRequest) {
           docxDriveFileId = docxDriveFile.id;
           docxDriveUrl = docxDriveFile.webViewLink;
         }
-
-        if (docxDriveUrl || docxDriveFileId) {
-          await supabase
-            .from('field_reports')
-            .update({ docx_drive_file_id: docxDriveFileId || null, docx_drive_url: docxDriveUrl || null })
-            .eq('id', fieldReportId);
-        }
-      } catch (e) {
-        console.error('DOCX generation error during finalize:', e);
-        return NextResponse.json(
-          { error: `Error al generar o subir el reporte Word: ${e instanceof Error ? e.message : 'Error desconocido'}` },
-          { status: 500 }
-        );
+      } catch (docxErr) {
+        console.warn('Aviso: Generación de .docx en Drive omitida (Drive no disponible):', docxErr);
       }
 
-      if (!docxDriveUrl && !docxDriveFileId) {
-        return NextResponse.json(
-          { error: 'No se pudo subir el reporte Word a Google Drive. Verifica la configuración de Drive.' },
-          { status: 500 }
-        );
-      }
+      // 9. Actualizar field_reports con la URL del PDF, la ruta de storage y la síntesis de IA
+      await supabase
+        .from('field_reports')
+        .update({
+          pdf_report_url: pdfReportUrl || null,
+          pdf_storage_path: pdfStoragePath || null,
+          ai_summary: aiSummary,
+          docx_drive_file_id: docxDriveFileId || fieldReport.docx_drive_file_id || null,
+          docx_drive_url: docxDriveUrl || fieldReport.docx_drive_url || null,
+          status: 'submitted',
+        })
+        .eq('id', fieldReportId);
 
       return NextResponse.json({
         data: {
           fieldReportId,
-          sessionFolderUrl: fieldReport.drive_session_folder_url,
+          pdfReportUrl,
+          aiSummary,
+          projectName: project.name,
+          clientName: project.client,
+          sessionFolderUrl: fieldReport.drive_session_folder_url || null,
           docxDriveUrl: docxDriveUrl || fieldReport.docx_drive_url || null,
         },
       });

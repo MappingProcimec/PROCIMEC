@@ -289,7 +289,6 @@ export async function POST(req: NextRequest) {
     let driveFileId: string | null = null;
     let driveWebViewLink: string | null = null;
     const driveWarning: string | null = null;
-    const rawDivision = (isDrone ? 'Mapping' : formatConfig.division) || (formatConfig.formatType === 'drone' ? 'Mapping' : 'Ingeniería');
 
     // Disparar las 4 operaciones I/O concurrentemente con Promise.allSettled
     const [pdfStorageRes, excelStorageRes, driveUploadRes, userProfileRes] = await Promise.allSettled([

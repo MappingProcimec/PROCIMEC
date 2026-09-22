@@ -115,6 +115,11 @@ export interface FieldReport {
   docx_drive_file_id?: string;
   docx_drive_url?: string;
 
+  // Supabase Storage & AI Report
+  pdf_report_url?: string;
+  pdf_storage_path?: string;
+  ai_summary?: string;
+
   status: 'draft' | 'submitted' | 'reviewed';
   created_at: string;
   updated_at: string;
@@ -129,9 +134,11 @@ export interface ReportFile {
   field_report_id: string;
   file_type: FileType;
   original_name: string;
-  drive_file_id: string;
+  drive_file_id?: string;
   drive_webview_url?: string;
   drive_download_url?: string;
+  storage_path?: string;
+  storage_url?: string;
   caption?: string;
   size_bytes?: number;
   mime_type?: string;

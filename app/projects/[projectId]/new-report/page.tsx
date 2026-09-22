@@ -11,34 +11,25 @@ import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { UploadedFile } from '@/types';
+import { BackButton } from '@/components/BackButton';
+import { Radio, Loader2 } from 'lucide-react';
 
-async function uploadFileDirectToDrive(
-  file: File,
-  targetFolderId: string,
+async function uploadFileToSupabase(
+  fileItem: UploadedFile,
+  fieldReportId: string,
   onProgress: (percent: number) => void
-): Promise<{ driveFileId: string }> {
-  const sessionRes = await fetch('/api/drive/upload-session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      folderId: targetFolderId,
-      fileName: file.name,
-      mimeType: file.type || 'application/octet-stream',
-      fileSize: file.size,
-    }),
-  });
-
-  if (!sessionRes.ok) {
-    const err = await sessionRes.json().catch(() => ({}));
-    throw new Error(err.error || 'Error al iniciar sesión de subida a Drive');
+): Promise<{ storageUrl: string; storagePath: string }> {
+  const formData = new FormData();
+  formData.append('file', fileItem.file);
+  formData.append('fieldReportId', fieldReportId);
+  formData.append('fileType', fileItem.fileType || 'photo');
+  if (fileItem.caption) {
+    formData.append('caption', fileItem.caption);
   }
-
-  const { uploadUrl } = await sessionRes.json();
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', uploadUrl, true);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.open('POST', '/api/reports/upload', true);
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -47,28 +38,34 @@ async function uploadFileDirectToDrive(
     };
 
     xhr.onload = () => {
-      if (xhr.status === 200 || xhr.status === 201) {
+      if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const driveRes = JSON.parse(xhr.responseText);
-          if (!driveRes.id) {
-            reject(new Error(`Drive no devolvió ID para ${file.name}`));
+          const res = JSON.parse(xhr.responseText);
+          if (res.data?.storageUrl) {
+            resolve({
+              storageUrl: res.data.storageUrl,
+              storagePath: res.data.storagePath,
+            });
             return;
           }
-          resolve({ driveFileId: driveRes.id });
+          reject(new Error('Respuesta del servidor incompleta al almacenar archivo'));
         } catch {
-          reject(new Error(`Respuesta inválida de Drive al subir ${file.name}`));
+          reject(new Error('Error al interpretar respuesta de subida'));
         }
       } else {
-        reject(new Error(`Error al subir ${file.name} a Drive (HTTP ${xhr.status})`));
+        try {
+          const errRes = JSON.parse(xhr.responseText);
+          reject(new Error(errRes.error || `Error ${xhr.status} al guardar archivo en la nube`));
+        } catch {
+          reject(new Error(`Error ${xhr.status} al guardar archivo`));
+        }
       }
     };
 
-    xhr.onerror = () => reject(new Error(`Error de red al subir ${file.name} a Google Drive`));
-    xhr.send(file);
+    xhr.onerror = () => reject(new Error('Error de conexión al subir archivo'));
+    xhr.send(formData);
   });
 }
-
-import { BackButton } from '@/components/BackButton';
 
 export default function NewReportPage() {
   const { data: session } = useSession();
@@ -76,7 +73,13 @@ export default function NewReportPage() {
   const router = useRouter();
   const projectId = (params?.projectId as string) || '';
   const {
-    currentStep, setCurrentStep, setProjectId, updateSection1, section1, resetForm, updateFileProgress
+    currentStep,
+    setCurrentStep,
+    setProjectId,
+    updateSection1,
+    section1,
+    resetForm,
+    updateFileProgress,
   } = useFormStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadStatusMsg, setUploadStatusMsg] = useState('');
@@ -89,7 +92,7 @@ export default function NewReportPage() {
     if (currentUserName && (!section1.localizador_name && !section1.operator_name)) {
       updateSection1({ localizador_name: currentUserName, operator_name: currentUserName });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, session]);
 
   const goNext = () => setCurrentStep(Math.min(currentStep + 1, 3));
@@ -98,11 +101,11 @@ export default function NewReportPage() {
   const handleSubmit = async () => {
     const store = useFormStore.getState();
     if (!store.projectId) {
-      alert('Por favor selecciona un proyecto en la Sección 1 antes de enviar.');
+      alert('Por favor selecciona un proyecto en la Sección 1 antes de guardar.');
       return;
     }
     setIsSubmitting(true);
-    setUploadStatusMsg('Guardando datos del reporte...');
+    setUploadStatusMsg('Registrando información operativa en Supabase...');
 
     try {
       const reportData = {
@@ -133,6 +136,7 @@ export default function NewReportPage() {
         processing_recommendations: store.section2.processing_recommendations,
       };
 
+      // 1. Guardar datos principales en Supabase DB
       const res = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -152,50 +156,26 @@ export default function NewReportPage() {
       }
 
       const result = await res.json();
-      const { fieldReportId, rawGprFolderId, gpsFolderId, photosFolderId, sessionFolderUrl } = result.data;
+      const { fieldReportId, sessionFolderUrl } = result.data;
 
-      if (!rawGprFolderId || !gpsFolderId || !photosFolderId) {
-        throw new Error(
-          'No se pudieron crear las carpetas en Google Drive. Verifica que GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY y GOOGLE_DRIVE_ROOT_FOLDER_ID estén configurados en Vercel.'
-        );
-      }
-
-      const allFileItems: { fileItem: UploadedFile; folderId: string; type: 'raw_gpr' | 'gps' | 'photo' }[] = [
-        ...store.section3.rawGprFiles.map(f => ({ fileItem: f, folderId: rawGprFolderId, type: 'raw_gpr' as const })),
-        ...store.section3.gpsFiles.map(f => ({ fileItem: f, folderId: gpsFolderId, type: 'gps' as const })),
-        ...store.section3.photoFiles.map(f => ({ fileItem: f, folderId: photosFolderId, type: 'photo' as const })),
+      // 2. Subir archivos a Supabase Storage con seguimiento de progreso
+      const allFileItems: { fileItem: UploadedFile; type: 'raw_gpr' | 'gps' | 'photo' }[] = [
+        ...store.section3.rawGprFiles.map(f => ({ fileItem: { ...f, fileType: 'raw_gpr' as const }, type: 'raw_gpr' as const })),
+        ...store.section3.gpsFiles.map(f => ({ fileItem: { ...f, fileType: 'gps' as const }, type: 'gps' as const })),
+        ...store.section3.photoFiles.map(f => ({ fileItem: { ...f, fileType: 'photo' as const }, type: 'photo' as const })),
       ];
 
       for (let i = 0; i < allFileItems.length; i++) {
-        const { fileItem, folderId, type } = allFileItems[i];
-        setUploadStatusMsg(`Subiendo archivo ${i + 1} de ${allFileItems.length}: ${fileItem.file.name}`);
+        const { fileItem } = allFileItems[i];
+        setUploadStatusMsg(`Almacenando archivo ${i + 1} de ${allFileItems.length}: ${fileItem.file.name}`);
 
-        const { driveFileId } = await uploadFileDirectToDrive(fileItem.file, folderId, (percent) => {
+        await uploadFileToSupabase(fileItem, fieldReportId, (percent) => {
           updateFileProgress(fileItem.id, percent);
         });
-
-        const addFileRes = await fetch('/api/reports', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'add_file',
-            fieldReportId,
-            fileType: type,
-            originalName: fileItem.file.name,
-            driveFileId,
-            caption: fileItem.caption || '',
-            sizeBytes: fileItem.file.size,
-            mimeType: fileItem.file.type,
-          }),
-        });
-
-        if (!addFileRes.ok) {
-          const err = await addFileRes.json().catch(() => ({}));
-          throw new Error(err.error || `Error al registrar ${fileItem.file.name} en la base de datos`);
-        }
       }
 
-      setUploadStatusMsg('Generando informe de Word (.docx)...');
+      // 3. Finalizar y generar Reporte Diario en PDF asistido por Google Gemini AI
+      setUploadStatusMsg('Sintetizando informe técnico con Google Gemini AI y generando PDF...');
       const finalRes = await fetch('/api/reports', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -204,15 +184,16 @@ export default function NewReportPage() {
 
       if (!finalRes.ok) {
         const err = await finalRes.json().catch(() => ({}));
-        throw new Error(err.error || 'Error al generar el reporte Word');
+        throw new Error(err.error || 'Error al compilar el reporte PDF');
       }
 
       const finalResult = await finalRes.json();
-      const { docxDriveUrl } = finalResult.data || {};
+      const { pdfReportUrl, docxDriveUrl } = finalResult.data || {};
 
       resetForm();
+      const targetProjectId = projectId || store.projectId;
       router.push(
-        `/projects/${projectId}/reports/${fieldReportId}/success?folderUrl=${encodeURIComponent(sessionFolderUrl || '')}&docxUrl=${encodeURIComponent(docxDriveUrl || '')}`
+        `/projects/${targetProjectId}/reports/${fieldReportId}/success?pdfUrl=${encodeURIComponent(pdfReportUrl || '')}&folderUrl=${encodeURIComponent(sessionFolderUrl || '')}&docxUrl=${encodeURIComponent(docxDriveUrl || '')}`
       );
     } catch (err) {
       console.error('Submit error:', err);
@@ -224,18 +205,25 @@ export default function NewReportPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-[100dvh] bg-surface">
       <Navbar />
 
       <div className="page-hero">
         <div className="max-w-3xl mx-auto">
           <BackButton href={projectId ? `/projects/${projectId}` : '/admin/forms'} label={projectId ? 'Volver al proyecto' : 'Formularios'} />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-2">
-            📍 Formulario de Campo
-          </h1>
-          <p className="text-white/70 text-sm mt-1">
-            Reporte operacional de exploración, volumetría por tramos y medición en campo
-          </p>
+          <div className="flex items-center gap-3 mt-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <Radio className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                Formulario de Campo GPR
+              </h1>
+              <p className="text-white/70 text-xs sm:text-sm mt-0.5">
+                Reporte operacional de exploración, volumetría por tramos y medición subsuperficial
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -243,9 +231,9 @@ export default function NewReportPage() {
 
       <div className="max-w-3xl mx-auto px-4 py-6 pb-24">
         {uploadStatusMsg && (
-          <div className="card p-4 mb-4 bg-primary-50 border-primary-200 flex items-center gap-3 animate-fade-in">
-            <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin flex-shrink-0" />
-            <p className="text-sm font-semibold text-primary">{uploadStatusMsg}</p>
+          <div className="card p-4 mb-4 bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 animate-fade-in shadow-sm">
+            <Loader2 className="w-5 h-5 text-amber-500 animate-spin flex-shrink-0" strokeWidth={2} />
+            <p className="text-sm font-semibold text-text-primary">{uploadStatusMsg}</p>
           </div>
         )}
 
