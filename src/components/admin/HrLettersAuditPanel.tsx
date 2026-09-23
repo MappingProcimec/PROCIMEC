@@ -218,19 +218,26 @@ export function HrLettersAuditPanel() {
         <button
           type="button"
           onClick={() => setFilters((prev) => ({ ...prev, emailStatus: 'all', letterType: 'all' }))}
-          className={`text-left p-4 rounded-2xl border transition-all duration-160 flex items-center gap-3.5 shadow-sm group ${
+          className={`text-left p-4 rounded-2xl border transition-all duration-160 flex items-center gap-3.5 shadow-sm group bg-white ${
             filters.emailStatus === 'all' && filters.letterType === 'all'
-              ? 'bg-white border-[#EAA023] ring-1 ring-[#EAA023]'
-              : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+              ? 'border-2 border-[#EAA023] shadow-md ring-2 ring-[#EAA023]/10'
+              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
           }`}
         >
           <div className="w-11 h-11 rounded-xl bg-[#1E2229] text-[#EAA023] flex items-center justify-center font-bold text-sm shrink-0 group-hover:scale-105 transition-transform">
             <FileText className="w-5 h-5" strokeWidth={1.75} />
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Cartas Emitidas
-            </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                Cartas Emitidas
+              </p>
+              {filters.emailStatus === 'all' && filters.letterType === 'all' && (
+                <span className="text-[10px] font-bold text-[#EAA023] bg-[#EAA023]/10 px-1.5 py-0.2 rounded">
+                  Activo
+                </span>
+              )}
+            </div>
             <p className="text-xl font-bold font-mono text-[#0F172A] mt-0.5">
               {metrics.total}
             </p>
@@ -249,19 +256,26 @@ export function HrLettersAuditPanel() {
               emailStatus: prev.emailStatus === 'sent' ? 'all' : 'sent',
             }))
           }
-          className={`text-left p-4 rounded-2xl border transition-all duration-160 flex items-center gap-3.5 shadow-sm group ${
+          className={`text-left p-4 rounded-2xl border transition-all duration-160 flex items-center gap-3.5 shadow-sm group bg-white ${
             filters.emailStatus === 'sent'
-              ? 'bg-emerald-50/50 border-emerald-400 ring-1 ring-emerald-400'
-              : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+              ? 'border-2 border-emerald-500 shadow-md ring-2 ring-emerald-500/10'
+              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
           }`}
         >
           <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0 group-hover:scale-105 transition-transform">
             <Mail className="w-5 h-5" strokeWidth={1.75} />
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Envíos por Correo
-            </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                Envíos por Correo
+              </p>
+              {filters.emailStatus === 'sent' && (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
+                  Activo
+                </span>
+              )}
+            </div>
             <p className="text-xl font-bold font-mono text-emerald-700 mt-0.5">
               {metrics.emails}
             </p>
@@ -281,19 +295,26 @@ export function HrLettersAuditPanel() {
                 prev.letterType === '01_certificacion_laboral' ? 'all' : '01_certificacion_laboral',
             }))
           }
-          className={`text-left p-4 rounded-2xl border transition-all duration-160 flex items-center gap-3.5 shadow-sm group ${
+          className={`text-left p-4 rounded-2xl border transition-all duration-160 flex items-center gap-3.5 shadow-sm group bg-white ${
             filters.letterType === '01_certificacion_laboral'
-              ? 'bg-amber-50/50 border-[#EAA023] ring-1 ring-[#EAA023]'
-              : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'
+              ? 'border-2 border-[#EAA023] shadow-md ring-2 ring-[#EAA023]/10'
+              : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
           }`}
         >
           <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center font-bold text-sm shrink-0 group-hover:scale-105 transition-transform">
             <FileCheck className="w-5 h-5" strokeWidth={1.75} />
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Certificaciones
-            </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                Certificaciones
+              </p>
+              {filters.letterType === '01_certificacion_laboral' && (
+                <span className="text-[10px] font-bold text-[#EAA023] bg-[#EAA023]/10 px-1.5 py-0.2 rounded">
+                  Activo
+                </span>
+              )}
+            </div>
             <p className="text-xl font-bold font-mono text-[#0F172A] mt-0.5">
               {metrics.certsCount}
             </p>
