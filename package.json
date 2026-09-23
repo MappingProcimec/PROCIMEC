@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "build": "next build",
+    "vercel-build": "next build",
     "build:fast": "node -e \"process.env.DISABLE_PWA='true'; require('child_process').execSync('next build', {stdio:'inherit'})\"",
     "start": "next start",
     "lint": "next lint",

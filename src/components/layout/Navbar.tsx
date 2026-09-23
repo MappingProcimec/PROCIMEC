@@ -140,7 +140,7 @@ export function Navbar() {
   const assignedForms: Form[] = dashData?.forms ?? [];
   const legacyRole = dashData?.legacyRole ?? null;
   const divisionName = dashData?.division?.name ?? (session?.user as { divisionName?: string })?.divisionName;
-  const displayName = dashData?.user?.nick_name || dashData?.user?.full_name ?? session?.user?.name ?? '';
+  const displayName = dashData?.user?.nick_name || dashData?.user?.full_name || session?.user?.name || '';
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
