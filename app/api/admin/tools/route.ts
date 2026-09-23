@@ -33,5 +33,16 @@ export async function GET() {
       is_universal: false,
     });
   }
+
+  if (!slugs.has('cartas-audit')) {
+    tools.push({
+      id: 'cartas-audit-synthetic',
+      slug: 'cartas-audit',
+      name: 'Auditoría de Elaboración de Cartas',
+      category: 'admin',
+      is_universal: false,
+    });
+  }
+
   return NextResponse.json({ data: tools });
 }

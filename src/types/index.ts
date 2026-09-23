@@ -359,3 +359,130 @@ export interface AttendanceRecord {
     role?: string;
   };
 }
+
+// ─── HR Letters (Elaboración y Auditoría de Cartas RRHH) ─────────────────────────
+
+export type HrLetterType =
+  | '01_certificacion_laboral'
+  | '02_presentacion_personal_obra'
+  | '03_vinculacion_a_proyecto'
+  | '04_terminacion_contrato'
+  | '05_paz_y_salvo'
+  | '06_permiso_laboral'
+  | '07_solicitud_entidad_externa';
+
+export interface HrLetterData {
+  // Metadatos
+  carta_fecha: string;
+  carta_radicado: string;
+  firma_tel?: string;
+
+  // Destinatario
+  dest_nombre?: string;
+  dest_cargo?: string;
+  dest_empresa?: string;
+  dest_ciudad?: string;
+
+  // Empleado / Colaborador
+  emp_nombre?: string;
+  emp_apellidos?: string;
+  emp_tipo_doc?: string;
+  emp_documento?: string;
+  emp_ciudad_exp?: string;
+  emp_eps?: string;
+  emp_pension?: string;
+  emp_arl?: string;
+
+  // Cargo y Contrato
+  cargo_nombre?: string;
+  cargo_tipo_contrato?: string;
+  cargo_fecha_inicio?: string;
+  cargo_fecha_fin?: string;
+  cargo_hora_inicio?: string;
+  cargo_salario?: string;
+  cargo_salario_letras?: string;
+  cert_destino?: string;
+
+  // Proyecto
+  project_id?: string;
+  proy_nombre?: string;
+  proy_direccion?: string;
+  proy_etapa?: string;
+  proy_contrato?: string;
+  proy_duracion?: string;
+  proy_jefe_cargo?: string;
+  proy_jefe_nombre?: string;
+  carta_fecha_acepta?: string;
+
+  // Terminación
+  term_tipo?: string;
+  term_fecha?: string;
+  term_causas?: string;
+  term_indem_texto?: string;
+  term_fecha_entrega?: string;
+
+  // Paz y Salvo
+  psv_item_1?: string;
+  psv_item_2?: string;
+  psv_item_3?: string;
+  psv_item_4?: string;
+  psv_item_5?: string;
+  psv_item_6?: string;
+  psv_item_7?: string;
+  psv_observaciones?: string;
+
+  // Permiso
+  perm_fecha_solicitud?: string;
+  perm_decision?: string;
+  perm_tipo?: string;
+  perm_motivo?: string;
+  perm_fecha_inicio?: string;
+  perm_fecha_fin?: string;
+  perm_hora_inicio?: string;
+  perm_hora_fin?: string;
+  perm_total?: string;
+  perm_compensacion?: string;
+
+  // Solicitud Externa
+  sol_objeto?: string;
+  sol_referencia?: string;
+  sol_doc_adicional?: string;
+  sol_nota?: string;
+  empresa_email?: string;
+}
+
+export interface HrLetter {
+  id: string;
+  project_id?: string | null;
+  user_id: string;
+  created_at: string;
+  status: 'draft' | 'submitted' | 'audited' | 'cancelled';
+  letter_type: HrLetterType;
+  letter_title: string;
+  radicado: string;
+  employee_name?: string | null;
+  employee_document?: string | null;
+  recipient_name?: string | null;
+  recipient_entity?: string | null;
+  letter_data: HrLetterData;
+  rendered_text: string;
+  docx_url?: string | null;
+  pdf_url?: string | null;
+  docx_base64?: string | null;
+  pdf_base64?: string | null;
+  email_recipient?: string | null;
+  email_sent: boolean;
+  email_sent_at?: string | null;
+  users?: {
+    id: string;
+    email: string;
+    full_name: string;
+    nick_name?: string | null;
+    avatar_url?: string | null;
+  };
+  projects?: {
+    id: string;
+    name: string;
+    code?: string;
+  };
+}

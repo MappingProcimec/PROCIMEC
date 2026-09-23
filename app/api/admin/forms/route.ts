@@ -36,5 +36,17 @@ export async function GET() {
     });
   }
 
+  if (!formSlugs.has('elaboracion-cartas')) {
+    normalized.push({
+      id: 'elaboracion-cartas-synthetic',
+      slug: 'elaboracion-cartas',
+      name: 'Formulario de Elaboración de Cartas',
+      description: 'Generación estandarizada de cartas de RRHH y certificaciones corporativas con descarga inmediata en Word/PDF y notificación por correo.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
+
   return NextResponse.json({ data: normalized });
 }

@@ -217,6 +217,15 @@ export default function FormPage({ params }: { params: { formSlug: string } }) {
     return <HseqReportFormPage />;
   }
 
+  if (
+    params.formSlug === 'elaboracion-cartas' ||
+    params.formSlug === 'cartas' ||
+    params.formSlug === 'cartas-rrhh'
+  ) {
+    const ElaboracionCartasPage = require('@/app/forms/elaboracion-cartas/page').default;
+    return <ElaboracionCartasPage />;
+  }
+
   return (
     <Suspense fallback={<div className="min-h-screen bg-surface flex items-center justify-center text-text-muted">Cargando formulario...</div>}>
       <FormPageInner params={params} />

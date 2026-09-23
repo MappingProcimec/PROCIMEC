@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { useQuery } from '@tanstack/react-query';
+import { HrLettersAuditPanel } from '@/components/admin/HrLettersAuditPanel';
 
 interface Form {
   id: string;
@@ -107,6 +108,18 @@ const TOOL_META: Record<string, { icon: string; description: string; tag: string
     tag: 'HSEQ / Evidencias',
     path: '/tools/evidence-board',
   },
+  'cartas-audit': {
+    icon: '📑',
+    description: 'Panel de auditoría y fiscalización de cartas RRHH y certificaciones emitidas, con previsualización del texto, visor PDF y descarga Word.',
+    tag: 'RRHH / Auditoría',
+    path: '/admin/forms?tab=audit',
+  },
+  'elaboracion-cartas': {
+    icon: '📄',
+    description: 'Generador oficial de cartas laborales, permisos, vinculaciones a proyecto y paz y salvo con descarga DOCX/PDF y envío por correo.',
+    tag: 'RRHH / Cartas',
+    path: '/forms/elaboracion-cartas',
+  },
 };
 
 const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string; text: string }> = {
@@ -121,12 +134,26 @@ const FORM_SLUG_STYLE: Record<string, { icon: string; bg: string; border: string
   'gpr-field-form': { icon: '📍', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
   'cad-register-form': { icon: '✏️', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
   'hseq-report': { icon: '🦺', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
+  'elaboracion-cartas': { icon: '📄', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
 };
 
 export default function AdminToolsAndFormsPage() {
-  const [activeTab, setActiveTab] = useState<'tools' | 'forms' | 'all'>('tools');
+  const [activeTab, setActiveTab] = useState<'tools' | 'forms' | 'audit' | 'all'>('tools');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam === 'audit') {
+        setActiveTab('audit');
+      } else if (tabParam === 'forms') {
+        setActiveTab('forms');
+      } else if (tabParam === 'tools') {
+        setActiveTab('tools');
+      }
+    }
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-tools-and-forms'],
@@ -228,6 +255,18 @@ export default function AdminToolsAndFormsPage() {
               }`}>
                 {forms.length}
               </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('audit')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'audit'
+                  ? 'bg-white text-primary shadow-xs'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              <span>📑</span> Auditoría de Cartas
             </button>
 
             <button
@@ -447,6 +486,11 @@ export default function AdminToolsAndFormsPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ─── 3. SECCIÓN DE AUDITORÍA DE CARTAS ─── */}
+        {activeTab === 'audit' && (
+          <HrLettersAuditPanel />
         )}
 
         {/* Banner Informativo sobre Asignación a Roles */}
