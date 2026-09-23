@@ -9,6 +9,7 @@ import TwoStepForm, { FormConfig, Project } from '@/components/forms/TwoStepForm
 import CadRegisterFormPage from '@/app/tools/cad-register-form/page';
 import NewReportPage from '@/app/projects/[projectId]/new-report/page';
 import HseqReportFormPage from '@/app/forms/hseq-report/page';
+import ElaboracionCartasForm from '@/components/forms/ElaboracionCartasForm';
 
 // --- Form catalog configurations ---
 const FORM_CONFIGS: Record<string, FormConfig> = {
@@ -222,8 +223,7 @@ export default function FormPage({ params }: { params: { formSlug: string } }) {
     params.formSlug === 'cartas' ||
     params.formSlug === 'cartas-rrhh'
   ) {
-    const ElaboracionCartasPage = require('@/app/forms/elaboracion-cartas/page').default;
-    return <ElaboracionCartasPage />;
+    return <ElaboracionCartasForm />;
   }
 
   return (

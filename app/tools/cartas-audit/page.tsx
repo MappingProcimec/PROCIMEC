@@ -4,6 +4,8 @@ import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { HrLettersAuditPanel } from '@/components/admin/HrLettersAuditPanel';
 
+export const dynamic = 'force-dynamic';
+
 export default function CartasAuditToolPage() {
   return (
     <div className="min-h-screen bg-surface">

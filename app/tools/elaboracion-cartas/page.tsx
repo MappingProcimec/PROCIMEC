@@ -1,5 +1,9 @@
-import ElaboracionCartasPage from '@/app/forms/elaboracion-cartas/page';
+'use client';
+
+import ElaboracionCartasForm from '@/components/forms/ElaboracionCartasForm';
+
+export const dynamic = 'force-dynamic';
 
 export default function ToolElaboracionCartasPage() {
-  return <ElaboracionCartasPage />;
+  return <ElaboracionCartasForm />;
 }
