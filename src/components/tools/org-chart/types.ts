@@ -30,6 +30,7 @@ export interface DiagramNode {
   height: number;
   level: number;
   parentId?: string;
+  divisionId?: string;
 }
 
 export interface DiagramEdge {
@@ -51,11 +52,18 @@ export interface DiagramGroup {
   height: number;
 }
 
+export interface DiagramDivisionItem {
+  id: string;
+  name: string;
+  category: string;
+}
+
 export interface DiagramPayload {
   mode: ViewMode;
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   groups?: DiagramGroup[];
+  divisionsList?: DiagramDivisionItem[];
   lastSyncedAt: string;
   stats: {
     totalUsers: number;

@@ -278,7 +278,11 @@ export function OrgChartCanvas({
               const dy = y2 - y1;
               const pathD = `M ${x1} ${y1} C ${x1} ${y1 + dy / 2}, ${x2} ${y2 - dy / 2}, ${x2} ${y2}`;
 
-              const isDimmed = reachableEdgeIds ? !reachableEdgeIds.has(edge.id) : false;
+              const isDivisionDimmed =
+                selectedDivision && selectedDivision !== 'all'
+                  ? sourceNode.category !== selectedDivision && targetNode.category !== selectedDivision
+                  : false;
+              const isDimmed = reachableEdgeIds ? !reachableEdgeIds.has(edge.id) : isDivisionDimmed;
               const isHighlighted = reachableEdgeIds ? reachableEdgeIds.has(edge.id) : false;
 
               return (
@@ -320,9 +324,14 @@ export function OrgChartCanvas({
                 node.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
               : false;
 
-            // Division filtering
+            // Hierarchical division filtering
             const matchesDivision =
-              !selectedDivision || selectedDivision === 'all' || node.category === selectedDivision;
+              !selectedDivision ||
+              selectedDivision === 'all' ||
+              node.category === selectedDivision ||
+              node.divisionId === selectedDivision ||
+              (selectedDivision === 'direction' && (node.type === 'direction' || node.category === 'direction')) ||
+              (node.parentId && payload.nodes.find((n) => n.id === node.parentId)?.category === selectedDivision);
 
             return (
               <div

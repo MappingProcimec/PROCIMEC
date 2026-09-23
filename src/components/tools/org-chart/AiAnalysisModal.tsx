@@ -56,13 +56,24 @@ export function AiAnalysisModal({ isOpen, onClose, payload }: AiAnalysisModalPro
           recommendation: 'Activar plantilla preconfigurada de capas en Civil 3D para reducir 25% el tiempo de vectorización.',
         });
       } else if (bottlenecks.length === 0) {
-        bottlenecks.push({
-          nodeId: 'div-geofisica',
-          nodeTitle: 'División Geofísica & GPR',
-          severity: 'baja',
-          issue: 'Capacidad de cuadrillas al 82%. Buen margen de absorción para nuevos contratos.',
-          recommendation: 'Programar calibración preventiva de antenas radar para el próximo ciclo semanal.',
-        });
+        const hasRrhh = payload.nodes.some((n) => n.category === 'rrhh');
+        if (hasRrhh) {
+          bottlenecks.push({
+            nodeId: 'div-rrhh',
+            nodeTitle: 'División Gestión Humana & RRHH',
+            severity: 'baja',
+            issue: 'Trazabilidad de cartas laborales y control de asistencia operando sin pendientes críticos.',
+            recommendation: 'Mantener revisión quincenal de novedades de asistencia antes del corte de nómina.',
+          });
+        } else {
+          bottlenecks.push({
+            nodeId: 'div-geofisica',
+            nodeTitle: 'División Geofísica & GPR',
+            severity: 'baja',
+            issue: 'Capacidad de cuadrillas al 82%. Buen margen de absorción para nuevos contratos.',
+            recommendation: 'Programar calibración preventiva de antenas radar para el próximo ciclo semanal.',
+          });
+        }
       }
 
       const score = Math.max(72, Math.min(95, 100 - bottlenecks.length * 7));
@@ -76,10 +87,12 @@ export function AiAnalysisModal({ isOpen, onClose, payload }: AiAnalysisModalPro
           `Trazabilidad completa de roles: ${totalUsers} colaboradores integrados con respaldo relacional.`,
           `Integridad referencial en Supabase sin dependencias huérfanas en el organigrama.`,
           `Capacidad de respuesta en campo garantizada con tiempos de reporte ágiles.`,
+          `Módulos de RRHH, Cartas Laborales y Asistencia sincronizados con la arquitectura.`,
         ],
         actionItems: [
           'Balancear horas proyectadas en la Oficina Técnica CAD para evitar cuellos de botella antes de cierres de quincena.',
           'Verificar que todo operador de campo cuente con inspección HSEQ preoperacional firmada.',
+          'Supervisar la entrega de cartas laborales y auditoría periódica de despachos por correo.',
           'Consolidar la entrega de planos As-Built en la carpeta oficial de Google Drive vinculada.',
         ],
       });

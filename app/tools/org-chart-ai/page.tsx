@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Navbar } from '@/components/layout/Navbar';
 import { OrgChartCanvas } from '@/components/tools/org-chart/OrgChartCanvas';
@@ -71,6 +71,43 @@ export default function OrgChartAiPage() {
   }, [refetch]);
 
   const activePayload = diagramData || (viewMode === 'org' ? getCanonicalOrgData() : getCanonicalPipelineData());
+
+  // Dynamic divisions filter list based on live Supabase data and standard platform areas
+  const availableDivisions = useMemo(() => {
+    const list: { key: string; label: string }[] = [
+      { key: 'all', label: 'Todas las áreas / divisiones' },
+    ];
+    if (viewMode === 'org') {
+      list.push({ key: 'direction', label: 'Dirección General' });
+    }
+
+    const seenCategories = new Set<string>(['all', 'direction']);
+    if (activePayload?.divisionsList && activePayload.divisionsList.length > 0) {
+      activePayload.divisionsList.forEach((div) => {
+        if (!seenCategories.has(div.category)) {
+          seenCategories.add(div.category);
+          list.push({ key: div.category, label: div.name });
+        }
+      });
+    }
+
+    // Fallback standard platform categories
+    const standardCategories: [string, string][] = [
+      ['gpr', 'Geofísica & GPR'],
+      ['cad', 'Oficina Técnica CAD / BIM'],
+      ['hseq', 'Seguridad HSEQ & SST'],
+      ['rrhh', 'Gestión Humana & RRHH'],
+      ['admin', 'Administración & TI'],
+    ];
+    standardCategories.forEach(([cat, label]) => {
+      if (!seenCategories.has(cat)) {
+        seenCategories.add(cat);
+        list.push({ key: cat, label });
+      }
+    });
+
+    return list;
+  }, [activePayload?.divisionsList, viewMode]);
 
   return (
     <div className="min-h-[100dvh] bg-[#14171C] text-white flex flex-col">
@@ -207,12 +244,11 @@ export default function OrgChartAiPage() {
               onChange={(e) => setSelectedDivision(e.target.value)}
               className="px-3 py-2 bg-[#1E2229] border border-[#2A303C] rounded-xl text-xs text-neutral-200 focus:outline-none focus:border-[#EAA023] transition-colors cursor-pointer"
             >
-              <option value="all">Todas las divisiones / áreas</option>
-              <option value="gpr">Geofísica & GPR</option>
-              <option value="cad">Oficina Técnica CAD / BIM</option>
-              <option value="hseq">Seguridad HSEQ & SST</option>
-              <option value="admin">Administración & TI</option>
-              <option value="direction">Dirección General</option>
+              {availableDivisions.map((div) => (
+                <option key={div.key} value={div.key}>
+                  {div.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
