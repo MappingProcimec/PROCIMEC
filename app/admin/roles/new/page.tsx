@@ -11,12 +11,12 @@ interface Tool { id: string; slug: string; name: string; category: string }
 interface Form { id: string; slug: string; name: string }
 
 const CATEGORY_LABEL: Record<string, string> = {
-  gpr: 'GPR / Campo',
+  gpr: 'GPR',
   cad: 'CAD / BIM',
   admin: 'Administración',
   universal: 'Universal',
-  hseq: 'HSEQ / Calidad y Seguridad',
-  rrhh: 'Recursos Humanos / RRHH',
+  hseq: 'HSEQ',
+  rrhh: 'RRHH',
 };
 
 const CATEGORY_COLOR: Record<string, string> = {

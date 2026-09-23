@@ -96,7 +96,7 @@ export default function AdminRolesPage() {
                     {role.divisions ? (
                       <p className="text-xs text-text-muted mt-0.5">{role.divisions.name}</p>
                     ) : (
-                      <p className="text-xs text-primary font-medium mt-0.5">🌐 Global (Todas las divisiones)</p>
+                      <p className="text-xs text-primary font-medium mt-0.5">Global</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">

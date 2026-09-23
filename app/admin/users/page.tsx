@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Info,
   Users,
+  User as UserIcon,
 } from 'lucide-react';
 
 interface DivisionOption { id: string; name: string }
@@ -349,9 +350,9 @@ function DivisionBlockCard({
                 </optgroup>
               )}
               {resolvedGlobalRoles.length > 0 && (
-                <optgroup label="Roles globales (todas las divisiones)">
+                <optgroup label="Roles globales">
                   {resolvedGlobalRoles.map(r => (
-                    <option key={r.id} value={r.id}>🌐 {r.name} (Global)</option>
+                    <option key={r.id} value={r.id}>{r.name} (Global)</option>
                   ))}
                 </optgroup>
               )}
@@ -781,7 +782,7 @@ export default function AdminUsersPage() {
                           {!user.is_active && <span className="badge badge-gray text-xs">Inactivo</span>}
                           {user.role === 'pending' && (
                             <span className="badge bg-accent text-white text-xs animate-pulse-soft flex items-center gap-1 font-semibold">
-                              <Clock className="w-3 h-3" strokeWidth={2} /> Aprobación pendiente
+                              <Clock className="w-3 h-3" strokeWidth={2} /> Pendiente
                             </span>
                           )}
                         </div>
@@ -877,7 +878,6 @@ export default function AdminUsersPage() {
             <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="font-bold text-text-primary text-base">Editar Usuario</h3>
-                <p className="text-xs text-text-muted">Configura accesos, proyectos, herramientas y formularios de este usuario</p>
               </div>
               <button onClick={() => setEditingUser(null)} className="btn-icon btn-ghost">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -901,18 +901,15 @@ export default function AdminUsersPage() {
                   <p className="font-bold text-text-primary text-sm sm:text-base truncate">{editName || editingUser.full_name}</p>
                   <p className="text-xs text-text-muted truncate">{editEmail || editingUser.email}</p>
                 </div>
-                <span className="text-[11px] font-semibold text-primary bg-primary-50 border border-primary/20 px-2 py-0.5 rounded-md flex-shrink-0">
-                  Modo Admin
-                </span>
               </div>
 
-              {/* Información Personal y Contacto (Solo Admin) */}
+              {/* Información Personal y Contacto */}
               <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="font-bold text-xs text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>👤</span> Información del Usuario
+                    <UserIcon className="w-3.5 h-3.5 text-slate-600" strokeWidth={1.75} />
+                    <span>Datos Personales</span>
                   </label>
-                  <span className="text-[10px] text-text-muted bg-white px-2 py-0.5 rounded border border-border font-medium">Solo Admin</span>
                 </div>
 
                 <div className="space-y-2.5">
@@ -942,7 +939,7 @@ export default function AdminUsersPage() {
                         type="text"
                         value={editNickName}
                         onChange={e => setEditNickName(e.target.value)}
-                        placeholder="Apodo para el panel"
+                        placeholder="Apodo"
                         className="input text-xs w-full py-2 bg-white"
                       />
                     </div>
@@ -1015,22 +1012,10 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              {/* Contenido según tipo de acceso */}
-              {accessType === 'admin' && (
-                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs text-text-primary space-y-1">
-                  <p className="font-bold flex items-center gap-1.5 text-primary">
-                    <ShieldCheck className="w-4 h-4 text-primary" strokeWidth={1.75} /> Acceso Total de Administrador
-                  </p>
-                  <p className="text-text-secondary">Este usuario cuenta con permisos ilimitados sobre todos los proyectos, herramientas y formularios de la plataforma PROCIMEC.</p>
-                </div>
-              )}
-
               {accessType === 'pending' && (
-                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 space-y-1">
-                  <p className="font-bold flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-amber-700" strokeWidth={1.75} /> Estado Pendiente de Aprobación
-                  </p>
-                  <p>El usuario no tendrá acceso a ninguna división, herramienta ni formulario hasta que se apruebe su rol.</p>
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" strokeWidth={1.75} />
+                  <span>Sin acceso asignado hasta aprobación</span>
                 </div>
               )}
 
@@ -1125,24 +1110,6 @@ export default function AdminUsersPage() {
                           + Otra división
                         </button>
                       )}
-
-                      {/* Atajo visual a herramientas y formularios con conteo activo */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-slate-800">Herramientas y Formularios asignados:</p>
-                          <p className="text-slate-600 text-xs mt-0.5">
-                            <span className="font-semibold text-primary">{selectedToolIds.size} herramienta(s)</span> y{' '}
-                            <span className="font-semibold text-emerald-700">{selectedFormIds.size} formulario(s)</span> habilitados
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSectionTab('tools')}
-                          className="px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary-50 rounded-lg border border-primary/30 transition-colors shadow-sm bg-white"
-                        >
-                          Personalizar →
-                        </button>
-                      </div>
                     </div>
                   )}
 
@@ -1152,20 +1119,21 @@ export default function AdminUsersPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                            Herramientas del Usuario
+                            Herramientas
                           </h4>
-                          <p className="text-[11px] text-text-muted">
-                            Asignadas a {editingUser.full_name} ({selectedToolIds.size}/{allTools.length})
+                          <p className="text-[11px] text-text-muted font-mono">
+                            {selectedToolIds.size} / {allTools.length} seleccionadas
                           </p>
                         </div>
                         <div className="flex items-center gap-2 text-xs">
                           <button
                             type="button"
                             onClick={handleResetToRoleDefaults}
-                            className="text-indigo-600 hover:underline font-semibold"
+                            className="text-primary hover:underline font-semibold flex items-center gap-1"
                             title="Restablecer a las herramientas otorgadas por su rol"
                           >
-                            🔄 Según su rol
+                            <RotateCcw className="w-3 h-3" strokeWidth={1.75} />
+                            <span>Por Rol</span>
                           </button>
                           <span className="text-gray-300">|</span>
                           <button
@@ -1233,8 +1201,8 @@ export default function AdminUsersPage() {
                                       {catStyle.label}
                                     </span>
                                     {isGrantedByRole && (
-                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-gray-100 text-text-secondary border border-gray-200">
-                                        ✓ En su rol
+                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-gray-100 text-text-secondary border border-gray-200">
+                                        Rol
                                       </span>
                                     )}
                                   </div>
@@ -1253,10 +1221,10 @@ export default function AdminUsersPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                            Formularios del Usuario
+                            Formularios
                           </h4>
-                          <p className="text-[11px] text-text-muted">
-                            Asignados a {editingUser.full_name} ({selectedFormIds.size}/{allForms.length})
+                          <p className="text-[11px] text-text-muted font-mono">
+                            {selectedFormIds.size} / {allForms.length} seleccionados
                           </p>
                         </div>
                         <div className="flex items-center gap-2 text-xs">
@@ -1267,7 +1235,7 @@ export default function AdminUsersPage() {
                             title="Restablecer a los formularios otorgados por su rol"
                           >
                             <RotateCcw className="w-3 h-3" strokeWidth={1.75} />
-                            <span>Según su rol</span>
+                            <span>Por Rol</span>
                           </button>
                           <span className="text-gray-300">|</span>
                           <button
@@ -1328,8 +1296,8 @@ export default function AdminUsersPage() {
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <p className="text-xs font-semibold text-text-primary">{form.name}</p>
                                     {isGrantedByRole && (
-                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-gray-100 text-text-secondary border border-gray-200">
-                                        ✓ En su rol
+                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-gray-100 text-text-secondary border border-gray-200">
+                                        Rol
                                       </span>
                                     )}
                                   </div>

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Target, AlertCircle } from 'lucide-react';
 
 interface DivisionOption { id: string; name: string }
 
@@ -706,7 +707,7 @@ export default function AdminProjectsPage() {
                                   }`}
                                   title={p.requires_mapping !== false ? `Mapeo: ${(p.mapping_progress_pct ?? 0).toFixed(0)}%` : 'No requiere mapeo'}
                                 >
-                                  📡 {p.requires_mapping !== false ? `${(p.mapping_progress_pct ?? 0).toFixed(0)}%` : 'N/A'}
+                                  Map: {p.requires_mapping !== false ? `${(p.mapping_progress_pct ?? 0).toFixed(0)}%` : 'N/A'}
                                 </span>
 
                                 <span
@@ -717,7 +718,7 @@ export default function AdminProjectsPage() {
                                   }`}
                                   title={p.requires_positioning !== false ? `Geolocalización: ${(p.positioning_progress_pct ?? 0).toFixed(0)}%` : 'No requiere geolocalización'}
                                 >
-                                  🛰️ {p.requires_positioning !== false ? `${(p.positioning_progress_pct ?? 0).toFixed(0)}%` : 'N/A'}
+                                  Geo: {p.requires_positioning !== false ? `${(p.positioning_progress_pct ?? 0).toFixed(0)}%` : 'N/A'}
                                 </span>
                               </div>
                             </div>
@@ -726,15 +727,15 @@ export default function AdminProjectsPage() {
                           <td className="text-center whitespace-nowrap">
                             <div className="flex flex-col items-center gap-1">
                               <span className="font-bold text-sm text-text-primary">{totalRecords}</span>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 font-mono">
                                 {fieldCount > 0 && (
                                   <span className="badge bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5">
-                                    📍 {fieldCount}
+                                    Campo {fieldCount}
                                   </span>
                                 )}
                                 {drawingCount > 0 && (
                                   <span className="badge bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5">
-                                    ✏️ {drawingCount}
+                                    CAD {drawingCount}
                                   </span>
                                 )}
                               </div>
@@ -1293,7 +1294,8 @@ export default function AdminProjectsPage() {
               <div className="p-4 rounded-xl bg-primary-50/50 border border-primary-100 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-xs text-primary-900 flex items-center gap-1.5">
-                    <span>🎯</span> Metas de Cumplimiento (Alcance)
+                    <Target className="w-3.5 h-3.5 text-primary" strokeWidth={1.75} />
+                    <span>Metas de Cumplimiento</span>
                   </h4>
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] text-text-muted">Métrica principal:</span>
@@ -1302,15 +1304,15 @@ export default function AdminProjectsPage() {
                       onChange={(e) => setEditForm({ ...editForm, target_metric_type: e.target.value as 'ml' | 'm2' })}
                       className="text-xs px-2 py-1 rounded border border-gray-300 bg-white font-semibold"
                     >
-                      <option value="ml">Metros Lineales (ML)</option>
-                      <option value="m2">Área (m²)</option>
+                      <option value="ml">ML</option>
+                      <option value="m2">m²</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="form-group">
-                    <label className="label text-xs">Meta en Metros Lineales (ML)</label>
+                    <label className="label text-xs">Meta (ML)</label>
                     <input
                       type="number"
                       min="0"
@@ -1325,11 +1327,11 @@ export default function AdminProjectsPage() {
                         }));
                       }}
                       className="input text-sm"
-                      placeholder="Ej: 1500"
+                      placeholder="1500"
                     />
                   </div>
                   <div className="form-group">
-                    <label className="label text-xs">Meta en Área (m²)</label>
+                    <label className="label text-xs">Meta (m²)</label>
                     <input
                       type="number"
                       min="0"
@@ -1344,7 +1346,7 @@ export default function AdminProjectsPage() {
                         }));
                       }}
                       className="input text-sm"
-                      placeholder="Ej: 5000"
+                      placeholder="5000"
                     />
                   </div>
                 </div>
@@ -1360,7 +1362,7 @@ export default function AdminProjectsPage() {
                         onChange={(e) => setEditForm({ ...editForm, requires_mapping: e.target.checked })}
                         className="rounded text-primary"
                       />
-                      <span className="text-xs text-text-primary font-medium">📡 Requiere Mapeo Subterráneo</span>
+                      <span className="text-xs text-text-primary font-medium">Mapeo Subterráneo</span>
                     </label>
 
                     <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
@@ -1370,14 +1372,14 @@ export default function AdminProjectsPage() {
                         onChange={(e) => setEditForm({ ...editForm, requires_positioning: e.target.checked })}
                         className="rounded text-primary"
                       />
-                      <span className="text-xs text-text-primary font-medium">🛰️ Requiere Geolocalización</span>
+                      <span className="text-xs text-text-primary font-medium">Geolocalización</span>
                     </label>
                   </div>
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="label">Número de contrato</label>
+                <label className="label">Número de Contrato</label>
                 <input
                   type="text"
                   value={editForm.contract_number}
@@ -1387,7 +1389,7 @@ export default function AdminProjectsPage() {
                 />
               </div>
               <div className="form-group">
-                <label className="label">Descripción / Objeto</label>
+                <label className="label">Descripción</label>
                 <textarea
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
@@ -1414,8 +1416,9 @@ export default function AdminProjectsPage() {
                 </div>
               )}
               {editMutation.isError && (
-                <p className="error-msg text-xs text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200">
-                  ⚠️ {editMutation.error instanceof Error ? editMutation.error.message : 'Error al actualizar'}
+                <p className="error-msg text-xs text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" strokeWidth={1.75} />
+                  <span>{editMutation.error instanceof Error ? editMutation.error.message : 'Error al actualizar'}</span>
                 </p>
               )}
               <div className="flex gap-3 pt-2">
@@ -1453,7 +1456,7 @@ export default function AdminProjectsPage() {
                     placeholder="CC-31002"
                     className={`input font-mono ${formErrors.cost_center ? 'input-error' : ''}`}
                   />
-                  {formErrors.cost_center && <p className="error-msg">⚠️ {formErrors.cost_center}</p>}
+                  {formErrors.cost_center && <p className="error-msg">{formErrors.cost_center}</p>}
                 </div>
                 <div className="form-group">
                   <label className="label label-required">Nombre</label>
@@ -1464,7 +1467,7 @@ export default function AdminProjectsPage() {
                     placeholder="Nombre del proyecto"
                     className={`input ${formErrors.name ? 'input-error' : ''}`}
                   />
-                  {formErrors.name && <p className="error-msg">⚠️ {formErrors.name}</p>}
+                  {formErrors.name && <p className="error-msg">{formErrors.name}</p>}
                 </div>
               </div>
 
@@ -1478,7 +1481,7 @@ export default function AdminProjectsPage() {
                     placeholder="Empresa cliente"
                     className={`input ${formErrors.client ? 'input-error' : ''}`}
                   />
-                  {formErrors.client && <p className="error-msg">⚠️ {formErrors.client}</p>}
+                  {formErrors.client && <p className="error-msg">{formErrors.client}</p>}
                 </div>
                 <div className="form-group">
                   <label className="label label-required">Ubicación</label>
@@ -1489,7 +1492,7 @@ export default function AdminProjectsPage() {
                     placeholder="Ciudad, Depto"
                     className={`input ${formErrors.location ? 'input-error' : ''}`}
                   />
-                  {formErrors.location && <p className="error-msg">⚠️ {formErrors.location}</p>}
+                  {formErrors.location && <p className="error-msg">{formErrors.location}</p>}
                 </div>
               </div>
 
@@ -1497,7 +1500,8 @@ export default function AdminProjectsPage() {
               <div className="p-4 rounded-xl bg-primary-50/50 border border-primary-100 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-xs text-primary-900 flex items-center gap-1.5">
-                    <span>🎯</span> Metas de Cumplimiento (Alcance)
+                    <Target className="w-3.5 h-3.5 text-primary" strokeWidth={1.75} />
+                    <span>Metas de Cumplimiento</span>
                   </h4>
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] text-text-muted">Métrica principal:</span>
@@ -1506,15 +1510,15 @@ export default function AdminProjectsPage() {
                       onChange={(e) => setForm({ ...form, target_metric_type: e.target.value as 'ml' | 'm2' })}
                       className="text-xs px-2 py-1 rounded border border-gray-300 bg-white font-semibold"
                     >
-                      <option value="ml">Metros Lineales (ML)</option>
-                      <option value="m2">Área (m²)</option>
+                      <option value="ml">ML</option>
+                      <option value="m2">m²</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="form-group">
-                    <label className="label text-xs">Meta en Metros Lineales (ML)</label>
+                    <label className="label text-xs">Meta (ML)</label>
                     <input
                       type="number"
                       min="0"
@@ -1528,12 +1532,12 @@ export default function AdminProjectsPage() {
                           target_metric_type: (!prev.target_m2 && val) ? 'ml' : prev.target_metric_type,
                         }));
                       }}
-                      placeholder="Ej: 1500"
+                      placeholder="1500"
                       className="input text-sm"
                     />
                   </div>
                   <div className="form-group">
-                    <label className="label text-xs">Meta en Área (m²)</label>
+                    <label className="label text-xs">Meta (m²)</label>
                     <input
                       type="number"
                       min="0"
@@ -1547,7 +1551,7 @@ export default function AdminProjectsPage() {
                           target_metric_type: (!prev.target_ml && val) ? 'm2' : prev.target_metric_type,
                         }));
                       }}
-                      placeholder="Ej: 5000"
+                      placeholder="5000"
                       className="input text-sm"
                     />
                   </div>
@@ -1564,7 +1568,7 @@ export default function AdminProjectsPage() {
                         onChange={(e) => setForm({ ...form, requires_mapping: e.target.checked })}
                         className="rounded text-primary"
                       />
-                      <span className="text-xs text-text-primary font-medium">📡 Requiere Mapeo Subterráneo</span>
+                      <span className="text-xs text-text-primary font-medium">Mapeo Subterráneo</span>
                     </label>
 
                     <label className="flex items-center gap-2.5 p-2 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50">
@@ -1574,14 +1578,14 @@ export default function AdminProjectsPage() {
                         onChange={(e) => setForm({ ...form, requires_positioning: e.target.checked })}
                         className="rounded text-primary"
                       />
-                      <span className="text-xs text-text-primary font-medium">🛰️ Requiere Geolocalización</span>
+                      <span className="text-xs text-text-primary font-medium">Geolocalización</span>
                     </label>
                   </div>
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="label">Número de contrato (opcional)</label>
+                <label className="label">Número de Contrato</label>
                 <input
                   type="text"
                   value={form.contract_number}
@@ -1592,7 +1596,7 @@ export default function AdminProjectsPage() {
               </div>
 
               <div className="form-group">
-                <label className="label">Descripción / Objeto (opcional)</label>
+                <label className="label">Descripción</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}

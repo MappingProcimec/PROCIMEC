@@ -110,11 +110,11 @@ const TOOL_META: Record<string, { icon: string; description: string; tag: string
 };
 
 const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string; text: string }> = {
-  gpr: { label: 'GPR / Geofísica', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+  gpr: { label: 'GPR', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
   cad: { label: 'CAD / BIM', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
   admin: { label: 'Administración', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
   universal: { label: 'Universal', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
-  hseq: { label: 'HSEQ / Calidad y Seguridad', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
+  hseq: { label: 'HSEQ', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
 };
 
 const FORM_SLUG_STYLE: Record<string, { icon: string; bg: string; border: string; text: string }> = {

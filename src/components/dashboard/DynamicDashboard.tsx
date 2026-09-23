@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Eye, ClipboardList, PenTool, BarChart2, Settings } from 'lucide-react';
 
 interface Tool { id: string; slug: string; name: string; category: string }
 interface Form { id: string; slug: string; name: string }
@@ -28,12 +29,12 @@ export interface DashboardData {
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
-  gpr: 'GPR / Campo',
+  gpr: 'GPR',
   cad: 'CAD / BIM',
   admin: 'Administración',
   universal: 'Universal',
-  hseq: 'HSEQ / Calidad y Seguridad',
-  rrhh: 'Recursos Humanos / RRHH',
+  hseq: 'HSEQ',
+  rrhh: 'RRHH',
 };
 
 const CATEGORY_CHIP: Record<string, string> = {
@@ -63,7 +64,7 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
       {isRolePreview && role && (
         <div className="bg-primary-50 border border-primary-200 rounded-2xl p-4 flex items-center justify-between text-xs text-primary-900 shadow-sm">
           <div className="flex items-center gap-2.5">
-            <span className="text-xl">👁️</span>
+            <Eye className="w-5 h-5 text-primary flex-shrink-0" strokeWidth={1.75} />
             <div>
               <p className="font-bold text-sm">Vista de Interfaz de Rol: {role.name}</p>
               <p className="text-primary-700">Visualizando herramientas, formularios y proyectos asignados a este rol.</p>
@@ -83,7 +84,7 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-bold text-text-primary">
-              Hola, {displayGreeting} 👋
+              Hola, {displayGreeting}
             </h2>
             <p className="text-sm text-text-muted truncate">{user.email}</p>
             <div className="flex flex-wrap gap-2 mt-2">
@@ -177,7 +178,7 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
                     href={`/forms/${f.slug}`}
                     className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors group"
                   >
-                    <span className="text-lg flex-shrink-0">📋</span>
+                    <ClipboardList className="w-5 h-5 text-text-muted group-hover:text-primary transition-colors flex-shrink-0" strokeWidth={1.75} />
                     <span className="text-sm font-medium text-text-primary group-hover:text-primary transition-colors flex-1">
                       {f.name}
                     </span>
@@ -231,7 +232,9 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
               className="card border border-amber-200 bg-amber-50 p-5 hover:shadow-md transition-all group"
             >
               <div className="flex items-center gap-3">
-                <span className="text-2xl">✏️</span>
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <PenTool className="w-5 h-5 text-amber-800" strokeWidth={1.75} />
+                </div>
                 <div>
                   <p className="text-sm font-bold text-amber-900 group-hover:text-amber-700 transition-colors">
                     Nueva Actividad CAD
@@ -245,7 +248,9 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
               className="card border border-blue-200 bg-blue-50 p-5 hover:shadow-md transition-all group"
             >
               <div className="flex items-center gap-3">
-                <span className="text-2xl">📊</span>
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <BarChart2 className="w-5 h-5 text-blue-800" strokeWidth={1.75} />
+                </div>
                 <div>
                   <p className="text-sm font-bold text-blue-900 group-hover:text-blue-700 transition-colors">
                     Tablero de Actividades
@@ -261,7 +266,7 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
       {/* Empty state: no legacy role ni role_id */}
       {projects.length === 0 && tools.length === 0 && forms.length === 0 && !isLegacyDibujo && (
         <div className="card border border-border p-10 text-center space-y-2">
-          <p className="text-2xl">⚙️</p>
+          <Settings className="w-8 h-8 text-text-muted mx-auto mb-1" strokeWidth={1.75} />
           <p className="text-sm font-medium text-text-primary">Panel sin configurar</p>
           <p className="text-xs text-text-muted max-w-xs mx-auto">
             Tu cuenta aún no tiene proyectos, herramientas o formularios asignados. Contacta a un administrador.

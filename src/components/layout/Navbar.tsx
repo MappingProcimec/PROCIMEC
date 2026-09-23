@@ -266,9 +266,6 @@ export function Navbar() {
                 {/* User info */}
                 <div className="px-3 py-2.5 border-b border-border">
                   <p className="text-sm font-semibold text-text-primary truncate">{displayName}</p>
-                  {dashData?.user?.full_name && dashData?.user?.nick_name && dashData.user.full_name !== dashData.user.nick_name && (
-                    <p className="text-xs text-text-muted truncate">({dashData.user.full_name})</p>
-                  )}
                   <p className="text-xs text-text-muted truncate">{session?.user?.email}</p>
                 </div>
 
@@ -286,13 +283,13 @@ export function Navbar() {
                     </button>
                   ) : (
                     <div className="py-2 space-y-2">
-                      <p className="text-xs font-semibold text-text-secondary">Nombre para mostrar (Apodo)</p>
+                      <p className="text-xs font-semibold text-text-secondary">Apodo</p>
                       <input
                         type="text"
                         value={nameValue}
                         onChange={e => setNameValue(e.target.value)}
                         className="w-full text-sm px-3 py-2 border border-border rounded-xl focus:outline-none focus:border-primary"
-                        placeholder="Tu apodo o nombre para mostrar"
+                        placeholder="Apodo"
                         autoFocus
                         onKeyDown={e => {
                           if (e.key === 'Enter' && nameValue.trim()) updateNameMutation.mutate(nameValue.trim());

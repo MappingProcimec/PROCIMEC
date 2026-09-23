@@ -798,8 +798,8 @@ function AttendanceTrackerContent() {
                         </p>
 
                         <div className="w-full max-w-md mb-4 text-left">
-                          <label className="block text-xs font-medium text-slate-600 mb-1">
-                            Observación inicial (opcional):
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Observación
                           </label>
                           <input
                             type="text"

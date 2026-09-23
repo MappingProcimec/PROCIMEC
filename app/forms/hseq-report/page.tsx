@@ -899,7 +899,7 @@ export default function HseqReportPage() {
                         </div>
 
                         <div>
-                          <label className="label label-required text-xs">Documento de Identidad (C.C.)</label>
+                          <label className="label label-required text-xs">Documento de Identidad</label>
                           <input
                             type="text"
                             value={conductorCedula}
