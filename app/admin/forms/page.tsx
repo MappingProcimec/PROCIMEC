@@ -20,7 +20,7 @@ interface Tool {
   id: string;
   slug: string;
   name: string;
-  category: 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq';
+  category: 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq' | 'rrhh';
   is_universal: boolean;
 }
 
@@ -99,7 +99,7 @@ const TOOL_META: Record<string, { icon: string; description: string; tag: string
   'attendance-tracker': {
     icon: '⏱️',
     description: 'Control de asistencia diaria con geolocalización, verificación de oficina/campo, registro de salidas intermedias y exportación de reportes PDF.',
-    tag: 'Control / Asistencia',
+    tag: 'Universal',
     path: '/tools/attendance-tracker',
   },
   'evidence-board': {
@@ -111,13 +111,13 @@ const TOOL_META: Record<string, { icon: string; description: string; tag: string
   'cartas-audit': {
     icon: '📑',
     description: 'Panel de auditoría y fiscalización de cartas RRHH y certificaciones emitidas, con previsualización del texto, visor PDF y descarga Word.',
-    tag: 'RRHH / Auditoría',
-    path: '/admin/forms?tab=audit',
+    tag: 'Recursos Humanos',
+    path: '/tools/cartas-audit',
   },
   'elaboracion-cartas': {
     icon: '📄',
     description: 'Generador oficial de cartas laborales, permisos, vinculaciones a proyecto y paz y salvo con descarga DOCX/PDF y envío por correo.',
-    tag: 'RRHH / Cartas',
+    tag: 'Recursos Humanos',
     path: '/forms/elaboracion-cartas',
   },
 };
@@ -128,6 +128,7 @@ const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string
   admin: { label: 'Administración', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
   universal: { label: 'Universal', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
   hseq: { label: 'HSEQ', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
+  rrhh: { label: 'Recursos Humanos', bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' },
 };
 
 const FORM_SLUG_STYLE: Record<string, { icon: string; bg: string; border: string; text: string }> = {
@@ -187,7 +188,9 @@ export default function AdminToolsAndFormsPage() {
     { key: 'gpr', label: 'GPR / Geofísica', count: tools.filter((t) => t.category === 'gpr').length },
     { key: 'cad', label: 'CAD / BIM', count: tools.filter((t) => t.category === 'cad').length },
     { key: 'admin', label: 'Administración', count: tools.filter((t) => t.category === 'admin').length },
+    { key: 'rrhh', label: 'Recursos Humanos', count: tools.filter((t) => t.category === 'rrhh').length },
     { key: 'universal', label: 'Universal', count: tools.filter((t) => t.category === 'universal').length },
+    { key: 'hseq', label: 'HSEQ', count: tools.filter((t) => t.category === 'hseq').length },
   ];
 
   return (
@@ -255,18 +258,6 @@ export default function AdminToolsAndFormsPage() {
               }`}>
                 {forms.length}
               </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('audit')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'audit'
-                  ? 'bg-white text-primary shadow-xs'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              <span>📑</span> Auditoría de Cartas
             </button>
 
             <button

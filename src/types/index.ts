@@ -275,7 +275,9 @@ export type ToolSlug =
   | 'org-chart-ai'
   | 'dynamic-dashboard'
   | 'attendance-tracker'
-  | 'evidence-board';
+  | 'evidence-board'
+  | 'cartas-audit'
+  | 'elaboracion-cartas';
 
 export interface Tool {
   id: string;

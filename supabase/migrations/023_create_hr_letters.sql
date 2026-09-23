@@ -86,3 +86,13 @@ ON CONFLICT (slug) DO UPDATE
 SET name = EXCLUDED.name,
     category = EXCLUDED.category,
     description = EXCLUDED.description;
+
+-- 7. Asegurar clasificación canónica de herramientas operativas
+UPDATE public.tools
+SET category = 'universal', is_universal = true
+WHERE slug = 'attendance-tracker';
+
+UPDATE public.tools
+SET category = 'rrhh', is_universal = false
+WHERE slug = 'cartas-audit';
+

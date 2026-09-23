@@ -39,10 +39,21 @@ export async function GET() {
       id: 'cartas-audit-synthetic',
       slug: 'cartas-audit',
       name: 'Auditoría de Elaboración de Cartas',
-      category: 'admin',
+      category: 'rrhh',
       is_universal: false,
     });
   }
 
-  return NextResponse.json({ data: tools });
+  // Normalizar categorías canónicas
+  const normalizedTools = tools.map((t) => {
+    if (t.slug === 'cartas-audit') {
+      return { ...t, category: 'rrhh' };
+    }
+    if (t.slug === 'attendance-tracker') {
+      return { ...t, category: 'universal', is_universal: true };
+    }
+    return t;
+  });
+
+  return NextResponse.json({ data: normalizedTools });
 }

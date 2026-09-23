@@ -95,7 +95,7 @@ function getToolIcon(tool: { slug?: string; category?: string }): string {
 
 function getToolHref(tool: { slug: string }): string {
   if (tool.slug === 'dynamic-dashboard') return '/dashboard';
-  if (tool.slug === 'cartas-audit') return '/admin/forms?tab=audit';
+  if (tool.slug === 'cartas-audit') return '/tools/cartas-audit';
   if (tool.slug === 'elaboracion-cartas') return '/forms/elaboracion-cartas';
   return `/tools/${tool.slug}`;
 }
