@@ -777,11 +777,6 @@ export default function AdminUsersPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
                           <p className="font-semibold text-text-primary text-sm">{user.full_name}</p>
-                          {user.nick_name && user.nick_name !== user.full_name && (
-                            <span className="text-xs text-text-secondary bg-gray-100 px-2 py-0.5 rounded-md font-mono border border-border">
-                              Apodo: {user.nick_name}
-                            </span>
-                          )}
                           <span className={`badge ${badge.badge} text-xs`}>{badge.label}</span>
                           {!user.is_active && <span className="badge badge-gray text-xs">Inactivo</span>}
                           {user.role === 'pending' && (
@@ -904,14 +899,7 @@ export default function AdminUsersPage() {
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="font-bold text-text-primary text-sm sm:text-base truncate">{editName || editingUser.full_name}</p>
-                  <div className="flex items-center gap-2 text-xs text-text-muted truncate">
-                    <span>{editEmail || editingUser.email}</span>
-                    {editNickName && editNickName !== (editName || editingUser.full_name) && (
-                      <span className="text-[11px] bg-amber-50 text-amber-800 border border-amber-200/60 px-1.5 py-0.2 rounded font-mono">
-                        Apodo: {editNickName}
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-xs text-text-muted truncate">{editEmail || editingUser.email}</p>
                 </div>
                 <span className="text-[11px] font-semibold text-primary bg-primary-50 border border-primary/20 px-2 py-0.5 rounded-md flex-shrink-0">
                   Modo Admin
@@ -927,15 +915,12 @@ export default function AdminUsersPage() {
                   <span className="text-[10px] text-text-muted bg-white px-2 py-0.5 rounded border border-border font-medium">Solo Admin</span>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-text-primary">
-                          Nombre Completo (Oficial) <span className="text-red-500">*</span>
-                        </label>
-                        <span className="text-[10px] text-text-muted bg-slate-200/60 px-1.5 py-0.2 rounded font-mono">Firmas y Actas</span>
-                      </div>
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary mb-1">
+                        Nombre Completo <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="text"
                         value={editName}
@@ -943,28 +928,23 @@ export default function AdminUsersPage() {
                           setEditName(e.target.value);
                           if (validationError) setValidationError(null);
                         }}
-                        placeholder="Ej. Kevin Ortiz Atencio"
-                        className="input text-xs w-full py-2 bg-white font-medium"
+                        placeholder="Nombre completo"
+                        className="input text-xs w-full py-2 bg-white"
                         required
                       />
-                      <p className="text-[10px] text-text-muted">Nombre legal para firmas, reportes oficiales y actas.</p>
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-text-primary">
-                          Nombre en Panel (Apodo)
-                        </label>
-                        <span className="text-[10px] text-amber-700 bg-amber-100/70 px-1.5 py-0.2 rounded font-mono">Panel de Control</span>
-                      </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary mb-1">
+                        Apodo
+                      </label>
                       <input
                         type="text"
                         value={editNickName}
                         onChange={e => setEditNickName(e.target.value)}
-                        placeholder="Ej. Kevin (o dejar igual al oficial)"
-                        className="input text-xs w-full py-2 bg-white font-medium"
+                        placeholder="Apodo para el panel"
+                        className="input text-xs w-full py-2 bg-white"
                       />
-                      <p className="text-[10px] text-text-muted">Nombre que verá el usuario en su saludo y barra superior.</p>
                     </div>
                   </div>
 
