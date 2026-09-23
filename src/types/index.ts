@@ -6,6 +6,7 @@ export interface AppUser {
   id: string;
   email: string;
   full_name: string;
+  nick_name?: string | null;
   avatar_url?: string;
   role: UserRole;
   is_active: boolean;

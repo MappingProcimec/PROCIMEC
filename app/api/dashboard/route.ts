@@ -21,11 +21,21 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const email = session.user.email;
 
-  const { data: dbUser, error: userError } = await supabase
+  let { data: dbUser, error: userError } = await supabase
     .from('users')
-    .select('id, email, full_name, role, role_id, division_id')
+    .select('id, email, full_name, nick_name, role, role_id, division_id')
     .eq('email', email)
     .single();
+
+  if (userError && (userError.message?.includes('nick_name') || userError.code === '42703')) {
+    const fallbackRes = await supabase
+      .from('users')
+      .select('id, email, full_name, role, role_id, division_id')
+      .eq('email', email)
+      .single();
+    dbUser = fallbackRes.data ? { ...fallbackRes.data, nick_name: fallbackRes.data.full_name } : null;
+    userError = fallbackRes.error;
+  }
 
   if (userError || !dbUser) {
     return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
@@ -199,7 +209,12 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     {
       data: {
-        user: { id: dbUser.id, email: dbUser.email, full_name: dbUser.full_name },
+        user: {
+          id: dbUser.id,
+          email: dbUser.email,
+          full_name: dbUser.full_name,
+          nick_name: (dbUser as { nick_name?: string }).nick_name || dbUser.full_name,
+        },
         legacyRole: (dbUser.role as string) ?? null,
         isRolePreview,
         division,

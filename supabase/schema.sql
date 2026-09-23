@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
+  nick_name TEXT,
   avatar_url TEXT,
   phone TEXT,
   role TEXT CHECK (role IN ('admin', 'localizador', 'operator', 'pending', 'dibujo')) DEFAULT 'pending',

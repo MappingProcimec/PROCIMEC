@@ -16,7 +16,7 @@ interface ActivityRecord {
 }
 
 export interface DashboardData {
-  user: { id: string; email: string; full_name: string };
+  user: { id: string; email: string; full_name: string; nick_name?: string };
   legacyRole?: string | null;
   isRolePreview?: boolean;
   division: { id: string; name: string } | null;
@@ -55,7 +55,7 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
     return acc;
   }, {});
 
-  const firstName = user.full_name?.split(' ')[0] || 'Usuario';
+  const displayGreeting = user.nick_name || user.full_name || 'Usuario';
 
   return (
     <div className="space-y-6">
@@ -79,11 +79,11 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
       <div className="card border border-border shadow-sm p-6">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-xl font-bold flex-shrink-0">
-            {(user.full_name || user.email).charAt(0).toUpperCase()}
+            {(user.nick_name || user.full_name || user.email).charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-bold text-text-primary">
-              Hola, {firstName} 👋
+              Hola, {displayGreeting} 👋
             </h2>
             <p className="text-sm text-text-muted truncate">{user.email}</p>
             <div className="flex flex-wrap gap-2 mt-2">

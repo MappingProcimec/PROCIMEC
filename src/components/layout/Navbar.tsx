@@ -10,7 +10,7 @@ import { DivisionBadge } from '@/components/DivisionBadge';
 import type { Tool, Form } from '@/types';
 
 interface DashboardData {
-  user: { full_name: string };
+  user: { full_name: string; nick_name?: string };
   division: { name: string } | null;
   role: { name: string } | null;
   legacyRole?: string | null;
@@ -140,7 +140,7 @@ export function Navbar() {
   const assignedForms: Form[] = dashData?.forms ?? [];
   const legacyRole = dashData?.legacyRole ?? null;
   const divisionName = dashData?.division?.name ?? (session?.user as { divisionName?: string })?.divisionName;
-  const displayName = dashData?.user?.full_name ?? session?.user?.name ?? '';
+  const displayName = dashData?.user?.nick_name || dashData?.user?.full_name ?? session?.user?.name ?? '';
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -164,7 +164,7 @@ export function Navbar() {
       const res = await fetch('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: name }),
+        body: JSON.stringify({ nick_name: name }),
       });
       const text = await res.text();
       let json: { error?: string; success?: boolean } = {};
@@ -185,7 +185,7 @@ export function Navbar() {
   });
 
   const openEditName = () => {
-    setNameValue(displayName);
+    setNameValue(dashData?.user?.nick_name || displayName);
     setEditingName(true);
   };
 
@@ -266,6 +266,9 @@ export function Navbar() {
                 {/* User info */}
                 <div className="px-3 py-2.5 border-b border-border">
                   <p className="text-sm font-semibold text-text-primary truncate">{displayName}</p>
+                  {dashData?.user?.full_name && dashData?.user?.nick_name && dashData.user.full_name !== dashData.user.nick_name && (
+                    <p className="text-xs text-text-muted truncate">({dashData.user.full_name})</p>
+                  )}
                   <p className="text-xs text-text-muted truncate">{session?.user?.email}</p>
                 </div>
 
@@ -283,13 +286,13 @@ export function Navbar() {
                     </button>
                   ) : (
                     <div className="py-2 space-y-2">
-                      <p className="text-xs font-semibold text-text-secondary">Nombre completo</p>
+                      <p className="text-xs font-semibold text-text-secondary">Nombre para mostrar (Apodo)</p>
                       <input
                         type="text"
                         value={nameValue}
                         onChange={e => setNameValue(e.target.value)}
                         className="w-full text-sm px-3 py-2 border border-border rounded-xl focus:outline-none focus:border-primary"
-                        placeholder="Tu nombre completo"
+                        placeholder="Tu apodo o nombre para mostrar"
                         autoFocus
                         onKeyDown={e => {
                           if (e.key === 'Enter' && nameValue.trim()) updateNameMutation.mutate(nameValue.trim());

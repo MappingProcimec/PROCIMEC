@@ -69,7 +69,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { id, role, is_active, project_ids, role_id, division_roles, tool_ids, form_ids, full_name, email, phone } = body;
+  const { id, role, is_active, project_ids, role_id, division_roles, tool_ids, form_ids, full_name, nick_name, email, phone } = body;
   if (!id) return NextResponse.json({ error: 'ID de usuario requerido' }, { status: 400 });
 
   const supabase = createAdminClient();
@@ -87,6 +87,11 @@ export async function PATCH(request: NextRequest) {
     updates.full_name = trimmedName;
   }
 
+  if (nick_name !== undefined) {
+    const trimmedNick = typeof nick_name === 'string' ? nick_name.trim() : '';
+    updates.nick_name = trimmedNick || null;
+  }
+
   if (email !== undefined) {
     const trimmedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
@@ -99,7 +104,7 @@ export async function PATCH(request: NextRequest) {
     updates.phone = typeof phone === 'string' && phone.trim() ? phone.trim() : null;
   }
 
-  let phoneWarning: string | null = null;
+  let dbWarning: string | null = null;
 
   if (Object.keys(updates).length > 0) {
     const { error } = await supabase.from('users').update(updates).eq('id', id);
@@ -109,14 +114,15 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'El correo electrónico ya está registrado por otro usuario' }, { status: 400 });
       }
 
-      // Si la columna phone aún no ha sido creada en la base de datos de Supabase
-      if ((error.message?.includes('phone') || error.code === '42703') && updates.phone !== undefined) {
-        delete updates.phone;
+      // Si la columna nick_name o phone aún no han sido creadas en la base de datos de Supabase
+      if ((error.message?.includes('nick_name') || error.message?.includes('phone') || error.code === '42703')) {
+        if (updates.nick_name !== undefined) delete updates.nick_name;
+        if (updates.phone !== undefined) delete updates.phone;
         const retry = await supabase.from('users').update(updates).eq('id', id);
         if (retry.error) {
           return NextResponse.json({ error: retry.error.message }, { status: 500 });
         }
-        phoneWarning = 'Datos actualizados, pero para guardar el número de WhatsApp ejecuta en Supabase SQL Editor: ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;';
+        dbWarning = 'Datos actualizados, pero para guardar apodo y teléfono ejecuta la migración 022 en Supabase SQL Editor.';
       } else {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
@@ -188,6 +194,6 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    warning: phoneWarning || toolsWarning || formsWarning || undefined,
+    warning: dbWarning || toolsWarning || formsWarning || undefined,
   });
 }

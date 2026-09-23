@@ -33,7 +33,7 @@ function DashboardContent() {
             <div className="h-8 w-40 bg-white/20 rounded-lg animate-pulse" />
           ) : (
             <h1 className="text-2xl sm:text-3xl font-bold text-white">
-              {data?.user?.full_name ? `Panel de ${data.user.full_name.split(' ')[0]}` : 'Mi Panel'}
+              {data?.user ? `Panel de ${data.user.nick_name || data.user.full_name}` : 'Mi Panel'}
             </h1>
           )}
           <p className="text-white/70 text-sm mt-1">

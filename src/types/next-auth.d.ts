@@ -10,6 +10,7 @@ declare module 'next-auth' {
       role: string;
       isActive: boolean;
       fullName: string;
+      nickName?: string;
       avatarUrl?: string;
     };
   }
@@ -26,6 +27,7 @@ declare module 'next-auth/jwt' {
     role?: string;
     isActive?: boolean;
     fullName?: string;
+    nickName?: string;
     avatarUrl?: string;
   }
 }

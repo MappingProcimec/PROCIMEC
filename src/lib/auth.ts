@@ -42,9 +42,11 @@ export const authOptions: NextAuthOptions = {
 
       if (!existingUser) {
         // Create new user with 'admin' if in admin list, otherwise 'pending'
+        const defaultName = user.name || profile?.name || 'Usuario';
         const { error } = await supabase.from('users').insert({
           email: user.email,
-          full_name: user.name || profile?.name || 'Usuario',
+          full_name: defaultName,
+          nick_name: defaultName,
           avatar_url: user.image || null,
           role: isAdmin ? 'admin' : 'pending',
           is_active: true,
@@ -88,7 +90,7 @@ export const authOptions: NextAuthOptions = {
 
         const { data } = await supabase
           .from('users')
-          .select('id, role, is_active, full_name, avatar_url')
+          .select('id, role, is_active, full_name, nick_name, avatar_url')
           .eq('email', email)
           .maybeSingle();
 
@@ -98,6 +100,7 @@ export const authOptions: NextAuthOptions = {
           token.role = effectiveRole;
           token.isActive = data.is_active;
           token.fullName = data.full_name;
+          token.nickName = data.nick_name || data.full_name;
           token.avatarUrl = data.avatar_url;
         } else if (isAdmin) {
           token.role = 'admin';
@@ -118,6 +121,7 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as string;
         session.user.isActive = token.isActive as boolean;
         session.user.fullName = token.fullName as string;
+        session.user.nickName = (token.nickName || token.fullName) as string;
         session.user.avatarUrl = token.avatarUrl as string;
       }
       return session;

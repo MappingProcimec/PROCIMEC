@@ -43,7 +43,7 @@ interface FormOption { id: string; slug: string; name: string; description?: str
 
 interface UserDivisionRole { division_id: string; role_id: string | null }
 interface User {
-  id: string; email: string; full_name: string; avatar_url?: string;
+  id: string; email: string; full_name: string; nick_name?: string | null; avatar_url?: string;
   phone?: string | null;
   role: 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo';
   role_id: string | null;
@@ -371,6 +371,7 @@ export default function AdminUsersPage() {
   const queryClient = useQueryClient();
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
+  const [editNickName, setEditNickName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -534,6 +535,7 @@ export default function AdminUsersPage() {
   const openEdit = (user: User) => {
     setEditingUser(user);
     setEditName(user.full_name || '');
+    setEditNickName(user.nick_name || user.full_name || '');
     setEditEmail(user.email || '');
     setEditPhone(user.phone || '');
     setValidationError(null);
@@ -555,11 +557,12 @@ export default function AdminUsersPage() {
     if (!editingUser) return;
 
     const trimmedName = editName.trim();
+    const trimmedNickName = editNickName.trim() || trimmedName;
     const trimmedEmail = editEmail.trim().toLowerCase();
     const trimmedPhone = editPhone.trim();
 
     if (!trimmedName) {
-      setValidationError('El nombre no puede estar vacío.');
+      setValidationError('El nombre completo no puede estar vacío.');
       return;
     }
 
@@ -576,6 +579,7 @@ export default function AdminUsersPage() {
     const basePayload = {
       id: editingUser.id,
       full_name: trimmedName,
+      nick_name: trimmedNickName,
       email: trimmedEmail,
       phone: trimmedPhone || null,
       tool_ids,
@@ -764,15 +768,20 @@ export default function AdminUsersPage() {
                     }`}>
                       {user.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={user.avatar_url} alt={user.full_name} className="w-11 h-11 rounded-full flex-shrink-0" />
+                        <img src={user.avatar_url} alt={user.nick_name || user.full_name} className="w-11 h-11 rounded-full flex-shrink-0" />
                       ) : (
                         <div className="w-11 h-11 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-primary font-bold">{user.full_name.charAt(0)}</span>
+                          <span className="text-primary font-bold">{(user.nick_name || user.full_name).charAt(0)}</span>
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <p className="font-semibold text-text-primary text-sm">{user.full_name}</p>
+                          <p className="font-semibold text-text-primary text-sm">{user.nick_name || user.full_name}</p>
+                          {user.nick_name && user.full_name && user.nick_name !== user.full_name && (
+                            <span className="text-xs text-text-muted bg-gray-100 px-1.5 py-0.5 rounded font-normal">
+                              Oficial: {user.full_name}
+                            </span>
+                          )}
                           <span className={`badge ${badge.badge} text-xs`}>{badge.label}</span>
                           {!user.is_active && <span className="badge badge-gray text-xs">Inactivo</span>}
                           {user.role === 'pending' && (
@@ -912,21 +921,38 @@ export default function AdminUsersPage() {
                 </div>
 
                 <div className="space-y-2.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">
-                      Nombre <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={e => {
-                        setEditName(e.target.value);
-                        if (validationError) setValidationError(null);
-                      }}
-                      placeholder="Nombre del usuario"
-                      className="input text-xs w-full py-2 bg-white"
-                      required
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary mb-1">
+                        Nombre completo oficial <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={e => {
+                          setEditName(e.target.value);
+                          if (validationError) setValidationError(null);
+                        }}
+                        placeholder="Nombre completo (firmas y reportes)"
+                        className="input text-xs w-full py-2 bg-white"
+                        required
+                      />
+                      <p className="text-[10px] text-text-muted mt-0.5">Para firmas, reportes oficiales y actas</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary mb-1">
+                        Nombre en panel (Apodo / Display)
+                      </label>
+                      <input
+                        type="text"
+                        value={editNickName}
+                        onChange={e => setEditNickName(e.target.value)}
+                        placeholder="Ej. Jose, Admin, Ing. Pérez"
+                        className="input text-xs w-full py-2 bg-white"
+                      />
+                      <p className="text-[10px] text-text-muted mt-0.5">Nombre que ve en su panel principal</p>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
