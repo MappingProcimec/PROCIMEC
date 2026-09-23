@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
           rendered_text, letter_data, docx_base64, pdf_base64, docx_url, pdf_url,
           email_recipient, email_sent, email_sent_at,
           users:user_id (id, email, full_name, nick_name, avatar_url),
-          projects:project_id (id, name, code)
+          projects:project_id (id, name, cost_center)
         `)
         .eq('id', id)
         .single();
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
         rendered_text, letter_data, docx_url, pdf_url,
         email_recipient, email_sent, email_sent_at,
         users:user_id (id, email, full_name, nick_name, avatar_url),
-        projects:project_id (id, name, code)
+        projects:project_id (id, name, cost_center)
       `)
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -81,8 +81,14 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      // Si la tabla no está creada aún en la base de datos
-      if (error.message.includes('does not exist') || error.message.includes('schema cache')) {
+      // Si la tabla hr_letters no está creada aún en la base de datos
+      const isMissingHrLettersTable =
+        error.message.includes('relation "public.hr_letters" does not exist') ||
+        error.message.includes('relation "hr_letters" does not exist') ||
+        (error.message.includes('hr_letters') && error.message.includes('does not exist')) ||
+        (error.message.includes('schema cache') && error.message.includes('hr_letters'));
+
+      if (isMissingHrLettersTable) {
         return NextResponse.json({
           data: [],
           migrationNeeded: true,
@@ -111,7 +117,7 @@ export async function GET(req: NextRequest) {
         const rec = (item.recipient_name || '').toLowerCase();
         const ent = (item.recipient_entity || '').toLowerCase();
         const user = (item.users?.full_name || item.users?.email || '').toLowerCase();
-        const proj = (item.projects?.name || item.projects?.code || '').toLowerCase();
+        const proj = (item.projects?.name || item.projects?.cost_center || '').toLowerCase();
         return (
           rad.includes(search) ||
           emp.includes(search) ||

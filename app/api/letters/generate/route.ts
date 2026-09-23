@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     if (enrichedData.project_id) {
       const { data: projectData } = await supabase
         .from('projects')
-        .select('id, name, code')
+        .select('id, name, cost_center')
         .eq('id', enrichedData.project_id)
         .single();
 
