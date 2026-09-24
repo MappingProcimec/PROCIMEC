@@ -6,11 +6,13 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { CORPORATE_LOGO_BASE64 } from '@/lib/gpr/logoBase64';
 
 export default function LoginPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [logoSrc, setLogoSrc] = useState('/logo.png');
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -55,23 +57,37 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {/* Logo / Brand */}
+        {/* Logo / Brand PCM CLOUD */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="p-3 bg-white rounded-2xl shadow-xl mb-4 border border-white/20">
+          <div className="p-3.5 bg-white rounded-2xl shadow-xl mb-3 border border-white/20 flex items-center justify-center">
             <Image
-              src="/logo.png"
-              alt="PROCIMEC Mapping Ingeniería"
+              src={logoSrc}
+              alt="PROCIMEC — PCM CLOUD"
               width={180}
               height={45}
               className="h-10 w-auto object-contain"
               priority
+              unoptimized
+              onError={() => setLogoSrc(CORPORATE_LOGO_BASE64)}
             />
           </div>
-          <p className="text-white/80 text-sm mt-1">
-            Plataforma de gestión empresarial
+
+          <div className="flex items-center gap-2 mt-1">
+            <h1 className="text-white font-bold text-lg tracking-tight flex items-center gap-2">
+              <span>PROCIMEC</span>
+              <span className="text-accent font-mono text-xs font-semibold px-2 py-0.5 rounded bg-accent/20 border border-accent/40">
+                PCM CLOUD
+              </span>
+            </h1>
+          </div>
+
+          <p className="text-white/70 text-xs mt-1">
+            Plataforma Cloud de Gestión Integral e Ingeniería de Precisión
           </p>
-          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-accent/20 border border-accent/30 rounded-full">
-            <span className="text-accent font-semibold text-xs tracking-wider">Portal Corporativo</span>
+
+          <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md border border-white/15 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="text-accent font-semibold text-[11px] tracking-wider uppercase font-mono">Portal Corporativo</span>
           </div>
         </div>
 

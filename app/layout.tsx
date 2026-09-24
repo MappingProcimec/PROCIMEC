@@ -10,20 +10,20 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'PROCIMEC — Mapping Ingeniería',
-  description: 'Sistema de registro digital de levantamientos con Radar de Penetración Terrestre para Mapping Ingeniería. Captura datos en campo, genera reportes y sincroniza con Google Drive.',
-  keywords: ['GPR', 'ground penetrating radar', 'Mapping Ingeniería', 'field reporter', 'reporte técnico'],
+  title: 'PROCIMEC — PCM CLOUD | Mapping Ingeniería',
+  description: 'Plataforma empresarial de gestión geofísica, cartografía subterránea 3D, modelado CAD/BIM, aseguramiento HSEQ y automatización operativa para Mapping Ingeniería.',
+  keywords: ['GPR', 'ground penetrating radar', 'Mapping Ingeniería', 'PCM CLOUD', 'PROCIMEC', 'CAD', 'BIM', 'HSEQ'],
   authors: [{ name: 'Mapping Ingeniería' }],
   creator: 'Mapping Ingeniería',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'PROCIMEC',
+    title: 'PCM CLOUD',
   },
   openGraph: {
-    title: 'PROCIMEC — Mapping Ingeniería',
-    description: 'Sistema de registro digital de levantamientos GPR',
+    title: 'PROCIMEC — PCM CLOUD | Mapping Ingeniería',
+    description: 'Plataforma empresarial de gestión geofísica y cartografía subterránea',
     type: 'website',
   },
   verification: {
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#1B3A5C',
+  themeColor: '#1E2229',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,

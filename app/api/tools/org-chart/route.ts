@@ -9,8 +9,14 @@ function resolveDivisionCategory(name: string): string {
   const lower = name.toLowerCase();
   if (lower.includes('gpr') || lower.includes('geof')) return 'gpr';
   if (lower.includes('cad') || lower.includes('bim') || lower.includes('dibujo')) return 'cad';
+  if (lower.includes('almacen') || lower.includes('bodega') || lower.includes('inventario') || lower.includes('logistica') || lower.includes('warehouse')) return 'warehouse';
+  if (lower.includes('compra') || lower.includes('adquisic') || lower.includes('purchas') || lower.includes('abastec')) return 'purchasing';
+  if (lower.includes('comercial') || lower.includes('ventas') || lower.includes('licitac') || lower.includes('propuesta')) return 'commercial';
+  if (lower.includes('finanz') || lower.includes('tesorer') || lower.includes('finance') || lower.includes('caja')) return 'finance';
+  if (lower.includes('contab') || lower.includes('tribut') || lower.includes('impuest') || lower.includes('accounting')) return 'accounting';
   if (lower.includes('hseq') || lower.includes('sst') || lower.includes('seguridad')) return 'hseq';
   if (lower.includes('rrhh') || lower.includes('humana') || lower.includes('personal') || lower.includes('recursos')) return 'rrhh';
+  if (lower.includes('gerenc') || lower.includes('direct') || lower.includes('management')) return 'direction';
   if (lower.includes('ti') || lower.includes('sistemas') || lower.includes('tecnolog')) return 'admin';
   return 'admin';
 }

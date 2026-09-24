@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Navbar } from '@/components/layout/Navbar';
+import { BackButton } from '@/components/BackButton';
 import { OrgChartCanvas } from '@/components/tools/org-chart/OrgChartCanvas';
 import { AiAnalysisModal } from '@/components/tools/org-chart/AiAnalysisModal';
 import { DiagramPayload, ViewMode } from '@/components/tools/org-chart/types';
@@ -91,10 +92,15 @@ export default function OrgChartAiPage() {
       });
     }
 
-    // Fallback standard platform categories
+    // Fallback standard platform categories covering all 10 corporate divisions
     const standardCategories: [string, string][] = [
       ['gpr', 'Geofísica & GPR'],
       ['cad', 'Oficina Técnica CAD / BIM'],
+      ['warehouse', 'Almacén & Logística'],
+      ['purchasing', 'Compras & Suministros'],
+      ['commercial', 'Comercial & Licitaciones'],
+      ['finance', 'Finanzas & Tesorería'],
+      ['accounting', 'Contabilidad & Impuestos'],
       ['hseq', 'Seguridad HSEQ & SST'],
       ['rrhh', 'Gestión Humana & RRHH'],
       ['admin', 'Administración & TI'],
@@ -114,6 +120,11 @@ export default function OrgChartAiPage() {
       <Navbar />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-5">
+        {/* Hub Return Button */}
+        <div className="flex items-center justify-between">
+          <BackButton href="/dashboard" label="Volver a Mi Panel" />
+        </div>
+
         {/* Header Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#2A303C]">
           <div className="space-y-1">
@@ -122,14 +133,14 @@ export default function OrgChartAiPage() {
                 <GitBranch className="w-4 h-4" strokeWidth={1.75} />
               </div>
               <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-3">
-                Organigrama & Arquitectura Inteligente
+                Organigrama & Arquitectura de Cargos
                 <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded bg-[#EAA023]/15 text-[#EAA023] border border-[#EAA023]/30">
-                  Archify Engine
+                  PCM CLOUD · Archify Engine
                 </span>
               </h1>
             </div>
             <p className="text-xs text-neutral-400">
-              Visualización interactiva de estructura de cargos, asignación de cuadrillas y pipeline técnico de datos en vivo.
+              Visualización interactiva de estructura corporativa, asignación de cuadrillas y pipeline técnico de datos en vivo.
             </p>
           </div>
 

@@ -25,13 +25,38 @@ Todo agente de Inteligencia Artificial que opere en este workspace debe acatar e
   - Actividades CAD/BIM: `hours_worked = 8.5` por defecto, `responsible = user.email`.
   - Reportes de Campo GPR: `cad_priority = 'Media'`, `weather_conditions = 'Despejado'`, `report_date = CURRENT_DATE`.
 
-## 4. Identidad Visual y Sistema de Diseño (Industrial Precision)
-- **Paleta Oficial del Logo:** Los colores corporativos se basan estrictamente en el logotipo (`public/logo.png`): Primario en **Carbón Técnico (`#1E2229`)** y Acento en **Ámbar Geofísico de Radar (`#EAA023`)**. Prohibido usar azules arbitrarios o gradientes genéricos.
-- **Directrices Anti-Slop:**
-  - **Zero-Emoji:** Prohibido el uso de emojis en interfaces y componentes; utilizar exclusivamente iconos vectoriales de Lucide React (`strokeWidth={1.75}`).
-  - **Microinteracciones y Física:** Botones con `:active:scale-[0.98]` y transición de 160ms (`cubic-bezier(0.23, 1, 0.32, 1)`). Prohibido animar desde `scale(0)` o usar `ease-in`.
-  - **Tipografía Bimodal:** Inter para UI general y `JetBrains Mono` para coordenadas UTM, GHz, horas, códigos y metadatos.
-  - **Mobile:** Contenedores con `min-h-[100dvh]` (nunca `h-screen`) y targets táctiles de mínimo `44x44px`.
+## 4. Ley Suprema de Identidad de Marca UI (Industrial Precision & Cero Spam Visual - PCM CLOUD)
+Toda interfaz, formulario, herramienta y componente del ecosistema **PROCIMEC / PCM CLOUD** está regulado por esta ley inquebrantable:
+- **Identidad Corporativa Dual (PROCIMEC & PCM CLOUD):**
+  - Nombre Oficial: **PROCIMEC** (Mapping Ingeniería).
+  - Plataforma de Servicios Cloud: **PCM CLOUD**.
+  - Logotipo Institucional: Basado en `public/logo.png` (renderizado con `unoptimized` y fallback a `CORPORATE_LOGO_BASE64`).
+- **Paleta Oficial Sagrada (Cero Azules Genéricos):**
+  - **Carbón Técnico:** `#1E2229` (Fondo primario, superficies de alto contraste y solidez de ingeniería).
+  - **Ámbar Geofísico de Radar:** `#EAA023` (Color exclusivo de acento, estados activos, enfoque y ondas de antena).
+  - **Grafito de Precisión:** `#2A303C` / `#15181D` (Bordes técnicos y contenedores secundarios).
+  - Prohibido terminantemente el uso de azules arbitrarios, violetas o degradados cliché de plantilla.
+- **Ley de Cero Spam Visual (Anti-Visual Clutter):**
+  - Prohibido saturar barras de navegación o encabezados con contadores ruidosos (e.g. `16 Formularios registrados`, `14 Herramientas activas`).
+  - Prohibido colocar píldoras o badges decorativos superfluos sobre los títulos (e.g. `[FORMULARIO OPERATIVO]`, `[Catálogo: slug]`).
+  - **Hero Sobrio Canónico:** Todo formulario o herramienta inicia únicamente con:
+    1. `<BackButton href="/dashboard" label="Volver a Mi Panel" />`
+    2. Título formal `h1` con icono Lucide (`className="w-7 h-7 text-accent" strokeWidth={1.75}`)
+    3. Descripción concisa de una sola línea (`text-white/70 text-sm mt-1`).
+- **Ergonomía de Formularios Industriales:**
+  - **Rejilla en 2 Columnas (`sm:grid-cols-2`):** Erradica scroll vertical excesivo; agrupa campos de manera densa y balanceada.
+  - **Selectores de Puntuación (1 a 5):** Botones pastilla compactos en carbón con borde técnico y aro ámbar al estar seleccionados (`ring-1 ring-accent bg-accent/15`).
+  - **Chips de Prioridad Sobrios:** Sin colores arcoíris saturados; basados en contraste neutro y aro ámbar activo.
+  - **Monedas y Códigos:** Moneda prefijada (`$ COP`) y valores numéricos estrictamente en `font-mono`.
+- **Zero-Emoji Policy (Estricto):**
+  - Prohibido el uso de emojis en interfaces, menús, botones, tablas y badges; utilizar exclusivamente iconos vectoriales de Lucide React (`strokeWidth={1.75}`).
+- **Tipografía Bimodal:**
+  - `Inter` para textos de interfaz, etiquetas de campo y botones.
+  - `JetBrains Mono` (`font-mono`) obligatorio para coordenadas UTM, frecuencias (GHz/MHz), horas trabajadas, UUIDs, códigos de proyecto y valores monetarios.
+- **Microinteracciones Físicas:**
+  - Botones con `:active:scale-[0.98]` y transición de 160ms (`cubic-bezier(0.23, 1, 0.32, 1)`). Prohibido animar desde `scale(0)` o usar `ease-in`.
+- **Mobile First Riguroso:**
+  - Contenedores principales con `min-h-[100dvh]` (nunca `h-screen`) y zonas de contacto táctil mínimas de `44x44px`.
 
 ## 5. Estándares de Rendimiento y Algoritmia
 - **Indexación O(1):** Prohibido cruces de colecciones anidados O(N * M); indexar con `Map` (`indexBy`, `groupBy` en `@/lib/indexing`).

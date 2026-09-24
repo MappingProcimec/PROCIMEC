@@ -212,16 +212,20 @@ export function Navbar() {
         {/* Logo Corporativo Oficial */}
         <Link
           href={isAdmin ? '/admin/dashboard' : '/dashboard'}
-          className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 hover:opacity-90 transition-opacity"
         >
           <Image
             src="/logo.png"
-            alt="PROCIMEC Mapping Ingeniería"
+            alt="PROCIMEC — PCM CLOUD"
             width={130}
             height={32}
             className="h-8 w-auto object-contain"
             priority
+            unoptimized
           />
+          <span className="hidden sm:inline-flex items-center text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">
+            PCM CLOUD
+          </span>
         </Link>
 
         {/* Admin nav links */}

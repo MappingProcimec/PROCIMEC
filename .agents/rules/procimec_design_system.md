@@ -52,23 +52,32 @@ Descriptor:           "UNDERGROUND" ──>  Gris Neutro de Estratigrafía (#647
 
 ---
 
-## 3. Directrices Anti-Slop (Erradicación del Diseño Amateur de IA)
+## 3. Directrices Anti-Slop & Ley de Cero Spam Visual (Erradicación del Ruido Visual)
 
-Para evitar la estética genérica de plantillas generadas por IA (*AI Slop*):
+Para evitar la estética genérica de plantillas generadas por IA (*AI Slop*) y el spam visual:
 
 1. **Zero-Emoji Policy (Estricto):**
    - **Prohibido terminantemente** incluir emojis (`📁`, `👷`, `⚙️`, `⚠️`, `✅`, `🚀`) en componentes de software, botones, badges o encabezados.
-   - Todo icono debe ser vectorial mediante **Lucide Icons** con trazo técnico consistente: `strokeWidth={1.75}` o `strokeWidth={1.5}`.
-2. **Prohibición de Gradientes Cliché:**
+   - Todo icono debe ser vectorial mediante **Lucide Icons** con trazo técnico consistente: `strokeWidth={1.75}` o `strokeWidth={1.5}` y acentos en Ámbar Geofísico (`text-accent`).
+2. **Ley de Cero Spam Visual (No Visual Clutter):**
+   - **Prohibido** incluir badges numéricos ruidosos en menús o encabezados (e.g., `16 Formularios registrados`, `14 Herramientas activas`).
+   - **Prohibido** colocar píldoras o etiquetas redundantes de catálogo o departamento sobre los títulos (e.g. `[FORMULARIO OPERATIVO]`, `[Catálogo: slug]`).
+   - El Hero de toda vista operacional (formulario o herramienta) se compone sobria y exclusivamente de:
+     1. `<BackButton href="/dashboard" label="Volver a Mi Panel" />`
+     2. Título formal `h1` con icono Lucide (`className="w-7 h-7 text-accent" strokeWidth={1.75}`)
+     3. Descripción concisa de una sola línea (`text-white/70 text-sm mt-1`).
+3. **Ergonomía de Formularios Industriales:**
+   - **Rejilla en 2 Columnas (`sm:grid-cols-2`):** Distribución balanceada que aprovecha el espacio horizontal y elimina el scroll vertical excesivo.
+   - **Selectores de Puntuación (1 a 5):** Botones pastilla compactos en carbón técnico con aro ámbar activo (`ring-1 ring-accent bg-accent/15`), prescindiendo de barras de color estruendosas.
+   - **Chips de Prioridad Sobrios:** Basados en contraste neutro y aro de enfoque discreto; prohibido colores arcoíris invasivos.
+   - **Monedas y Valores Numéricos:** Prefijo monetario sobrio (`$ COP`), horas, coordenadas UTM, frecuencias GHz y códigos estrictamente formateados en `font-mono`.
+4. **Prohibición de Gradientes Cliché:**
    - Prohibido usar gradientes violeta-azul o fondos de neón.
-   - La estética debe ser plana, sobria, con sutiles sombras técnicas (`shadow-card` o `shadow-sm`) y bordes nítidos.
-3. **Prohibición de "Tarjetas dentro de Tarjetas":**
+   - La estética debe ser plana, sobria, con sutiles sombras técnicas (`shadow-card` o `shadow-sm`) y bordes nítidos en Grafito Técnico (`#2A303C`).
+5. **Prohibición de "Tarjetas dentro de Tarjetas":**
    - No anidar cajas con borde dentro de cajas con borde sin necesidad estructural real. Mantener la superficie limpia con separadores de línea fina (`divide-y divide-border`).
-4. **Mobile Viewport Stability:**
+6. **Mobile Viewport Stability:**
    - **Prohibido** usar `h-screen` en vistas móviles; usar siempre `min-h-[100dvh]` para evitar desfases con la barra de navegación del navegador móvil.
-5. **Erradicación de Spans y Badges Redundantes en Encabezados:**
-   - Prohibido saturar los encabezados de formularios o vistas con píldoras o badges de metadatos superfluos (e.g. `[FORMULARIO OPERATIVO]`, `[Catálogo: slug]`).
-   - Todo formulario debe emular el estándar limpio de *Inspecciones HSEQ*: `<BackButton href="/dashboard" label="Volver a Mi Panel" />`, título `h1` con icono Lucide (`w-7 h-7 text-accent strokeWidth={1.75}`) y descripción técnica de una sola línea.
 
 ---
 

@@ -20,15 +20,19 @@ export default function LandingPage() {
       {/* Navbar */}
       <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-border shadow-xs">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+          <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
             <Image
               src="/logo.png"
-              alt="PROCIMEC Mapping Ingeniería"
+              alt="PROCIMEC — PCM CLOUD"
               width={140}
               height={36}
               className="h-9 w-auto object-contain"
               priority
+              unoptimized
             />
+            <span className="hidden sm:inline-flex items-center text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">
+              PCM CLOUD
+            </span>
           </Link>
 
           <nav className="flex items-center gap-3">
