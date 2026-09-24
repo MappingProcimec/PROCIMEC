@@ -13,6 +13,7 @@ export default function LandingPage() {
   let dashboardUrl = '/login';
   if (role === 'admin') dashboardUrl = '/admin/dashboard';
   else if (role === 'pending') dashboardUrl = '/pending';
+  else if (role === 'warehouse') dashboardUrl = '/warehouse';
   else if (role) dashboardUrl = '/dashboard';
 
   return (

@@ -38,5 +38,16 @@ Todo agente de Inteligencia Artificial que opere en este workspace debe acatar e
 - **I/O Asíncrono Concurrente:** Evitar waterfalls; usar `Promise.allSettled` para llamadas a red independientes.
 - **Consultas Acotadas:** Límites y proyecciones estrictas en Supabase para evitar transferencias no acotadas.
 
+## 6. Ley de Construcción Modular por Capas (Roles, Herramientas y Formularios)
+- **Principio de Aislamiento Secuencial (Cero Cambios Masivos):** Queda estrictamente prohibido intentar implementar múltiples roles, tablas de datos, herramientas y formularios de golpe. Toda nueva capacidad funcional debe construirse obligatoriamente en 3 capas secuenciales:
+  1. **Capa 1 (Rol Base):** Habilitar identificador en `users.role` (PostgreSQL `CHECK`), insertar el rol en la tabla `roles` con su nombre formal en español, tipar en TypeScript (`Role`), habilitar en `/admin/users` y crear su ruta de aterrizaje y pantalla de bienvenida. Debe validarse el inicio de sesión y la asignación antes de avanzar.
+  2. **Capa 2 (Herramientas Técnicas del Rol):** Diseñar e implementar las tablas de soporte específicas en Supabase, registrar las herramientas en el catálogo `tools`, vincularlas vía `role_tools` y verificar que aparezcan en "Mis Herramientas".
+  3. **Capa 3 (Formularios Operacionales del Rol):** Diseñar los formatos de captura en el catálogo `forms` con esquemas y validaciones Zod, vincularlos vía `role_forms` y verificar que aparezcan en "Mis Formularios".
+- **Convención Dual de Identidad:**
+  - Código, URLs y base de datos relacional: Identificador canónico en minúsculas en inglés (`warehouse`, `purchasing`, `commercial`, `finance`, `accounting`, `management`, `operator`, `drawing`, `hseq`, `hr`, `admin`).
+  - Tabla `roles` e interfaz visual: Nombre formal en español (`Almacén`, `Compras`, `Comercial`, `Finanzas`, `Contabilidad`, `Gerencia`).
+- **Validación Obligatoria:** Ningún agente o desarrollador puede avanzar a la siguiente capa ni al siguiente rol sin visto bueno explícito del usuario en el entorno de despliegue.
+
 Para especificaciones completas, consultar [PRODUCT.md](PRODUCT.md), [.agents/rules/procimec_design_system.md](.agents/rules/procimec_design_system.md), [.agents/rules/procimec_architecture.md](.agents/rules/procimec_architecture.md) y [.agents/rules/procimec_performance.md](.agents/rules/procimec_performance.md).
+
 

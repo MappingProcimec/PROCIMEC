@@ -73,10 +73,11 @@ export async function GET(req: NextRequest) {
   }
 
   if (!effectiveRoleId && dbUser.role) {
+    const roleSearch = dbUser.role === 'warehouse' ? 'Almacén' : (dbUser.role as string);
     const { data: matchedRole } = await supabase
       .from('roles')
       .select('id, name')
-      .ilike('name', dbUser.role as string)
+      .ilike('name', roleSearch)
       .maybeSingle();
     if (matchedRole) {
       effectiveRoleId = matchedRole.id as string;

@@ -22,9 +22,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/pending', request.url));
   }
 
-  // Operator / Localizador trying to access admin
-  if ((role === 'operator' || role === 'localizador') && pathname.startsWith('/admin')) {
+  // Non-admin trying to access admin
+  if (role !== 'admin' && pathname.startsWith('/admin')) {
+    if (role === 'warehouse') return NextResponse.redirect(new URL('/warehouse', request.url));
+    if (role === 'dibujo') return NextResponse.redirect(new URL('/dibujo', request.url));
     return NextResponse.redirect(new URL('/projects', request.url));
+  }
+
+  // Warehouse route protection
+  if (pathname.startsWith('/warehouse') && role !== 'warehouse' && role !== 'admin') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   // Admin going to /pending → redirect to admin dashboard

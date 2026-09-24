@@ -18,6 +18,7 @@ export default function LoginPage() {
       if (role === 'admin') router.replace('/admin/dashboard');
       else if (role === 'operator' || role === 'localizador') router.replace('/projects');
       else if (role === 'dibujo') router.replace('/dibujo');
+      else if (role === 'warehouse') router.replace('/warehouse');
       else router.replace('/pending');
     }
   }, [session, status, router]);

@@ -46,7 +46,7 @@ interface UserDivisionRole { division_id: string; role_id: string | null }
 interface User {
   id: string; email: string; full_name: string; nick_name?: string | null; avatar_url?: string;
   phone?: string | null;
-  role: 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo';
+  role: 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo' | 'drawing' | 'hr' | 'hseq' | 'warehouse';
   role_id: string | null;
   roles: { id: string; name: string } | null;
   is_active: boolean; created_at: string;
@@ -77,18 +77,27 @@ async function fetchAll() {
   };
 }
 
-function deriveSystemRole(roleName: string): 'localizador' | 'operator' | 'dibujo' {
+function deriveSystemRole(roleName: string): 'localizador' | 'operator' | 'dibujo' | 'warehouse' {
   const n = roleName.toLowerCase();
+  if (n.includes('almacén') || n.includes('almacen') || n.includes('warehouse') || n.includes('almacenista')) return 'warehouse';
   return n.includes('dibujo') || n.includes('cad') ? 'dibujo' : 'localizador';
 }
 
 const SYSTEM_BADGE: Record<string, string> = {
-  admin: 'badge-primary', pending: 'badge-warning', operator: 'badge-accent', localizador: 'badge-accent', dibujo: 'badge-success',
+  admin: 'badge-primary',
+  pending: 'badge-warning',
+  operator: 'badge-accent',
+  localizador: 'badge-accent',
+  dibujo: 'badge-success',
+  warehouse: 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold',
 };
 
 function getRoleBadgeClass(roleName?: string, userRole: string = 'localizador'): string {
   if (!roleName) return SYSTEM_BADGE[userRole] ?? 'badge-accent';
   const lower = roleName.toLowerCase();
+  if (lower.includes('almacén') || lower.includes('almacen') || lower.includes('warehouse') || lower.includes('almacenista')) {
+    return 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold';
+  }
   if (lower.includes('hseq')) return 'bg-teal-100 text-teal-800 border border-teal-200';
   if (lower.includes('rrhh') || lower.includes('humano')) return 'bg-indigo-100 text-indigo-800 border border-indigo-200';
   if (lower.includes('dibujo') || lower.includes('cad')) return 'badge-success';
@@ -98,6 +107,7 @@ function getRoleBadgeClass(roleName?: string, userRole: string = 'localizador'):
 function userDisplayBadge(user: User, roleOptions: RoleOption[] = [], rolesById?: Map<string, RoleOption>) {
   if (user.role === 'admin') return { label: 'Administrador', badge: 'badge-primary' };
   if (user.role === 'pending') return { label: 'Pendiente', badge: 'badge-warning' };
+  if (user.role === 'warehouse') return { label: 'Almacén', badge: 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold' };
   if (user.roles?.name) return { label: user.roles.name, badge: getRoleBadgeClass(user.roles.name, user.role) };
 
   // Buscar en user_division_roles si no está directo en user.roles
@@ -149,7 +159,8 @@ function getUserRoleIds(user: User, roleOptions: RoleOption[]): string[] {
       const rNameLower = r.name.toLowerCase();
       return rNameLower === roleLower ||
         ((user.role === 'operator' || user.role === 'localizador') && (rNameLower.includes('localizador') || rNameLower.includes('operador'))) ||
-        (user.role === 'dibujo' && rNameLower.includes('dibujo'));
+        (user.role === 'dibujo' && rNameLower.includes('dibujo')) ||
+        (user.role === 'warehouse' && (rNameLower.includes('almacén') || rNameLower.includes('almacen') || rNameLower.includes('warehouse') || rNameLower.includes('almacenista')));
     });
     if (match) ids.add(match.id);
   }

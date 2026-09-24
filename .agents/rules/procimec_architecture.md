@@ -67,3 +67,29 @@ Antes de persistir cualquier registro en Supabase, el backend debe aplicar el si
    - Actividades CAD/BIM: `hours_worked = 8.5` por defecto (no preguntar al colaborador a menos que él indique otra cifra).
    - Reportes de Campo GPR: `cad_priority = 'Media'`, `capture_method = 'Rueda odómetro'`, `weather_conditions = 'Despejado'`.
    - Fecha de reporte: si no se especifica, se asigna automáticamente la fecha actual local (`CURRENT_DATE`).
+
+---
+
+### 📜 LEY 4: CONSTRUCCIÓN MODULAR POR CAPAS (ROLES, HERRAMIENTAS Y FORMULARIOS)
+
+Toda incorporación o expansión funcional en PROCIMEC debe respetar estrictamente el principio de aislamiento secuencial en tres capas:
+
+1. **Capa 1 — Identidad y Habilitación del Rol Base:**
+   - Habilitar el identificador del rol en PostgreSQL (`CHECK (role IN (...))`).
+   - Insertar el rol en la tabla `roles` con su nombre formal en español (`Almacén`, `Compras`, etc.) y `division_id = NULL` (o división específica si aplica).
+   - Tipar en TypeScript (`src/types/index.ts` y NextAuth).
+   - Habilitar en el modal de gestión de usuarios de `/admin/users`.
+   - Configurar redirección de inicio de sesión en `middleware.ts` (`getDefaultRoleHome`) y crear su pantalla base de bienvenida.
+   - **Criterio de salida:** El administrador asigna el rol a un usuario, y el usuario puede iniciar sesión y aterrizar en su panel sin errores.
+
+2. **Capa 2 — Herramientas Técnicas del Rol:**
+   - Implementar las tablas de base de datos exclusivas que requiera el rol.
+   - Registrar las herramientas en la tabla `tools` del catálogo y asociarlas mediante `role_tools`.
+   - Verificar que aparezcan en *"Mis Herramientas"* del usuario y en el panel de permisos.
+
+3. **Capa 3 — Formularios Operacionales del Rol:**
+   - Registrar los formatos de captura en la tabla `forms` del catálogo con esquemas y validaciones Zod.
+   - Asociarlos mediante `role_forms` y verificar que aparezcan en *"Mis Formularios"*.
+
+**Regla de Oro:** Prohibido avanzar a una nueva capa o rol sin la validación y visto bueno explícito del usuario en el entorno real desplegado.
+

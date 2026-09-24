@@ -17,6 +17,7 @@ export default function PendingPage() {
       if (role === 'admin') router.replace('/admin/dashboard');
       else if (role === 'operator' || role === 'localizador') router.replace('/projects');
       else if (role === 'dibujo') router.replace('/dibujo');
+      else if (role === 'warehouse') router.replace('/warehouse');
     }
   }, [session, status, router]);
 

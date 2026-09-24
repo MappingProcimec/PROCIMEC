@@ -1,6 +1,6 @@
 // ─── Auth & Users ─────────────────────────────────────────────────────────────
 
-export type UserRole = 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo';
+export type UserRole = 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo' | 'drawing' | 'hr' | 'hseq' | 'warehouse';
 
 export interface AppUser {
   id: string;
