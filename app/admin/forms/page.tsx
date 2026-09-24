@@ -27,8 +27,7 @@ const FORM_SLUG_STYLE: Record<string, { icon: string; bg: string; border: string
   'cad-register-form': { icon: '✏️', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
   'hseq-report': { icon: '🦺', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
   'elaboracion-cartas': { icon: '📄', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
-  'registro-equipo': { icon: '📥', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' },
-  'despacho-equipo': { icon: '📦', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+  'registro-equipo': { icon: '📦', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
 };
 
 export default function AdminFormsPage() {

@@ -98,5 +98,10 @@ Toda incorporación o expansión funcional en PROCIMEC debe respetar estrictamen
    - Construir los tableros analíticos, reportes y herramientas de gestión que procesan la información recopilada por los formularios.
    - Verificar que aparezcan en *"Mis Herramientas"* dentro de `/dashboard`.
 
+4. **Ley de Navegación Estricta Centralizada en `/dashboard` (Prohibición de Atajos Cruzados Form <-> Tool):**
+   - Queda estrictamente prohibido colocar hipervínculos, botones de acceso rápido o llamadas a la acción directas que salten de un Formulario a una Herramienta o de una Herramienta a un Formulario.
+   - El usuario debe transitar obligatoriamente por el hub centralizado `/dashboard` ("Mi Panel") para seleccionar cualquier herramienta o formulario.
+   - Todo formulario y toda herramienta deben limitar sus botones de retorno y cancelación exclusivamente a `<BackButton href="/dashboard" label="Volver a Mi Panel" />` o retornar al dashboard tras el guardado.
+
 **Regla de Oro:** Prohibido avanzar a una nueva capa o rol sin la validación y visto bueno explícito del usuario en el entorno real desplegado.
 

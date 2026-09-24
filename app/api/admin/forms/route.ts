@@ -52,25 +52,27 @@ export async function GET() {
     normalized.push({
       id: 'registro-equipo-synthetic',
       slug: 'registro-equipo',
-      name: 'Movimientos y Control de Almacén',
-      description: 'Captura operativa de bodega: despachos a obra, retornos de instrumental con checklist, alta de activos e ingreso de consumibles.',
+      name: 'Movimientos y Registro de Almacén',
+      description: 'Control operativo de bodega: alta de instrumental, ingreso de consumibles, despachos y retornos de obra.',
       steps_count: 2,
       has_attachments: false,
       created_at: new Date().toISOString(),
     });
   }
 
-  if (!formSlugs.has('despacho-equipo')) {
-    normalized.push({
-      id: 'despacho-equipo-synthetic',
-      slug: 'despacho-equipo',
-      name: 'Despacho y Salida a Campo',
-      description: 'Registro de salida de instrumental geofísico hacia frentes de obra con checklist de accesorios y responsable.',
-      steps_count: 2,
-      has_attachments: false,
-      created_at: new Date().toISOString(),
+  // Filtrar formularios obsoletos/unificados (solo un formulario unificado para Almacén)
+  const filtered = normalized
+    .filter((f) => f.slug !== 'despacho-equipo' && f.slug !== 'retorno-equipo')
+    .map((f) => {
+      if (f.slug === 'registro-equipo') {
+        return {
+          ...f,
+          name: 'Movimientos y Registro de Almacén',
+          description: 'Control operativo de bodega: alta de instrumental, ingreso de consumibles, despachos y retornos de obra.',
+        };
+      }
+      return f;
     });
-  }
 
-  return NextResponse.json({ data: normalized });
+  return NextResponse.json({ data: filtered });
 }

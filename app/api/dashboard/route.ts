@@ -140,8 +140,13 @@ export async function GET(req: NextRequest) {
         forms.push({ id: 'hseq-report', slug: 'hseq-report', name: 'Formulario de Inspección HSEQ' });
       }
       if (!formSlugs.has('registro-equipo')) {
-        forms.push({ id: 'registro-equipo', slug: 'registro-equipo', name: 'Movimientos y Control de Almacén' });
+        forms.push({ id: 'registro-equipo', slug: 'registro-equipo', name: 'Movimientos y Registro de Almacén' });
       }
+
+      // Dejar un solo formulario unificado para Almacén
+      forms = forms
+        .filter((f) => f.slug !== 'despacho-equipo' && f.slug !== 'retorno-equipo')
+        .map((f) => f.slug === 'registro-equipo' ? { ...f, name: 'Movimientos y Registro de Almacén' } : f);
 
       projects = ((allProjectsRes.data ?? []) as unknown as Project[]).map((p) => {
         const cc = p.cost_center || p.code || '';
@@ -179,9 +184,14 @@ export async function GET(req: NextRequest) {
       }
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('registro-equipo')) {
-        forms.push({ id: 'registro-equipo', slug: 'registro-equipo', name: 'Movimientos y Control de Almacén' });
+        forms.push({ id: 'registro-equipo', slug: 'registro-equipo', name: 'Movimientos y Registro de Almacén' });
       }
     }
+
+    // Dejar un solo formulario unificado para Almacén
+    forms = forms
+      .filter((f) => f.slug !== 'despacho-equipo' && f.slug !== 'retorno-equipo')
+      .map((f) => f.slug === 'registro-equipo' ? { ...f, name: 'Movimientos y Registro de Almacén' } : f);
 
     projects = (userProjectsRes.data ?? [])
       .map((up) => (up as unknown as { projects: Project | null }).projects)

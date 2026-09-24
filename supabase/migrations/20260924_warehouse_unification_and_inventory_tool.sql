@@ -89,11 +89,11 @@ WHERE LOWER(r.name) IN ('almacén', 'almacen', 'warehouse')
     WHERE rt.role_id = r.id AND rt.tool_id = t.id
   );
 
--- 6. Actualizar catálogo del formulario de registro y movimientos de almacén
+-- 6. Actualizar catálogo del formulario unificado de almacén
 UPDATE public.forms
 SET 
-  name = 'Movimientos y Control de Almacén',
-  description = 'Captura operativa de bodega: despachos a obra, retornos con checklist, alta de instrumental e ingreso de consumibles de terreno.',
+  name = 'Movimientos y Registro de Almacén',
+  description = 'Control operativo de bodega: alta de instrumental, ingreso de consumibles, despachos y retornos de obra.',
   steps_count = 2
 WHERE slug = 'registro-equipo';
 
@@ -108,3 +108,11 @@ WHERE LOWER(r.name) IN ('almacén', 'almacen', 'warehouse')
     SELECT 1 FROM public.role_forms rf
     WHERE rf.role_id = r.id AND rf.form_id = f.id
   );
+
+-- 8. Limpiar formulario redundante despacho-equipo del catálogo (absorbido por registro-equipo)
+DELETE FROM public.role_forms
+WHERE form_id IN (SELECT id FROM public.forms WHERE slug IN ('despacho-equipo', 'retorno-equipo'));
+
+DELETE FROM public.forms
+WHERE slug IN ('despacho-equipo', 'retorno-equipo');
+

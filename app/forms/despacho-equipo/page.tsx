@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function DespachoEquipoRedirectPage() {
-  redirect('/forms/registro-equipo?mode=despacho');
+  redirect('/forms/registro-equipo');
 }

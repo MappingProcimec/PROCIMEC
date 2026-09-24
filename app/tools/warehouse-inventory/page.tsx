@@ -216,42 +216,14 @@ export default function WarehouseInventoryToolPage() {
       <div className="bg-primary text-white border-b border-border shadow-xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <BackButton href="/dashboard" label="Volver a Mi Panel" />
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-3">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
-                <Boxes className="w-7 h-7 text-accent" strokeWidth={1.75} />
-                Kárdex e Inventario Activo de Bodega
-              </h1>
-              <p className="text-white/70 text-sm mt-1">
-                Herramienta técnica de consolidación de instrumental, control de frentes de obra y kárdex histórico.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Link
-                href="/forms/registro-equipo?mode=despacho"
-                className="btn btn-sm bg-accent text-primary font-bold shadow-xs hover:bg-accent/90 text-xs px-3.5 py-2 flex items-center gap-1.5"
-              >
-                <Truck className="w-3.5 h-3.5" />
-                <span>Despachar Equipo</span>
-              </Link>
-
-              <Link
-                href="/forms/registro-equipo?mode=retorno"
-                className="btn btn-sm bg-white/10 hover:bg-white/20 text-white font-medium text-xs px-3 py-2 flex items-center gap-1.5"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reingreso</span>
-              </Link>
-
-              <Link
-                href="/forms/registro-equipo?mode=alta"
-                className="btn btn-sm bg-white/10 hover:bg-white/20 text-white font-medium text-xs px-3 py-2 flex items-center gap-1.5"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>Nuevo Equipo</span>
-              </Link>
-            </div>
+          <div className="mt-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
+              <Boxes className="w-7 h-7 text-accent" strokeWidth={1.75} />
+              Kárdex e Inventario Activo de Bodega
+            </h1>
+            <p className="text-white/70 text-sm mt-1">
+              Herramienta técnica de consolidación de instrumental, control de frentes de obra y kárdex histórico.
+            </p>
           </div>
 
           {/* KPI Cards Superiores */}
