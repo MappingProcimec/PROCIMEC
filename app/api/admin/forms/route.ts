@@ -48,5 +48,29 @@ export async function GET() {
     });
   }
 
+  if (!formSlugs.has('registro-equipo')) {
+    normalized.push({
+      id: 'registro-equipo-synthetic',
+      slug: 'registro-equipo',
+      name: 'Movimientos y Control de Almacén',
+      description: 'Captura operativa de bodega: despachos a obra, retornos de instrumental con checklist, alta de activos e ingreso de consumibles.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  if (!formSlugs.has('despacho-equipo')) {
+    normalized.push({
+      id: 'despacho-equipo-synthetic',
+      slug: 'despacho-equipo',
+      name: 'Despacho y Salida a Campo',
+      description: 'Registro de salida de instrumental geofísico hacia frentes de obra con checklist de accesorios y responsable.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
+
   return NextResponse.json({ data: normalized });
 }

@@ -44,6 +44,16 @@ export async function GET() {
     });
   }
 
+  if (!slugs.has('warehouse-inventory')) {
+    tools.push({
+      id: 'warehouse-inventory-synthetic',
+      slug: 'warehouse-inventory',
+      name: 'Kárdex e Inventario Activo de Bodega',
+      category: 'warehouse',
+      is_universal: false,
+    });
+  }
+
   // Normalizar categorías canónicas
   const normalizedTools = tools.map((t) => {
     if (t.slug === 'cartas-audit') {

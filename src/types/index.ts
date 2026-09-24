@@ -564,6 +564,14 @@ export interface EquipmentCheckout {
   status: EquipmentCheckoutStatus;
   checklist?: EquipmentChecklist;
   notes?: string | null;
+  return_notes?: string | null;
+  return_checklist?: EquipmentChecklist;
+  return_user_id?: string | null;
+  return_user?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
   created_at: string;
   updated_at: string;
   equipment?: Equipment;
@@ -579,5 +587,25 @@ export interface EquipmentCheckout {
     email: string;
   };
 }
+
+export interface ConsumableEntry {
+  id: string;
+  item_name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  supplier?: string | null;
+  invoice_number?: string | null;
+  entry_date: string;
+  notes?: string | null;
+  user_id: string;
+  created_at: string;
+  users?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+}
+
 
 

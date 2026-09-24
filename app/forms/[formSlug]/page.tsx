@@ -12,7 +12,6 @@ import NewReportPage from '@/app/projects/[projectId]/new-report/page';
 import HseqReportFormPage from '@/app/forms/hseq-report/page';
 import ElaboracionCartasForm from '@/components/forms/ElaboracionCartasForm';
 import RegistroEquipoFormPage from '@/app/forms/registro-equipo/page';
-import DespachoEquipoFormPage from '@/app/forms/despacho-equipo/page';
 
 // --- Form catalog configurations ---
 const FORM_CONFIGS: Record<string, FormConfig> = {
@@ -232,17 +231,15 @@ export default function FormPage({ params }: { params: { formSlug: string } }) {
   if (
     params.formSlug === 'registro-equipo' ||
     params.formSlug === 'alta-equipo' ||
-    params.formSlug === 'equipo-nuevo'
-  ) {
-    return <RegistroEquipoFormPage />;
-  }
-
-  if (
+    params.formSlug === 'equipo-nuevo' ||
     params.formSlug === 'despacho-equipo' ||
     params.formSlug === 'salida-equipo' ||
-    params.formSlug === 'despacho'
+    params.formSlug === 'despacho' ||
+    params.formSlug === 'retorno-equipo' ||
+    params.formSlug === 'reingreso-equipo' ||
+    params.formSlug === 'retorno'
   ) {
-    return <DespachoEquipoFormPage />;
+    return <RegistroEquipoFormPage />;
   }
 
   return (

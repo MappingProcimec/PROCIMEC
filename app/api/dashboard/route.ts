@@ -131,10 +131,16 @@ export async function GET(req: NextRequest) {
       if (!toolSlugs.has('evidence-board')) {
         tools.push({ id: 'evidence-board', slug: 'evidence-board', name: 'Tablero de Evidencias HSEQ', category: 'hseq' });
       }
+      if (!toolSlugs.has('warehouse-inventory')) {
+        tools.push({ id: 'warehouse-inventory', slug: 'warehouse-inventory', name: 'Kárdex e Inventario Activo de Bodega', category: 'warehouse' });
+      }
 
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('hseq-report')) {
         forms.push({ id: 'hseq-report', slug: 'hseq-report', name: 'Formulario de Inspección HSEQ' });
+      }
+      if (!formSlugs.has('registro-equipo')) {
+        forms.push({ id: 'registro-equipo', slug: 'registro-equipo', name: 'Movimientos y Control de Almacén' });
       }
 
       projects = ((allProjectsRes.data ?? []) as unknown as Project[]).map((p) => {
@@ -165,6 +171,17 @@ export async function GET(req: NextRequest) {
     forms = (userFormsRes.data ?? [])
       .map((uf) => (uf as unknown as { forms: Form | null }).forms)
       .filter((f): f is Form => f !== null);
+
+    if (dbUser.role === 'warehouse') {
+      const toolSlugs = new Set(tools.map((t) => t.slug));
+      if (!toolSlugs.has('warehouse-inventory')) {
+        tools.push({ id: 'warehouse-inventory', slug: 'warehouse-inventory', name: 'Kárdex e Inventario Activo de Bodega', category: 'warehouse' });
+      }
+      const formSlugs = new Set(forms.map((f) => f.slug));
+      if (!formSlugs.has('registro-equipo')) {
+        forms.push({ id: 'registro-equipo', slug: 'registro-equipo', name: 'Movimientos y Control de Almacén' });
+      }
+    }
 
     projects = (userProjectsRes.data ?? [])
       .map((up) => (up as unknown as { projects: Project | null }).projects)

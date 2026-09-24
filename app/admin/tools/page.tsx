@@ -10,7 +10,7 @@ interface Tool {
   id: string;
   slug: string;
   name: string;
-  category: 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq' | 'rrhh';
+  category: 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq' | 'rrhh' | 'warehouse' | 'purchasing' | 'commercial' | 'finance' | 'accounting' | 'management';
   is_universal: boolean;
 }
 
@@ -111,6 +111,12 @@ const TOOL_META: Record<string, { icon: string; description: string; tag: string
     tag: 'Recursos Humanos',
     path: '/forms/elaboracion-cartas',
   },
+  'warehouse-inventory': {
+    icon: '📦',
+    description: 'Gestión en tiempo real del stock de instrumental, trazabilidad de equipos en campo, control de calibraciones y kárdex histórico de movimientos.',
+    tag: 'Almacén',
+    path: '/tools/warehouse-inventory',
+  },
 };
 
 const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string; text: string }> = {
@@ -120,6 +126,7 @@ const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string
   universal: { label: 'Universal', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
   hseq: { label: 'HSEQ', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
   rrhh: { label: 'Recursos Humanos', bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' },
+  warehouse: { label: 'Almacén', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
 };
 
 export default function AdminToolsPage() {
