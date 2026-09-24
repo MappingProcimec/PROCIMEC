@@ -38,11 +38,11 @@ Todo agente de Inteligencia Artificial que opere en este workspace debe acatar e
 - **I/O Asíncrono Concurrente:** Evitar waterfalls; usar `Promise.allSettled` para llamadas a red independientes.
 - **Consultas Acotadas:** Límites y proyecciones estrictas en Supabase para evitar transferencias no acotadas.
 
-## 6. Ley de Construcción Modular por Capas (Roles, Herramientas y Formularios)
+## 6. Ley de Construcción Modular por Capas (Roles, Formularios y Herramientas)
 - **Principio de Aislamiento Secuencial (Cero Cambios Masivos):** Queda estrictamente prohibido intentar implementar múltiples roles, tablas de datos, herramientas y formularios de golpe. Toda nueva capacidad funcional debe construirse obligatoriamente en 3 capas secuenciales:
   1. **Capa 1 (Rol Base):** Habilitar identificador en `users.role` (PostgreSQL `CHECK`), insertar el rol en la tabla `roles` con su nombre formal en español, tipar en TypeScript (`Role`), habilitar en `/admin/users` y crear su ruta de aterrizaje y pantalla de bienvenida. Debe validarse el inicio de sesión y la asignación antes de avanzar.
-  2. **Capa 2 (Herramientas Técnicas del Rol):** Diseñar e implementar las tablas de soporte específicas en Supabase, registrar las herramientas en el catálogo `tools`, vincularlas vía `role_tools` y verificar que aparezcan en "Mis Herramientas".
-  3. **Capa 3 (Formularios Operacionales del Rol):** Diseñar los formatos de captura en el catálogo `forms` con esquemas y validaciones Zod, vincularlos vía `role_forms` y verificar que aparezcan en "Mis Formularios".
+  2. **Capa 2 (Formularios Operacionales del Rol - Captura de Información):** Diseñar las tablas de almacenamiento en Supabase, los formatos de captura en el catálogo `forms` con esquemas y validaciones Zod, vincularlos vía `role_forms` y verificar que aparezcan en "Mis Formularios". Los formularios recopilan y estructuran la información inicial requerida por el negocio.
+  3. **Capa 3 (Herramientas Técnicas del Rol - Consolidación y Gestión):** Diseñar las herramientas de consulta, métricas, trazabilidad y administración que procesan la información recopilada por los formularios, registrarlas en el catálogo `tools`, vincularlas vía `role_tools` y verificar que aparezcan en "Mis Herramientas".
 - **Convención Dual de Identidad:**
   - Código, URLs y base de datos relacional: Identificador canónico en minúsculas en inglés (`warehouse`, `purchasing`, `commercial`, `finance`, `accounting`, `management`, `operator`, `drawing`, `hseq`, `hr`, `admin`).
   - Tabla `roles` e interfaz visual: Nombre formal en español (`Almacén`, `Compras`, `Comercial`, `Finanzas`, `Contabilidad`, `Gerencia`).
