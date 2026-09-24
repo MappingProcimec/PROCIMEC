@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { useQuery } from '@tanstack/react-query';
-import { HrLettersAuditPanel } from '@/components/admin/HrLettersAuditPanel';
-import { Wrench, Search, ArrowRight, ExternalLink, ShieldCheck, Sparkles, Filter } from 'lucide-react';
+import { Wrench, Search, ArrowRight, ShieldCheck, Sparkles, Filter } from 'lucide-react';
 
 interface Tool {
   id: string;
@@ -124,18 +123,8 @@ const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string
 };
 
 export default function AdminToolsPage() {
-  const [activeTab, setActiveTab] = useState<'tools' | 'audit'>('tools');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
-      if (tabParam === 'audit') {
-        setActiveTab('audit');
-      }
-    }
-  }, []);
 
   const { data: tools = [], isLoading } = useQuery({
     queryKey: ['admin-tools'],
@@ -190,57 +179,28 @@ export default function AdminToolsPage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 -mt-6 pb-20 space-y-6">
-        {/* Barra superior de pestañas y búsqueda */}
-        <div className="card border border-border shadow-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Tabs principales */}
-          <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setActiveTab('tools')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'tools'
-                  ? 'bg-white text-primary shadow-xs'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              <span>🛠️</span> Herramientas
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
-                activeTab === 'tools' ? 'bg-primary/10 text-primary' : 'bg-gray-200 text-text-muted'
-              }`}>
-                {tools.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('audit')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                activeTab === 'audit'
-                  ? 'bg-white text-primary shadow-xs'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-            >
-              <span>📑</span> Auditoría Cartas RRHH
-            </button>
+        {/* Barra superior de búsqueda y conteo */}
+        <div className="card border border-border shadow-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-text-primary">Módulos Especializados</h2>
+            <span className="badge badge-primary text-xs">
+              {filteredTools.length} {filteredTools.length === 1 ? 'herramienta' : 'herramientas'}
+            </span>
           </div>
 
-          {/* Buscador */}
-          {activeTab === 'tools' && (
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" strokeWidth={2} />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar herramienta por nombre, categoría o función..."
-                className="input pl-9 text-xs py-2 w-full"
-              />
-            </div>
-          )}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" strokeWidth={2} />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar herramienta por nombre, categoría o función..."
+              className="input pl-9 text-xs py-2 w-full"
+            />
+          </div>
         </div>
 
-        {activeTab === 'tools' ? (
-          <div className="card border border-border shadow-xl overflow-hidden">
+        <div className="card border border-border shadow-xl overflow-hidden">
             {/* Header con filtro de categorías */}
             <div className="px-5 py-4 border-b border-border bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
@@ -315,7 +275,7 @@ export default function AdminToolsPage() {
                             >
                               {catStyle.label}
                             </span>
-                            {tool.is_universal && (
+                            {tool.is_universal && tool.category !== 'universal' && (
                               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">
                                 Universal
                               </span>
@@ -343,9 +303,6 @@ export default function AdminToolsPage() {
               </div>
             )}
           </div>
-        ) : (
-          <HrLettersAuditPanel />
-        )}
 
         {/* Banner Informativo */}
         <div className="card border border-border p-5 bg-gradient-to-r from-blue-50/60 to-primary-50/40 rounded-2xl shadow-sm">

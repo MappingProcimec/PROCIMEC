@@ -82,15 +82,18 @@ Toda incorporación o expansión funcional en PROCIMEC debe respetar estrictamen
    - **Regla inviolable de navegación:** Queda estrictamente prohibido crear páginas o sub-rutas dedicadas por rol (como `/warehouse`, `/purchasing`, etc.). El destino de inicio de sesión de todo colaborador es siempre `/dashboard` ("Mi Panel").
    - **Criterio de salida:** El administrador asigna el rol a un usuario, y el usuario puede iniciar sesión y aterrizar en su `/dashboard` sin errores.
 
-2. **Capa 2 — Formularios Operacionales del Rol (Captura de Información):**
+2. **Capa 2 — Formularios Operacionales del Rol (Inputs de Captura Pura):**
+   - **Naturaleza Estricta:** Los formularios son **única y exclusivamente INPUTS**. Su objetivo es captar información primaria (entradas de datos, inspecciones, checklists, firmas digitales, novedades y adjuntos). No procesan kárdex ni consolidan dashboards.
    - Diseñar las tablas de base de datos donde se recopilará la información operativa.
    - Registrar los formatos de captura en la tabla `forms` del catálogo con esquemas y validaciones Zod.
    - Asociarlos mediante `role_forms` y verificar que aparezcan en *"Mis Formularios"* dentro de `/dashboard`.
    - Los botones de retorno de los formularios deben redirigir exclusivamente a `/dashboard` con la etiqueta `'Volver a Mi Panel'` (salvo contexto de proyecto).
    - Los encabezados de formulario deben seguir el estándar visual sobrio de *Inspecciones HSEQ*: `<BackButton href="/dashboard" label="Volver a Mi Panel" />`, título con icono Lucide (`w-7 h-7 text-accent strokeWidth={1.75}`) y subtítulo de una sola línea, sin badges ni spans redundantes (prohibido `[FORMULARIO OPERATIVO]`, `[Catálogo: slug]`, etc.).
-   - **Razón arquitectónica:** Todo sistema de información requiere primero recopilar y validar los datos en origen antes de poder consolidarlos o visualizarlos. De cada formulario surge por lo general una herramienta.
+   - **Razón arquitectónica:** Todo sistema de información requiere primero recopilar y validar los datos en origen (inputs) antes de poder consolidarlos o visualizarlos. De cada formulario surge por lo general una herramienta de gestión.
 
-3. **Capa 3 — Herramientas Técnicas del Rol (Consolidación y Gestión):**
+3. **Capa 3 — Herramientas Técnicas del Rol (Manejo, Consolidación y Gestión de Inputs):**
+   - **Naturaleza Estricta:** Las herramientas son el **MANEJO, PROCESAMIENTO Y CONTROL** de los inputs recolectados por los formularios. Son Kárdex de inventario, tableros de productividad, visores cartográficos/geofísicos, analizadores de datos y auditorías.
+   - Prohibido diseñar una herramienta para captura primaria de datos: la captura pertenece sin excepción a la Capa 2 (Formularios).
    - Registrar las herramientas en la tabla `tools` del catálogo y asociarlas mediante `role_tools`.
    - Construir los tableros analíticos, reportes y herramientas de gestión que procesan la información recopilada por los formularios.
    - Verificar que aparezcan en *"Mis Herramientas"* dentro de `/dashboard`.
