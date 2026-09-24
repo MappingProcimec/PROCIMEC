@@ -143,6 +143,19 @@ export async function GET(req: NextRequest) {
         forms.push({ id: 'registro-equipo', slug: 'registro-equipo', name: 'Movimientos y Registro de Almacén' });
       }
 
+      // Formularios corporativos para Admin
+      if (!formSlugs.has('requerimiento-compra')) forms.push({ id: 'requerimiento-compra', slug: 'requerimiento-compra', name: 'Requerimiento de Compra' });
+      if (!formSlugs.has('orden-compra')) forms.push({ id: 'orden-compra', slug: 'orden-compra', name: 'Orden de Compra y Adjudicación' });
+      if (!formSlugs.has('evaluacion-proveedor')) forms.push({ id: 'evaluacion-proveedor', slug: 'evaluacion-proveedor', name: 'Evaluación y Recepción de Proveedor' });
+      if (!formSlugs.has('registro-oportunidad')) forms.push({ id: 'registro-oportunidad', slug: 'registro-oportunidad', name: 'Registro de Oportunidad / Licitación' });
+      if (!formSlugs.has('cotizacion-comercial')) forms.push({ id: 'cotizacion-comercial', slug: 'cotizacion-comercial', name: 'Cotización Comercial Emitida' });
+      if (!formSlugs.has('cierre-comercial')) forms.push({ id: 'cierre-comercial', slug: 'cierre-comercial', name: 'Cierre de Negociación' });
+      if (!formSlugs.has('solicitud-viaticos')) forms.push({ id: 'solicitud-viaticos', slug: 'solicitud-viaticos', name: 'Solicitud de Viáticos y Anticipos' });
+      if (!formSlugs.has('legalizacion-gastos')) forms.push({ id: 'legalizacion-gastos', slug: 'legalizacion-gastos', name: 'Legalización y Rendición de Gastos' });
+      if (!formSlugs.has('registro-pago')) forms.push({ id: 'registro-pago', slug: 'registro-pago', name: 'Comprobante de Egreso y Pago' });
+      if (!formSlugs.has('radicacion-factura')) forms.push({ id: 'radicacion-factura', slug: 'radicacion-factura', name: 'Radicación de Factura Proveedor' });
+      if (!formSlugs.has('soporte-cobro')) forms.push({ id: 'soporte-cobro', slug: 'soporte-cobro', name: 'Soporte de Cobro y Facturación' });
+
       // Dejar un solo formulario unificado para Almacén
       forms = forms
         .filter((f) => f.slug !== 'despacho-equipo' && f.slug !== 'retorno-equipo')
@@ -186,6 +199,25 @@ export async function GET(req: NextRequest) {
       if (!formSlugs.has('registro-equipo')) {
         forms.push({ id: 'registro-equipo', slug: 'registro-equipo', name: 'Movimientos y Registro de Almacén' });
       }
+    } else if (dbUser.role === 'purchasing') {
+      const formSlugs = new Set(forms.map((f) => f.slug));
+      if (!formSlugs.has('requerimiento-compra')) forms.push({ id: 'requerimiento-compra', slug: 'requerimiento-compra', name: 'Requerimiento de Compra' });
+      if (!formSlugs.has('orden-compra')) forms.push({ id: 'orden-compra', slug: 'orden-compra', name: 'Orden de Compra y Adjudicación' });
+      if (!formSlugs.has('evaluacion-proveedor')) forms.push({ id: 'evaluacion-proveedor', slug: 'evaluacion-proveedor', name: 'Evaluación y Recepción de Proveedor' });
+    } else if (dbUser.role === 'commercial') {
+      const formSlugs = new Set(forms.map((f) => f.slug));
+      if (!formSlugs.has('registro-oportunidad')) forms.push({ id: 'registro-oportunidad', slug: 'registro-oportunidad', name: 'Registro de Oportunidad / Licitación' });
+      if (!formSlugs.has('cotizacion-comercial')) forms.push({ id: 'cotizacion-comercial', slug: 'cotizacion-comercial', name: 'Cotización Comercial Emitida' });
+      if (!formSlugs.has('cierre-comercial')) forms.push({ id: 'cierre-comercial', slug: 'cierre-comercial', name: 'Cierre de Negociación' });
+    } else if (dbUser.role === 'finance') {
+      const formSlugs = new Set(forms.map((f) => f.slug));
+      if (!formSlugs.has('solicitud-viaticos')) forms.push({ id: 'solicitud-viaticos', slug: 'solicitud-viaticos', name: 'Solicitud de Viáticos y Anticipos' });
+      if (!formSlugs.has('legalizacion-gastos')) forms.push({ id: 'legalizacion-gastos', slug: 'legalizacion-gastos', name: 'Legalización y Rendición de Gastos' });
+      if (!formSlugs.has('registro-pago')) forms.push({ id: 'registro-pago', slug: 'registro-pago', name: 'Comprobante de Egreso y Pago' });
+    } else if (dbUser.role === 'accounting') {
+      const formSlugs = new Set(forms.map((f) => f.slug));
+      if (!formSlugs.has('radicacion-factura')) forms.push({ id: 'radicacion-factura', slug: 'radicacion-factura', name: 'Radicación de Factura Proveedor' });
+      if (!formSlugs.has('soporte-cobro')) forms.push({ id: 'soporte-cobro', slug: 'soporte-cobro', name: 'Soporte de Cobro y Facturación' });
     }
 
     // Dejar un solo formulario unificado para Almacén

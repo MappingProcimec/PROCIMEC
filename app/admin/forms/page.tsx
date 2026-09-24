@@ -28,6 +28,21 @@ const FORM_SLUG_STYLE: Record<string, { icon: string; bg: string; border: string
   'hseq-report': { icon: '🦺', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' },
   'elaboracion-cartas': { icon: '📄', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
   'registro-equipo': { icon: '📦', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+  // Compras
+  'requerimiento-compra': { icon: '🛒', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' },
+  'orden-compra': { icon: '📝', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' },
+  'evaluacion-proveedor': { icon: '⭐', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' },
+  // Comercial
+  'registro-oportunidad': { icon: '🎯', bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700' },
+  'cotizacion-comercial': { icon: '📊', bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700' },
+  'cierre-comercial': { icon: '🤝', bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700' },
+  // Finanzas
+  'solicitud-viaticos': { icon: '✈️', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+  'legalizacion-gastos': { icon: '🧾', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+  'registro-pago': { icon: '💳', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+  // Contabilidad
+  'radicacion-factura': { icon: '📑', bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700' },
+  'soporte-cobro': { icon: '💰', bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700' },
 };
 
 export default function AdminFormsPage() {

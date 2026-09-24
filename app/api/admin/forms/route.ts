@@ -60,6 +60,135 @@ export async function GET() {
     });
   }
 
+  // Compras
+  if (!formSlugs.has('requerimiento-compra')) {
+    normalized.push({
+      id: 'requerimiento-compra-synthetic',
+      slug: 'requerimiento-compra',
+      name: 'Requerimiento de Compra',
+      description: 'Solicitud interna de insumos, herramientas o servicios requeridos por proyectos o áreas.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
+  if (!formSlugs.has('orden-compra')) {
+    normalized.push({
+      id: 'orden-compra-synthetic',
+      slug: 'orden-compra',
+      name: 'Orden de Compra y Adjudicación',
+      description: 'Registro formal de orden de compra, proveedor seleccionado, condiciones de pago y montos.',
+      steps_count: 2,
+      has_attachments: true,
+      created_at: new Date().toISOString(),
+    });
+  }
+  if (!formSlugs.has('evaluacion-proveedor')) {
+    normalized.push({
+      id: 'evaluacion-proveedor-synthetic',
+      slug: 'evaluacion-proveedor',
+      name: 'Evaluación y Recepción de Proveedor',
+      description: 'Calificación de calidad, tiempos de entrega y nivel de servicio de compras recibidas.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  // Comercial
+  if (!formSlugs.has('registro-oportunidad')) {
+    normalized.push({
+      id: 'registro-oportunidad-synthetic',
+      slug: 'registro-oportunidad',
+      name: 'Registro de Oportunidad / Licitación',
+      description: 'Captura de requerimientos de clientes, pliegos licitatorios y solicitudes comerciales.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
+  if (!formSlugs.has('cotizacion-comercial')) {
+    normalized.push({
+      id: 'cotizacion-comercial-synthetic',
+      slug: 'cotizacion-comercial',
+      name: 'Cotización Comercial Emitida',
+      description: 'Registro formal de propuesta económica y técnica presentada al cliente.',
+      steps_count: 2,
+      has_attachments: true,
+      created_at: new Date().toISOString(),
+    });
+  }
+  if (!formSlugs.has('cierre-comercial')) {
+    normalized.push({
+      id: 'cierre-comercial-synthetic',
+      slug: 'cierre-comercial',
+      name: 'Cierre de Negociación',
+      description: 'Registro del desenlace comercial de la oferta: adjudicada, perdida o desierta.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  // Finanzas
+  if (!formSlugs.has('solicitud-viaticos')) {
+    normalized.push({
+      id: 'solicitud-viaticos-synthetic',
+      slug: 'solicitud-viaticos',
+      name: 'Solicitud de Viáticos y Anticipos',
+      description: 'Petición formal de fondos para comisiones de campo, combustible, peajes y hospedajes.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
+  if (!formSlugs.has('legalizacion-gastos')) {
+    normalized.push({
+      id: 'legalizacion-gastos-synthetic',
+      slug: 'legalizacion-gastos',
+      name: 'Legalización y Rendición de Gastos',
+      description: 'Rendición pormenorizada de comprobantes de gastos ejecutados contra anticipos recibidos.',
+      steps_count: 2,
+      has_attachments: true,
+      created_at: new Date().toISOString(),
+    });
+  }
+  if (!formSlugs.has('registro-pago')) {
+    normalized.push({
+      id: 'registro-pago-synthetic',
+      slug: 'registro-pago',
+      name: 'Comprobante de Egreso y Pago',
+      description: 'Captura de comprobante bancario, transferencias realizadas y soportes contables.',
+      steps_count: 2,
+      has_attachments: true,
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  // Contabilidad
+  if (!formSlugs.has('radicacion-factura')) {
+    normalized.push({
+      id: 'radicacion-factura-synthetic',
+      slug: 'radicacion-factura',
+      name: 'Radicación de Factura Proveedor',
+      description: 'Entrada y registro de facturas de proveedores para trámite de causación y pago.',
+      steps_count: 2,
+      has_attachments: true,
+      created_at: new Date().toISOString(),
+    });
+  }
+  if (!formSlugs.has('soporte-cobro')) {
+    normalized.push({
+      id: 'soporte-cobro-synthetic',
+      slug: 'soporte-cobro',
+      name: 'Soporte de Cobro y Facturación',
+      description: 'Registro de corte de obra y actas de interventoría aprobadas para facturar al cliente.',
+      steps_count: 2,
+      has_attachments: true,
+      created_at: new Date().toISOString(),
+    });
+  }
+
   // Filtrar formularios obsoletos/unificados (solo un formulario unificado para Almacén)
   const filtered = normalized
     .filter((f) => f.slug !== 'despacho-equipo' && f.slug !== 'retorno-equipo')
