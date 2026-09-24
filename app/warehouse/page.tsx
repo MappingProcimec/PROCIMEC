@@ -144,43 +144,61 @@ export default function WarehouseLandingPage() {
             </div>
           </div>
 
-          {/* Operational Roadmap / Scope Card */}
+          {/* Operational Forms & Module Capabilities */}
           <div className="card border border-border p-5 rounded-2xl shadow-xs md:col-span-2 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
                 <Layers className="w-4 h-4 text-accent" strokeWidth={1.75} />
-                Próximas Habilitaciones del Módulo
+                Formularios Operacionales del Rol
               </h3>
-              <span className="text-xs font-mono text-text-muted">Plan Progresivo</span>
+              <span className="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold border border-emerald-200">
+                Captura Activa
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div className="border border-border/80 bg-gray-50/50 rounded-xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
-                  <Box className="w-4 h-4 text-primary" strokeWidth={1.75} />
-                  <span>Control de Instrumental Geofísico</span>
+              {/* Formulario 1: Alta de Instrumental (ACTIVO) */}
+              <div className="border-2 border-primary/20 bg-primary-50/20 hover:border-primary/40 rounded-xl p-4 space-y-2.5 transition-all">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
+                    <Box className="w-4 h-4 text-primary" strokeWidth={1.75} />
+                    <span>Alta de Instrumental</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
+                    Disponible
+                  </span>
                 </div>
-                <p className="text-xs text-text-muted leading-relaxed">
-                  Registro de radares GPR, antenas, baterías, estaciones totales y receptores GNSS con número de serie.
+                <p className="text-xs text-text-secondary leading-relaxed">
+                  Registro oficial de georradares, antenas, GNSS, estaciones y accesorios con número de serie y calibración.
                 </p>
                 <div className="pt-1">
-                  <span className="text-[10px] font-mono font-medium text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded">
-                    Capa 3: Herramienta
-                  </span>
+                  <Link
+                    href="/forms/registro-equipo"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-800 transition-colors"
+                  >
+                    <span>Llenar Formulario de Alta</span>
+                    <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
+                  </Link>
                 </div>
               </div>
 
-              <div className="border border-border/80 bg-gray-50/50 rounded-xl p-3.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
-                  <FileSpreadsheet className="w-4 h-4 text-primary" strokeWidth={1.75} />
-                  <span>Despacho y Devolución</span>
+              {/* Formulario 2: Despacho a Campo (SIGUIENTE) */}
+              <div className="border border-border/80 bg-gray-50/50 rounded-xl p-4 space-y-2.5 opacity-85">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-text-primary">
+                    <FileSpreadsheet className="w-4 h-4 text-text-muted" strokeWidth={1.75} />
+                    <span>Despacho a Campo</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                    Fase Siguiente
+                  </span>
                 </div>
                 <p className="text-xs text-text-muted leading-relaxed">
-                  Formularios de salida a campo con verificación de accesorios, checklist físico y firmas digitales.
+                  Salida de instrumental hacia proyectos con checklist de accesorios y responsable receptor.
                 </p>
                 <div className="pt-1">
-                  <span className="text-[10px] font-mono font-medium text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded">
-                    Capa 5: Formularios
+                  <span className="text-[11px] font-mono text-text-muted">
+                    Se habilitará tras validar el alta
                   </span>
                 </div>
               </div>
@@ -189,7 +207,7 @@ export default function WarehouseLandingPage() {
             <div className="bg-primary-50/40 border border-primary-100 rounded-xl p-3 flex items-start gap-2.5 text-xs text-primary-900">
               <AlertCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" strokeWidth={1.75} />
               <span>
-                Cualquier herramienta universal o formulario general asignado por el administrador ya se encuentra disponible inmediatamente en <Link href="/dashboard" className="underline font-semibold hover:text-primary-700">Mi Panel</Link>.
+                Los equipos dados de alta a través de este formulario alimentarán automáticamente la base de datos para la futura <strong className="font-semibold text-primary">Herramienta de Control de Inventario</strong>.
               </span>
             </div>
           </div>

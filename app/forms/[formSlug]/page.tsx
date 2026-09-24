@@ -10,6 +10,7 @@ import CadRegisterFormPage from '@/app/tools/cad-register-form/page';
 import NewReportPage from '@/app/projects/[projectId]/new-report/page';
 import HseqReportFormPage from '@/app/forms/hseq-report/page';
 import ElaboracionCartasForm from '@/components/forms/ElaboracionCartasForm';
+import RegistroEquipoFormPage from '@/app/forms/registro-equipo/page';
 
 // --- Form catalog configurations ---
 const FORM_CONFIGS: Record<string, FormConfig> = {
@@ -224,6 +225,14 @@ export default function FormPage({ params }: { params: { formSlug: string } }) {
     params.formSlug === 'cartas-rrhh'
   ) {
     return <ElaboracionCartasForm />;
+  }
+
+  if (
+    params.formSlug === 'registro-equipo' ||
+    params.formSlug === 'alta-equipo' ||
+    params.formSlug === 'equipo-nuevo'
+  ) {
+    return <RegistroEquipoFormPage />;
   }
 
   return (

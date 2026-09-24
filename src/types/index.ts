@@ -502,3 +502,40 @@ export interface HrLetter {
     code?: string;
   };
 }
+
+// ─── Equipment & Warehouse ───────────────────────────────────────────────────
+
+export type EquipmentCategory = 
+  | 'gpr'
+  | 'antenna'
+  | 'gnss'
+  | 'total_station'
+  | 'radiodetection'
+  | 'vehicle'
+  | 'accessory'
+  | 'other';
+
+export type EquipmentStatus = 
+  | 'available'
+  | 'in_field'
+  | 'maintenance'
+  | 'calibration'
+  | 'decommissioned';
+
+export interface Equipment {
+  id: string;
+  code: string;
+  name: string;
+  category: EquipmentCategory;
+  brand?: string | null;
+  model?: string | null;
+  serial_number?: string | null;
+  status: EquipmentStatus;
+  calibration_date?: string | null;
+  calibration_expiry_date?: string | null;
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
