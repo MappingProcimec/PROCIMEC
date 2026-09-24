@@ -1,8 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { CreateRoleModal } from '@/components/admin/CreateRoleModal';
+import { Shield, Plus } from 'lucide-react';
 
 interface Tool { id: string; slug: string; name: string; category: string }
 interface Form { id: string; slug: string; name: string }
@@ -34,6 +37,7 @@ async function fetchRoles(): Promise<Role[]> {
 
 export default function AdminRolesPage() {
   const queryClient = useQueryClient();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const { data: roles = [], isLoading } = useQuery({
     queryKey: ['admin-roles'],
@@ -59,18 +63,18 @@ export default function AdminRolesPage() {
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white">Roles</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
+                <Shield className="w-7 h-7 text-accent" strokeWidth={1.75} /> Roles
+              </h1>
               <p className="text-white/70 text-sm mt-1">Roles del sistema y personalizados</p>
             </div>
-            <Link
-              href="/admin/roles/new"
-              className="btn-primary px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2"
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="btn-primary px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2 shadow-sm"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
+              <Plus className="w-4 h-4" strokeWidth={2} />
               Nuevo Rol
-            </Link>
+            </button>
           </div>
         </div>
       </div>
@@ -81,9 +85,12 @@ export default function AdminRolesPage() {
         ) : roles.length === 0 ? (
           <div className="card p-10 text-center">
             <p className="text-text-muted text-sm">No hay roles creados.</p>
-            <Link href="/admin/roles/new" className="mt-3 text-primary text-sm font-medium hover:underline block">
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="mt-3 text-primary text-sm font-medium hover:underline inline-block"
+            >
               Crear el primer rol
-            </Link>
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -155,6 +162,11 @@ export default function AdminRolesPage() {
           </div>
         )}
       </div>
+
+      <CreateRoleModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
     </div>
   );
 }

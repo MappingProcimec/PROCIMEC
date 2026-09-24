@@ -222,7 +222,8 @@ export function Navbar() {
               { href: '/admin/projects', label: 'Proyectos' },
               { href: '/admin/roles', label: 'Roles' },
               { href: '/admin/users', label: 'Usuarios' },
-              { href: '/admin/forms', label: 'Herramientas y Formularios' },
+              { href: '/admin/forms', label: 'Formularios' },
+              { href: '/admin/tools', label: 'Herramientas' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
@@ -386,7 +387,8 @@ export function Navbar() {
                       { href: '/admin/projects',  label: 'Proyectos',  icon: '🏗️' },
                       { href: '/admin/roles',     label: 'Roles',      icon: '🔑' },
                       { href: '/admin/users',     label: 'Usuarios',   icon: '👥' },
-                      { href: '/admin/forms',     label: 'Herramientas y Formularios', icon: '🛠️' },
+                      { href: '/admin/forms',     label: 'Formularios', icon: '📋' },
+                      { href: '/admin/tools',     label: 'Herramientas', icon: '🛠️' },
                     ].map(({ href, label, icon }) => (
                       <Link
                         key={href}
@@ -489,6 +491,7 @@ export function Navbar() {
             { href: '/admin/roles',     label: 'Roles',      icon: '🔑' },
             { href: '/admin/users',     label: 'Usuarios',   icon: '👥' },
             { href: '/admin/forms',     label: 'Formularios', icon: '📋' },
+            { href: '/admin/tools',     label: 'Herramientas', icon: '🛠️' },
           ].map(({ href, label, icon }) => {
             const isActive = pathname.startsWith(href);
             return (
