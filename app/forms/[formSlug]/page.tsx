@@ -7,7 +7,7 @@ import { BackButton } from '@/components/BackButton';
 import { Layers } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import TwoStepForm, { FormConfig, Project } from '@/components/forms/TwoStepForm';
-import CadRegisterFormPage from '@/app/tools/cad-register-form/page';
+import CadRegisterFormPage from '@/app/forms/cad-register-form/page';
 import NewReportPage from '@/app/projects/[projectId]/new-report/page';
 import HseqReportFormPage from '@/app/forms/hseq-report/page';
 import ElaboracionCartasForm from '@/components/forms/ElaboracionCartasForm';

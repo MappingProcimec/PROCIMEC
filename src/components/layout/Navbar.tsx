@@ -97,6 +97,7 @@ function getToolHref(tool: { slug: string }): string {
   if (tool.slug === 'dynamic-dashboard') return '/dashboard';
   if (tool.slug === 'cartas-audit') return '/tools/cartas-audit';
   if (tool.slug === 'elaboracion-cartas') return '/forms/elaboracion-cartas';
+  if (tool.slug === 'radargrama') return '/tools/radargrama';
   return `/tools/${tool.slug}`;
 }
 

@@ -1,1 +1,1 @@
-export { default } from '@/app/herramientas/radargrama/page';
+export { default } from '@/app/tools/radargrama/page';

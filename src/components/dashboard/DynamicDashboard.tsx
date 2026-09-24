@@ -228,7 +228,7 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
           <h2 className="font-bold text-text-primary mb-3">Módulo Dibujante</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Link
-              href="/dibujo/nueva-actividad"
+              href="/forms/cad-register-form"
               className="card border border-amber-200 bg-amber-50 p-5 hover:shadow-md transition-all group"
             >
               <div className="flex items-center gap-3">
@@ -244,7 +244,7 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
               </div>
             </Link>
             <Link
-              href="/dibujo/tablero"
+              href="/tools/cad-productivity-board"
               className="card border border-blue-200 bg-blue-50 p-5 hover:shadow-md transition-all group"
             >
               <div className="flex items-center gap-3">

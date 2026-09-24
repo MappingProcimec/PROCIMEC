@@ -36,6 +36,12 @@ async function fetchCatalogData() {
 }
 
 const TOOL_META: Record<string, { icon: string; description: string; tag: string; path?: string }> = {
+  'radargrama': {
+    icon: '🎯',
+    description: 'Visualizador y procesador interactivo de radargramas GPR, filtros DSP y análisis geofísico.',
+    tag: 'GPR / Geofísica',
+    path: '/tools/radargrama',
+  },
   'gsf-processor': {
     icon: '📡',
     description: 'Procesamiento de radargramas GPR (.gsf), filtros DSP, dewow, corrección time-zero, análisis hiperbólico y exportación a JPG, PDF y PPTX.',

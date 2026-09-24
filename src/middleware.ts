@@ -25,7 +25,6 @@ export async function middleware(request: NextRequest) {
   // Non-admin trying to access admin
   if (role !== 'admin' && pathname.startsWith('/admin')) {
     if (role === 'operator' || role === 'localizador') return NextResponse.redirect(new URL('/projects', request.url));
-    if (role === 'dibujo') return NextResponse.redirect(new URL('/dibujo', request.url));
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

@@ -33,8 +33,8 @@
 * **Generación de Reportes Word (.docx):** Compilación instantánea de informes técnicos oficiales con membrete, tablas operativas de medición, evidencias embebidas y firmas de validación.
 
 ### 📐 B. Módulo de Dibujo CAD / BIM & Productividad Técnica
-* **Registro de Actividades CAD (`/dibujo/nueva-actividad`):** Captura diaria de horas hombre, entregables generados (planos As-Built, modelos BIM, radargramas procesados) y asignación estricta de proyectos.
-* **Tablero de Productividad en Vivo (`/dibujo/tablero`):** Panel interactivo con filtros directos por columna, ordenamiento multicriterio ascendente/descendente y métricas de desempeño del equipo de modelado.
+* **Registro de Actividades CAD (`/forms/cad-register-form`):** Captura diaria de horas hombre, entregables generados (planos As-Built, modelos BIM, radargramas procesados) y asignación estricta de proyectos.
+* **Tablero de Productividad en Vivo (`/tools/cad-productivity-board`):** Panel interactivo con filtros directos por columna, ordenamiento multicriterio ascendente/descendente y métricas de desempeño del equipo de modelado.
 
 ### 🛡️ C. Módulo HSEQ & Carpeta 24 (Inspecciones Preoperacionales)
 * **Formatos Oficiales de Maquinaria y Equipos:** Inspecciones digitales para Drones, Estación Total y equipos geofísicos especializados.
@@ -43,8 +43,8 @@
 * **Firma Digital Táctil:** Lienzo de captura de firma con bloqueo de scroll nativo en pantallas móviles para máxima ergonomía en campo.
 * **Tablero de Evidencias HSEQ (`/tools/evidence-board`):** Visor unificado de archivos PDF y Excel almacenados permanentemente en buckets seguros de Supabase y Google Drive.
 
-### 🛠️ D. Suite de Herramientas Especializadas de Ingeniería (`/tools` y `/herramientas`)
-* **Visualizador de Radargramas GPR (`/herramientas/radargrama`):** Inspección visual y análisis preliminar de cortes geofísicos.
+### 🛠️ D. Suite de Herramientas Especializadas de Ingeniería (`/tools`)
+* **Visualizador de Radargramas GPR (`/tools/radargrama`):** Inspección visual y análisis preliminar de cortes geofísicos con filtros DSP.
 * **Visor GIS / Cartográfico (`/tools/gis-viewer`):** Superposición de capas geoespaciales y verificación de polígonos de levantamiento.
 * **Procesador GSF (`/tools/gsf-processor`):** Tratamiento y parseo de formatos de prospección geofísica.
 * **Visor TXT / DWG (`/tools/txt-dwg-viewer`):** Comprobación de nubes de puntos y entidades vectoriales.
