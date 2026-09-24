@@ -46,7 +46,7 @@ interface UserDivisionRole { division_id: string; role_id: string | null }
 interface User {
   id: string; email: string; full_name: string; nick_name?: string | null; avatar_url?: string;
   phone?: string | null;
-  role: 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo' | 'drawing' | 'hr' | 'hseq' | 'warehouse';
+  role: 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo' | 'drawing' | 'hr' | 'hseq' | 'warehouse' | 'purchasing' | 'commercial' | 'finance' | 'accounting' | 'management';
   role_id: string | null;
   roles: { id: string; name: string } | null;
   is_active: boolean; created_at: string;
@@ -77,9 +77,14 @@ async function fetchAll() {
   };
 }
 
-function deriveSystemRole(roleName: string): 'localizador' | 'operator' | 'dibujo' | 'warehouse' {
+function deriveSystemRole(roleName: string): 'localizador' | 'operator' | 'dibujo' | 'warehouse' | 'purchasing' | 'commercial' | 'finance' | 'accounting' | 'management' {
   const n = roleName.toLowerCase();
   if (n.includes('almacén') || n.includes('almacen') || n.includes('warehouse') || n.includes('almacenista')) return 'warehouse';
+  if (n.includes('compras') || n.includes('purchasing') || n.includes('adquisiciones')) return 'purchasing';
+  if (n.includes('comercial') || n.includes('commercial') || n.includes('ventas')) return 'commercial';
+  if (n.includes('finanzas') || n.includes('finance') || n.includes('tesoreria')) return 'finance';
+  if (n.includes('contabilidad') || n.includes('accounting') || n.includes('contador')) return 'accounting';
+  if (n.includes('gerencia') || n.includes('management') || n.includes('gerente') || n.includes('direccion')) return 'management';
   return n.includes('dibujo') || n.includes('cad') ? 'dibujo' : 'localizador';
 }
 
@@ -90,6 +95,11 @@ const SYSTEM_BADGE: Record<string, string> = {
   localizador: 'badge-accent',
   dibujo: 'badge-success',
   warehouse: 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold',
+  purchasing: 'bg-blue-100 text-blue-900 border border-blue-300 font-semibold',
+  commercial: 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold',
+  finance: 'bg-violet-100 text-violet-900 border border-violet-300 font-semibold',
+  accounting: 'bg-cyan-100 text-cyan-900 border border-cyan-300 font-semibold',
+  management: 'bg-slate-200 text-slate-900 border border-slate-400 font-semibold',
 };
 
 function getRoleBadgeClass(roleName?: string, userRole: string = 'localizador'): string {
@@ -97,6 +107,21 @@ function getRoleBadgeClass(roleName?: string, userRole: string = 'localizador'):
   const lower = roleName.toLowerCase();
   if (lower.includes('almacén') || lower.includes('almacen') || lower.includes('warehouse') || lower.includes('almacenista')) {
     return 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold';
+  }
+  if (lower.includes('compras') || lower.includes('purchasing')) {
+    return 'bg-blue-100 text-blue-900 border border-blue-300 font-semibold';
+  }
+  if (lower.includes('comercial') || lower.includes('commercial') || lower.includes('ventas')) {
+    return 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold';
+  }
+  if (lower.includes('finanzas') || lower.includes('finance') || lower.includes('tesorer')) {
+    return 'bg-violet-100 text-violet-900 border border-violet-300 font-semibold';
+  }
+  if (lower.includes('contabilidad') || lower.includes('accounting') || lower.includes('contador')) {
+    return 'bg-cyan-100 text-cyan-900 border border-cyan-300 font-semibold';
+  }
+  if (lower.includes('gerencia') || lower.includes('management') || lower.includes('gerente') || lower.includes('direcci')) {
+    return 'bg-slate-200 text-slate-900 border border-slate-400 font-semibold';
   }
   if (lower.includes('hseq')) return 'bg-teal-100 text-teal-800 border border-teal-200';
   if (lower.includes('rrhh') || lower.includes('humano')) return 'bg-indigo-100 text-indigo-800 border border-indigo-200';
@@ -108,6 +133,11 @@ function userDisplayBadge(user: User, roleOptions: RoleOption[] = [], rolesById?
   if (user.role === 'admin') return { label: 'Administrador', badge: 'badge-primary' };
   if (user.role === 'pending') return { label: 'Pendiente', badge: 'badge-warning' };
   if (user.role === 'warehouse') return { label: 'Almacén', badge: 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold' };
+  if (user.role === 'purchasing') return { label: 'Compras', badge: 'bg-blue-100 text-blue-900 border border-blue-300 font-semibold' };
+  if (user.role === 'commercial') return { label: 'Comercial', badge: 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold' };
+  if (user.role === 'finance') return { label: 'Finanzas', badge: 'bg-violet-100 text-violet-900 border border-violet-300 font-semibold' };
+  if (user.role === 'accounting') return { label: 'Contabilidad', badge: 'bg-cyan-100 text-cyan-900 border border-cyan-300 font-semibold' };
+  if (user.role === 'management') return { label: 'Gerencia', badge: 'bg-slate-200 text-slate-900 border border-slate-400 font-semibold' };
   if (user.roles?.name) return { label: user.roles.name, badge: getRoleBadgeClass(user.roles.name, user.role) };
 
   // Buscar en user_division_roles si no está directo en user.roles

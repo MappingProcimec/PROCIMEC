@@ -19,6 +19,11 @@ export default function LoginPage() {
       else if (role === 'operator' || role === 'localizador') router.replace('/projects');
       else if (role === 'dibujo') router.replace('/dibujo');
       else if (role === 'warehouse') router.replace('/warehouse');
+      else if (role === 'purchasing') router.replace('/purchasing');
+      else if (role === 'commercial') router.replace('/commercial');
+      else if (role === 'finance') router.replace('/finance');
+      else if (role === 'accounting') router.replace('/accounting');
+      else if (role === 'management') router.replace('/management');
       else router.replace('/pending');
     }
   }, [session, status, router]);

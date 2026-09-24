@@ -73,7 +73,15 @@ export async function GET(req: NextRequest) {
   }
 
   if (!effectiveRoleId && dbUser.role) {
-    const roleSearch = dbUser.role === 'warehouse' ? 'Almacén' : (dbUser.role as string);
+    const roleSearchMap: Record<string, string> = {
+      warehouse: 'Almacén',
+      purchasing: 'Compras',
+      commercial: 'Comercial',
+      finance: 'Finanzas',
+      accounting: 'Contabilidad',
+      management: 'Gerencia',
+    };
+    const roleSearch = roleSearchMap[dbUser.role] ?? (dbUser.role as string);
     const { data: matchedRole } = await supabase
       .from('roles')
       .select('id, name')

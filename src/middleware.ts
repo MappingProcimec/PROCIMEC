@@ -25,13 +25,29 @@ export async function middleware(request: NextRequest) {
   // Non-admin trying to access admin
   if (role !== 'admin' && pathname.startsWith('/admin')) {
     if (role === 'warehouse') return NextResponse.redirect(new URL('/warehouse', request.url));
+    if (role === 'purchasing') return NextResponse.redirect(new URL('/purchasing', request.url));
+    if (role === 'commercial') return NextResponse.redirect(new URL('/commercial', request.url));
+    if (role === 'finance') return NextResponse.redirect(new URL('/finance', request.url));
+    if (role === 'accounting') return NextResponse.redirect(new URL('/accounting', request.url));
+    if (role === 'management') return NextResponse.redirect(new URL('/management', request.url));
     if (role === 'dibujo') return NextResponse.redirect(new URL('/dibujo', request.url));
     return NextResponse.redirect(new URL('/projects', request.url));
   }
 
-  // Warehouse route protection
-  if (pathname.startsWith('/warehouse') && role !== 'warehouse' && role !== 'admin') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  // Dedicated role landing route protection
+  const roleProtectedPrefixes: Record<string, string> = {
+    '/warehouse': 'warehouse',
+    '/purchasing': 'purchasing',
+    '/commercial': 'commercial',
+    '/finance': 'finance',
+    '/accounting': 'accounting',
+    '/management': 'management',
+  };
+
+  for (const [prefix, allowedRole] of Object.entries(roleProtectedPrefixes)) {
+    if (pathname.startsWith(prefix) && role !== allowedRole && role !== 'admin') {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
   }
 
   // Admin going to /pending → redirect to admin dashboard
