@@ -7,6 +7,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { DivisionBadge } from '@/components/DivisionBadge';
+import {
+  LayoutDashboard,
+  Wrench,
+  ClipboardList,
+  Users,
+  ChevronDown,
+  Settings,
+  LogOut,
+  Pencil,
+} from 'lucide-react';
 import type { Tool, Form } from '@/types';
 
 interface DashboardData {
@@ -268,7 +278,7 @@ export function Navbar() {
             </button>
 
             {dropdownOpen && (
-              <div className="absolute right-0 top-full mt-1 w-64 bg-white rounded-2xl shadow-soft border border-border py-2 z-50 max-h-[80vh] overflow-y-auto">
+              <div className="absolute right-0 top-full mt-1 w-72 sm:w-80 bg-white rounded-2xl shadow-soft border border-border py-2 z-50 max-h-[80vh] overflow-y-auto">
 
                 {/* User info */}
                 <div className="px-3 py-2.5 border-b border-border">
@@ -283,10 +293,8 @@ export function Navbar() {
                       onClick={openEditName}
                       className="flex items-center gap-2 w-full py-2 text-sm text-text-secondary hover:text-primary transition-colors"
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                      </svg>
-                      Editar usuario
+                      <Pencil className="w-4 h-4 text-text-muted" strokeWidth={1.75} />
+                      <span>Editar apodo</span>
                     </button>
                   ) : (
                     <div className="py-2 space-y-2">
@@ -325,140 +333,147 @@ export function Navbar() {
                   )}
                 </div>
 
-                {/* Non-admin navigation */}
-                {!isAdmin && !isPending && (
+                {/* Navegación para todos los roles (incluyendo Admin) */}
+                {!isPending && (
                   <>
                     <Link
                       href="/dashboard"
-                      className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors"
+                      className={`flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors rounded-xl mx-1.5 ${
+                        pathname === '/dashboard'
+                          ? 'bg-primary-50 text-primary font-semibold'
+                          : 'text-text-secondary hover:bg-gray-50 hover:text-primary'
+                      }`}
                     >
-                      <span>🏠</span> Mi Panel
+                      <LayoutDashboard className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                      <span className="font-medium">Mi Panel</span>
                     </Link>
 
-
-
-                    {assignedTools.length > 0 && (
+                    {/* Mis Herramientas */}
+                    {(assignedTools.length > 0 || (isAdmin && adminTools.length > 0)) && (
                       <>
-                        <button onClick={() => toggleSection('tools')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
-                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Mis Herramientas</p>
-                          <svg className={`w-3.5 h-3.5 text-text-muted transition-transform ${expanded.has('tools') ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                          </svg>
+                        <button
+                          onClick={() => toggleSection('tools')}
+                          className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-75 transition-opacity"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Wrench className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} />
+                            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Mis Herramientas</p>
+                          </div>
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 text-text-muted transition-transform duration-200 ${expanded.has('tools') ? 'rotate-180' : ''}`}
+                            strokeWidth={2}
+                          />
                         </button>
-                        {expanded.has('tools') && assignedTools.map(tool => (
-                          <Link key={tool.id} href={getToolHref(tool)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                            <span>{getToolIcon(tool)}</span>
+                        {expanded.has('tools') && (assignedTools.length > 0 ? assignedTools : adminTools).map(tool => (
+                          <Link
+                            key={tool.id}
+                            href={getToolHref(tool)}
+                            className="flex items-center gap-2 pl-6 pr-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors"
+                          >
                             <span className="truncate">{tool.name}</span>
                           </Link>
                         ))}
                       </>
                     )}
 
+                    {/* Mis Formularios */}
                     {assignedForms.length > 0 && (
                       <>
-                        <button onClick={() => toggleSection('forms')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
-                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Mis Formularios</p>
-                          <svg className={`w-3.5 h-3.5 text-text-muted transition-transform ${expanded.has('forms') ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                          </svg>
+                        <button
+                          onClick={() => toggleSection('forms')}
+                          className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-75 transition-opacity"
+                        >
+                          <div className="flex items-center gap-2">
+                            <ClipboardList className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} />
+                            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Mis Formularios</p>
+                          </div>
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 text-text-muted transition-transform duration-200 ${expanded.has('forms') ? 'rotate-180' : ''}`}
+                            strokeWidth={2}
+                          />
                         </button>
                         {expanded.has('forms') && assignedForms.map(form => (
-                          <Link key={form.id} href={`/forms/${form.slug}`} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                            <span>📋</span>
+                          <Link
+                            key={form.id}
+                            href={`/forms/${form.slug}`}
+                            className="flex items-center gap-2 pl-6 pr-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors"
+                          >
                             <span className="truncate">{form.name}</span>
                           </Link>
                         ))}
                       </>
                     )}
 
-                    <div className="border-t border-border my-1" />
-                  </>
-                )}
-
-                {/* Admin extras */}
-                {isAdmin && (
-                  <>
-                    {/* Navegación rápida en menú para móvil / dropdown */}
-                    <div className="px-3 pt-2 pb-1">
-                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Navegación Admin</p>
-                    </div>
-                    {[
-                      { href: '/admin/divisions', label: 'Divisiones', icon: '🏢' },
-                      { href: '/admin/projects',  label: 'Proyectos',  icon: '🏗️' },
-                      { href: '/admin/roles',     label: 'Roles',      icon: '🔑' },
-                      { href: '/admin/users',     label: 'Usuarios',   icon: '👥' },
-                      { href: '/admin/forms',     label: 'Formularios', icon: '📋' },
-                      { href: '/admin/tools',     label: 'Herramientas', icon: '🛠️' },
-                    ].map(({ href, label, icon }) => (
-                      <Link
-                        key={href}
-                        href={href}
-                        className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
-                          pathname.startsWith(href)
-                            ? 'bg-primary-50 text-primary font-semibold'
-                            : 'text-text-secondary hover:bg-gray-50'
-                        }`}
-                      >
-                        <span>{icon}</span>
-                        <span>{label}</span>
-                      </Link>
-                    ))}
-                    <div className="border-t border-border my-1" />
-
-                    {/* Herramientas generales (Universales o Administrativas) */}
-                    {adminTools.filter(isGeneralTool).length > 0 && (
+                    {/* Vistas de roles — EXCLUSIVO PARA ADMINISTRADOR */}
+                    {isAdmin && adminRoles.length > 0 && (
                       <>
-                        <button onClick={() => toggleSection('admin-general')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
-                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Herramientas generales</p>
-                          <svg className={`w-3.5 h-3.5 text-text-muted transition-transform ${expanded.has('admin-general') ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                          </svg>
-                        </button>
-                        {expanded.has('admin-general') && adminTools.filter(isGeneralTool).map((tool: Tool) => (
-                          <Link key={tool.id} href={getToolHref(tool)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                            <span>{getToolIcon(tool)}</span>
-                            <span className="truncate">{tool.name}</span>
-                          </Link>
-                        ))}
-                      </>
-                    )}
-
-                    {/* Herramientas de rol (Técnicas / Especialidad) */}
-                    {adminTools.filter(isRoleTool).length > 0 && (
-                      <>
-                        <button onClick={() => toggleSection('admin-rol')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
-                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Herramientas de rol</p>
-                          <svg className={`w-3.5 h-3.5 text-text-muted transition-transform ${expanded.has('admin-rol') ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                          </svg>
-                        </button>
-                        {expanded.has('admin-rol') && adminTools.filter(isRoleTool).map((tool: Tool) => (
-                          <Link key={tool.id} href={getToolHref(tool)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                            <span>{getToolIcon(tool)}</span>
-                            <span className="truncate">{tool.name}</span>
-                          </Link>
-                        ))}
-                      </>
-                    )}
-
-                    {/* Vistas de roles — dynamic per role in DB */}
-                    {adminRoles.length > 0 && (
-                      <>
-                        <button onClick={() => toggleSection('vistas')} className="flex items-center justify-between w-full px-3 pt-3 pb-1 hover:opacity-70 transition-opacity">
-                          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Vistas de roles</p>
-                          <svg className={`w-3.5 h-3.5 text-text-muted transition-transform ${expanded.has('vistas') ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                          </svg>
+                        <div className="border-t border-border my-1.5" />
+                        <button
+                          onClick={() => toggleSection('vistas')}
+                          className="flex items-center justify-between w-full px-3 pt-2 pb-1 hover:opacity-75 transition-opacity"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Users className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+                            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Vistas de roles</p>
+                          </div>
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 text-text-muted transition-transform duration-200 ${expanded.has('vistas') ? 'rotate-180' : ''}`}
+                            strokeWidth={2}
+                          />
                         </button>
                         {expanded.has('vistas') && adminRoles.map((role: AdminRole) => (
-                          <Link key={role.id} href={`/dashboard?roleId=${role.id}`} className="flex items-center gap-2.5 pl-5 pr-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors">
-                            <span>👤</span>
+                          <Link
+                            key={role.id}
+                            href={`/dashboard?roleId=${role.id}`}
+                            className="flex items-center gap-2 pl-6 pr-3 py-2 text-sm text-text-secondary hover:bg-gray-50 hover:text-primary transition-colors"
+                          >
                             <span className="truncate">Vista {role.name}</span>
                           </Link>
                         ))}
                       </>
                     )}
-                    <div className="border-t border-border my-1" />
+
+                    {/* Navegación Admin (en móviles cuando la barra horizontal se oculta) */}
+                    {isAdmin && (
+                      <div className="md:hidden">
+                        <div className="border-t border-border my-1.5" />
+                        <button
+                          onClick={() => toggleSection('admin-nav')}
+                          className="flex items-center justify-between w-full px-3 pt-2 pb-1 hover:opacity-75 transition-opacity"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Settings className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} />
+                            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Navegación Admin</p>
+                          </div>
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 text-text-muted transition-transform duration-200 ${expanded.has('admin-nav') ? 'rotate-180' : ''}`}
+                            strokeWidth={2}
+                          />
+                        </button>
+                        {expanded.has('admin-nav') && [
+                          { href: '/admin/divisions', label: 'Divisiones' },
+                          { href: '/admin/projects',  label: 'Proyectos' },
+                          { href: '/admin/roles',     label: 'Roles' },
+                          { href: '/admin/users',     label: 'Usuarios' },
+                          { href: '/admin/forms',     label: 'Formularios' },
+                          { href: '/admin/tools',     label: 'Herramientas' },
+                        ].map(({ href, label }) => (
+                          <Link
+                            key={href}
+                            href={href}
+                            className={`flex items-center gap-2 pl-6 pr-3 py-2 text-sm transition-colors ${
+                              pathname.startsWith(href)
+                                ? 'bg-primary-50 text-primary font-semibold'
+                                : 'text-text-secondary hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>{label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="border-t border-border my-1.5" />
                   </>
                 )}
 
@@ -469,12 +484,10 @@ export function Navbar() {
                     sessionStorage.clear();
                     window.location.href = '/api/logout';
                   }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-error hover:bg-red-50 transition-colors"
+                  className="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-error hover:bg-red-50 transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                  </svg>
-                  Cerrar sesión
+                  <LogOut className="w-4 h-4 text-error" strokeWidth={1.75} />
+                  <span>Cerrar sesión</span>
                 </button>
               </div>
             )}

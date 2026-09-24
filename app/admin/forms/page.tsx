@@ -77,12 +77,6 @@ export default function AdminFormsPage() {
                 Formatos oficiales de captura de datos de PROCIMEC para campo, almacén, dibujo y operaciones
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/15 text-xs text-white flex items-center gap-1.5 font-medium">
-                <Layers className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
-                <span>{forms.length} Formularios registrados</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>

@@ -175,12 +175,6 @@ export default function AdminToolsPage() {
                 Utilidades de procesamiento geofísico, productividad, análisis SIG y módulos especializados
               </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/15 text-xs text-white flex items-center gap-1.5 font-medium">
-                <Sparkles className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
-                <span>{tools.length} Herramientas activas</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
