@@ -79,19 +79,20 @@ Toda incorporación o expansión funcional en PROCIMEC debe respetar estrictamen
    - Insertar el rol en la tabla `roles` con su nombre formal en español (`Almacén`, `Compras`, etc.) y `division_id = NULL` (o división específica si aplica).
    - Tipar en TypeScript (`src/types/index.ts` y NextAuth).
    - Habilitar en el modal de gestión de usuarios de `/admin/users`.
-   - Configurar redirección de inicio de sesión en `middleware.ts` y crear su pantalla base de bienvenida.
-   - **Criterio de salida:** El administrador asigna el rol a un usuario, y el usuario puede iniciar sesión y aterrizar en su panel sin errores.
+   - **Regla inviolable de navegación:** Queda estrictamente prohibido crear páginas o sub-rutas dedicadas por rol (como `/warehouse`, `/purchasing`, etc.). El destino de inicio de sesión de todo colaborador es siempre `/dashboard` ("Mi Panel").
+   - **Criterio de salida:** El administrador asigna el rol a un usuario, y el usuario puede iniciar sesión y aterrizar en su `/dashboard` sin errores.
 
 2. **Capa 2 — Formularios Operacionales del Rol (Captura de Información):**
    - Diseñar las tablas de base de datos donde se recopilará la información operativa.
    - Registrar los formatos de captura en la tabla `forms` del catálogo con esquemas y validaciones Zod.
-   - Asociarlos mediante `role_forms` y verificar que aparezcan en *"Mis Formularios"*.
+   - Asociarlos mediante `role_forms` y verificar que aparezcan en *"Mis Formularios"* dentro de `/dashboard`.
+   - Los botones de retorno de los formularios deben redirigir exclusivamente a `/dashboard`.
    - **Razón arquitectónica:** Todo sistema de información requiere primero recopilar y validar los datos en origen antes de poder consolidarlos o visualizarlos. De cada formulario surge por lo general una herramienta.
 
 3. **Capa 3 — Herramientas Técnicas del Rol (Consolidación y Gestión):**
    - Registrar las herramientas en la tabla `tools` del catálogo y asociarlas mediante `role_tools`.
    - Construir los tableros analíticos, reportes y herramientas de gestión que procesan la información recopilada por los formularios.
-   - Verificar que aparezcan en *"Mis Herramientas"* del usuario y en el panel de permisos.
+   - Verificar que aparezcan en *"Mis Herramientas"* dentro de `/dashboard`.
 
 **Regla de Oro:** Prohibido avanzar a una nueva capa o rol sin la validación y visto bueno explícito del usuario en el entorno real desplegado.
 

@@ -539,3 +539,45 @@ export interface Equipment {
   updated_at: string;
 }
 
+export type EquipmentCheckoutStatus = 'active' | 'returned' | 'overdue';
+
+export interface EquipmentChecklist {
+  batteries?: number;
+  charger?: boolean;
+  cables?: boolean;
+  odometer?: boolean;
+  pelican_case?: boolean;
+  harness?: boolean;
+  [key: string]: unknown;
+}
+
+export interface EquipmentCheckout {
+  id: string;
+  project_id: string;
+  equipment_id: string;
+  user_id: string;
+  responsible_user_id?: string | null;
+  responsible_name?: string | null;
+  checkout_date: string;
+  expected_return_date?: string | null;
+  actual_return_date?: string | null;
+  status: EquipmentCheckoutStatus;
+  checklist?: EquipmentChecklist;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  equipment?: Equipment;
+  project?: {
+    id: string;
+    name: string;
+    code?: string;
+    client?: string;
+  };
+  responsible_user?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+}
+
+

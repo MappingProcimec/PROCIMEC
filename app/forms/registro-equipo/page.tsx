@@ -155,7 +155,7 @@ export default function RegistroEquipoFormPage() {
       {/* Industrial Hero Header */}
       <div className="page-hero">
         <div className="max-w-4xl mx-auto">
-          <BackButton href="/warehouse" label="Volver a Almacén" />
+          <BackButton href="/dashboard" label="Volver a Mi Panel" />
           <div className="flex flex-wrap items-center gap-2 mt-3 mb-2">
             <span className="badge bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-medium uppercase px-2.5 py-1">
               Formulario Operativo
@@ -204,10 +204,10 @@ export default function RegistroEquipoFormPage() {
               </button>
 
               <Link
-                href="/warehouse"
+                href="/dashboard"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-border bg-white text-text-primary text-xs font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all duration-160 shadow-xs"
               >
-                <span>Volver a Almacén</span>
+                <span>Ir a Mi Panel</span>
                 <ArrowRight className="w-4 h-4" strokeWidth={1.75} />
               </Link>
             </div>
@@ -488,7 +488,7 @@ export default function RegistroEquipoFormPage() {
             {/* Acciones de Envío */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
               <Link
-                href="/warehouse"
+                href="/dashboard"
                 className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-border bg-white text-text-secondary text-xs font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all text-center"
               >
                 Cancelar
