@@ -9,7 +9,7 @@ interface BackButtonProps {
   variant?: 'default' | 'light' | 'hero';
 }
 
-export function BackButton({ href, label = 'Volver', variant = 'hero' }: BackButtonProps) {
+export function BackButton({ href, label = 'Volver a Mi Panel', variant = 'hero' }: BackButtonProps) {
   const router = useRouter();
 
   const isHero = variant === 'light' || variant === 'hero';

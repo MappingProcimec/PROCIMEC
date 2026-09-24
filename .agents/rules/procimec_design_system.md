@@ -66,6 +66,9 @@ Para evitar la estética genérica de plantillas generadas por IA (*AI Slop*):
    - No anidar cajas con borde dentro de cajas con borde sin necesidad estructural real. Mantener la superficie limpia con separadores de línea fina (`divide-y divide-border`).
 4. **Mobile Viewport Stability:**
    - **Prohibido** usar `h-screen` en vistas móviles; usar siempre `min-h-[100dvh]` para evitar desfases con la barra de navegación del navegador móvil.
+5. **Erradicación de Spans y Badges Redundantes en Encabezados:**
+   - Prohibido saturar los encabezados de formularios o vistas con píldoras o badges de metadatos superfluos (e.g. `[FORMULARIO OPERATIVO]`, `[Catálogo: slug]`).
+   - Todo formulario debe emular el estándar limpio de *Inspecciones HSEQ*: `<BackButton href="/dashboard" label="Volver a Mi Panel" />`, título `h1` con icono Lucide (`w-7 h-7 text-accent strokeWidth={1.75}`) y descripción técnica de una sola línea.
 
 ---
 

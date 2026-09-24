@@ -210,20 +210,13 @@ export default function NewReportPage() {
 
       <div className="page-hero">
         <div className="max-w-3xl mx-auto">
-          <BackButton href={projectId ? `/projects/${projectId}` : '/admin/forms'} label={projectId ? 'Volver al proyecto' : 'Formularios'} />
-          <div className="flex items-center gap-3 mt-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-              <Radio className="w-5 h-5" strokeWidth={1.75} />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                Formulario de Campo GPR
-              </h1>
-              <p className="text-white/70 text-xs sm:text-sm mt-0.5">
-                Reporte operacional de exploración, volumetría por tramos y medición subsuperficial
-              </p>
-            </div>
-          </div>
+          <BackButton href={projectId ? `/projects/${projectId}` : '/dashboard'} label={projectId ? 'Volver al Proyecto' : 'Volver a Mi Panel'} />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+            <Radio className="w-7 h-7 text-accent" strokeWidth={1.75} /> Formulario de Campo GPR
+          </h1>
+          <p className="text-white/70 text-sm mt-1">
+            Reporte operacional de exploración, volumetría por tramos y medición subsuperficial
+          </p>
         </div>
       </div>
 

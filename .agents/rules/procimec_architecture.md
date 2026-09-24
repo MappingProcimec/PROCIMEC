@@ -86,7 +86,8 @@ Toda incorporación o expansión funcional en PROCIMEC debe respetar estrictamen
    - Diseñar las tablas de base de datos donde se recopilará la información operativa.
    - Registrar los formatos de captura en la tabla `forms` del catálogo con esquemas y validaciones Zod.
    - Asociarlos mediante `role_forms` y verificar que aparezcan en *"Mis Formularios"* dentro de `/dashboard`.
-   - Los botones de retorno de los formularios deben redirigir exclusivamente a `/dashboard`.
+   - Los botones de retorno de los formularios deben redirigir exclusivamente a `/dashboard` con la etiqueta `'Volver a Mi Panel'` (salvo contexto de proyecto).
+   - Los encabezados de formulario deben seguir el estándar visual sobrio de *Inspecciones HSEQ*: `<BackButton href="/dashboard" label="Volver a Mi Panel" />`, título con icono Lucide (`w-7 h-7 text-accent strokeWidth={1.75}`) y subtítulo de una sola línea, sin badges ni spans redundantes (prohibido `[FORMULARIO OPERATIVO]`, `[Catálogo: slug]`, etc.).
    - **Razón arquitectónica:** Todo sistema de información requiere primero recopilar y validar los datos en origen antes de poder consolidarlos o visualizarlos. De cada formulario surge por lo general una herramienta.
 
 3. **Capa 3 — Herramientas Técnicas del Rol (Consolidación y Gestión):**

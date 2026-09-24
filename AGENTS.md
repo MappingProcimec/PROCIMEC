@@ -47,6 +47,12 @@ Todo agente de Inteligencia Artificial que opere en este workspace debe acatar e
 - **Convención Dual de Identidad:**
   - Código y base de datos relacional: Identificador canónico en minúsculas en inglés (`warehouse`, `purchasing`, `commercial`, `finance`, `accounting`, `management`, `operator`, `drawing`, `hseq`, `hr`, `admin`).
   - Tabla `roles` e interfaz visual: Nombre formal en español (`Almacén`, `Compras`, `Comercial`, `Finanzas`, `Contabilidad`, `Gerencia`).
+- **Estándar Canónico de Retorno y Hero de Formularios:**
+  - **Retorno Unificado:** Todo formulario del catálogo debe incluir obligatoriamente `<BackButton href="/dashboard" label="Volver a Mi Panel" />` (salvo rutas anidadas de proyecto como `/projects/[projectId]`). Las pantallas de éxito o botones de cancelación deben retornar invariablemente a `/dashboard`.
+  - **Hero Sobrio y Uniforme (Patrón Inspecciones HSEQ):** Prohibido insertar etiquetas superfluas o spans redundantes (como `[FORMULARIO OPERATIVO]`, `[Catálogo: slug]`, etc.). La estructura canónica obligatoria es:
+    - `<BackButton href="/dashboard" label="Volver a Mi Panel" />`
+    - `<h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">` con su icono Lucide (`className="w-7 h-7 text-accent" strokeWidth={1.75}`) y título formal.
+    - `<p className="text-white/70 text-sm mt-1">` con descripción concisa de una línea.
 - **Validación Obligatoria:** Ningún agente o desarrollador puede avanzar a la siguiente capa ni al siguiente rol sin visto bueno explícito del usuario en el entorno de despliegue.
 
 Para especificaciones completas, consultar [PRODUCT.md](PRODUCT.md), [.agents/rules/procimec_design_system.md](.agents/rules/procimec_design_system.md), [.agents/rules/procimec_architecture.md](.agents/rules/procimec_architecture.md) y [.agents/rules/procimec_performance.md](.agents/rules/procimec_performance.md).

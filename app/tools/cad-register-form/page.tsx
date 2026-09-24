@@ -6,8 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSession } from 'next-auth/react';
 import { useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
-import { CheckCircle2, AlertTriangle, PenTool, Check, X } from 'lucide-react';
+import { BackButton } from '@/components/BackButton';
+import { CheckCircle2, AlertTriangle, PenTool, Check, X, ArrowRight } from 'lucide-react';
 
 // ─── Tipo de Proyecto ─────────────────────────────────────────────────────────
 interface Project {
@@ -178,17 +180,12 @@ export default function CadRegisterFormPage() {
       {/* Hero section */}
       <div className="page-hero">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-              <PenTool className="w-3.5 h-3.5 text-amber-300" strokeWidth={1.75} />
-              CAD / BIM
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            Formulario de Registro CAD/BIM
+          <BackButton href="/dashboard" label="Volver a Mi Panel" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+            <PenTool className="w-7 h-7 text-accent" strokeWidth={1.75} /> Registro de Actividad CAD/BIM
           </h1>
           <p className="text-white/70 text-sm mt-1">
-            Completa los datos del levantamiento o modelo técnico desarrollado hoy.
+            Registro diario de modelado técnico, dibujo y horas invertidas
           </p>
         </div>
       </div>
@@ -210,12 +207,13 @@ export default function CadRegisterFormPage() {
               </div>
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <a
-                href="/tools/cad-productivity-board"
-                className="btn-sm bg-emerald-600 text-white hover:bg-emerald-700 font-semibold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+              <Link
+                href="/dashboard"
+                className="btn-sm bg-primary text-white hover:bg-primary-800 font-semibold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
               >
-                <span>📊</span> Ver en Tablero de Productividad
-              </a>
+                <span>Ir a Mi Panel</span>
+                <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.75} />
+              </Link>
               <button
                 onClick={() => setLastSuccess(null)}
                 className="btn-sm btn-ghost text-emerald-800 hover:bg-emerald-100 text-xs"
@@ -468,7 +466,10 @@ export default function CadRegisterFormPage() {
                       className={`textarea bg-white ${errors.rework_observations ? 'input-error' : ''}`}
                     />
                     {errors.rework_observations && (
-                      <p className="error-msg">⚠️ {errors.rework_observations.message}</p>
+                      <p className="error-msg flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                        <span>{errors.rework_observations.message}</span>
+                      </p>
                     )}
                   </div>
                 </div>

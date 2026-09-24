@@ -558,7 +558,7 @@ export default function HseqReportPage() {
       {/* Franja Azul Institucional PROCIMEC (page-hero) */}
       <div className="page-hero">
         <div className="max-w-4xl mx-auto">
-          <BackButton href="/dashboard" label="Volver al Tablero" />
+          <BackButton href="/dashboard" label="Volver a Mi Panel" />
           <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2">
             <ShieldCheck className="w-7 h-7 text-accent" strokeWidth={1.75} /> Inspecciones HSEQ
           </h1>
@@ -667,6 +667,13 @@ export default function HseqReportPage() {
               >
                 + Nueva Inspección
               </button>
+
+              <Link
+                href="/dashboard"
+                className="btn btn-outline"
+              >
+                Volver a Mi Panel
+              </Link>
             </div>
           </div>
         ) : (

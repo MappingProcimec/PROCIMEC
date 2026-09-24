@@ -156,21 +156,11 @@ export default function RegistroEquipoFormPage() {
       <div className="page-hero">
         <div className="max-w-4xl mx-auto">
           <BackButton href="/dashboard" label="Volver a Mi Panel" />
-          <div className="flex flex-wrap items-center gap-2 mt-3 mb-2">
-            <span className="badge bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-medium uppercase px-2.5 py-1">
-              Formulario Operativo
-            </span>
-            <span className="badge bg-white/10 text-white/90 border border-white/20 text-xs font-mono font-semibold px-2.5 py-1 flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
-              Catálogo: registro-equipo
-            </span>
-          </div>
-
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Registro y Alta de Instrumental
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+            <Package className="w-7 h-7 text-accent" strokeWidth={1.75} /> Registro y Alta de Instrumental
           </h1>
-          <p className="text-white/75 text-sm sm:text-base mt-1.5 max-w-2xl leading-relaxed">
-            Ingreso formal de georradares, antenas electromagnéticas, receptores RTK y accesorios al inventario corporativo de PROCIMEC.
+          <p className="text-white/70 text-sm mt-1">
+            Ingreso formal de georradares, antenas electromagnéticas, receptores RTK y accesorios al inventario
           </p>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
+import { Layers } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import TwoStepForm, { FormConfig, Project } from '@/components/forms/TwoStepForm';
 import CadRegisterFormPage from '@/app/tools/cad-register-form/page';
@@ -162,11 +163,11 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? 'Error al enviar formulario');
-    router.push(projectId ? `/projects/${projectId}` : '/admin/forms');
+    router.push(projectId ? `/projects/${projectId}` : '/dashboard');
   };
 
-  const backUrl = projectId ? `/projects/${projectId}` : '/admin/forms';
-  const backLabel = projectId ? 'Volver al proyecto' : 'Formularios';
+  const backUrl = projectId ? `/projects/${projectId}` : '/dashboard';
+  const backLabel = projectId ? 'Volver al Proyecto' : 'Volver a Mi Panel';
 
   return (
     <div className="min-h-screen bg-surface">
@@ -175,8 +176,8 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
       <div className="page-hero">
         <div className="max-w-2xl mx-auto">
           <BackButton href={backUrl} label={backLabel} />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3">
-            {config.name}
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+            <Layers className="w-7 h-7 text-accent" strokeWidth={1.75} /> {config.name}
           </h1>
           {config.description && (
             <p className="text-white/70 text-sm mt-1">{config.description}</p>

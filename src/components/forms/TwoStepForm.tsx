@@ -90,7 +90,7 @@ export default function TwoStepForm({
   projectId,
   projects = [],
   onSubmit,
-  backHref = '/projects',
+  backHref = '/dashboard',
 }: TwoStepFormProps) {
   const router = useRouter();
   const draftKey = `draft_${formSlug}_${projectId ?? 'global'}`;

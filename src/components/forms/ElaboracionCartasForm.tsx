@@ -268,23 +268,16 @@ export default function ElaboracionCartasForm() {
 
       {/* Hero Header */}
       <div className="page-hero bg-[#1E2229] border-b-2 border-[#EAA023]">
-        <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="max-w-5xl mx-auto px-4 py-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <BackButton href="/admin/forms" label="Volver a Herramientas y Formularios" />
-              <div className="flex items-center gap-3 mt-3">
-                <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-[#EAA023]">
-                  <FileText className="w-5 h-5" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                    Formulario de Elaboración de Cartas RRHH
-                  </h1>
-                  <p className="text-xs text-slate-300 mt-0.5">
-                    Generación canónica con membrete oficial, descarga instantánea en Word/PDF y envío automático al correo
-                  </p>
-                </div>
-              </div>
+              <BackButton href="/dashboard" label="Volver a Mi Panel" />
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+                <FileText className="w-7 h-7 text-accent" strokeWidth={1.75} /> Elaboración de Cartas RRHH
+              </h1>
+              <p className="text-white/70 text-sm mt-1">
+                Generación canónica con membrete oficial, descarga instantánea y radicado
+              </p>
             </div>
 
             {/* Stepper visual */}
@@ -1332,10 +1325,10 @@ export default function ElaboracionCartasForm() {
                 </button>
 
                 <Link
-                  href="/admin/forms"
+                  href="/dashboard"
                   className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
                 >
-                  Ir al Módulo de Auditoría
+                  Volver a Mi Panel
                 </Link>
 
                 <button

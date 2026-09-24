@@ -186,21 +186,11 @@ export default function DespachoEquipoFormPage() {
       <div className="page-hero">
         <div className="max-w-4xl mx-auto">
           <BackButton href="/dashboard" label="Volver a Mi Panel" />
-          <div className="flex flex-wrap items-center gap-2 mt-3 mb-2">
-            <span className="badge bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-medium uppercase px-2.5 py-1">
-              Formulario Operativo
-            </span>
-            <span className="badge bg-white/10 text-white/90 border border-white/20 text-xs font-mono font-semibold px-2.5 py-1 flex items-center gap-1.5">
-              <Truck className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
-              Catálogo: despacho-equipo
-            </span>
-          </div>
-
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Despacho y Salida a Campo
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+            <Truck className="w-7 h-7 text-accent" strokeWidth={1.75} /> Despacho y Salida a Campo
           </h1>
-          <p className="text-white/75 text-sm sm:text-base mt-1.5 max-w-2xl leading-relaxed">
-            Asignación formal de instrumental geofísico hacia frentes de obra activos con verificación de accesorios y responsable.
+          <p className="text-white/70 text-sm mt-1">
+            Asignación formal de instrumental geofísico hacia frentes de obra activos con verificación de accesorios
           </p>
         </div>
       </div>
