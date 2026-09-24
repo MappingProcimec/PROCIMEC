@@ -110,17 +110,15 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-bold text-text-primary">Mis Proyectos</h2>
-            {projects.length > 4 && (
-              <Link href="/projects" className="text-xs text-primary font-semibold hover:underline">
-                Ver todos ({projects.length}) →
-              </Link>
-            )}
+            <span className="text-xs text-text-muted font-medium font-mono">
+              {projects.length} asignado{projects.length !== 1 ? 's' : ''}
+            </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {projects.slice(0, 4).map((p) => (
+            {projects.map((p) => (
               <Link
                 key={p.id}
-                href={`/projects/${p.id}`}
+                href={`/projects/${p.id}/reports`}
                 className="card border border-border p-4 hover:shadow-md transition-all group"
               >
                 <div className="flex items-start justify-between gap-2">

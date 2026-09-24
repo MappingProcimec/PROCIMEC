@@ -16,7 +16,6 @@ export default function LoginPage() {
     if (status === 'authenticated') {
       const role = session?.user?.role;
       if (role === 'admin') router.replace('/admin/dashboard');
-      else if (role === 'operator' || role === 'localizador') router.replace('/projects');
       else if (role === 'pending') router.replace('/pending');
       else router.replace('/dashboard');
     }
@@ -24,7 +23,7 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     setIsLoading(true);
-    await signIn('google', { callbackUrl: '/projects' });
+    await signIn('google', { callbackUrl: '/dashboard' });
   };
 
   if (status === 'loading') {

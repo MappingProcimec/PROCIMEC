@@ -268,7 +268,7 @@ _Plataforma Integral PROCIMEC Mapping e Ingeniería_`;
             Nuevo Registro
           </Link>
           <Link
-            href={projectId ? `/projects/${projectId}/reports` : '/projects'}
+            href={projectId ? `/projects/${projectId}/reports` : '/dashboard'}
             className="btn-primary justify-center py-3 rounded-xl flex items-center gap-2 text-sm font-semibold"
           >
             <Layers className="w-4 h-4" strokeWidth={1.75} />
@@ -277,10 +277,10 @@ _Plataforma Integral PROCIMEC Mapping e Ingeniería_`;
         </div>
 
         <Link
-          href={projectId ? `/projects/${projectId}` : '/projects'}
+          href="/dashboard"
           className="text-center block text-xs text-text-muted hover:text-amber-500 transition-colors py-2"
         >
-          ← Volver a la vista del proyecto
+          ← Volver a Mi Panel
         </Link>
       </div>
     </div>

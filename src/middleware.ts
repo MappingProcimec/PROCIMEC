@@ -22,9 +22,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/pending', request.url));
   }
 
+  // Redirect legacy /projects to /dashboard
+  if (pathname === '/projects') {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
   // Non-admin trying to access admin
   if (role !== 'admin' && pathname.startsWith('/admin')) {
-    if (role === 'operator' || role === 'localizador') return NextResponse.redirect(new URL('/projects', request.url));
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

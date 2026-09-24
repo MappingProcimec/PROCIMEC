@@ -62,11 +62,11 @@ export default function ReportsPage() {
       <div className="page-hero">
         <div className="max-w-4xl mx-auto">
           <Link
-            href="/projects"
+            href="/dashboard"
             className="inline-flex items-center gap-1.5 text-white/60 hover:text-white text-xs font-medium mb-3 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.75} />
-            Volver a proyectos
+            Volver a Mi Panel
           </Link>
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>

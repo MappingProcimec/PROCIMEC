@@ -15,7 +15,6 @@ export default function PendingPage() {
     if (status === 'authenticated' && session?.user?.role) {
       const role = session.user.role;
       if (role === 'admin') router.replace('/admin/dashboard');
-      else if (role === 'operator' || role === 'localizador') router.replace('/projects');
       else if (role !== 'pending') router.replace('/dashboard');
     }
   }, [session, status, router]);
