@@ -4,7 +4,23 @@ import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
-import { Layers } from 'lucide-react';
+import {
+  ShoppingCart,
+  FileCheck2,
+  Award,
+  Target,
+  FileSpreadsheet,
+  CheckCircle2,
+  Coins,
+  Receipt,
+  CreditCard,
+  FileText,
+  Calculator,
+  Radio,
+  PenTool,
+  ClipboardList,
+  LucideIcon,
+} from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import TwoStepForm, { FormConfig, Project } from '@/components/forms/TwoStepForm';
 import CadRegisterFormPage from '@/app/forms/cad-register-form/page';
@@ -469,6 +485,23 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
     router.push(projectId ? `/projects/${projectId}` : '/dashboard');
   };
 
+  const FORM_ICONS: Record<string, LucideIcon> = {
+    'requerimiento-compra': ShoppingCart,
+    'orden-compra': FileCheck2,
+    'evaluacion-proveedor': Award,
+    'registro-oportunidad': Target,
+    'cotizacion-comercial': FileSpreadsheet,
+    'cierre-comercial': CheckCircle2,
+    'solicitud-viaticos': Coins,
+    'legalizacion-gastos': Receipt,
+    'registro-pago': CreditCard,
+    'radicacion-factura': FileText,
+    'soporte-cobro': Calculator,
+    'gpr-field-form': Radio,
+    'cad-register-form': PenTool,
+  };
+
+  const FormIcon = FORM_ICONS[formSlug] ?? ClipboardList;
   const backUrl = projectId ? `/projects/${projectId}` : '/dashboard';
   const backLabel = projectId ? 'Volver al Proyecto' : 'Volver a Mi Panel';
 
@@ -477,10 +510,11 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
       <Navbar />
 
       <div className="page-hero">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-3xl mx-auto">
           <BackButton href={backUrl} label={backLabel} />
           <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
-            <Layers className="w-7 h-7 text-accent" strokeWidth={1.75} /> {config.name}
+            <FormIcon className="w-7 h-7 text-accent" strokeWidth={1.75} />
+            <span>{config.name}</span>
           </h1>
           {config.description && (
             <p className="text-white/70 text-sm mt-1">{config.description}</p>
@@ -488,7 +522,7 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 -mt-6 pb-20">
+      <div className="max-w-3xl mx-auto px-4 -mt-6 pb-20">
         <TwoStepForm
           formConfig={config}
           formSlug={formSlug}

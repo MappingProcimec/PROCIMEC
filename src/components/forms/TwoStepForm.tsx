@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  FileText,
+  UploadCloud,
+  ArrowRight,
+  ArrowLeft,
+  Send,
+  X,
+  AlertCircle,
+} from 'lucide-react';
 
 // --- Field type system ---
 
@@ -29,6 +38,9 @@ export interface Field {
   options?: FieldOption[];
   placeholder?: string;
   hint?: string;
+  colSpan?: 'full' | 'half';
+  isCurrency?: boolean;
+  isCode?: boolean;
   conditionalOn?: { key: string; truthy?: boolean; value?: string };
 }
 
@@ -68,12 +80,53 @@ function isVisible(field: Field, values: FormValues): boolean {
   return true;
 }
 
+function isCurrencyField(field: Field): boolean {
+  if (field.isCurrency) return true;
+  const k = field.key.toLowerCase();
+  return (
+    k.includes('amount') ||
+    k.includes('value') ||
+    k.includes('subtotal') ||
+    k.includes('total') ||
+    k.includes('balance') ||
+    k.includes('spent') ||
+    k.includes('transport') ||
+    k.includes('lodging') ||
+    k.includes('meals') ||
+    k.includes('tolls') ||
+    k.includes('fuel') ||
+    k.includes('tax')
+  );
+}
+
+function isCodeField(field: Field): boolean {
+  if (field.isCode) return true;
+  const k = field.key.toLowerCase();
+  return k.includes('code') || k.includes('nit') || k.includes('acta_number') || k.includes('reference');
+}
+
+function isFullWidthField(field: Field): boolean {
+  if (field.colSpan === 'full') return true;
+  if (field.colSpan === 'half') return false;
+  if (field.type === 'textarea' || field.type === 'software-group' || field.type === 'checkbox-group') return true;
+  const k = field.key.toLowerCase();
+  if (k === 'title' || k === 'justification' || k === 'items_text' || k === 'scope_description' || k === 'project_id') {
+    return true;
+  }
+  return false;
+}
+
 function makeDefault(field: Field, projectId?: string): unknown {
   switch (field.type) {
     case 'toggle': return false;
     case 'software-group': return {};
     case 'checkbox-group': return [];
-    case 'select': return field.key === 'project_id' && projectId ? projectId : '';
+    case 'select': {
+      if (field.key === 'project_id' && projectId) return projectId;
+      if (field.key.endsWith('_score')) return '5';
+      if (field.key === 'priority' || field.key === 'cad_priority') return 'media';
+      return '';
+    }
     default: return '';
   }
 }
@@ -112,10 +165,10 @@ export default function TwoStepForm({
         setValues((prev) => ({ ...prev, ...(JSON.parse(raw) as FormValues) }));
         setHasDraft(true);
       }
-    } catch { /* ignore parse errors */ }
+    } catch { /* ignore */ }
   }, [draftKey]);
 
-  // Autosave draft con debounce (350ms) para evitar bloqueos del hilo principal al teclear
+  // Autosave draft con debounce (350ms)
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
@@ -181,39 +234,107 @@ export default function TwoStepForm({
   const renderField = (field: Field) => {
     if (!isVisible(field, values)) return null;
     const val = values[field.key];
+    const isCurrency = isCurrencyField(field);
+    const isCode = isCodeField(field);
+
+    // Interactive score selector 1-5 (Sobrio, sin spam de colores)
+    if (field.key.endsWith('_score')) {
+      const currentScore = String(val ?? '5');
+      return (
+        <div className="grid grid-cols-5 gap-2">
+          {['1', '2', '3', '4', '5'].map((num) => {
+            const isSelected = currentScore === num;
+            return (
+              <button
+                key={num}
+                type="button"
+                onClick={() => set(field.key, num)}
+                className={`py-2 rounded-xl text-center border font-mono font-bold text-sm transition-all duration-150 active:scale-[0.98] ${
+                  isSelected
+                    ? 'bg-primary-700 text-white border-primary-800 ring-1 ring-accent shadow-xs'
+                    : 'bg-white hover:bg-gray-50 border-border text-text-secondary'
+                }`}
+              >
+                {num}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Priority selector (Sobrio, profesional)
+    if (field.key === 'priority' || field.key === 'cad_priority') {
+      const currentPriority = String(val ?? 'media').toLowerCase();
+      const priorities = [
+        { id: 'baja', label: 'Baja' },
+        { id: 'media', label: 'Media' },
+        { id: 'alta', label: 'Alta' },
+        { id: 'urgente', label: 'Urgente' },
+      ];
+
+      return (
+        <div className="grid grid-cols-4 gap-2">
+          {priorities.map((p) => {
+            const isSelected = currentPriority === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => set(field.key, p.id)}
+                className={`py-2 text-xs font-semibold rounded-xl border text-center transition-all duration-150 active:scale-[0.98] ${
+                  isSelected
+                    ? 'bg-primary-700 text-white border-primary-800 ring-1 ring-accent shadow-xs'
+                    : 'bg-white hover:bg-gray-50 border-border text-text-secondary'
+                }`}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
 
     switch (field.type) {
       case 'text':
         return (
           <input
             type="text"
-            value={val as string}
+            value={(val as string) ?? ''}
             onChange={(e) => set(field.key, e.target.value)}
             placeholder={field.placeholder}
-            className="input"
+            className={`input ${isCode ? 'font-mono uppercase font-semibold text-text-primary' : ''}`}
           />
         );
 
       case 'number':
         return (
-          <input
-            type="number"
-            value={val as string}
-            onChange={(e) => set(field.key, e.target.value)}
-            placeholder={field.placeholder}
-            className="input"
-            min={0}
-            step={0.5}
-          />
+          <div className="relative">
+            {isCurrency && (
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-medium text-text-muted pointer-events-none select-none">
+                $
+              </span>
+            )}
+            <input
+              type="number"
+              value={(val as string) ?? ''}
+              onChange={(e) => set(field.key, e.target.value)}
+              placeholder={field.placeholder ?? (isCurrency ? '0.00' : '0')}
+              className={`input font-mono ${isCurrency ? 'pl-8' : ''}`}
+              min={0}
+              step={isCurrency ? '100' : '0.5'}
+            />
+          </div>
         );
 
       case 'date':
         return (
           <input
             type="date"
-            value={val as string}
+            value={(val as string) ?? ''}
             onChange={(e) => set(field.key, e.target.value)}
-            className="input"
+            className="input text-text-primary font-mono"
           />
         );
 
@@ -222,25 +343,38 @@ export default function TwoStepForm({
           if (projectId) {
             const p = projects.find((pr) => pr.id === projectId);
             return (
-              <div className="input bg-gray-50 text-text-secondary cursor-not-allowed select-none">
-                {p ? `${p.cost_center || p.code || ''} — ${p.name}` : projectId}
+              <div className="input bg-gray-50 text-text-secondary cursor-not-allowed select-none flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                <span className="font-medium truncate">{p ? `${p.cost_center || p.code || ''} — ${p.name}` : projectId}</span>
               </div>
             );
           }
           return (
-            <select value={val as string} onChange={(e) => set(field.key, e.target.value)} className="input">
-              <option value="">Seleccionar proyecto...</option>
+            <select
+              value={(val as string) ?? ''}
+              onChange={(e) => set(field.key, e.target.value)}
+              className="select font-medium"
+            >
+              <option value="">Seleccionar proyecto asignado...</option>
               {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.cost_center || p.code || ''} — {p.name}</option>
+                <option key={p.id} value={p.id}>
+                  {p.cost_center || p.code ? `[${p.cost_center || p.code}] ` : ''}{p.name}
+                </option>
               ))}
             </select>
           );
         }
         return (
-          <select value={val as string} onChange={(e) => set(field.key, e.target.value)} className="input">
-            <option value="">Seleccionar...</option>
+          <select
+            value={(val as string) ?? ''}
+            onChange={(e) => set(field.key, e.target.value)}
+            className="select"
+          >
+            <option value="">Seleccionar una opción...</option>
             {(field.options ?? []).map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </select>
         );
@@ -249,28 +383,28 @@ export default function TwoStepForm({
       case 'textarea':
         return (
           <textarea
-            value={val as string}
+            value={(val as string) ?? ''}
             onChange={(e) => set(field.key, e.target.value)}
             placeholder={field.placeholder}
-            rows={3}
-            className="textarea"
+            rows={field.key.includes('items') ? 4 : 3}
+            className="textarea leading-relaxed text-sm"
           />
         );
 
       case 'toggle': {
-        const checked = val as boolean;
+        const checked = Boolean(val);
         return (
           <button
             type="button"
             role="switch"
             aria-checked={checked}
             onClick={() => set(field.key, !checked)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 ${
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent/30 ${
               checked ? 'bg-primary' : 'bg-gray-200'
             }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
                 checked ? 'translate-x-6' : 'translate-x-1'
               }`}
             />
@@ -281,11 +415,18 @@ export default function TwoStepForm({
       case 'software-group': {
         const sw = (val ?? {}) as SoftwareMap;
         return (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-gray-50/70 rounded-xl border border-border">
             {(field.options ?? []).map((opt) => {
               const entry = sw[opt.value] ?? { selected: false, hours: '' };
               return (
-                <div key={opt.value}>
+                <div
+                  key={opt.value}
+                  className={`p-3 rounded-lg border transition-all ${
+                    entry.selected
+                      ? 'bg-white border-primary shadow-xs'
+                      : 'bg-white/60 border-border/70 hover:border-gray-300'
+                  }`}
+                >
                   <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
                       type="checkbox"
@@ -293,13 +434,13 @@ export default function TwoStepForm({
                       onChange={(e) =>
                         set(field.key, { ...sw, [opt.value]: { ...entry, selected: e.target.checked } })
                       }
-                      className="w-4 h-4 rounded accent-primary"
+                      className="w-4 h-4 rounded accent-primary cursor-pointer"
                     />
-                    <span className="text-sm font-medium text-text-primary">{opt.label}</span>
+                    <span className="text-sm font-semibold text-text-primary">{opt.label}</span>
                   </label>
 
                   {entry.selected && (
-                    <div className="ml-7 mt-2 space-y-2">
+                    <div className="mt-3 pt-2.5 border-t border-border/50 space-y-2">
                       {opt.allowCustom && (
                         <input
                           type="text"
@@ -308,7 +449,7 @@ export default function TwoStepForm({
                             set(field.key, { ...sw, [opt.value]: { ...entry, customName: e.target.value } })
                           }
                           placeholder="Nombre del software..."
-                          className="input text-sm"
+                          className="input text-xs py-1.5"
                         />
                       )}
                       <div className="flex items-center gap-2">
@@ -318,12 +459,12 @@ export default function TwoStepForm({
                           onChange={(e) =>
                             set(field.key, { ...sw, [opt.value]: { ...entry, hours: e.target.value } })
                           }
-                          placeholder="0"
-                          className="input w-24 text-sm"
+                          placeholder="8.5"
+                          className="input w-24 text-xs py-1.5 font-mono text-center"
                           min={0}
                           step={0.5}
                         />
-                        <span className="text-xs text-text-muted">horas</span>
+                        <span className="text-xs text-text-muted font-medium">horas</span>
                       </div>
                     </div>
                   )}
@@ -342,17 +483,17 @@ export default function TwoStepForm({
   // --- Render ---
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Draft indicator */}
       {hasDraft && (
         <div className="fixed bottom-6 right-6 z-40">
-          <div className="bg-white border border-border shadow-lg rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-            <span className="text-text-secondary">Borrador guardado</span>
+          <div className="bg-white/95 backdrop-blur-md border border-border shadow-soft rounded-xl px-3.5 py-2 flex items-center gap-2.5 text-xs">
+            <span className="w-2 h-2 rounded-full bg-accent" />
+            <span className="text-text-secondary font-medium">Borrador guardado</span>
             <button
               type="button"
               onClick={resetDraft}
-              className="ml-1 text-xs text-text-muted hover:text-error transition-colors"
+              className="text-text-muted hover:text-error transition-colors underline font-medium ml-1"
             >
               Borrar
             </button>
@@ -360,72 +501,98 @@ export default function TwoStepForm({
         </div>
       )}
 
-      {/* Step indicator (only when > 1 step) */}
+      {/* Stepper minimalista */}
       {totalSteps > 1 && (
-        <div className="flex items-center gap-3">
-          {[1, 2].map((s) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                step === s ? 'bg-primary text-white' : s < step ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'
-              }`}>
-                {s < step ? '✓' : s}
-              </div>
-              <span className={`text-sm font-medium ${step === s ? 'text-text-primary' : 'text-text-muted'}`}>
-                {s === 1 ? 'Información' : 'Adjuntos'}
-              </span>
-              {s < totalSteps && <span className="text-gray-300 mx-1">→</span>}
-            </div>
-          ))}
+        <div className="flex items-center justify-between px-1 py-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
+              Paso {step} de {totalSteps}:
+            </span>
+            <span className="text-xs font-semibold text-text-primary">
+              {step === 1 ? 'Información y Registro' : 'Documentación y Adjuntos'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className={`h-1.5 w-10 rounded-full transition-colors ${step >= 1 ? 'bg-primary' : 'bg-gray-200'}`} />
+            <div className={`h-1.5 w-10 rounded-full transition-colors ${step >= 2 ? 'bg-accent' : 'bg-gray-200'}`} />
+          </div>
         </div>
       )}
 
-      <div className="card border border-border shadow-sm p-5 sm:p-6">
+      {/* Tarjeta principal del formulario */}
+      <div className="card bg-white border border-border shadow-card p-5 sm:p-7 rounded-2xl">
         {step === 1 ? (
           <div className="space-y-5">
-            {formConfig.step1Fields.map((field) => {
-              if (!isVisible(field, values)) return null;
-              return (
-                <div key={field.key} className="form-group">
-                  <div className="flex items-center gap-3">
-                    <label className={`label mb-0 ${field.required ? 'label-required' : ''}`}>
-                      {field.label}
-                    </label>
-                    {field.type === 'toggle' && renderField(field)}
+            {/* Grid ergonómico de campos */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+              {formConfig.step1Fields.map((field) => {
+                if (!isVisible(field, values)) return null;
+                const fullWidth = isFullWidthField(field);
+
+                return (
+                  <div
+                    key={field.key}
+                    className={`form-group ${fullWidth ? 'sm:col-span-2' : 'sm:col-span-1'}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <label className={`label mb-1 text-xs font-semibold text-text-secondary ${field.required ? 'label-required' : ''}`}>
+                        {field.label}
+                      </label>
+                      {field.type === 'toggle' && renderField(field)}
+                    </div>
+                    {field.type !== 'toggle' && (
+                      <div>{renderField(field)}</div>
+                    )}
+                    {field.hint && (
+                      <p className="text-[11px] text-text-muted mt-1 leading-normal">{field.hint}</p>
+                    )}
                   </div>
-                  {field.type !== 'toggle' && (
-                    <div className="mt-1.5">{renderField(field)}</div>
-                  )}
-                  {field.hint && <p className="text-xs text-text-muted mt-1">{field.hint}</p>}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
 
-            {submitError && <p className="error-msg">⚠️ {submitError}</p>}
+            {/* Error */}
+            {submitError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" strokeWidth={2} />
+                <span>{submitError}</span>
+              </div>
+            )}
 
-            <div className="flex gap-3 pt-2 border-t border-border">
+            {/* Acciones */}
+            <div className="flex items-center gap-3 pt-3 border-t border-border">
               <button
                 type="button"
                 onClick={() => router.push(backHref)}
-                className="btn-ghost flex-1 py-2.5 text-sm rounded-xl"
+                className="btn-ghost flex-1 py-2.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
               >
+                <ArrowLeft className="w-4 h-4" strokeWidth={1.75} />
                 Volver
               </button>
               <button
                 type="button"
                 onClick={handleNextOrSubmit}
                 disabled={submitting}
-                className="btn-primary flex-1 py-2.5 text-sm rounded-xl font-semibold disabled:opacity-60"
+                className="btn bg-primary-700 text-white hover:bg-primary-800 flex-1 py-2.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-sm hover:shadow-card disabled:opacity-60"
               >
-                {submitting
-                  ? 'Enviando...'
-                  : totalSteps > 1
-                    ? 'Siguiente →'
-                    : 'Enviar Formulario'}
+                {submitting ? (
+                  <span>Enviando información...</span>
+                ) : totalSteps > 1 ? (
+                  <>
+                    <span>Siguiente: Adjuntos</span>
+                    <ArrowRight className="w-4 h-4 text-accent" strokeWidth={2} />
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                    <span>Radicar Registro</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
         ) : (
-          /* Step 2: Attachments */
+          /* Paso 2: Adjuntos */
           <div className="space-y-5">
             <div
               onDrop={(e) => {
@@ -434,7 +601,7 @@ export default function TwoStepForm({
               }}
               onDragOver={(e) => e.preventDefault()}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-border rounded-xl p-10 text-center hover:border-primary/50 transition-colors cursor-pointer"
+              className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-accent hover:bg-gray-50/50 transition-all cursor-pointer group"
             >
               <input
                 ref={fileInputRef}
@@ -443,50 +610,79 @@ export default function TwoStepForm({
                 className="hidden"
                 onChange={(e) => setAttachments((prev) => [...prev, ...Array.from(e.target.files ?? [])])}
               />
-              <svg className="w-10 h-10 mx-auto text-text-muted mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-              </svg>
-              <p className="text-sm font-medium text-text-primary">Arrastra archivos o haz clic para seleccionar</p>
-              <p className="text-xs text-text-muted mt-1">PDF, DWG, imágenes — máx. 50 MB por archivo</p>
+              <div className="w-10 h-10 rounded-xl bg-gray-100 text-text-muted flex items-center justify-center mx-auto mb-2.5 group-hover:text-accent group-hover:bg-amber-50 transition-colors">
+                <UploadCloud className="w-5 h-5" strokeWidth={1.75} />
+              </div>
+              <p className="text-sm font-semibold text-text-primary">
+                Arrastra tus archivos aquí o <span className="text-accent underline">selecciona desde tu equipo</span>
+              </p>
+              <p className="text-xs text-text-muted mt-1">PDF, DWG, DOCX, imágenes o ZIP (hasta 50 MB por archivo)</p>
             </div>
 
+            {/* Lista de archivos */}
             {attachments.length > 0 && (
-              <ul className="space-y-2">
-                {attachments.map((file, i) => (
-                  <li key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5 text-sm">
-                    <span className="truncate text-text-primary font-medium flex-1 mr-3">{file.name}</span>
-                    <span className="text-text-muted text-xs flex-shrink-0 mr-3">
-                      {(file.size / 1024 / 1024).toFixed(1)} MB
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
-                      className="text-error hover:text-error/80 text-lg leading-none flex-shrink-0"
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-1.5">
+                <p className="text-xs font-bold text-text-secondary uppercase tracking-wider">
+                  Archivos adjuntos ({attachments.length})
+                </p>
+                <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
+                  {attachments.map((file, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 text-xs bg-white hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-2 truncate mr-3">
+                        <FileText className="w-4 h-4 text-accent flex-shrink-0" strokeWidth={1.75} />
+                        <span className="font-medium text-text-primary truncate">{file.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <span className="font-mono text-text-muted text-[11px]">
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+                          className="w-5 h-5 rounded hover:bg-red-50 text-text-muted hover:text-error flex items-center justify-center transition-colors"
+                          title="Remover archivo"
+                        >
+                          <X className="w-3.5 h-3.5" strokeWidth={2} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
-            {submitError && <p className="error-msg">⚠️ {submitError}</p>}
+            {/* Error */}
+            {submitError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-xs text-red-700">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" strokeWidth={2} />
+                <span>{submitError}</span>
+              </div>
+            )}
 
-            <div className="flex gap-3 pt-2 border-t border-border">
+            {/* Acciones paso 2 */}
+            <div className="flex items-center gap-3 pt-3 border-t border-border">
               <button
                 type="button"
                 onClick={() => { setStep(1); setSubmitError(''); }}
-                className="btn-ghost flex-1 py-2.5 text-sm rounded-xl"
+                className="btn-ghost flex-1 py-2.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
               >
-                ← Atrás
+                <ArrowLeft className="w-4 h-4" strokeWidth={1.75} />
+                Atrás
               </button>
               <button
                 type="button"
                 onClick={handleNextOrSubmit}
                 disabled={submitting}
-                className="btn-primary flex-1 py-2.5 text-sm rounded-xl font-semibold disabled:opacity-60"
+                className="btn bg-primary-700 text-white hover:bg-primary-800 flex-1 py-2.5 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-sm hover:shadow-card disabled:opacity-60"
               >
-                {submitting ? 'Enviando...' : 'Enviar Formulario'}
+                {submitting ? (
+                  <span>Enviando información...</span>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                    <span>Finalizar y Radicar</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
