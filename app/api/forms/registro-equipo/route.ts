@@ -43,6 +43,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ exists: Boolean(existing) });
   }
 
+  const userRole = session.user.role;
+  const userId = session.user.id;
+
+  if (userRole === 'pending') {
+    return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
+  }
+
+  let hasAccess = userRole === 'admin' || userRole === 'warehouse' || userRole === 'almacen' || userRole === 'management' || userRole === 'gerencia';
+  if (!hasAccess && userId) {
+    try {
+      const { data: uf } = await supabase
+        .from('user_forms')
+        .select('forms!inner(slug)')
+        .eq('user_id', userId)
+        .eq('forms.slug', 'registro-equipo')
+        .maybeSingle();
+
+      if (uf) hasAccess = true;
+    } catch {
+      // Ignorar
+    }
+  }
+
+  if (!hasAccess) {
+    return NextResponse.json({ error: 'No autorizado para consultar inventario operativo de almacén' }, { status: 403 });
+  }
+
   // Carga concurrente para alimentar las 4 pestañas operativas de almacén
   const [
     equipmentRes,

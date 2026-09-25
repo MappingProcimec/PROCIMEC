@@ -83,6 +83,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 });
     }
 
+    // 1.1 Verificación anti-IDOR: verificar que el operador esté asignado al proyecto si no es admin
+    if (session.user.role !== 'admin') {
+      const { data: assignment } = await supabase
+        .from('user_projects')
+        .select('project_id')
+        .eq('user_id', session.user.id)
+        .eq('project_id', reportData.project_id)
+        .maybeSingle();
+
+      if (!assignment) {
+        return NextResponse.json(
+          { error: 'No tienes permisos para registrar reportes en este proyecto no asignado.' },
+          { status: 403 }
+        );
+      }
+    }
+
     // 2. Intentar crear o vincular carpetas en Google Drive (Tolerante a fallos / No bloqueante)
     let parentDriveFolderId = project.drive_folder_id;
     let sessionFolderId: string | undefined;

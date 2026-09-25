@@ -10,6 +10,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
+  const userRole = session.user.role;
+  const userId = session.user.id;
+
+  if (userRole === 'pending') {
+    return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
+  }
+
+  let hasAccess = userRole === 'admin' || userRole === 'warehouse' || userRole === 'almacen' || userRole === 'management' || userRole === 'gerencia';
+  if (!hasAccess && userId) {
+    const supabase = createAdminClient();
+    try {
+      const { data: uf } = await supabase
+        .from('user_forms')
+        .select('forms!inner(slug)')
+        .eq('user_id', userId)
+        .eq('forms.slug', 'despacho-equipo')
+        .maybeSingle();
+
+      if (uf) hasAccess = true;
+    } catch {
+      // Mantener denegado si falla la consulta
+    }
+  }
+
+  if (!hasAccess) {
+    return NextResponse.json({ error: 'No autorizado para consultar inventario de despacho' }, { status: 403 });
+  }
+
   const supabase = createAdminClient();
 
   const [equipmentRes, projectsRes, usersRes] = await Promise.all([

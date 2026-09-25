@@ -72,6 +72,39 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
+  const userRole = session.user.role;
+  const userId = session.user.id;
+
+  if (userRole === 'pending') {
+    return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
+  }
+
+  const supabase = createAdminClient();
+
+  // Validar si el usuario tiene rol de supervisión HSEQ o la herramienta asignada
+  let hasAccess = userRole === 'admin' || userRole === 'hseq' || userRole === 'management' || userRole === 'gerencia';
+  if (!hasAccess && userId) {
+    try {
+      const { data: ut } = await supabase
+        .from('user_tools')
+        .select('tools!inner(slug)')
+        .eq('user_id', userId)
+        .eq('tools.slug', 'evidence-board')
+        .maybeSingle();
+
+      if (ut) hasAccess = true;
+    } catch {
+      // Ignorar si la tabla no responde y mantener denegado por defecto
+    }
+  }
+
+  if (!hasAccess) {
+    return NextResponse.json(
+      { error: 'No tienes permisos para acceder al Tablero de Evidencias HSEQ.' },
+      { status: 403 }
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const limitParam = searchParams.get('limit');
   const offsetParam = searchParams.get('offset');
@@ -82,7 +115,6 @@ export async function GET(req: NextRequest) {
   const offset = offsetParam ? Math.max(parseInt(offsetParam, 10) || 0, 0) : 0;
 
   try {
-    const supabase = createAdminClient();
 
     let query = supabase
       .from('hseq_inspections')
