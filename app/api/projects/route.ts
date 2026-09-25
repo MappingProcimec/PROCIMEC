@@ -31,8 +31,13 @@ export async function GET() {
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  // Localizadores / Operators only see assigned projects
-  if (role === 'operator' || role === 'localizador') {
+  // Usuarios con rol pending no deben ver ningún proyecto
+  if (role === 'pending') {
+    return NextResponse.json({ data: [] });
+  }
+
+  // Usuarios no administrativos ni gerenciales solo ven proyectos asignados en user_projects
+  if (role !== 'admin' && role !== 'management' && role !== 'gerencia') {
     const { data: assignments } = await supabase
       .from('user_projects')
       .select('project_id')

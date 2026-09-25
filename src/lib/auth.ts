@@ -108,8 +108,29 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      if (trigger === 'update' && session?.user) {
-        return { ...token, ...session.user };
+      if (trigger === 'update') {
+        // Blindaje contra escalamiento de privilegios: nunca aceptar roles ni IDs enviados desde el cliente.
+        // Se revalida el estado verificado directamente desde la base de datos en Supabase.
+        const currentEmail = user?.email || (token?.email as string | undefined);
+        if (currentEmail) {
+          const supabase = createAdminClient();
+          const isAdmin = isKnownAdmin(currentEmail);
+          const { data } = await supabase
+            .from('users')
+            .select('id, role, is_active, full_name, nick_name, avatar_url')
+            .eq('email', currentEmail)
+            .maybeSingle();
+
+          if (data) {
+            token.userId = data.id;
+            token.role = isAdmin ? 'admin' : data.role;
+            token.isActive = data.is_active;
+            token.fullName = data.full_name;
+            token.nickName = data.nick_name || data.full_name;
+            token.avatarUrl = data.avatar_url;
+          }
+        }
+        return token;
       }
 
       return token;

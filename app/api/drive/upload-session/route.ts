@@ -10,10 +10,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
+  const role = session.user.role;
+  if (!role || role === 'pending') {
+    return NextResponse.json({ error: 'Usuario pendiente o no autorizado' }, { status: 403 });
+  }
+
+  // Solo roles técnicos y administradores pueden iniciar sesiones de subida de archivos GPR/CAD/HSEQ
+  const allowedUploadRoles = ['admin', 'localizador', 'operator', 'dibujo', 'drawing', 'hseq'];
+  if (!allowedUploadRoles.includes(role)) {
+    return NextResponse.json({ error: 'No tienes permisos para cargar archivos técnicos' }, { status: 403 });
+  }
+
   try {
     const { folderId, fileName, mimeType, fileSize, action, fileId } = await request.json();
 
-    if (action === 'set_permission' && fileId) {
+    if (action === 'set_permission') {
+      if (!fileId) {
+        return NextResponse.json({ error: 'fileId es requerido' }, { status: 400 });
+      }
       const { webViewLink } = await setFilePublicPermission(fileId);
       return NextResponse.json({ webViewLink });
     }
@@ -22,11 +36,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Faltan parámetros requeridos (folderId, fileName, fileSize)' }, { status: 400 });
     }
 
+    const numSize = Number(fileSize);
+    // Limitar subida a máximo 1.5 GB por archivo GPR
+    if (isNaN(numSize) || numSize <= 0 || numSize > 1500 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Tamaño de archivo inválido o excede el límite permitido (1.5GB)' }, { status: 400 });
+    }
+
+    const sanitizedFileName = String(fileName).replace(/[^a-zA-Z0-9.\-_]/g, '_');
+
     const { uploadUrl } = await createResumableUploadSession(
       folderId,
-      fileName,
+      sanitizedFileName,
       mimeType || 'application/octet-stream',
-      fileSize
+      numSize
     );
 
     return NextResponse.json({ uploadUrl });

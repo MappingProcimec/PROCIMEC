@@ -10,6 +10,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
+    const supabase = createAdminClient();
+    const userRole = session.user.role;
+    const sessionUserId = session.user.id;
+
+    // Verificar si el usuario tiene rol de auditoría (admin, rrhh, hr) o la herramienta asignada
+    let isAuditor = userRole === 'admin' || userRole === 'rrhh' || userRole === 'hr';
+    if (!isAuditor && sessionUserId) {
+      const { data: ut } = await supabase
+        .from('user_tools')
+        .select('tools(slug)')
+        .eq('user_id', sessionUserId);
+
+      const hasTool = (ut || []).some((row) => {
+        const t = (row as unknown as { tools: { slug?: string } | null }).tools;
+        return t?.slug === 'cartas-audit';
+      });
+      if (hasTool) isAuditor = true;
+    }
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     const search = searchParams.get('search')?.trim().toLowerCase() || '';
@@ -19,8 +38,6 @@ export async function GET(req: NextRequest) {
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
     const limit = Math.min(Number(searchParams.get('limit') || 50), 100);
-
-    const supabase = createAdminClient();
 
     // Si se consulta una carta individual
     if (id) {
@@ -41,6 +58,11 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: singleErr.message }, { status: 404 });
       }
 
+      // Blindaje IDOR: si no es auditor, solo puede ver sus cartas propias
+      if (!isAuditor && singleLetter.user_id !== sessionUserId) {
+        return NextResponse.json({ error: 'No autorizado para consultar esta carta' }, { status: 403 });
+      }
+
       return NextResponse.json({ data: singleLetter });
     }
 
@@ -58,11 +80,10 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (letterType !== 'all') {
-      query = query.eq('letter_type', letterType);
-    }
-
-    if (userId !== 'all') {
+    // Si no es auditor, forzar estrictamente que solo vea sus propias cartas
+    if (!isAuditor) {
+      query = query.eq('user_id', sessionUserId);
+    } else if (userId !== 'all') {
       query = query.eq('user_id', userId);
     }
 

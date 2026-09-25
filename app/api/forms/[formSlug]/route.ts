@@ -27,6 +27,77 @@ export async function POST(
     return NextResponse.json({ error: 'Usuario no encontrado en la base de datos' }, { status: 404 });
   }
 
+  // Bloquear usuarios pendientes
+  if (dbUser.role === 'pending') {
+    return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
+  }
+
+  // Si no es admin, validar si tiene autorización por rol o asignación en user_forms
+  if (dbUser.role !== 'admin') {
+    let isAuthorized = false;
+
+    // 1. Verificar si el formulario está asignado individualmente en user_forms
+    try {
+      const { data: uf } = await supabase
+        .from('user_forms')
+        .select('forms!inner(slug)')
+        .eq('user_id', dbUser.id)
+        .eq('forms.slug', formSlug)
+        .maybeSingle();
+
+      if (uf) isAuthorized = true;
+    } catch {
+      // Si la relación o tabla no responde, continuar validación por rol
+    }
+
+    // 2. Si no tiene asignación individual, verificar matriz de roles canónicos
+    if (!isAuthorized) {
+      const ROLE_ALLOWED_FORMS: Record<string, string[]> = {
+        purchasing: ['requerimiento-compra', 'orden-compra', 'evaluacion-proveedor'],
+        compras: ['requerimiento-compra', 'orden-compra', 'evaluacion-proveedor'],
+        commercial: ['registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial'],
+        comercial: ['registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial'],
+        finance: ['solicitud-viaticos', 'legalizacion-gastos', 'registro-pago'],
+        finanzas: ['solicitud-viaticos', 'legalizacion-gastos', 'registro-pago'],
+        accounting: ['radicacion-factura', 'soporte-cobro', 'requerimiento-compra'],
+        contabilidad: ['radicacion-factura', 'soporte-cobro', 'requerimiento-compra'],
+        warehouse: ['requerimiento-compra', 'evaluacion-proveedor'],
+        almacen: ['requerimiento-compra', 'evaluacion-proveedor'],
+        management: [
+          'requerimiento-compra', 'orden-compra', 'evaluacion-proveedor',
+          'registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial',
+          'solicitud-viaticos', 'legalizacion-gastos', 'registro-pago',
+          'radicacion-factura', 'soporte-cobro'
+        ],
+        gerencia: [
+          'requerimiento-compra', 'orden-compra', 'evaluacion-proveedor',
+          'registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial',
+          'solicitud-viaticos', 'legalizacion-gastos', 'registro-pago',
+          'radicacion-factura', 'soporte-cobro'
+        ],
+        // Personal operativo y técnico: solicitudes y viáticos propios
+        operator: ['requerimiento-compra', 'solicitud-viaticos', 'legalizacion-gastos'],
+        localizador: ['requerimiento-compra', 'solicitud-viaticos', 'legalizacion-gastos'],
+        dibujo: ['requerimiento-compra', 'solicitud-viaticos', 'legalizacion-gastos'],
+        hseq: ['requerimiento-compra', 'solicitud-viaticos', 'legalizacion-gastos'],
+        rrhh: ['requerimiento-compra', 'solicitud-viaticos', 'legalizacion-gastos'],
+        hr: ['requerimiento-compra', 'solicitud-viaticos', 'legalizacion-gastos'],
+      };
+
+      const allowedFormsForRole = ROLE_ALLOWED_FORMS[dbUser.role] || [];
+      if (allowedFormsForRole.includes(formSlug)) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
+      return NextResponse.json(
+        { error: `No tienes permisos para diligenciar el formulario '${formSlug}'.` },
+        { status: 403 }
+      );
+    }
+  }
+
   try {
     let result = null;
 

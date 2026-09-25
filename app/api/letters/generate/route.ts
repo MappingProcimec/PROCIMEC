@@ -10,6 +10,10 @@ import { sendHrLetterEmail } from '@/lib/letters/letterMailer';
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'No autorizado - Se requiere autenticación' }, { status: 401 });
+    }
+
     const body = await req.json();
 
     const {
@@ -30,22 +34,34 @@ export async function POST(req: NextRequest) {
     const meta = HR_LETTER_TYPES[letterType];
     const supabase = createAdminClient();
 
-    // 1. Obtener usuario autenticado o fallback
-    let userId = session?.user?.id;
-    let userEmail = session?.user?.email || 'contacto@procimecingenieria.com';
-    let userFullName = session?.user?.name || 'Colaborador PROCIMEC';
+    // 1. Verificación de permisos y usuario autenticado
+    const userRole = session.user.role;
+    const sessionUserId = session.user.id;
 
-    if (!userId && userEmail) {
-      const { data: dbUser } = await supabase
-        .from('users')
-        .select('id, full_name')
-        .eq('email', userEmail)
-        .single();
-      if (dbUser) {
-        userId = dbUser.id;
-        userFullName = dbUser.full_name || userFullName;
-      }
+    let hasAccess = userRole === 'admin' || userRole === 'rrhh' || userRole === 'hr';
+    if (!hasAccess && sessionUserId) {
+      const { data: uf } = await supabase
+        .from('user_forms')
+        .select('forms(slug)')
+        .eq('user_id', sessionUserId);
+
+      const hasForm = (uf || []).some((row) => {
+        const f = (row as unknown as { forms: { slug?: string } | null }).forms;
+        return f?.slug === 'elaboracion-cartas';
+      });
+      if (hasForm) hasAccess = true;
     }
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'No tienes permisos para emitir cartas o certificaciones de RRHH.' },
+        { status: 403 }
+      );
+    }
+
+    const userId = sessionUserId;
+    const userEmail = session.user.email;
+    const userFullName = session.user.name || session.user.fullName || 'Colaborador PROCIMEC';
 
     // 2. Generar Radicado Consecutivo Oficial (ej. PRC-RH-2026-0012)
     const currentYear = new Date().getFullYear();

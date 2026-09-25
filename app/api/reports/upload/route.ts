@@ -22,7 +22,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Archivo y fieldReportId son obligatorios' }, { status: 400 });
     }
 
+    // Límite de tamaño para proteger la memoria del servidor de Node.js (50 MB)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: 'El archivo excede el tamaño máximo permitido de 50MB' }, { status: 400 });
+    }
+
     const supabase = createAdminClient();
+
+    // Verificación de autoría anti-IDOR: solo el autor del reporte o admin pueden adjuntar archivos
+    const { data: report, error: reportErr } = await supabase
+      .from('field_reports')
+      .select('id, created_by')
+      .eq('id', fieldReportId)
+      .single();
+
+    if (reportErr || !report) {
+      return NextResponse.json({ error: 'Reporte de campo no encontrado' }, { status: 404 });
+    }
+
+    if (session.user.role !== 'admin' && report.created_by !== session.user.id) {
+      return NextResponse.json({ error: 'No tienes autorización para adjuntar archivos a este reporte' }, { status: 403 });
+    }
 
     // Limpiar nombre de archivo y armar ruta en Supabase Storage
     const timestamp = Date.now();
