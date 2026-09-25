@@ -13,7 +13,9 @@ export const authOptions: NextAuthOptions = {
           prompt: 'consent select_account',
           access_type: 'offline',
           response_type: 'code',
-          scope: 'openid email profile https://www.googleapis.com/auth/drive',
+          scope: process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN
+            ? 'openid email profile'
+            : 'openid email profile https://www.googleapis.com/auth/drive',
         },
       },
     }),

@@ -5,8 +5,8 @@ import { scanHseqTemplates, HSEQ_TEMPLATES_FOLDER_ID } from '@/lib/hseq-drive';
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!session || !session.user || session.user.role === 'pending' || session.user.isActive === false) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
   const refresh = req.nextUrl.searchParams.get('refresh') === 'true';

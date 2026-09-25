@@ -21,13 +21,13 @@ export async function GET(
   { params }: { params: { templateId: string } }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!session || !session.user || session.user.role === 'pending' || session.user.isActive === false) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
   const { templateId } = params;
-  if (!templateId) {
-    return NextResponse.json({ error: 'Falta el identificador del formato' }, { status: 400 });
+  if (!templateId || typeof templateId !== 'string' || !/^[a-zA-Z0-9_.-]+$/.test(templateId)) {
+    return NextResponse.json({ error: 'Identificador de formato no válido' }, { status: 400 });
   }
 
   const forceRefresh = req.nextUrl.searchParams.get('refresh') === 'true';

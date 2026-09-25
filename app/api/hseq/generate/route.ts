@@ -5,8 +5,8 @@ import { generateHseqEvidencePdf, InspectionMatrixItem } from '@/lib/hseq-drive'
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!session || !session.user || session.user.role === 'pending' || session.user.isActive === false) {
+    return NextResponse.json({ error: 'No autorizado para generar documentos HSEQ' }, { status: 403 });
   }
 
   try {
@@ -15,16 +15,16 @@ export async function POST(req: NextRequest) {
       templateFileId,
       templateCode = 'FOR-HSEQ',
       projectName = 'Proyecto General',
-      locatorName = session.user.name || 'Localizador',
+      locatorName = session.user.fullName || session.user.name || 'Localizador',
       inspectionDate = new Date().toISOString().split('T')[0],
       notes = '',
       textPlaceholders = {},
       matrixItems = [] as InspectionMatrixItem[],
     } = body;
 
-    if (!templateFileId) {
+    if (!templateFileId || typeof templateFileId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(templateFileId)) {
       return NextResponse.json(
-        { error: 'Debe especificar el templateFileId de la plantilla en Google Drive' },
+        { error: 'Debe especificar un templateFileId válido de Google Drive' },
         { status: 400 }
       );
     }

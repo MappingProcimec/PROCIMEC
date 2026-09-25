@@ -93,8 +93,8 @@ async function callGemini(apiKey: string, prompt: string): Promise<string | null
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!session || !session.user || session.user.role === 'pending' || session.user.isActive === false) {
+    return NextResponse.json({ error: 'No autorizado para consultar asistencia de IA' }, { status: 403 });
   }
 
   let templateFileId = '';
@@ -104,12 +104,19 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    templateFileId = body.templateFileId || '';
-    code = body.code || '';
-    title = body.title || '';
-    folderName = body.folderName || '';
+    templateFileId = typeof body.templateFileId === 'string' ? body.templateFileId.trim() : '';
+    code = typeof body.code === 'string' ? body.code.trim() : '';
+    title = typeof body.title === 'string' ? body.title.trim() : '';
+    folderName = typeof body.folderName === 'string' ? body.folderName.trim() : '';
   } catch {
     // Body vacío
+  }
+
+  if (templateFileId && !/^[a-zA-Z0-9_.-]+$/.test(templateFileId)) {
+    return NextResponse.json(
+      { error: 'Identificador de plantilla no válido' },
+      { status: 400 }
+    );
   }
 
   if (!code && !title && !templateFileId) {
