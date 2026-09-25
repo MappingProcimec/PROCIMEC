@@ -218,7 +218,7 @@ export function Navbar() {
         >
           <Image
             src={logoSrc}
-            alt="PROCIMEC — PCM CLOUD"
+            alt="PROCIMEC"
             width={130}
             height={32}
             className="h-8 w-auto object-contain"
@@ -226,9 +226,6 @@ export function Navbar() {
             unoptimized
             onError={() => setLogoSrc(CORPORATE_LOGO_BASE64)}
           />
-          <span className="hidden sm:inline-flex items-center text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">
-            PCM CLOUD
-          </span>
         </Link>
 
         {/* Admin nav links */}

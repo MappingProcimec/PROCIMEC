@@ -72,14 +72,7 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="flex items-center gap-2 mt-1">
-            <h1 className="text-white font-bold text-lg tracking-tight flex items-center gap-2">
-              <span>PROCIMEC</span>
-              <span className="text-accent font-mono text-xs font-semibold px-2 py-0.5 rounded bg-accent/20 border border-accent/40">
-                PCM CLOUD
-              </span>
-            </h1>
-          </div>
+          <h1 className="sr-only">PROCIMEC — PCM CLOUD</h1>
 
           <p className="text-white/70 text-xs mt-1">
             Plataforma Cloud de Gestión Integral e Ingeniería de Precisión
