@@ -138,7 +138,7 @@ export default function AdminDashboard() {
 
       <div className="page-hero">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-2xl font-bold text-white mb-1">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-white mb-1">Panel de Control</h1>
           <p className="text-white/70 text-sm">
             {format(new Date(), "MMMM yyyy", { locale: es })}
           </p>

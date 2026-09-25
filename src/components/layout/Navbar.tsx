@@ -258,7 +258,7 @@ export function Navbar() {
         <div className="flex items-center gap-2">
           {divisionName && <DivisionBadge divisionName={divisionName} />}
           <span className={`hidden sm:inline-flex badge text-xs ${isAdmin ? 'badge-primary' : 'badge-accent'}`}>
-            {isAdmin ? 'Admin' : (dashData?.role?.name ?? legacyRole ?? 'Localizador')}
+            {isAdmin ? 'Administrador' : (dashData?.role?.name ?? legacyRole ?? 'Localizador')}
           </span>
 
           {/* Avatar dropdown */}
@@ -447,7 +447,7 @@ export function Navbar() {
                         >
                           <div className="flex items-center gap-2">
                             <Settings className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} />
-                            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Navegación Admin</p>
+                            <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Navegación de Administrador</p>
                           </div>
                           <ChevronDown
                             className={`w-3.5 h-3.5 text-text-muted transition-transform duration-200 ${expanded.has('admin-nav') ? 'rotate-180' : ''}`}

@@ -116,6 +116,8 @@ Para evitar la estética genérica de plantillas generadas por IA (*AI Slop*) y 
 ## 6. Checklist de Calidad Pre-Commit (Pre-Flight Check)
 
 Antes de dar por concluida cualquier modificación visual, el agente debe verificar:
+- [ ] ¿El 100% de los textos e interfaz visibles al usuario están estrictamente en **ESPAÑOL** (títulos, botones, badges, modales, placeholders y alertas)?
+- [ ] ¿Los esquemas de backend, Supabase, claves de API e identificadores de rol permanecen inalterados en **INGLÉS CANÓNICO**?
 - [ ] ¿Los colores respetan la paleta Carbón (`#1E2229`) y Ámbar (`#EAA023`) del logo?
 - [ ] ¿Se erradicó el 100% de emojis sueltos en botones y tablas?
 - [ ] ¿Los botones tienen estado `:active` responsivo (`scale-[0.98]`)?

@@ -88,6 +88,17 @@ Toda interfaz, formulario, herramienta y componente del ecosistema **PROCIMEC / 
   - Todo flujo de trabajo del usuario debe pasar obligatoriamente por el Hub Centralizado `/dashboard` ("Mi Panel"), garantizando la separación de roles, permisos dinámicos y la trazabilidad de la plataforma.
 - **Validación Obligatoria:** Ningún agente o desarrollador puede avanzar a la siguiente capa ni al siguiente rol sin visto bueno explícito del usuario en el entorno de despliegue.
 
+## 7. Ley Suprema de Dualidad Idiomática (Frontend 100% Español | Backend & Supabase Canónico en Inglés)
+Esta ley es de cumplimiento universal e innegociable en todo el proyecto:
+- **Frontend Estrictamente en Español (100% User-Facing en Español):**
+  - Todo elemento visible, audible o interactivo para el usuario final en la interfaz web (títulos de páginas, encabezados `h1`-`h6`, botones de acción, etiquetas de formularios, placeholders, mensajes de validación o error, notificaciones toast, diálogos modales, alertas, badges de estado, opciones de selectores `<select>`, textos de ayuda, tooltips, estados de carga y pantallas vacías) **DEBE ESTAR RIGUROSAMENTE EN ESPAÑOL**.
+  - Queda terminantemente prohibido renderizar términos en inglés al usuario final (e.g. prohibido "Dashboard" -> usar "Panel de Control" o "Mi Panel"; prohibido "Admin" -> usar "Administrador"; prohibido "Loading..." -> usar "Cargando..."; prohibido "Save" -> usar "Guardar"; prohibido "Cancel" -> usar "Cancelar"; prohibido "Delete" -> usar "Eliminar"; prohibido "Submit" -> usar "Enviar"; prohibido "Actions" -> usar "Acciones"; prohibido "Status" -> usar "Estado"; prohibido "Active/Inactive" -> usar "Activo/Inactivo"; prohibido "Pending" -> usar "Pendiente").
+- **Backend, Supabase y Base de Datos Intactos en Inglés Canónico:**
+  - El esquema relacional en PostgreSQL (Supabase), nombres de tablas (`users`, `roles`, `projects`, `divisions`, `tools`, `forms`, `user_projects`, `user_forms`, `user_tools`, `role_forms`, `role_tools`, `field_reports`), nombres de columnas (`id`, `user_id`, `project_id`, `is_active`, `status`, `created_at`, `updated_at`, `slug`, `category`, `hours_worked`), identificadores de roles en código (`admin`, `operator`, `warehouse`, `purchasing`, `commercial`, `finance`, `accounting`, `management`, `pending`, `dibujo`), estados relacionales (`submitted`, `draft`, `reviewed`), rutas de API (`/api/admin/...`, `/api/reports/...`), métodos HTTP (`GET`, `POST`, `PATCH`, `DELETE`) y claves de React Query **PERMANECEN INMUTABLES Y EN SU INGLÉS CANÓNICO ORIGINAL**.
+  - **PROHIBIDO MODIFICAR NOMBRES DE COLUMNAS O CLAVES DE BASE DE DATOS A ESPAÑOL:** Cambiar el esquema de base de datos o claves API a español rompería migraciones, políticas RLS, llamadas RPC y contratos de red existentes.
+- **Capa de Mapeo y Traducción Visual:**
+  - La sincronización entre el backend en inglés y el frontend en español se realiza estrictamente en la capa de presentación mediante diccionarios y componentes de mapeo (ejemplo: `STATUS_LABELS: Record<string, { label: string }> = { submitted: { label: 'Enviado' }, draft: { label: 'Borrador' }, reviewed: { label: 'Revisado' } }` o badges).
+
 Para especificaciones completas, consultar [PRODUCT.md](PRODUCT.md), [.agents/rules/procimec_design_system.md](.agents/rules/procimec_design_system.md), [.agents/rules/procimec_architecture.md](.agents/rules/procimec_architecture.md) y [.agents/rules/procimec_performance.md](.agents/rules/procimec_performance.md).
 
 
