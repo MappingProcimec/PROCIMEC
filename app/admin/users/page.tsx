@@ -365,7 +365,7 @@ function DivisionBlockCard({
                         onChange={() => onToggleProject(blockIndex, p.id)}
                         className="rounded text-primary"
                       />
-                      <span className="text-xs font-bold text-text-muted w-12 flex-shrink-0">{p.code}</span>
+                      <span className="text-xs font-bold text-text-muted w-12 flex-shrink-0">{p.cost_center || p.code || '—'}</span>
                       <span className="text-sm text-text-primary flex-1 truncate">{p.name}</span>
                     </label>
                   ))}

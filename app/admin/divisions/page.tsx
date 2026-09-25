@@ -28,6 +28,7 @@ interface Division {
 interface ProjectOption {
   id: string;
   code: string;
+  cost_center?: string;
   name: string;
   is_active: boolean;
 }
@@ -55,7 +56,8 @@ async function fetchProjectOptions(): Promise<ProjectOption[]> {
   const res = await fetch('/api/admin/projects');
   return ((await res.json()).data ?? []).map((p: ProjectOption) => ({
     id: p.id,
-    code: p.code,
+    code: p.cost_center || p.code || '',
+    cost_center: p.cost_center || p.code || '',
     name: p.name,
     is_active: p.is_active,
   }));

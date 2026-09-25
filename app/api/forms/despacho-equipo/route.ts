@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       .order('code', { ascending: true }),
     supabase
       .from('projects')
-      .select('id, name, code, cost_center, client')
+      .select('id, name, cost_center, client')
       .eq('is_active', true)
       .order('name', { ascending: true }),
     supabase
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       availableEquipment: equipmentRes.data ?? [],
       projects: (projectsRes.data ?? []).map(p => ({
         ...p,
-        code: p.cost_center || p.code || '',
+        code: p.cost_center || '',
       })),
       fieldUsers: usersRes.data ?? [],
     },

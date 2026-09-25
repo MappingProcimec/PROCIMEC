@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       supabase.from('users').select('id, full_name, email, role, is_active, avatar_url, role_id').order('created_at', { ascending: true }),
       supabase.from('roles').select('id, name, division_id').order('name', { ascending: true }),
       supabase.from('divisions').select('id, name, description').order('name', { ascending: true }),
-      supabase.from('projects').select('id, name, code, client, is_active').eq('is_active', true).limit(10),
+      supabase.from('projects').select('id, name, cost_center, client, is_active').eq('is_active', true).limit(10),
       supabase.from('user_projects').select('user_id, project_id'),
     ]);
 
@@ -253,7 +253,7 @@ export async function GET(req: NextRequest) {
             id: projNodeId,
             type: 'project',
             title: proj.name,
-            subtitle: proj.code || proj.client || 'Frente Activo',
+            subtitle: proj.cost_center || proj.client || 'Frente Activo',
             category: userCategory,
             badge: 'Proyecto',
             status: 'active',

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('field_reports')
-    .select('*, projects(cost_center, name, client, location, code), users(full_name)')
+    .select('*, projects(cost_center, name, client, location), users(full_name)')
     .order('created_at', { ascending: false });
 
   if (projectId) {
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     if (!parentDriveFolderId) {
       try {
-        const newFolder = await createProjectFolder(project.cost_center || project.code, project.name);
+        const newFolder = await createProjectFolder(project.cost_center, project.name);
         parentDriveFolderId = newFolder.id;
         await supabase
           .from('projects')
@@ -302,7 +302,7 @@ export async function PUT(request: NextRequest) {
         id: project.id,
         name: project.name,
         client: project.client,
-        code: project.code,
+        code: project.cost_center,
         location: project.location,
         cost_center: project.cost_center,
         description: project.description,
@@ -414,7 +414,7 @@ export async function PUT(request: NextRequest) {
           const pad = (n: number) => String(n).padStart(2, '0');
           const d = new Date();
           const dateStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
-          const pCode = project.cost_center || project.code || 'PROJ';
+          const pCode = project.cost_center || 'PROJ';
           const filename = `Reporte_${pCode}_${dateStr}.docx`;
 
           const docxDriveFile = await uploadFileToDrive(

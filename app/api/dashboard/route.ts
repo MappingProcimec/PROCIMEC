@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
       const [allToolsRes, allFormsRes, allProjectsRes] = await Promise.all([
         supabase.from('tools').select('id, slug, name, category').not('slug', 'in', '("forms-area","projects-area")'),
         supabase.from('forms').select('id, slug, name'),
-        supabase.from('projects').select('id, cost_center, code, name, client').eq('is_active', true),
+        supabase.from('projects').select('id, cost_center, name, client').eq('is_active', true),
       ]);
 
       tools = (allToolsRes.data ?? []) as Tool[];
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
     const [userToolsRes, userFormsRes, userProjectsRes, roleRes] = await Promise.all([
       supabase.from('user_tools').select('tools(id, slug, name, category)').eq('user_id', dbUser.id),
       supabase.from('user_forms').select('forms(id, slug, name)').eq('user_id', dbUser.id),
-      supabase.from('user_projects').select('projects(id, cost_center, code, name, client)').eq('user_id', dbUser.id),
+      supabase.from('user_projects').select('projects(id, cost_center, name, client)').eq('user_id', dbUser.id),
       effectiveRoleId ? supabase.from('roles').select('id, name').eq('id', effectiveRoleId).single() : Promise.resolve({ data: null }),
     ]);
 
