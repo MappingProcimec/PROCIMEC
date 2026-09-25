@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   authors: [{ name: 'Mapping Ingeniería' }],
   creator: 'Mapping Ingeniería',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/logo.ico',
+    shortcut: '/logo.ico',
+    apple: '/icons/icon-192.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -44,6 +49,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className={inter.variable}>
       <head>
         <meta name="google-site-verification" content="OXOT9JTd9TfbeI4v-5h5ArEs08-w4i2pHx6pvlVr9kg" />
+        <link rel="icon" href="/logo.ico" sizes="any" />
+        <link rel="shortcut icon" href="/logo.ico" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
       </head>

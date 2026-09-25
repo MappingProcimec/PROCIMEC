@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
+import { CORPORATE_LOGO_BASE64 } from '@/lib/gpr/logoBase64';
 import { DivisionBadge } from '@/components/DivisionBadge';
 import {
   LayoutDashboard,
@@ -117,6 +118,7 @@ export function Navbar() {
   const queryClient = useQueryClient();
   const isAdmin = session?.user?.role === 'admin';
   const isPending = session?.user?.role === 'pending';
+  const [logoSrc, setLogoSrc] = useState('/logo.png');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
@@ -215,13 +217,14 @@ export function Navbar() {
           className="flex items-center gap-2 hover:opacity-90 transition-opacity"
         >
           <Image
-            src="/logo.png"
+            src={logoSrc}
             alt="PROCIMEC — PCM CLOUD"
             width={130}
             height={32}
             className="h-8 w-auto object-contain"
             priority
             unoptimized
+            onError={() => setLogoSrc(CORPORATE_LOGO_BASE64)}
           />
           <span className="hidden sm:inline-flex items-center text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">
             PCM CLOUD

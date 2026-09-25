@@ -1,12 +1,15 @@
 // app/page.tsx
 'use client';
 
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { CORPORATE_LOGO_BASE64 } from '@/lib/gpr/logoBase64';
 
 export default function LandingPage() {
   const { data: session, status } = useSession();
+  const [logoSrc, setLogoSrc] = useState('/logo.png');
   const isAuthenticated = status === 'authenticated';
   const role = session?.user?.role;
 
@@ -22,13 +25,14 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
             <Image
-              src="/logo.png"
+              src={logoSrc}
               alt="PROCIMEC — PCM CLOUD"
               width={140}
               height={36}
               className="h-9 w-auto object-contain"
               priority
               unoptimized
+              onError={() => setLogoSrc(CORPORATE_LOGO_BASE64)}
             />
             <span className="hidden sm:inline-flex items-center text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-accent/15 text-accent border border-accent/30">
               PCM CLOUD

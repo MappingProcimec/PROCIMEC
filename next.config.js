@@ -35,6 +35,14 @@ const nextConfig = {
       { protocol: 'https', hostname: 'drive.google.com' },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/app/logo.ico',
+        destination: '/logo.ico',
+      },
+    ];
+  },
   // Required for heavy node libraries on server
   experimental: {
     optimizePackageImports: [

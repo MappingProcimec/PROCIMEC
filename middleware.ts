@@ -18,7 +18,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/herramientas/radargrama') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/icons');
+    pathname.startsWith('/icons') ||
+    pathname === '/logo.png' ||
+    pathname === '/logo.ico' ||
+    pathname === '/pcm-cloud-logo.jpg' ||
+    pathname.startsWith('/templates') ||
+    /\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|xlsx|docx|txt|dwg)$/i.test(pathname);
 
   if (pathname === '/api/logout') {
     return NextResponse.next();
@@ -103,5 +108,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons|manifest.json).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|xlsx|docx|txt|dwg)$).*)'],
 };

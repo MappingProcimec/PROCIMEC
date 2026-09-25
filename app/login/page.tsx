@@ -6,13 +6,13 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { CORPORATE_LOGO_BASE64 } from '@/lib/gpr/logoBase64';
+import { PCM_CLOUD_LOGO_BASE64 } from '@/lib/pcm-cloud-logo-base64';
 
 export default function LoginPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [logoSrc, setLogoSrc] = useState('/logo.png');
+  const [logoSrc, setLogoSrc] = useState('/pcm-cloud-logo.jpg');
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -59,16 +59,16 @@ export default function LoginPage() {
 
         {/* Logo / Brand PCM CLOUD */}
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="p-3.5 bg-white rounded-2xl shadow-xl mb-3 border border-white/20 flex items-center justify-center">
+          <div className="p-1 rounded-3xl bg-[#1E2229]/80 border border-white/15 ring-1 ring-accent/30 shadow-2xl mb-3 flex items-center justify-center backdrop-blur-md">
             <Image
               src={logoSrc}
-              alt="PROCIMEC — PCM CLOUD"
-              width={180}
-              height={45}
-              className="h-10 w-auto object-contain"
+              alt="PCM CLOUD — Process Cloud Mapping"
+              width={112}
+              height={112}
+              className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover shadow-inner"
               priority
               unoptimized
-              onError={() => setLogoSrc(CORPORATE_LOGO_BASE64)}
+              onError={() => setLogoSrc(PCM_CLOUD_LOGO_BASE64)}
             />
           </div>
 
