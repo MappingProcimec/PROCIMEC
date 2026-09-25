@@ -7,17 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const ADMIN_EMAILS = [
-  'mapping.procimec2024@gmail.com',
-  'marcelobarrazasantiago@gmail.com',
-];
-
-function isKnownAdmin(email?: string | null): boolean {
-  if (!email) return false;
-  const envAdmin = process.env.GOOGLE_DRIVE_ADMIN_EMAIL;
-  if (envAdmin && email.toLowerCase() === envAdmin.toLowerCase()) return true;
-  return ADMIN_EMAILS.some((e) => e.toLowerCase() === email.toLowerCase());
-}
+import { isKnownAdmin } from '@/lib/admin-emails';
 
 /**
  * GET /api/dibujo/proyectos

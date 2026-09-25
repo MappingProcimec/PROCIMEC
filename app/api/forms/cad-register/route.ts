@@ -40,7 +40,52 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Las observaciones de reproceso son obligatorias' }, { status: 400 });
   }
 
+  const userRole = session.user.role;
+  const sessionUserId = session.user.id;
+
+  if (userRole === 'pending') {
+    return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
+  }
+
   const supabase = createAdminClient();
+
+  // Validar rol de dibujo / admin o asignación del formulario en user_forms
+  let hasAccess = userRole === 'admin' || userRole === 'dibujo' || userRole === 'drawing';
+  if (!hasAccess && sessionUserId) {
+    try {
+      const { data: uf } = await supabase
+        .from('user_forms')
+        .select('forms!inner(slug)')
+        .eq('user_id', sessionUserId)
+        .eq('forms.slug', 'cad-register-form')
+        .maybeSingle();
+
+      if (uf) hasAccess = true;
+    } catch {
+      // Ignorar si falla
+    }
+  }
+
+  if (!hasAccess) {
+    return NextResponse.json({ error: 'No tienes permisos para registrar actividades CAD/BIM.' }, { status: 403 });
+  }
+
+  // Verificación anti-IDOR: verificar que el usuario esté asignado al proyecto si no es admin
+  if (userRole !== 'admin') {
+    const { data: assignment } = await supabase
+      .from('user_projects')
+      .select('project_id')
+      .eq('user_id', sessionUserId)
+      .eq('project_id', project_id)
+      .maybeSingle();
+
+    if (!assignment) {
+      return NextResponse.json(
+        { error: 'No tienes permisos para registrar actividades en este proyecto no asignado.' },
+        { status: 403 }
+      );
+    }
+  }
 
   const { data: user } = await supabase
     .from('users')

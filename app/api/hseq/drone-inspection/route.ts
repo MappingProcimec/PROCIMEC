@@ -71,12 +71,37 @@ export async function POST(req: NextRequest) {
       sstaSignatureDataUrl,
     } = body;
 
+    const userRole = session.user.role;
+    const sessionUserId = session.user.id;
+
+    if (userRole === 'pending') {
+      return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
+    }
+
     // Validar proyecto
     if (!projectId) {
       return NextResponse.json(
         { error: 'Debe seleccionar un proyecto válido asignado a su usuario.' },
         { status: 400 }
       );
+    }
+
+    // Verificación anti-IDOR: comprobar asignación al proyecto en user_projects si no es admin
+    if (userRole !== 'admin') {
+      const supabaseCheck = createAdminClient();
+      const { data: assignment } = await supabaseCheck
+        .from('user_projects')
+        .select('project_id')
+        .eq('user_id', sessionUserId)
+        .eq('project_id', projectId)
+        .maybeSingle();
+
+      if (!assignment) {
+        return NextResponse.json(
+          { error: 'No tienes permisos para registrar inspecciones en este proyecto no asignado.' },
+          { status: 403 }
+        );
+      }
     }
 
     // Validar firmas digitales obligatorias
