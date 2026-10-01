@@ -70,7 +70,7 @@ export default function AdminRolesPage() {
             </div>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="btn-primary px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2 shadow-sm"
+              className="btn-accent px-4 py-2 text-sm font-bold rounded-xl flex items-center gap-2 shadow-md"
             >
               <Plus className="w-4 h-4" strokeWidth={2} />
               Nuevo Rol

@@ -247,7 +247,7 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
                             e.stopPropagation();
                             handleApplyMacroToAll(macro);
                           }}
-                          className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold shadow-xs transition"
+                          className="px-2.5 py-1 bg-accent hover:bg-accent-600 text-primary-900 rounded-lg text-[10px] font-bold shadow-xs transition"
                           title="Aplicar a TODOS los perfiles abiertos"
                         >
                           A Todos ({datasets.length})

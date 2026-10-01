@@ -931,7 +931,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       onClick={() => onToggleHyperbolaTool(!showHyperbolaTool)}
                       className={`w-full py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-semibold text-xs transition shadow-sm ${
                         showHyperbolaTool
-                          ? 'bg-accent text-white shadow-glow-accent'
+                          ? 'bg-accent text-primary-900 font-bold shadow-glow-accent'
                           : 'bg-white hover:bg-gray-100 text-text-primary border border-border'
                       }`}
                     >
@@ -1630,7 +1630,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                           onClick={() => updateDetection('pipeUtility', 'materialFilter', m.id, true)}
                           className={`py-1 px-2 rounded-lg border text-left font-medium transition ${
                             localConfig.pipeUtility.materialFilter === m.id
-                              ? 'bg-amber-500 text-white border-amber-600 font-bold shadow-2xs'
+                              ? 'bg-accent text-primary-900 border-accent font-bold shadow-2xs'
                               : 'bg-white text-text-primary border-border hover:bg-gray-100'
                           }`}
                         >

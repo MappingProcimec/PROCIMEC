@@ -121,13 +121,13 @@ export default function AdminDashboard() {
       label: 'Horas CAD',
       value: isLoading ? '—' : `${totalHoras.toFixed(1)} h`,
       icon: '✏️',
-      color: 'bg-accent text-white',
+      color: 'bg-accent text-primary-900 font-bold',
     },
     {
       label: 'Aprobación Pendiente',
       value: isLoading ? '—' : pendingUsers.length,
       icon: '⏳',
-      color: pendingUsers.length > 0 ? 'bg-warning text-white' : 'bg-success text-white',
+      color: pendingUsers.length > 0 ? 'bg-amber-400 text-primary-950 font-bold' : 'bg-emerald-600 text-white',
       href: '/admin/users',
     },
   ];

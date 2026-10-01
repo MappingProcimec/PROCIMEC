@@ -1102,18 +1102,18 @@ export default function AdminProjectsPage() {
                 <button
                   onClick={() => setDetailFilter('campo')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    detailFilter === 'campo' ? 'bg-blue-600 text-white shadow-xs' : 'text-text-secondary hover:bg-white'
+                    detailFilter === 'campo' ? 'bg-primary text-white shadow-xs' : 'text-text-secondary hover:bg-white'
                   }`}
                 >
-                  📍 Campo ({currentSelected.field_reports_count ?? 0})
+                  Campo ({currentSelected.field_reports_count ?? 0})
                 </button>
                 <button
                   onClick={() => setDetailFilter('dibujo')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    detailFilter === 'dibujo' ? 'bg-amber-600 text-white shadow-xs' : 'text-text-secondary hover:bg-white'
+                    detailFilter === 'dibujo' ? 'bg-accent text-primary-900 font-bold shadow-xs' : 'text-text-secondary hover:bg-white'
                   }`}
                 >
-                  ✏️ Dibujo ({currentSelected.drawing_count ?? 0})
+                  Dibujo ({currentSelected.drawing_count ?? 0})
                 </button>
               </div>
             </div>

@@ -79,7 +79,7 @@ export default function ReportsPage() {
             </div>
             <Link
               href={`/projects/${projectId}/new-report`}
-              className="btn-primary py-2.5 px-4 text-xs font-semibold rounded-xl flex items-center gap-2 shadow-sm"
+              className="btn-accent py-2.5 px-4 text-xs font-bold rounded-xl flex items-center gap-2 shadow-md"
             >
               <Plus className="w-4 h-4" strokeWidth={2} />
               Nuevo Registro

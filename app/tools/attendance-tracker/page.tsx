@@ -888,7 +888,7 @@ function AttendanceTrackerContent() {
                         <button
                           onClick={() => setFieldModalOpen(true)}
                           disabled={actionLoading}
-                          className="py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-white font-bold text-base shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2.5"
+                          className="py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-primary-950 font-bold text-base shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2.5"
                         >
                           <span className="text-xl">🚧</span>
                           <span>SALIDA A CAMPO / OBRA</span>
@@ -1057,7 +1057,7 @@ function AttendanceTrackerContent() {
                   <button
                     type="submit"
                     disabled={actionLoading}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-md shadow-amber-500/20 disabled:opacity-50"
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-primary-950 font-bold text-sm shadow-md shadow-amber-500/20 disabled:opacity-50"
                   >
                     {actionLoading ? 'Guardando...' : 'Confirmar Salida'}
                   </button>

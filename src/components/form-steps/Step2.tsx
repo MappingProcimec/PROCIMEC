@@ -224,7 +224,7 @@ export function Step2({ onNext, onBack }: Step2Props) {
                       className={`flex-1 py-2 rounded-xl text-xs font-semibold border-2 transition-all ${
                         util.confidence === level
                           ? level === 'Alta' ? 'bg-success border-success text-white'
-                            : level === 'Media' ? 'bg-warning border-warning text-white'
+                            : level === 'Media' ? 'bg-warning border-warning text-primary-950 font-bold'
                             : 'bg-error border-error text-white'
                           : 'border-border text-text-secondary hover:border-primary hover:bg-primary-50'
                       }`}>

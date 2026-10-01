@@ -8,6 +8,7 @@ interface SignaturePadProps {
   value?: string | null;
   onChange: (dataUrl: string | null) => void;
   required?: boolean;
+  dark?: boolean;
 }
 
 export const SignaturePad: React.FC<SignaturePadProps> = ({
@@ -15,6 +16,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({
   value,
   onChange,
   required = false,
+  dark = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -123,7 +125,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <label className="text-xs text-white/80 font-medium flex items-center gap-1.5">
+        <label className={`text-xs font-semibold flex items-center gap-1.5 ${dark ? 'text-white' : 'text-text-primary'}`}>
           <PenTool className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
           <span>{label}</span>
           {required && <span className="text-accent">*</span>}
@@ -133,7 +135,11 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({
           <button
             type="button"
             onClick={handleClear}
-            className="inline-flex items-center gap-1 text-[11px] text-white/60 hover:text-red-400 transition-colors"
+            className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md transition-all active:scale-95 ${
+              dark
+                ? 'text-white/80 hover:text-red-300 hover:bg-white/10 border border-white/20 bg-white/5'
+                : 'text-text-secondary hover:text-error hover:bg-red-50 border border-border bg-white shadow-2xs'
+            }`}
           >
             <RotateCcw className="w-3 h-3" strokeWidth={1.75} />
             <span>Limpiar Trazo</span>
@@ -141,7 +147,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({
         )}
       </div>
 
-      <div className="relative rounded-lg overflow-hidden border border-border-default bg-[#F8FAFC]">
+      <div className="relative rounded-lg overflow-hidden border border-border bg-[#F8FAFC]">
         <canvas
           ref={canvasRef}
           onMouseDown={startDrawing}
@@ -168,7 +174,7 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({
           </div>
         )}
       </div>
-      <p className="text-[11px] text-white/40">
+      <p className={`text-[11px] ${dark ? 'text-white/70' : 'text-text-muted'}`}>
         Traza la firma con el ratón o dispositivo táctil para estamparla en el formato oficial.
       </p>
     </div>

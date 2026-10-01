@@ -57,6 +57,22 @@ Toda interfaz, formulario, herramienta y componente del ecosistema **PROCIMEC / 
   - Botones con `:active:scale-[0.98]` y transición de 160ms (`cubic-bezier(0.23, 1, 0.32, 1)`). Prohibido animar desde `scale(0)` o usar `ease-in`.
 - **Mobile First Riguroso:**
   - Contenedores principales con `min-h-[100dvh]` (nunca `h-screen`) y zonas de contacto táctil mínimas de `44x44px`.
+- **Ley Suprema de Contraste Cromático de Botones e Interactivos (WCAG AA/AAA - Legibilidad Solar y Operativa):**
+  - **Regla Sagrada del Ámbar y Warning (`#EAA023` / `#F59E0B` / `bg-accent` / `bg-amber-*`):**
+    - **PROHIBIDO TERMINANTEMENTE EL USO DE `text-white`** sobre fondos o botones ámbar, dorados o de advertencia. La luminancia relativa del ámbar (~0.43) produce con blanco un contraste inaceptable de 2.18:1 (falla severa de accesibilidad).
+    - Es **ESTRICTAMENTE OBLIGATORIO** utilizar tipografía en carbón profundo de alto contraste: `text-primary-900 font-bold` (o `text-primary-950 font-bold`), alcanzando un ratio fotométrico superior a **7.38:1 (Cumplimiento WCAG AAA)**.
+    - Aplica universalmente a `.btn-accent`, `.floating-btn`, chips de prioridad media, badges de alerta y botones de confirmación/salida.
+  - **Botones sobre Superficies Claras (`bg-white` / `bg-surface` / `bg-card`):**
+    - Todo botón secundario, de navegación (`BackButton`), o utilitario (`SignaturePad` limpiar/deshacer) montado sobre fondos claros debe emplear texto e iconos oscuros (`text-primary-900` / `text-text-primary`) con bordes técnicos definidos (`border border-border`). Prohibido fijar texto o iconos blancos (`text-white`) sobre fondos claros.
+  - **Botones de Acción en Hero Oscuro (`page-hero`):**
+    - En contenedores con fondo carbón o degradado oscuro (`#1E2229` a `#15181D`), el botón de llamada a la acción principal (CTA) debe ser `.btn-accent` (ámbar con texto carbón en negrita) para máximo realce y contraste luminoso.
+    - Prohibido usar `.btn-primary` plano sin borde dentro de un hero oscuro, ya que se mimetiza invisiblemente con el fondo (`#1E2229` sobre `#1E2229`).
+  - **Legibilidad de Enlaces y Acentos sobre Fondo Blanco:**
+    - Prohibido renderizar texto directo `text-accent` plano sobre fondos blancos o tarjetas claras (ratio deficiente de 2.2:1). En su lugar utilizar `text-primary font-bold hover:text-accent` o tonalidades profundas como `text-accent-800`.
+  - **Estandarización Canónica de Clases en `globals.css`:**
+    - `.btn-accent`: `@apply btn bg-accent text-primary-900 font-bold hover:bg-accent-400 focus:ring-accent/40 shadow-xs;`
+    - `.btn-primary`: `@apply btn bg-primary text-white hover:bg-primary-hover focus:ring-primary/40 shadow-xs;`
+    - `.btn-secondary`: `@apply btn bg-white text-text-primary border border-border hover:bg-gray-50 focus:ring-primary/20 shadow-xs;`
 
 ## 5. Estándares de Rendimiento y Algoritmia
 - **Indexación O(1):** Prohibido cruces de colecciones anidados O(N * M); indexar con `Map` (`indexBy`, `groupBy` en `@/lib/indexing`).

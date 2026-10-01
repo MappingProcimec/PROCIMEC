@@ -806,7 +806,7 @@ export default function AdminUsersPage() {
           <div className="flex items-center gap-3">
             <p className="text-white/70 text-sm">{users.length} usuarios registrados</p>
             {pendingCount > 0 && (
-              <span className="badge bg-amber-400 text-white animate-pulse-soft">
+              <span className="badge bg-amber-400 text-primary-950 font-bold animate-pulse-soft">
                 {pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}
               </span>
             )}
@@ -841,8 +841,8 @@ export default function AdminUsersPage() {
                           <span className={`badge ${badge.badge} text-xs`}>{badge.label}</span>
                           {!user.is_active && <span className="badge badge-gray text-xs">Inactivo</span>}
                           {user.role === 'pending' && (
-                            <span className="badge bg-accent text-white text-xs animate-pulse-soft flex items-center gap-1 font-semibold">
-                              <Clock className="w-3 h-3" strokeWidth={2} /> Pendiente
+                            <span className="badge bg-accent text-primary-900 text-xs animate-pulse-soft flex items-center gap-1 font-bold">
+                              <Clock className="w-3 h-3 text-primary-900" strokeWidth={2} /> Pendiente
                             </span>
                           )}
                         </div>

@@ -48,7 +48,10 @@
     @apply btn bg-primary-700 text-white hover:bg-primary-800 focus:ring-primary-700 shadow-sm hover:shadow-card;
   }
   .btn-accent {
-    @apply btn bg-accent text-white hover:bg-accent-600 focus:ring-accent shadow-sm hover:shadow-glow-accent;
+    @apply btn bg-accent text-primary-900 font-bold hover:bg-accent-400 focus:ring-accent shadow-sm hover:shadow-glow-accent;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-text-primary border border-border hover:bg-gray-50 focus:ring-primary/20 shadow-xs;
   }
   .btn-outline {
     @apply btn border border-primary-700 text-primary-700 bg-transparent hover:bg-primary-50 focus:ring-primary-700;
@@ -178,8 +181,8 @@
   /* Floating button */
   .floating-btn {
     @apply fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl
-           bg-accent text-white font-semibold text-sm shadow-glow-accent
-           hover:bg-accent-600 active:scale-95 transition-all duration-200;
+           bg-accent text-primary-900 font-bold text-sm shadow-glow-accent
+           hover:bg-accent-400 active:scale-95 transition-all duration-200;
   }
 
   /* Page header */

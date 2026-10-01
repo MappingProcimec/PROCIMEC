@@ -289,7 +289,7 @@ export default function SigManagementChangeFormPage() {
               <a
                 href={`/api/forms/analisis-planificacion-cambios-sig/export?id=${createdId}&format=xlsx`}
                 download
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-accent text-white font-bold text-sm hover:bg-accent-600 active:scale-[0.98] transition-all shadow-sm"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-accent text-primary-900 font-bold text-sm hover:bg-accent-400 active:scale-[0.98] transition-all shadow-sm"
               >
                 <FileSpreadsheet className="w-4 h-4" strokeWidth={1.75} />
                 <span>Descargar Formato Excel (.xlsx)</span>
@@ -317,7 +317,7 @@ export default function SigManagementChangeFormPage() {
 
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-accent hover:underline text-sm font-semibold"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-primary font-bold hover:text-accent hover:underline text-sm"
               >
                 <span>Volver a Mi Panel</span>
                 <ArrowRight className="w-4 h-4" strokeWidth={1.75} />
@@ -460,7 +460,7 @@ export default function SigManagementChangeFormPage() {
                       >
                         <div
                           className={`w-4 h-4 rounded mt-0.5 flex items-center justify-center border text-xs font-bold ${
-                            isChecked ? 'bg-accent text-white border-accent' : 'border-gray-300'
+                            isChecked ? 'bg-accent text-primary-900 border-accent font-bold' : 'border-gray-300'
                           }`}
                         >
                           {isChecked && 'X'}
@@ -814,7 +814,7 @@ export default function SigManagementChangeFormPage() {
                       onClick={() => setControlRisksControlled(true)}
                       className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                         controlRisksControlled === true
-                          ? 'bg-accent text-white border-accent ring-1 ring-accent'
+                          ? 'bg-accent text-primary-900 border-accent ring-1 ring-accent'
                           : 'bg-white border-border text-text-secondary hover:border-gray-300'
                       }`}
                     >
@@ -825,7 +825,7 @@ export default function SigManagementChangeFormPage() {
                       onClick={() => setControlRisksControlled(false)}
                       className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                         controlRisksControlled === false
-                          ? 'bg-accent text-white border-accent ring-1 ring-accent'
+                          ? 'bg-accent text-primary-900 border-accent ring-1 ring-accent'
                           : 'bg-white border-border text-text-secondary hover:border-gray-300'
                       }`}
                     >
@@ -844,7 +844,7 @@ export default function SigManagementChangeFormPage() {
                       onClick={() => setChangeEffective(true)}
                       className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                         changeEffective === true
-                          ? 'bg-accent text-white border-accent ring-1 ring-accent'
+                          ? 'bg-accent text-primary-900 border-accent ring-1 ring-accent'
                           : 'bg-white border-border text-text-secondary hover:border-gray-300'
                       }`}
                     >
@@ -855,7 +855,7 @@ export default function SigManagementChangeFormPage() {
                       onClick={() => setChangeEffective(false)}
                       className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                         changeEffective === false
-                          ? 'bg-accent text-white border-accent ring-1 ring-accent'
+                          ? 'bg-accent text-primary-900 border-accent ring-1 ring-accent'
                           : 'bg-white border-border text-text-secondary hover:border-gray-300'
                       }`}
                     >
@@ -890,7 +890,7 @@ export default function SigManagementChangeFormPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="btn-accent bg-accent text-white font-bold px-7 py-2.5 rounded-xl text-sm hover:bg-accent-600 active:scale-[0.98] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-accent px-7 py-2.5 rounded-xl text-sm active:scale-[0.98] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Guardando Registro...' : 'Guardar y Generar Documentos'}
               </button>

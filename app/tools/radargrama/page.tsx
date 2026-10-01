@@ -381,7 +381,7 @@ export default function RadargramaWorkstationPage() {
       <div className="bg-white border-b border-border shadow-xs px-4 sm:px-6 py-3">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <BackButton href="/dashboard" label="Volver a Mi Panel" />
+            <BackButton href="/dashboard" label="Volver a Mi Panel" variant="default" />
             <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center text-primary flex-shrink-0">
               <Activity className="w-5 h-5" />
             </div>

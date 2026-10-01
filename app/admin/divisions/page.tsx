@@ -720,7 +720,7 @@ export default function AdminDivisionsPage() {
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="btn-primary px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2 active:scale-[0.98]"
+              className="btn-accent px-4 py-2 text-sm font-bold rounded-xl flex items-center gap-2 shadow-md active:scale-[0.98]"
             >
               <Plus className="w-4 h-4" strokeWidth={2} /> Nueva División
             </button>

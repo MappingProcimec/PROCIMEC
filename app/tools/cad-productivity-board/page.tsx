@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
+import { BackButton } from '@/components/BackButton';
+import { PenTool, FileText, Clock } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -176,16 +178,13 @@ export default function CadProductivityBoardPage() {
       {/* Hero */}
       <div className="page-hero">
         <div className="max-w-6xl mx-auto">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-              ✏️ CAD / BIM
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1">
+          <BackButton href="/dashboard" label="Volver a Mi Panel" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+            <PenTool className="w-7 h-7 text-accent" strokeWidth={1.75} />
             Tablero de Productividad CAD
           </h1>
-          <p className="text-white/70 text-sm">
-            Métricas de rendimiento e historial consolidado de actividades técnicas de dibujo.
+          <p className="text-white/70 text-sm mt-1">
+            Métricas de rendimiento e historial consolidado de actividades técnicas de dibujo
           </p>
         </div>
       </div>
@@ -194,8 +193,8 @@ export default function CadProductivityBoardPage() {
         {/* KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl border border-border shadow-card p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary text-2xl flex-shrink-0">
-              📋
+            <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center text-primary flex-shrink-0">
+              <FileText className="w-6 h-6" strokeWidth={1.75} />
             </div>
             <div>
               <div className="text-2xl font-bold text-text-primary">{totalRegistros}</div>
@@ -203,8 +202,8 @@ export default function CadProductivityBoardPage() {
             </div>
           </div>
           <div className="bg-white rounded-2xl border border-border shadow-card p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-accent-100 flex items-center justify-center text-accent-700 text-2xl flex-shrink-0">
-              ⏱️
+            <div className="w-12 h-12 rounded-xl bg-accent-100 flex items-center justify-center text-accent-800 flex-shrink-0">
+              <Clock className="w-6 h-6" strokeWidth={1.75} />
             </div>
             <div>
               <div className="text-2xl font-bold text-text-primary">{totalHoras.toFixed(1)} h</div>

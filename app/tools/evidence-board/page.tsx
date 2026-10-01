@@ -186,7 +186,7 @@ function VehicleDocItem({
         {alert && (
           <span
             className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 uppercase ${
-              alert.isExpired ? 'bg-red-600 text-white' : 'bg-amber-600 text-white'
+              alert.isExpired ? 'bg-red-600 text-white' : 'bg-amber-400 text-primary-950 font-bold'
             }`}
           >
             {alert.isExpired ? 'Vencido' : `${alert.daysRemaining}d`}
@@ -445,26 +445,13 @@ export default function EvidenceBoardToolPage() {
       {/* Hero Header */}
       <div className="page-hero">
         <div className="max-w-6xl mx-auto">
-          <BackButton href="/dashboard" label="Volver al Panel" />
-          <div className="flex flex-wrap items-center justify-between gap-4 mt-3">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
-                <FileText className="w-7 h-7 text-amber-400" strokeWidth={1.75} /> Tablero de Evidencias y Control HSEQ
-              </h1>
-              <p className="text-white/80 text-sm mt-1 max-w-2xl">
-                Consolidado centralizado de evidencias oficiales generadas en campo por los <strong className="text-amber-300 font-semibold">Responsables y Operadores</strong>. Monitoreo en tiempo real de respuestas, anomalías, observaciones y puntos críticos por división.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <a
-                href="/forms/hseq-report"
-                className="btn bg-primary hover:bg-primary-hover text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
-              >
-                <FileText className="w-3.5 h-3.5" strokeWidth={1.75} /> Nueva Inspección HSEQ
-              </a>
-            </div>
-          </div>
+          <BackButton href="/dashboard" label="Volver a Mi Panel" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+            <FileText className="w-7 h-7 text-accent" strokeWidth={1.75} /> Tablero de Evidencias y Control HSEQ
+          </h1>
+          <p className="text-white/80 text-sm mt-1 max-w-2xl">
+            Consolidado centralizado de evidencias oficiales generadas en campo por los <strong className="text-accent font-semibold">Responsables y Operadores</strong>. Monitoreo en tiempo real de respuestas, anomalías, observaciones y puntos críticos por división.
+          </p>
         </div>
       </div>
 

@@ -119,7 +119,7 @@ export function ToolShell({ name, description, category }: ToolShellProps) {
     <div className="min-h-screen bg-surface flex flex-col">
       {/* Back button */}
       <div className="max-w-2xl mx-auto w-full px-4 pt-6">
-        <BackButton />
+        <BackButton href="/dashboard" label="Volver a Mi Panel" variant="default" />
       </div>
 
       {/* Centered content */}

@@ -106,8 +106,11 @@ Para evitar la estética genérica de plantillas generadas por IA (*AI Slop*) y 
 
 1. **Touch Targets de 44px:**
    - En vistas móviles, ningún botón, toggle o elemento táctil debe tener menos de `44x44px` de área interactiva.
-2. **Contraste Solar (4.5:1):**
-   - Asegurar que los textos sobre fondos de color cumplan con el ratio de contraste WCAG AA, garantizando legibilidad en campo bajo sol intenso.
+2. **Ley Suprema de Contraste Cromático de Botones e Interactivos (WCAG AA/AAA - Legibilidad Solar y Operativa):**
+   - **Regla del Ámbar y Warning (`#EAA023` / `#F59E0B` / `bg-accent` / `bg-amber-*`):** Prohibido terminantemente usar `text-white` sobre botones o fondos ámbar/amarillo (contraste 2.18:1, falla severa). Es estrictamente obligatorio usar tipografía oscura en alto contraste: `text-primary-900 font-bold` o `text-primary-950 font-bold` (ratio > 7.38:1, cumplimiento WCAG AAA).
+   - **Botones sobre Superficies Claras (`bg-white` / `bg-surface` / `bg-card`):** Todo botón secundario o de navegación (`BackButton`, `SignaturePad` botones) debe usar texto e iconos oscuros (`text-primary-900` / `text-text-primary`) con bordes técnicos visibles (`border border-border`).
+   - **Botones de Acción en Hero Oscuro (`page-hero`):** El botón de acción principal (CTA) debe ser `.btn-accent` (ámbar con texto carbón en negrita) para máximo realce y contraste luminoso. Prohibido usar `.btn-primary` plano sin borde en fondos oscuros que lo vuelvan invisible.
+   - **Legibilidad de Texto de Acento sobre Blanco:** Prohibido usar `text-accent` plano directamente para textos o links en tarjetas blancas; utilizar `text-primary font-bold hover:text-accent` o `text-accent-800`.
 3. **Teclados Especializados:**
    - Campos de horas, profundidades, coordenadas y metrajes deben incluir `inputMode="decimal"` o `type="number"` para desplegar teclado numérico nativo inmediato en dispositivos móviles.
 
@@ -119,6 +122,7 @@ Antes de dar por concluida cualquier modificación visual, el agente debe verifi
 - [ ] ¿El 100% de los textos e interfaz visibles al usuario están estrictamente en **ESPAÑOL** (títulos, botones, badges, modales, placeholders y alertas)?
 - [ ] ¿Los esquemas de backend, Supabase, claves de API e identificadores de rol permanecen inalterados en **INGLÉS CANÓNICO**?
 - [ ] ¿Los colores respetan la paleta Carbón (`#1E2229`) y Ámbar (`#EAA023`) del logo?
+- [ ] ¿Todos los botones cumplen contraste cromático estricto WCAG AAA (`text-primary-900 font-bold` sobre ámbar/warning, y botones en hero claramente visibles)?
 - [ ] ¿Se erradicó el 100% de emojis sueltos en botones y tablas?
 - [ ] ¿Los botones tienen estado `:active` responsivo (`scale-[0.98]`)?
 - [ ] ¿Los identificadores técnicos, coordenadas y horas usan fuente `font-mono`?
