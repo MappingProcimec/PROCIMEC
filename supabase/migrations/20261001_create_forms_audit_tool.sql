@@ -10,7 +10,7 @@ VALUES (
     'forms-audit',
     'Auditoría General de Formularios',
     'Consola unificada de fiscalización, trazabilidad y auditoría de archivos para todos los formularios y formatos operativos de PROCIMEC (SIG, GPR, CAD, Compras, Finanzas, HSEQ).',
-    'management',
+    'universal',
     true
 )
 ON CONFLICT (slug) DO UPDATE SET
