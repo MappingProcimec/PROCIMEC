@@ -117,13 +117,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Despachar notificación automática por correo a liderhseq@procimecingenieria.com y al usuario si está habilitado
-    if (Boolean(body.send_email_notification)) {
+    // 3. Despachar notificación automática por correo según selección
+    const shouldSendEmail =
+      Boolean(body.send_email_notification) ||
+      Boolean(body.send_email_to_submitter) ||
+      Boolean(body.send_email_to_hseq);
+
+    if (shouldSendEmail) {
       try {
         await sendSigChangeNotificationEmail({
           submitterEmail: session.user.email || '',
           submitterName: String(identifier_name).trim(),
           recordId: data.id,
+          notifySubmitter: body.send_email_to_submitter !== undefined ? Boolean(body.send_email_to_submitter) : true,
+          notifyHseqLeader: Boolean(body.send_email_to_hseq),
           changeData: {
             id: data.id,
             official_code: 'FOR-SIG-001',

@@ -59,7 +59,7 @@ export async function GET() {
       id: 'forms-audit-synthetic',
       slug: 'forms-audit',
       name: 'Auditoría General de Formularios',
-      category: 'management',
+      category: 'universal',
       is_universal: true,
     });
   }
@@ -69,7 +69,7 @@ export async function GET() {
     if (t.slug === 'cartas-audit') {
       return { ...t, category: 'rrhh' };
     }
-    if (t.slug === 'attendance-tracker') {
+    if (t.slug === 'attendance-tracker' || t.slug === 'forms-audit') {
       return { ...t, category: 'universal', is_universal: true };
     }
     return t;

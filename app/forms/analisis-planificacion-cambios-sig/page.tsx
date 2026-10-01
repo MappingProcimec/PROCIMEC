@@ -17,6 +17,7 @@ import {
   Users,
   CheckSquare,
   ClipboardList,
+  Eye,
 } from 'lucide-react';
 import {
   SigChangeWorkTeamMember,
@@ -49,6 +50,8 @@ const CHANGE_ORIGINS = [
 export default function SigManagementChangeFormPage() {
   // Notificaciones por correo (Pruebas vs Producción)
   const [sendEmailNotification, setSendEmailNotification] = useState<boolean>(false);
+  const [sendToSubmitter, setSendToSubmitter] = useState<boolean>(true);
+  const [sendToHseq, setSendToHseq] = useState<boolean>(false);
 
   // Identificación
   const [identifierName, setIdentifierName] = useState('');
@@ -183,6 +186,8 @@ export default function SigManagementChangeFormPage() {
       const payload = {
         project_id: null,
         send_email_notification: sendEmailNotification,
+        send_email_to_submitter: sendEmailNotification ? sendToSubmitter : false,
+        send_email_to_hseq: sendEmailNotification ? sendToHseq : false,
         identifier_name: identifierName.trim(),
         identifier_position: identifierPosition.trim(),
         identifier_process: identifierProcess.trim(),
@@ -230,6 +235,8 @@ export default function SigManagementChangeFormPage() {
   const handleReset = () => {
     setCreatedId(null);
     setSendEmailNotification(false);
+    setSendToSubmitter(true);
+    setSendToHseq(false);
     setIdentifierName('');
     setIdentifierPosition('');
     setIdentifierProcess('');
@@ -886,20 +893,66 @@ export default function SigManagementChangeFormPage() {
             </div>
 
             {/* Control de Notificación por Correo (Pruebas vs Producción) */}
-            <div className="card border border-border bg-white p-4 rounded-xl flex items-start gap-3">
-              <input
-                type="checkbox"
-                id="send_notification_email"
-                checked={sendEmailNotification}
-                onChange={(e) => setSendEmailNotification(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded border-border text-accent focus:ring-accent cursor-pointer"
-              />
-              <label htmlFor="send_notification_email" className="text-xs text-text-primary cursor-pointer select-none">
-                <span className="font-bold text-primary">Notificar por correo a Líder HSEQ y al diligenciador</span>
-                <span className="block text-[11px] text-text-muted mt-0.5">
-                  (Mantener desmarcado para pruebas sin enviar correos. Marque esta casilla únicamente si desea despachar el informe oficial FOR-SIG-001 en PDF a liderhseq@procimecingenieria.com).
-                </span>
-              </label>
+            <div className="card border border-border bg-white p-4 rounded-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    id="send_notification_email"
+                    checked={sendEmailNotification}
+                    onChange={(e) => setSendEmailNotification(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-border text-accent focus:ring-accent cursor-pointer"
+                  />
+                  <label htmlFor="send_notification_email" className="text-xs text-text-primary cursor-pointer select-none">
+                    <span className="font-bold text-primary">Despachar notificación por correo con PDF oficial adjunto</span>
+                    <span className="block text-[11px] text-text-muted mt-0.5">
+                      (Activar para enviar el informe técnico y el formato oficial FOR-SIG-001 generado).
+                    </span>
+                  </label>
+                </div>
+
+                <a
+                  href="/api/forms/analisis-planificacion-cambios-sig/preview-email"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-primary hover:text-accent flex items-center gap-1.5 transition-colors whitespace-nowrap px-3 py-1.5 rounded-lg border border-border bg-gray-50 hover:bg-gray-100 self-start sm:self-auto"
+                >
+                  <Eye className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+                  <span>Ver cómo queda el correo</span>
+                </a>
+              </div>
+
+              {sendEmailNotification && (
+                <div className="pt-2 pl-7 border-t border-border/60 space-y-2">
+                  <span className="text-[11px] font-bold text-text-secondary uppercase tracking-wider block">
+                    Destinatarios configurados:
+                  </span>
+
+                  <label className="flex items-center gap-2.5 text-xs text-text-primary cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={sendToSubmitter}
+                      onChange={(e) => setSendToSubmitter(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-border text-accent focus:ring-accent cursor-pointer"
+                    />
+                    <span>
+                      Enviar a mi correo institucional <strong>(colaborador que diligenció el formulario)</strong>
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 text-xs text-text-primary cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={sendToHseq}
+                      onChange={(e) => setSendToHseq(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded border-border text-accent focus:ring-accent cursor-pointer"
+                    />
+                    <span>
+                      Copiar también a Líder HSEQ (<span className="font-mono text-[11px] text-text-secondary">liderhseq@procimecingenieria.com</span>)
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Acciones del Formulario */}

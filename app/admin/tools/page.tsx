@@ -217,6 +217,7 @@ const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string
   commercial: { label: 'Comercial', bg: 'bg-emerald-100/70', border: 'border-emerald-300', text: 'text-emerald-900' },
   finance: { label: 'Finanzas', bg: 'bg-violet-100/70', border: 'border-violet-300', text: 'text-violet-900' },
   accounting: { label: 'Contabilidad', bg: 'bg-cyan-100/70', border: 'border-cyan-300', text: 'text-cyan-900' },
+  management: { label: 'Gerencia', bg: 'bg-purple-100/70', border: 'border-purple-300', text: 'text-purple-900' },
 };
 
 const ORDERED_CATEGORY_KEYS = [
@@ -447,11 +448,6 @@ export default function AdminToolsPage() {
                           >
                             {catStyle.label}
                           </span>
-                          {tool.is_universal && tool.category !== 'universal' && (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800">
-                              Universal
-                            </span>
-                          )}
                         </div>
                         <p className="text-xs text-text-secondary leading-relaxed line-clamp-2">
                           {meta.description}
