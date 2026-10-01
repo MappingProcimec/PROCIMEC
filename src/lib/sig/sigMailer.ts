@@ -6,7 +6,6 @@ export interface SendSigChangeEmailParams {
   submitterName: string;
   recordId: string;
   changeData: SigChangeData;
-  projectName?: string;
   notifySubmitter?: boolean;
   notifyHseqLeader?: boolean;
 }
@@ -14,7 +13,6 @@ export interface SendSigChangeEmailParams {
 export interface RenderSigChangeEmailParams {
   changeData: SigChangeData;
   submitterName: string;
-  projectName?: string;
   hasPdfAttachment?: boolean;
 }
 
@@ -29,7 +27,6 @@ export function renderSigChangeEmailHtml(params: RenderSigChangeEmailParams): st
   const originsText = (params.changeData.origins || []).join(', ') || 'Gestión del cambio';
   const activitiesCount = (params.changeData.activities || []).length;
   const risksCount = (params.changeData.risks || []).length;
-  const projectName = params.projectName || 'Proyecto General / Corporativo';
   const hasPdf = params.hasPdfAttachment ?? true;
 
   return `<!DOCTYPE html>
@@ -50,7 +47,7 @@ export function renderSigChangeEmailHtml(params: RenderSigChangeEmailParams): st
               <table width="100%">
                 <tr>
                   <td>
-                    <h1 style="color: #FFFFFF; margin: 0; font-size: 18px; letter-spacing: 0.5px; font-weight: 700;">PROCIMEC MAPPING E INGENIERÍA S.A.S.</h1>
+                    <h1 style="color: #FFFFFF; margin: 0; font-size: 18px; letter-spacing: 0.5px; font-weight: 700;">PROCIMEC INGENIERÍA S.A.S.</h1>
                     <p style="color: #EAA023; margin: 4px 0 0 0; font-size: 13px; font-weight: 600;">SISTEMA INTEGRADO DE GESTIÓN (SIG) — CONTROL DE CAMBIOS</p>
                   </td>
                 </tr>
@@ -90,10 +87,6 @@ export function renderSigChangeEmailHtml(params: RenderSigChangeEmailParams): st
                 <tr style="border-bottom: 1px solid #E2E8F0;">
                   <td style="color: #64748B; font-weight: 600;">Fecha de Identificación:</td>
                   <td style="color: #0F172A; font-family: monospace;">${params.changeData.identification_date || cleanDate}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #E2E8F0;">
-                  <td style="color: #64748B; font-weight: 600;">Proyecto Imputable:</td>
-                  <td style="color: #0F172A; font-weight: 600;">${projectName}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid #E2E8F0;">
                   <td style="color: #64748B; font-weight: 600;">Procesos Afectados:</td>
@@ -154,7 +147,7 @@ export function renderSigChangeEmailHtml(params: RenderSigChangeEmailParams): st
               <!-- Pie de Firma Institucional -->
               <div style="border-top: 1px solid #E2E8F0; padding-top: 20px; margin-top: 28px; text-align: center;">
                 <p style="color: #64748B; font-size: 12px; margin: 0 0 4px 0;">
-                  <strong>PROCIMEC MAPPING E INGENIERÍA S.A.S.</strong> · NIT: 802019658-9
+                  <strong>PROCIMEC INGENIERÍA S.A.S.</strong> · NIT: 802019658-9
                 </p>
                 <p style="color: #94A3B8; font-size: 11px; margin: 0;">
                   Este es un mensaje institucional generado automáticamente por la plataforma PCM CLOUD.
@@ -229,7 +222,6 @@ export async function sendSigChangeNotificationEmail(
   const html = renderSigChangeEmailHtml({
     changeData: params.changeData,
     submitterName: cleanPerson,
-    projectName: params.projectName,
     hasPdfAttachment: Boolean(pdfBuffer),
   });
 

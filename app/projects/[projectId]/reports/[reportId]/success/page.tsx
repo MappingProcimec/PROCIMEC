@@ -82,13 +82,13 @@ ${aiSummary ? `\n*Síntesis Técnica Operacional (Google Gemini AI):*\n${aiSumma
 📄 *Descargar Reporte Oficial (PDF):*
 ${pdfUrl || 'Disponible en plataforma PROCIMEC'}
 
-_Plataforma Integral PROCIMEC Mapping e Ingeniería_`;
+_Plataforma Integral PROCIMEC Ingeniería S.A.S._`;
 
   const whatsappHref = `https://api.whatsapp.com/send?text=${encodeURIComponent(whatsappMessage)}`;
 
   // Enlace para correo (mailto)
   const mailSubject = `Reporte Diario de Operación GPR — ${projectName} — ${reportDate}`;
-  const mailBody = `Estimado cliente (${clientName}),\n\nAdjuntamos la información del reporte diario de exploración con Georadar (GPR) correspondiente a la jornada del ${reportDate} en el proyecto ${projectName}.\n\nLocalizador Responsable: ${localizadorName}\n\n${aiSummary ? `Síntesis Técnica (IA):\n${aiSummary}\n\n` : ''}Puede consultar y descargar el Reporte Oficial en PDF en el siguiente enlace:\n${pdfUrl}\n\nAtentamente,\nPROCIMEC Mapping e Ingeniería S.A.S.`;
+  const mailBody = `Estimado cliente (${clientName}),\n\nAdjuntamos la información del reporte diario de exploración con Georadar (GPR) correspondiente a la jornada del ${reportDate} en el proyecto ${projectName}.\n\nLocalizador Responsable: ${localizadorName}\n\n${aiSummary ? `Síntesis Técnica (IA):\n${aiSummary}\n\n` : ''}Puede consultar y descargar el Reporte Oficial en PDF en el siguiente enlace:\n${pdfUrl}\n\nAtentamente,\nPROCIMEC Ingeniería S.A.S.`;
   const mailHref = `mailto:?subject=${encodeURIComponent(mailSubject)}&body=${encodeURIComponent(mailBody)}`;
 
   return (

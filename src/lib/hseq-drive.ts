@@ -626,7 +626,7 @@ export async function generateHseqEvidencePdf(params: {
     doc.setTextColor(27, 43, 75);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
-    doc.text('PROCIMEC — MAPPING INGENIERÍA S.A.S.', margin, y);
+    doc.text('PROCIMEC INGENIERÍA S.A.S.', margin, y);
 
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
@@ -786,7 +786,7 @@ export async function generateHseqEvidencePdf(params: {
     doc.setFontSize(6.5);
     doc.setTextColor(100, 116, 139);
     doc.text(locatorName || 'Localizador Asignado', margin + 10, y + 16);
-    doc.text('PROCIMEC MAPPING INGENIERÍA S.A.S.', margin + sigWidth + 20, y + 16);
+    doc.text('PROCIMEC INGENIERÍA S.A.S.', margin + sigWidth + 20, y + 16);
 
     const pdfArrayBuffer = doc.output('arraybuffer');
     pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');

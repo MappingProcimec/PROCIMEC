@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Política de Privacidad — PROCIMEC Mapping Ingeniería',
+  title: 'Política de Privacidad — PROCIMEC Ingeniería S.A.S.',
   description: 'Política de privacidad y tratamiento de datos personales de PROCIMEC.',
 };
 

@@ -62,7 +62,7 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
   doc.setTextColor(...COLOR_CHARCOAL);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('PROCIMEC MAPPING E INGENIERÍA S.A.S.', marginX + 46, curY + 3);
+  doc.text('PROCIMEC INGENIERÍA S.A.S.', marginX + 46, curY + 3);
 
   doc.setTextColor(...COLOR_AMBER);
   doc.setFontSize(8.5);
@@ -521,7 +521,7 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(...COLOR_MUTED);
-  doc.text('PROCIMEC Mapping e Ingeniería — Validación Digital', signRightX, signY + 9);
+  doc.text('PROCIMEC Ingeniería S.A.S. — Validación Digital', signRightX, signY + 9);
 
   // Barra inferior de certificación
   doc.setFillColor(...COLOR_CHARCOAL);

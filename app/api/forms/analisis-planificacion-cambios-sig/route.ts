@@ -100,24 +100,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Error en base de datos: ${error.message}` }, { status: 500 });
     }
 
-    // 2. Obtener nombre del proyecto imputable para la notificación si aplica
-    let projectName = 'Proyecto General / Corporativo';
-    if (project_id) {
-      try {
-        const { data: projData } = await supabase
-          .from('projects')
-          .select('name, cost_center')
-          .eq('id', project_id)
-          .maybeSingle();
-        if (projData) {
-          projectName = `${projData.cost_center ? `${projData.cost_center} - ` : ''}${projData.name}`;
-        }
-      } catch {
-        // Continuar con nombre por defecto
-      }
-    }
-
-    // 3. Despachar notificación automática por correo según selección
+    // 2. Despachar notificación automática por correo según selección
     const shouldSendEmail =
       Boolean(body.send_email_notification) ||
       Boolean(body.send_email_to_submitter) ||
@@ -159,7 +142,6 @@ export async function POST(req: NextRequest) {
             change_effective: typeof change_effective === 'boolean' ? change_effective : null,
             effectiveness_notes_no: effectiveness_notes_no ? String(effectiveness_notes_no).trim() : '',
           },
-          projectName,
         });
       } catch (emailErr) {
         console.warn('Aviso: Notificación por correo omitida o simulada:', emailErr);

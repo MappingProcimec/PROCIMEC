@@ -83,7 +83,7 @@ export async function sendGprReportEmail(payload: GprEmailPayload): Promise<{ ok
                   <table width="100%">
                     <tr>
                       <td>
-                        <h1 style="color: #FFFFFF; margin: 0; font-size: 18px; letter-spacing: 0.5px;">PROCIMEC MAPPING E INGENIERÍA S.A.S.</h1>
+                        <h1 style="color: #FFFFFF; margin: 0; font-size: 18px; letter-spacing: 0.5px;">PROCIMEC INGENIERÍA S.A.S.</h1>
                         <p style="color: #EAA023; margin: 4px 0 0 0; font-size: 13px; font-weight: 600;">REPORTE OFICIAL DE OPERACIÓN EN CAMPO — GPR</p>
                       </td>
                     </tr>
@@ -216,7 +216,7 @@ export async function sendGprReportEmail(payload: GprEmailPayload): Promise<{ ok
     }
 
     await transporter.sendMail({
-      from: `"PROCIMEC Mapping — Operaciones" <${smtpUser}>`,
+      from: `"PROCIMEC — Operaciones" <${smtpUser}>`,
       to: targetEmails.join(', '),
       subject,
       html,

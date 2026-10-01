@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'Términos del Servicio — PROCIMEC Mapping Ingeniería',
+  title: 'Términos del Servicio — PROCIMEC Ingeniería S.A.S.',
   description: 'Términos y condiciones de uso del sistema PROCIMEC.',
 };
 

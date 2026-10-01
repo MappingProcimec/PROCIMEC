@@ -54,7 +54,6 @@ export async function GET(req: NextRequest) {
   const html = renderSigChangeEmailHtml({
     changeData: sampleData,
     submitterName: sampleData.identifier_name,
-    projectName: 'Proyecto Corporativo / General PROCIMEC',
     hasPdfAttachment: true,
   });
 

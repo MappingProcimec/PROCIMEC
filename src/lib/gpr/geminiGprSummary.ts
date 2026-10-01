@@ -216,7 +216,7 @@ export async function generateGprExecutiveSummary(
     return `[Hallazgo ${i + 1}] ${type} | ${diam} | ${prof} | ${conf} | ${desc}`.trim();
   }).join('\n');
 
-  const prompt = `Actúa como Ingeniero Geofísico Senior y Director de Operaciones en PROCIMEC Mapping e Ingeniería S.A.S.
+  const prompt = `Actúa como Ingeniero Geofísico Senior y Director de Operaciones en PROCIMEC Ingeniería S.A.S.
 Genera una síntesis técnica ejecutiva, concisa y de alto nivel formal (entre 80 y 140 palabras en un solo párrafo sólido en español técnico de ingeniería) para el Reporte Diario de Operación de Georadar (GPR).
 Este reporte será entregado a la interventoría y a la supervisión del cliente.
 
