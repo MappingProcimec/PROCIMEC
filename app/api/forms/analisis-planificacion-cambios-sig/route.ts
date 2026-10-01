@@ -117,44 +117,46 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Despachar notificación automática por correo a liderhseq@procimecingenieria.com y al usuario que llenó el formulario
-    try {
-      await sendSigChangeNotificationEmail({
-        submitterEmail: session.user.email || '',
-        submitterName: String(identifier_name).trim(),
-        recordId: data.id,
-        changeData: {
-          id: data.id,
-          official_code: 'FOR-SIG-001',
-          version: '1',
-          identifier_name: String(identifier_name).trim(),
-          identifier_position: String(identifier_position).trim(),
-          identifier_process: String(identifier_process).trim(),
-          identification_date: identification_date || new Date().toISOString().split('T')[0],
-          change_description: String(change_description).trim(),
-          justification: String(justification).trim(),
-          affected_processes: String(affected_processes).trim(),
-          origins: Array.isArray(origins) ? origins : [],
-          origins_other: origins_other ? String(origins_other).trim() : '',
-          work_team: Array.isArray(work_team) ? work_team : [],
-          risks: Array.isArray(risks) ? risks : [],
-          activities: Array.isArray(activities) ? activities : [],
-          approval_name: approval_name ? String(approval_name).trim() : '',
-          approval_position: approval_position ? String(approval_position).trim() : '',
-          approval_process: approval_process ? String(approval_process).trim() : '',
-          approval_signature: approval_signature ? String(approval_signature).trim() : '',
-          tracking_name: tracking_name ? String(tracking_name).trim() : '',
-          tracking_position: tracking_position ? String(tracking_position).trim() : '',
-          tracking_process: tracking_process ? String(tracking_process).trim() : '',
-          tracking_signature: tracking_signature ? String(tracking_signature).trim() : '',
-          control_risks_controlled: typeof control_risks_controlled === 'boolean' ? control_risks_controlled : null,
-          change_effective: typeof change_effective === 'boolean' ? change_effective : null,
-          effectiveness_notes_no: effectiveness_notes_no ? String(effectiveness_notes_no).trim() : '',
-        },
-        projectName,
-      });
-    } catch (emailErr) {
-      console.warn('Aviso: Notificación por correo omitida o simulada:', emailErr);
+    // 3. Despachar notificación automática por correo a liderhseq@procimecingenieria.com y al usuario si está habilitado
+    if (Boolean(body.send_email_notification)) {
+      try {
+        await sendSigChangeNotificationEmail({
+          submitterEmail: session.user.email || '',
+          submitterName: String(identifier_name).trim(),
+          recordId: data.id,
+          changeData: {
+            id: data.id,
+            official_code: 'FOR-SIG-001',
+            version: '1',
+            identifier_name: String(identifier_name).trim(),
+            identifier_position: String(identifier_position).trim(),
+            identifier_process: String(identifier_process).trim(),
+            identification_date: identification_date || new Date().toISOString().split('T')[0],
+            change_description: String(change_description).trim(),
+            justification: String(justification).trim(),
+            affected_processes: String(affected_processes).trim(),
+            origins: Array.isArray(origins) ? origins : [],
+            origins_other: origins_other ? String(origins_other).trim() : '',
+            work_team: Array.isArray(work_team) ? work_team : [],
+            risks: Array.isArray(risks) ? risks : [],
+            activities: Array.isArray(activities) ? activities : [],
+            approval_name: approval_name ? String(approval_name).trim() : '',
+            approval_position: approval_position ? String(approval_position).trim() : '',
+            approval_process: approval_process ? String(approval_process).trim() : '',
+            approval_signature: approval_signature ? String(approval_signature).trim() : '',
+            tracking_name: tracking_name ? String(tracking_name).trim() : '',
+            tracking_position: tracking_position ? String(tracking_position).trim() : '',
+            tracking_process: tracking_process ? String(tracking_process).trim() : '',
+            tracking_signature: tracking_signature ? String(tracking_signature).trim() : '',
+            control_risks_controlled: typeof control_risks_controlled === 'boolean' ? control_risks_controlled : null,
+            change_effective: typeof change_effective === 'boolean' ? change_effective : null,
+            effectiveness_notes_no: effectiveness_notes_no ? String(effectiveness_notes_no).trim() : '',
+          },
+          projectName,
+        });
+      } catch (emailErr) {
+        console.warn('Aviso: Notificación por correo omitida o simulada:', emailErr);
+      }
     }
 
     return NextResponse.json({
