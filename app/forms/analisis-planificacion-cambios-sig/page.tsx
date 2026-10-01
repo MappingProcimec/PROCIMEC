@@ -249,12 +249,12 @@ export default function SigManagementChangeFormPage() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-surface flex flex-col">
+    <div className="min-h-screen bg-surface">
       <Navbar />
 
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-6">
-        {/* Hero Canónico */}
-        <div className="mb-6">
+      {/* Hero Canónico con Franja Oficial PROCIMEC (Carbón Técnico #1E2229) */}
+      <div className="page-hero">
+        <div className="max-w-4xl mx-auto">
           <BackButton href="/dashboard" label="Volver a Mi Panel" />
           <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
             <FileSpreadsheet className="w-7 h-7 text-accent" strokeWidth={1.75} />
@@ -264,19 +264,22 @@ export default function SigManagementChangeFormPage() {
             Registro formal de análisis, riesgos, plan de actividades y efectividad para cambios que afecten al SIG (FOR-SIG-001).
           </p>
         </div>
+      </div>
 
+      {/* Contenedor Principal Superpuesto */}
+      <div className="max-w-4xl mx-auto px-4 -mt-10 pb-20 space-y-6">
         {/* Pantalla de Éxito y Descargas Duales */}
         {createdId ? (
-          <div className="bg-[#1E2229] border border-border-default rounded-xl p-6 sm:p-8 text-center space-y-6">
-            <div className="w-16 h-16 bg-accent/15 rounded-full flex items-center justify-center mx-auto text-accent">
-              <CheckCircle2 className="w-9 h-9" strokeWidth={1.75} />
+          <div className="card shadow-xl border border-border bg-white rounded-2xl p-6 sm:p-8 text-center space-y-6">
+            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
+              <CheckCircle2 className="w-9 h-9" strokeWidth={2} />
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl sm:text-2xl font-bold text-white">
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary">
                 Registro del Cambio Guardado Exitosamente
               </h2>
-              <p className="text-white/70 text-sm max-w-xl mx-auto">
+              <p className="text-text-secondary text-sm max-w-xl mx-auto">
                 La información fue registrada en la base de datos de PROCIMEC. Puedes descargar inmediatamente el formato oficial diligenciado en Excel (.xlsx) o el informe formal firmado en PDF (.pdf).
               </p>
             </div>
@@ -286,7 +289,7 @@ export default function SigManagementChangeFormPage() {
               <a
                 href={`/api/forms/analisis-planificacion-cambios-sig/export?id=${createdId}&format=xlsx`}
                 download
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-accent text-surface-dark font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-accent text-white font-bold text-sm hover:bg-accent-600 active:scale-[0.98] transition-all shadow-sm"
               >
                 <FileSpreadsheet className="w-4 h-4" strokeWidth={1.75} />
                 <span>Descargar Formato Excel (.xlsx)</span>
@@ -295,18 +298,18 @@ export default function SigManagementChangeFormPage() {
               <a
                 href={`/api/forms/analisis-planificacion-cambios-sig/export?id=${createdId}&format=pdf`}
                 download
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-[#2A303C] hover:bg-[#343C4A] text-white font-medium text-sm border border-white/10 active:scale-[0.98] transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary text-white hover:bg-primary-800 font-bold text-sm active:scale-[0.98] transition-all shadow-sm"
               >
                 <Download className="w-4 h-4" strokeWidth={1.75} />
                 <span>Descargar Informe PDF (.pdf)</span>
               </a>
             </div>
 
-            <div className="pt-4 border-t border-border-default flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={handleReset}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white/80 hover:text-white text-sm hover:bg-white/5 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-gray-100 text-sm transition-colors"
               >
                 <RotateCcw className="w-4 h-4" strokeWidth={1.75} />
                 <span>Registrar Otro Cambio</span>
@@ -314,7 +317,7 @@ export default function SigManagementChangeFormPage() {
 
               <Link
                 href="/dashboard"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-accent hover:underline text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-accent hover:underline text-sm font-semibold"
               >
                 <span>Volver a Mi Panel</span>
                 <ArrowRight className="w-4 h-4" strokeWidth={1.75} />
@@ -322,24 +325,24 @@ export default function SigManagementChangeFormPage() {
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {errorMessage && (
-              <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-sm flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-400" strokeWidth={1.75} />
+              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-3 shadow-xs">
+                <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-red-500" strokeWidth={1.75} />
                 <span>{errorMessage}</span>
               </div>
             )}
 
             {/* SECCIÓN 1: Identificación y Análisis */}
-            <div className="bg-[#1E2229] border border-border-default rounded-xl p-5 sm:p-6 space-y-5">
-              <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2 border-b border-border-default pb-3">
+            <div className="card shadow-xl overflow-hidden border border-border bg-white p-6 sm:p-8 space-y-6">
+              <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2 border-b border-border pb-3">
                 <ClipboardList className="w-5 h-5 text-accent" strokeWidth={1.75} />
                 <span>1. Identificación y Análisis del Cambio</span>
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-white/80 mb-1">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Persona que identifica el cambio <span className="text-accent">*</span>
                   </label>
                   <input
@@ -348,12 +351,12 @@ export default function SigManagementChangeFormPage() {
                     value={identifierName}
                     onChange={(e) => setIdentifierName(e.target.value)}
                     placeholder="Nombre completo"
-                    className="w-full bg-[#15181D] border border-border-default rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-white/40 focus:outline-none focus:border-accent"
+                    className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/80 mb-1">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Cargo <span className="text-accent">*</span>
                   </label>
                   <input
@@ -362,12 +365,12 @@ export default function SigManagementChangeFormPage() {
                     value={identifierPosition}
                     onChange={(e) => setIdentifierPosition(e.target.value)}
                     placeholder="Ej: Coordinador SIG / Ing. de Proyectos"
-                    className="w-full bg-[#15181D] border border-border-default rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-white/40 focus:outline-none focus:border-accent"
+                    className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/80 mb-1">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Proceso al que pertenece <span className="text-accent">*</span>
                   </label>
                   <input
@@ -376,12 +379,12 @@ export default function SigManagementChangeFormPage() {
                     value={identifierProcess}
                     onChange={(e) => setIdentifierProcess(e.target.value)}
                     placeholder="Ej: Gestión HSEQ / Ingeniería"
-                    className="w-full bg-[#15181D] border border-border-default rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-white/40 focus:outline-none focus:border-accent"
+                    className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/80 mb-1">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Fecha de identificación <span className="text-accent">*</span>
                   </label>
                   <input
@@ -389,12 +392,12 @@ export default function SigManagementChangeFormPage() {
                     required
                     value={identificationDate}
                     onChange={(e) => setIdentificationDate(e.target.value)}
-                    className="w-full bg-[#15181D] border border-border-default rounded-lg px-3.5 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-accent"
+                    className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-white/80 mb-1">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Descripción del cambio y fecha estimada de materialización <span className="text-accent">*</span>
                   </label>
                   <textarea
@@ -403,12 +406,12 @@ export default function SigManagementChangeFormPage() {
                     value={changeDescription}
                     onChange={(e) => setChangeDescription(e.target.value)}
                     placeholder="Describa el cambio de forma clara, detallando el alcance y la fecha prevista..."
-                    className="w-full bg-[#15181D] border border-border-default rounded-lg p-3 text-sm text-white placeholder-white/40 focus:outline-none focus:border-accent resize-none"
+                    className="w-full bg-white border border-border rounded-xl p-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all resize-none"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-white/80 mb-1">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Justificación del cambio <span className="text-accent">*</span>
                   </label>
                   <textarea
@@ -417,12 +420,12 @@ export default function SigManagementChangeFormPage() {
                     value={justification}
                     onChange={(e) => setJustification(e.target.value)}
                     placeholder="Motivos estratégicos, normativos u operativos por los cuales se efectúa el cambio..."
-                    className="w-full bg-[#15181D] border border-border-default rounded-lg p-3 text-sm text-white placeholder-white/40 focus:outline-none focus:border-accent resize-none"
+                    className="w-full bg-white border border-border rounded-xl p-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all resize-none"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-white/80 mb-1">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Procesos afectados por el cambio <span className="text-accent">*</span>
                   </label>
                   <input
@@ -431,15 +434,15 @@ export default function SigManagementChangeFormPage() {
                     value={affectedProcesses}
                     onChange={(e) => setAffectedProcesses(e.target.value)}
                     placeholder="Ej: Operaciones GPR, Almacén, HSEQ, Todos los procesos"
-                    className="w-full bg-[#15181D] border border-border-default rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-white/40 focus:outline-none focus:border-accent"
+                    className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
                   />
                 </div>
               </div>
 
               {/* Orígenes del Cambio */}
-              <div className="pt-3 border-t border-border-default">
-                <label className="block text-xs font-semibold text-white/90 mb-3 uppercase tracking-wider">
-                  Origen del Cambio (Seleccione todas las que correspondan)
+              <div className="pt-4 border-t border-border">
+                <label className="block text-xs font-bold text-text-primary mb-3 uppercase tracking-wider">
+                  Origen del Cambio (Seleccione todas las casillas que apliquen)
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {CHANGE_ORIGINS.map((orig) => {
@@ -449,15 +452,15 @@ export default function SigManagementChangeFormPage() {
                         type="button"
                         key={orig.id}
                         onClick={() => toggleOrigin(orig.id)}
-                        className={`flex items-start gap-2.5 p-3 rounded-lg border text-left transition-all ${
+                        className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all ${
                           isChecked
-                            ? 'bg-accent/10 border-accent text-white ring-1 ring-accent'
-                            : 'bg-[#15181D] border-border-default text-white/70 hover:border-white/20'
+                            ? 'bg-accent/10 border-accent text-primary ring-1 ring-accent font-semibold'
+                            : 'bg-white border-border text-text-secondary hover:border-gray-300'
                         }`}
                       >
                         <div
                           className={`w-4 h-4 rounded mt-0.5 flex items-center justify-center border text-xs font-bold ${
-                            isChecked ? 'bg-accent text-surface-dark border-accent' : 'border-white/30'
+                            isChecked ? 'bg-accent text-white border-accent' : 'border-gray-300'
                           }`}
                         >
                           {isChecked && 'X'}
@@ -470,7 +473,7 @@ export default function SigManagementChangeFormPage() {
 
                 {selectedOrigins.includes('otro') && (
                   <div className="mt-3">
-                    <label className="block text-xs font-medium text-white/80 mb-1">
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">
                       Especifique el otro origen del cambio:
                     </label>
                     <input
@@ -478,7 +481,7 @@ export default function SigManagementChangeFormPage() {
                       value={originsOther}
                       onChange={(e) => setOriginsOther(e.target.value)}
                       placeholder="Detalle del origen del cambio"
-                      className="w-full bg-[#15181D] border border-border-default rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent"
+                      className="w-full bg-white border border-border rounded-xl px-3.5 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
                     />
                   </div>
                 )}
@@ -486,18 +489,18 @@ export default function SigManagementChangeFormPage() {
             </div>
 
             {/* SECCIÓN 2: Equipo de Trabajo */}
-            <div className="bg-[#1E2229] border border-border-default rounded-xl p-5 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-border-default pb-3">
-                <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+            <div className="card shadow-xl overflow-hidden border border-border bg-white p-6 sm:p-8 space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2">
                   <Users className="w-5 h-5 text-accent" strokeWidth={1.75} />
                   <span>2. Equipo de Trabajo para el Cambio</span>
                 </h2>
                 <button
                   type="button"
                   onClick={addTeamMember}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-xs font-semibold hover:bg-accent/25 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/10 text-primary border border-accent/30 text-xs font-bold hover:bg-accent/20 transition-colors"
                 >
-                  <Plus className="w-4 h-4" strokeWidth={1.75} />
+                  <Plus className="w-4 h-4 text-accent" strokeWidth={2} />
                   <span>Agregar Integrante</span>
                 </button>
               </div>
@@ -506,7 +509,7 @@ export default function SigManagementChangeFormPage() {
                 {workTeam.map((member, idx) => (
                   <div
                     key={idx}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 rounded-lg bg-[#15181D] border border-border-default items-center"
+                    className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3.5 rounded-xl bg-gray-50/80 border border-border items-center"
                   >
                     <div className="sm:col-span-5">
                       <input
@@ -514,7 +517,7 @@ export default function SigManagementChangeFormPage() {
                         placeholder="Nombre completo"
                         value={member.nombre}
                         onChange={(e) => updateTeamMember(idx, 'nombre', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                       />
                     </div>
                     <div className="sm:col-span-3">
@@ -523,7 +526,7 @@ export default function SigManagementChangeFormPage() {
                         placeholder="Cargo"
                         value={member.cargo}
                         onChange={(e) => updateTeamMember(idx, 'cargo', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                       />
                     </div>
                     <div className="sm:col-span-3">
@@ -532,7 +535,7 @@ export default function SigManagementChangeFormPage() {
                         placeholder="Proceso"
                         value={member.proceso}
                         onChange={(e) => updateTeamMember(idx, 'proceso', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                       />
                     </div>
                     <div className="sm:col-span-1 flex justify-end">
@@ -540,7 +543,7 @@ export default function SigManagementChangeFormPage() {
                         <button
                           type="button"
                           onClick={() => removeTeamMember(idx)}
-                          className="p-1.5 text-white/50 hover:text-red-400 transition-colors"
+                          className="p-1.5 text-text-muted hover:text-red-600 transition-colors"
                           title="Eliminar fila"
                         >
                           <Trash2 className="w-4 h-4" strokeWidth={1.75} />
@@ -553,18 +556,18 @@ export default function SigManagementChangeFormPage() {
             </div>
 
             {/* SECCIÓN 3: Análisis de Riesgos y Oportunidades */}
-            <div className="bg-[#1E2229] border border-border-default rounded-xl p-5 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-border-default pb-3">
-                <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+            <div className="card shadow-xl overflow-hidden border border-border bg-white p-6 sm:p-8 space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2">
                   <ShieldAlert className="w-5 h-5 text-accent" strokeWidth={1.75} />
                   <span>3. Análisis del Cambio (Riesgos y Oportunidades)</span>
                 </h2>
                 <button
                   type="button"
                   onClick={addRisk}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-xs font-semibold hover:bg-accent/25 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/10 text-primary border border-accent/30 text-xs font-bold hover:bg-accent/20 transition-colors"
                 >
-                  <Plus className="w-4 h-4" strokeWidth={1.75} />
+                  <Plus className="w-4 h-4 text-accent" strokeWidth={2} />
                   <span>Agregar Riesgo</span>
                 </button>
               </div>
@@ -573,7 +576,7 @@ export default function SigManagementChangeFormPage() {
                 {risks.map((item, idx) => (
                   <div
                     key={idx}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 rounded-lg bg-[#15181D] border border-border-default items-center"
+                    className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3.5 rounded-xl bg-gray-50/80 border border-border items-center"
                   >
                     <div className="sm:col-span-5">
                       <input
@@ -581,14 +584,14 @@ export default function SigManagementChangeFormPage() {
                         placeholder="Descripción de efectos potenciales"
                         value={item.descripcion_efectos}
                         onChange={(e) => updateRisk(idx, 'descripcion_efectos', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                       />
                     </div>
                     <div className="sm:col-span-2">
                       <select
                         value={item.tipo}
                         onChange={(e) => updateRisk(idx, 'tipo', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-2 py-2 text-xs text-text-primary font-semibold focus:outline-none focus:border-accent"
                       >
                         <option value="Amenaza">Amenaza</option>
                         <option value="Oportunidad">Oportunidad</option>
@@ -600,7 +603,7 @@ export default function SigManagementChangeFormPage() {
                         placeholder="Controles / Acciones a tomar"
                         value={item.controles_acciones}
                         onChange={(e) => updateRisk(idx, 'controles_acciones', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                       />
                     </div>
                     <div className="sm:col-span-1 flex justify-end">
@@ -608,7 +611,7 @@ export default function SigManagementChangeFormPage() {
                         <button
                           type="button"
                           onClick={() => removeRisk(idx)}
-                          className="p-1.5 text-white/50 hover:text-red-400 transition-colors"
+                          className="p-1.5 text-text-muted hover:text-red-600 transition-colors"
                           title="Eliminar fila"
                         >
                           <Trash2 className="w-4 h-4" strokeWidth={1.75} />
@@ -621,18 +624,18 @@ export default function SigManagementChangeFormPage() {
             </div>
 
             {/* SECCIÓN 4: Plan de Actividades */}
-            <div className="bg-[#1E2229] border border-border-default rounded-xl p-5 sm:p-6 space-y-4">
-              <div className="flex items-center justify-between border-b border-border-default pb-3">
-                <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+            <div className="card shadow-xl overflow-hidden border border-border bg-white p-6 sm:p-8 space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2">
                   <CheckSquare className="w-5 h-5 text-accent" strokeWidth={1.75} />
                   <span>4. Implementación del Cambio (Actividades)</span>
                 </h2>
                 <button
                   type="button"
                   onClick={addActivity}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-xs font-semibold hover:bg-accent/25 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/10 text-primary border border-accent/30 text-xs font-bold hover:bg-accent/20 transition-colors"
                 >
-                  <Plus className="w-4 h-4" strokeWidth={1.75} />
+                  <Plus className="w-4 h-4 text-accent" strokeWidth={2} />
                   <span>Agregar Actividad</span>
                 </button>
               </div>
@@ -641,7 +644,7 @@ export default function SigManagementChangeFormPage() {
                 {activities.map((act, idx) => (
                   <div
                     key={idx}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 rounded-lg bg-[#15181D] border border-border-default items-center"
+                    className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3.5 rounded-xl bg-gray-50/80 border border-border items-center"
                   >
                     <div className="sm:col-span-4">
                       <input
@@ -649,7 +652,7 @@ export default function SigManagementChangeFormPage() {
                         placeholder="Actividad a ejecutar"
                         value={act.actividad}
                         onChange={(e) => updateActivity(idx, 'actividad', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                       />
                     </div>
                     <div className="sm:col-span-3">
@@ -658,7 +661,7 @@ export default function SigManagementChangeFormPage() {
                         placeholder="Responsable / Cargo"
                         value={act.responsable}
                         onChange={(e) => updateActivity(idx, 'responsable', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -666,7 +669,7 @@ export default function SigManagementChangeFormPage() {
                         type="date"
                         value={act.fecha_limite}
                         onChange={(e) => updateActivity(idx, 'fecha_limite', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-2 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-2 py-2 text-xs text-text-primary font-mono focus:outline-none focus:border-accent"
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -675,7 +678,7 @@ export default function SigManagementChangeFormPage() {
                         placeholder="Producto esperado"
                         value={act.producto_esperado}
                         onChange={(e) => updateActivity(idx, 'producto_esperado', e.target.value)}
-                        className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                       />
                     </div>
                     <div className="sm:col-span-1 flex justify-end">
@@ -683,7 +686,7 @@ export default function SigManagementChangeFormPage() {
                         <button
                           type="button"
                           onClick={() => removeActivity(idx)}
-                          className="p-1.5 text-white/50 hover:text-red-400 transition-colors"
+                          className="p-1.5 text-text-muted hover:text-red-600 transition-colors"
                           title="Eliminar fila"
                         >
                           <Trash2 className="w-4 h-4" strokeWidth={1.75} />
@@ -696,46 +699,46 @@ export default function SigManagementChangeFormPage() {
             </div>
 
             {/* SECCIÓN 5: Aprobación y Seguimiento */}
-            <div className="bg-[#1E2229] border border-border-default rounded-xl p-5 sm:p-6 space-y-5">
-              <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2 border-b border-border-default pb-3">
+            <div className="card shadow-xl overflow-hidden border border-border bg-white p-6 sm:p-8 space-y-6">
+              <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2 border-b border-border pb-3">
                 <Users className="w-5 h-5 text-accent" strokeWidth={1.75} />
                 <span>5. Aprobación y Responsable del Seguimiento</span>
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Quien Aprueba */}
-                <div className="space-y-3 p-4 rounded-lg bg-[#15181D] border border-border-default">
+                <div className="space-y-3 p-4 rounded-xl bg-gray-50 border border-border">
                   <span className="text-xs font-bold text-accent uppercase tracking-wider">
                     Aprobación del Cambio
                   </span>
                   <div>
-                    <label className="block text-xs text-white/70 mb-1">Nombre Completo</label>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Nombre Completo</label>
                     <input
                       type="text"
                       placeholder="Nombre de quien aprueba"
                       value={approvalName}
                       onChange={(e) => setApprovalName(e.target.value)}
-                      className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                      className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-white/70 mb-1">Cargo</label>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Cargo</label>
                     <input
                       type="text"
                       placeholder="Ej: Gerente General"
                       value={approvalPosition}
                       onChange={(e) => setApprovalPosition(e.target.value)}
-                      className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                      className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-white/70 mb-1">Proceso</label>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Proceso</label>
                     <input
                       type="text"
                       placeholder="Ej: Planeación y Direccionamiento"
                       value={approvalProcess}
                       onChange={(e) => setApprovalProcess(e.target.value)}
-                      className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                      className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div className="pt-1">
@@ -748,38 +751,38 @@ export default function SigManagementChangeFormPage() {
                 </div>
 
                 {/* Responsable Seguimiento */}
-                <div className="space-y-3 p-4 rounded-lg bg-[#15181D] border border-border-default">
+                <div className="space-y-3 p-4 rounded-xl bg-gray-50 border border-border">
                   <span className="text-xs font-bold text-accent uppercase tracking-wider">
                     Seguimiento del Cambio
                   </span>
                   <div>
-                    <label className="block text-xs text-white/70 mb-1">Nombre Completo</label>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Nombre Completo</label>
                     <input
                       type="text"
                       placeholder="Nombre del responsable de seguimiento"
                       value={trackingName}
                       onChange={(e) => setTrackingName(e.target.value)}
-                      className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                      className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-white/70 mb-1">Cargo</label>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Cargo</label>
                     <input
                       type="text"
                       placeholder="Ej: Coordinador SIG"
                       value={trackingPosition}
                       onChange={(e) => setTrackingPosition(e.target.value)}
-                      className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                      className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-white/70 mb-1">Proceso</label>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Proceso</label>
                     <input
                       type="text"
                       placeholder="Ej: Gestión HSEQ"
                       value={trackingProcess}
                       onChange={(e) => setTrackingProcess(e.target.value)}
-                      className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                      className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div className="pt-1">
@@ -794,25 +797,25 @@ export default function SigManagementChangeFormPage() {
             </div>
 
             {/* SECCIÓN 6: Efectividad del Cambio */}
-            <div className="bg-[#1E2229] border border-border-default rounded-xl p-5 sm:p-6 space-y-4">
-              <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2 border-b border-border-default pb-3">
+            <div className="card shadow-xl overflow-hidden border border-border bg-white p-6 sm:p-8 space-y-4">
+              <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2 border-b border-border pb-3">
                 <CheckCircle2 className="w-5 h-5 text-accent" strokeWidth={1.75} />
                 <span>6. Evaluación de la Efectividad del Cambio</span>
               </h2>
 
               <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-[#15181D] border border-border-default">
-                  <span className="text-xs text-white/90">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-gray-50 border border-border">
+                  <span className="text-xs font-semibold text-text-primary">
                     ¿Se controlaron los riesgos generados por el cambio?
                   </span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setControlRisksControlled(true)}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                         controlRisksControlled === true
-                          ? 'bg-accent text-surface-dark border-accent ring-1 ring-accent'
-                          : 'bg-[#1E2229] border-border-default text-white/70 hover:border-white/30'
+                          ? 'bg-accent text-white border-accent ring-1 ring-accent'
+                          : 'bg-white border-border text-text-secondary hover:border-gray-300'
                       }`}
                     >
                       SÍ
@@ -820,10 +823,10 @@ export default function SigManagementChangeFormPage() {
                     <button
                       type="button"
                       onClick={() => setControlRisksControlled(false)}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                         controlRisksControlled === false
-                          ? 'bg-accent text-surface-dark border-accent ring-1 ring-accent'
-                          : 'bg-[#1E2229] border-border-default text-white/70 hover:border-white/30'
+                          ? 'bg-accent text-white border-accent ring-1 ring-accent'
+                          : 'bg-white border-border text-text-secondary hover:border-gray-300'
                       }`}
                     >
                       NO
@@ -831,18 +834,18 @@ export default function SigManagementChangeFormPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-[#15181D] border border-border-default">
-                  <span className="text-xs text-white/90">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-gray-50 border border-border">
+                  <span className="text-xs font-semibold text-text-primary">
                     Efectividad General del Cambio
                   </span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setChangeEffective(true)}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                         changeEffective === true
-                          ? 'bg-accent text-surface-dark border-accent ring-1 ring-accent'
-                          : 'bg-[#1E2229] border-border-default text-white/70 hover:border-white/30'
+                          ? 'bg-accent text-white border-accent ring-1 ring-accent'
+                          : 'bg-white border-border text-text-secondary hover:border-gray-300'
                       }`}
                     >
                       SÍ
@@ -850,10 +853,10 @@ export default function SigManagementChangeFormPage() {
                     <button
                       type="button"
                       onClick={() => setChangeEffective(false)}
-                      className={`px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                         changeEffective === false
-                          ? 'bg-accent text-surface-dark border-accent ring-1 ring-accent'
-                          : 'bg-[#1E2229] border-border-default text-white/70 hover:border-white/30'
+                          ? 'bg-accent text-white border-accent ring-1 ring-accent'
+                          : 'bg-white border-border text-text-secondary hover:border-gray-300'
                       }`}
                     >
                       NO
@@ -862,7 +865,7 @@ export default function SigManagementChangeFormPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-white/70 mb-1">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Si alguna respuesta es NO, detalle las acciones de mejora a implementar:
                   </label>
                   <textarea
@@ -870,7 +873,7 @@ export default function SigManagementChangeFormPage() {
                     value={effectivenessNotesNo}
                     onChange={(e) => setEffectivenessNotesNo(e.target.value)}
                     placeholder="Acciones correctivas o de mejora según procedimiento..."
-                    className="w-full bg-[#15181D] border border-border-default rounded-lg p-3 text-sm text-white placeholder-white/40 focus:outline-none focus:border-accent resize-none"
+                    className="w-full bg-white border border-border rounded-xl p-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all resize-none"
                   />
                 </div>
               </div>
@@ -880,21 +883,21 @@ export default function SigManagementChangeFormPage() {
             <div className="flex items-center justify-end gap-3 pt-4">
               <Link
                 href="/dashboard"
-                className="px-5 py-2.5 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                className="btn-ghost text-text-secondary hover:bg-gray-100 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors"
               >
                 Cancelar
               </Link>
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-6 py-2.5 rounded-lg bg-accent text-surface-dark font-semibold text-sm hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-accent bg-accent text-white font-bold px-7 py-2.5 rounded-xl text-sm hover:bg-accent-600 active:scale-[0.98] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Guardando Registro...' : 'Guardar y Generar Documentos'}
               </button>
             </div>
           </form>
         )}
-      </main>
+      </div>
     </div>
   );
 }
