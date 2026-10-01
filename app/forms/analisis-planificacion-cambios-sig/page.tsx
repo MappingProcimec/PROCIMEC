@@ -23,6 +23,7 @@ import {
   SigChangeRisk,
   SigChangeActivity,
 } from '@/lib/sig-templates';
+import { SignaturePad } from '@/components/forms/SignaturePad';
 
 // Orígenes oficiales del cambio según plantilla FOR-SIG-001
 const CHANGE_ORIGINS = [
@@ -737,14 +738,11 @@ export default function SigManagementChangeFormPage() {
                       className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs text-white/70 mb-1">Firma / Estado</label>
-                    <input
-                      type="text"
-                      placeholder="Aprobado Digitalmente"
+                  <div className="pt-1">
+                    <SignaturePad
+                      label="Firma Digital de Quien Aprueba"
                       value={approvalSignature}
-                      onChange={(e) => setApprovalSignature(e.target.value)}
-                      className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                      onChange={(dataUrl) => setApprovalSignature(dataUrl || '')}
                     />
                   </div>
                 </div>
@@ -784,14 +782,11 @@ export default function SigManagementChangeFormPage() {
                       className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs text-white/70 mb-1">Firma / Estado</label>
-                    <input
-                      type="text"
-                      placeholder="En Seguimiento"
+                  <div className="pt-1">
+                    <SignaturePad
+                      label="Firma Digital del Responsable de Seguimiento"
                       value={trackingSignature}
-                      onChange={(e) => setTrackingSignature(e.target.value)}
-                      className="w-full bg-[#1E2229] border border-border-default rounded-md px-3 py-1.5 text-xs text-white focus:outline-none focus:border-accent"
+                      onChange={(dataUrl) => setTrackingSignature(dataUrl || '')}
                     />
                   </div>
                 </div>

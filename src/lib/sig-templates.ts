@@ -185,7 +185,75 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
     singlePlaceholders[`origen_${k}`] = isSelected ? 'X' : '';
   }
 
-  // 1. Reemplazar marcadores celda por celda
+  // 1. Identificar filas de plantillas para tablas dinámicas ANTES de reemplazar
+  let actRowIdx = -1;
+  let riskRowIdx = -1;
+  let teamRowIdx = -1;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  worksheet.eachRow((row: any, rNum: number) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    row.eachCell((cell: any) => {
+      const v = String(cell.value || '');
+      if (v.includes('actividades[0]')) actRowIdx = rNum;
+      if (v.includes('riesgos[0]')) riskRowIdx = rNum;
+      if (v.includes('equipo_trabajo[0]')) teamRowIdx = rNum;
+    });
+  });
+
+  // 2. Expansión dinámica de tablas DE ABAJO HACIA ARRIBA (bottom-to-top)
+  // Esto garantiza que la inserción de filas no desplace los índices de las secciones superiores.
+
+  // 2a. Expansión del Plan de Actividades
+  if (actRowIdx !== -1 && data.activities.length > 0) {
+    if (data.activities.length > 1) {
+      for (let i = 1; i < data.activities.length; i++) {
+        const item = data.activities[i];
+        const newRow = worksheet.insertRow(actRowIdx + i, [
+          item.actividad || '',
+          item.responsable || '',
+          item.fecha_limite || '',
+          item.producto_esperado || '',
+        ]);
+        newRow.height = 22;
+        newRow.font = { name: 'Calibri', size: 10 };
+      }
+    }
+  }
+
+  // 2b. Expansión del Análisis de Riesgos y Oportunidades
+  if (riskRowIdx !== -1 && data.risks.length > 0) {
+    if (data.risks.length > 1) {
+      for (let i = 1; i < data.risks.length; i++) {
+        const item = data.risks[i];
+        const newRow = worksheet.insertRow(riskRowIdx + i, [
+          item.descripcion_efectos || '',
+          item.tipo || 'Amenaza',
+          item.controles_acciones || '',
+        ]);
+        newRow.height = 22;
+        newRow.font = { name: 'Calibri', size: 10 };
+      }
+    }
+  }
+
+  // 2c. Expansión del Equipo de Trabajo
+  if (teamRowIdx !== -1 && data.work_team.length > 0) {
+    if (data.work_team.length > 1) {
+      for (let i = 1; i < data.work_team.length; i++) {
+        const item = data.work_team[i];
+        const newRow = worksheet.insertRow(teamRowIdx + i, [
+          item.nombre || '',
+          item.cargo || '',
+          item.proceso || '',
+        ]);
+        newRow.height = 20;
+        newRow.font = { name: 'Calibri', size: 10 };
+      }
+    }
+  }
+
+  // 3. Reemplazo de marcadores celda por celda (incluyendo el índice [0] de cada tabla)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   worksheet.eachRow((row: any) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -193,8 +261,7 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
       if (cell.value && typeof cell.value === 'string') {
         let text = cell.value;
 
-        // Marcadores de array indexados directamente en la plantilla:
-        // {{ equipo_trabajo[0].nombre }}, etc.
+        // Primer elemento de arrays
         text = text.replace(/\{\{\s*equipo_trabajo\[0\]\.nombre\s*\}\}/g, data.work_team[0]?.nombre || '');
         text = text.replace(/\{\{\s*equipo_trabajo\[0\]\.cargo\s*\}\}/g, data.work_team[0]?.cargo || '');
         text = text.replace(/\{\{\s*equipo_trabajo\[0\]\.proceso\s*\}\}/g, data.work_team[0]?.proceso || '');
@@ -221,71 +288,65 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
     });
   });
 
-  // 2. Si hay múltiples elementos en el equipo de trabajo, riesgos o actividades, expandir las tablas
-  // Insertar miembros del equipo de trabajo adicionales (índice 1 en adelante)
-  if (data.work_team.length > 1) {
-    let teamRowIndex = -1;
+  // 4. Inserción de Firmas Digitales en Excel (si se proporcionó imagen Base64)
+  let approvalSignCell: { row: number; col: number } | null = null;
+  let trackingSignCell: { row: number; col: number } | null = null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  worksheet.eachRow((row: any, rNum: number) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    worksheet.eachRow((r: any, rNum: number) => {
-      const v = String(r.getCell(1).value || '');
-      if (v === data.work_team[0]?.nombre || v.includes('equipo_trabajo')) {
-        teamRowIndex = rNum;
+    row.eachCell((cell: any, cNum: number) => {
+      const v = String(cell.value || '');
+      if (v.includes('aprobacion_firma') || (data.approval_signature && v === data.approval_signature)) {
+        approvalSignCell = { row: rNum, col: cNum };
+      }
+      if (v.includes('seguimiento_firma') || (data.tracking_signature && v === data.tracking_signature)) {
+        trackingSignCell = { row: rNum, col: cNum };
       }
     });
+  });
 
-    if (teamRowIndex !== -1) {
-      for (let i = 1; i < data.work_team.length; i++) {
-        const item = data.work_team[i];
-        const newRow = worksheet.insertRow(teamRowIndex + i, [item.nombre, item.cargo, item.proceso]);
-        newRow.height = 20;
-        newRow.font = { name: 'Calibri', size: 10 };
-      }
+  if (approvalSignCell && data.approval_signature?.startsWith('data:image')) {
+    try {
+      const targetCell = approvalSignCell as { row: number; col: number };
+      worksheet.getCell(targetCell.row, targetCell.col).value = '';
+      worksheet.getRow(targetCell.row).height = Math.max(worksheet.getRow(targetCell.row).height || 0, 48);
+
+      const signBase64 = data.approval_signature.split(',')[1];
+      const signBuffer = Buffer.from(signBase64, 'base64');
+      const signImgId = workbook.addImage({ buffer: signBuffer, extension: 'png' });
+
+      worksheet.addImage(signImgId, {
+        tl: { col: targetCell.col - 1 + 0.1, row: targetCell.row - 1 + 0.1 },
+        br: { col: targetCell.col - 1 + 0.9, row: targetCell.row - 1 + 0.9 },
+        editAs: 'oneCell',
+      });
+    } catch (signErr) {
+      console.warn('Error estampando firma de aprobación en Excel:', signErr);
     }
   }
 
-  // Insertar riesgos adicionales (índice 1 en adelante)
-  if (data.risks.length > 1) {
-    let riskRowIndex = -1;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    worksheet.eachRow((r: any, rNum: number) => {
-      const v = String(r.getCell(1).value || '');
-      if (v === data.risks[0]?.descripcion_efectos || v.includes('riesgos[')) {
-        riskRowIndex = rNum;
-      }
-    });
+  if (trackingSignCell && data.tracking_signature?.startsWith('data:image')) {
+    try {
+      const targetCell = trackingSignCell as { row: number; col: number };
+      worksheet.getCell(targetCell.row, targetCell.col).value = '';
+      worksheet.getRow(targetCell.row).height = Math.max(worksheet.getRow(targetCell.row).height || 0, 48);
 
-    if (riskRowIndex !== -1) {
-      for (let i = 1; i < data.risks.length; i++) {
-        const item = data.risks[i];
-        const newRow = worksheet.insertRow(riskRowIndex + i, [item.descripcion_efectos, item.tipo, item.controles_acciones]);
-        newRow.height = 22;
-        newRow.font = { name: 'Calibri', size: 10 };
-      }
+      const signBase64 = data.tracking_signature.split(',')[1];
+      const signBuffer = Buffer.from(signBase64, 'base64');
+      const signImgId = workbook.addImage({ buffer: signBuffer, extension: 'png' });
+
+      worksheet.addImage(signImgId, {
+        tl: { col: targetCell.col - 1 + 0.1, row: targetCell.row - 1 + 0.1 },
+        br: { col: targetCell.col - 1 + 0.9, row: targetCell.row - 1 + 0.9 },
+        editAs: 'oneCell',
+      });
+    } catch (signErr) {
+      console.warn('Error estampando firma de seguimiento en Excel:', signErr);
     }
   }
 
-  // Insertar actividades adicionales (índice 1 en adelante)
-  if (data.activities.length > 1) {
-    let actRowIndex = -1;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    worksheet.eachRow((r: any, rNum: number) => {
-      const v = String(r.getCell(1).value || '');
-      if (v === data.activities[0]?.actividad || v.includes('actividades[')) {
-        actRowIndex = rNum;
-      }
-    });
-
-    if (actRowIndex !== -1) {
-      for (let i = 1; i < data.activities.length; i++) {
-        const item = data.activities[i];
-        const newRow = worksheet.insertRow(actRowIndex + i, [item.actividad, item.responsable, item.fecha_limite, item.producto_esperado]);
-        newRow.height = 22;
-        newRow.font = { name: 'Calibri', size: 10 };
-      }
-    }
-  }
-
-  // 3. Limpieza final de cualquier etiqueta residual {{ ... }}
+  // 5. Limpieza final de cualquier etiqueta residual {{ ... }}
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   worksheet.eachRow((row: any) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -537,11 +598,14 @@ export async function generateSigChangePdf(data: SigChangeData): Promise<Buffer>
   // ─── 5. APROBACIÓN Y SEGUIMIENTO DEL CAMBIO ─────────────────────────────────
   currentY = drawSectionHeader('5. APROBACIÓN Y SEGUIMIENTO DEL CAMBIO', currentY);
 
+  const hasApprovalSignImg = Boolean(data.approval_signature?.startsWith('data:image'));
+  const hasTrackingSignImg = Boolean(data.tracking_signature?.startsWith('data:image'));
+
   autoTable(doc, {
     startY: currentY,
     margin: { left: margin, right: margin },
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2.5 },
+    styles: { fontSize: 8, cellPadding: 2.5, minCellHeight: 12 },
     headStyles: { fillColor: [42, 48, 60], textColor: [255, 255, 255], fontStyle: 'bold' },
     head: [['Rol', 'Nombre Completo', 'Cargo', 'Proceso', 'Firma / Estado']],
     body: [
@@ -550,17 +614,47 @@ export async function generateSigChangePdf(data: SigChangeData): Promise<Buffer>
         data.approval_name || 'Pendiente de aprobación',
         data.approval_position || '-',
         data.approval_process || '-',
-        data.approval_signature || (data.approval_name ? 'Firmado Digitalmente' : 'Pendiente'),
+        hasApprovalSignImg ? '' : data.approval_signature || (data.approval_name ? 'Firmado Digitalmente' : 'Pendiente'),
       ],
       [
         'Seguimiento:',
         data.tracking_name || 'Designado por el SIG',
         data.tracking_position || '-',
         data.tracking_process || '-',
-        data.tracking_signature || (data.tracking_name ? 'Registrado' : 'Pendiente'),
+        hasTrackingSignImg ? '' : data.tracking_signature || (data.tracking_name ? 'Registrado' : 'Pendiente'),
       ],
     ],
-    columnStyles: { 0: { cellWidth: 25, fontStyle: 'bold', fillColor: [245, 247, 250] } },
+    columnStyles: {
+      0: { cellWidth: 25, fontStyle: 'bold', fillColor: [245, 247, 250] },
+      4: { cellWidth: 36, halign: 'center' },
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    didDrawCell: (cellData: any) => {
+      if (cellData.column.index === 4) {
+        if (cellData.row.index === 0 && hasApprovalSignImg && data.approval_signature) {
+          try {
+            const padX = 2;
+            const padY = 1.5;
+            const drawW = Math.min(32, Math.max(10, cellData.cell.width - padX * 2));
+            const drawH = Math.min(10, Math.max(6, cellData.cell.height - padY * 2));
+            const drawX = cellData.cell.x + (cellData.cell.width - drawW) / 2;
+            const drawY = cellData.cell.y + (cellData.cell.height - drawH) / 2;
+            doc.addImage(data.approval_signature, 'PNG', drawX, drawY, drawW, drawH);
+          } catch {}
+        }
+        if (cellData.row.index === 1 && hasTrackingSignImg && data.tracking_signature) {
+          try {
+            const padX = 2;
+            const padY = 1.5;
+            const drawW = Math.min(32, Math.max(10, cellData.cell.width - padX * 2));
+            const drawH = Math.min(10, Math.max(6, cellData.cell.height - padY * 2));
+            const drawX = cellData.cell.x + (cellData.cell.width - drawW) / 2;
+            const drawY = cellData.cell.y + (cellData.cell.height - drawH) / 2;
+            doc.addImage(data.tracking_signature, 'PNG', drawX, drawY, drawW, drawH);
+          } catch {}
+        }
+      }
+    },
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
