@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       change_description,
       justification,
       affected_processes,
+      required_elements,
       origins,
       origins_other,
       work_team,
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
       change_description: String(change_description).trim(),
       justification: String(justification).trim(),
       affected_processes: String(affected_processes).trim(),
+      required_elements: Array.isArray(required_elements) ? required_elements : [],
       origins: Array.isArray(origins) ? origins : [],
       origins_other: origins_other ? String(origins_other).trim() : null,
       work_team: Array.isArray(work_team) ? work_team : [],
@@ -89,15 +91,29 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('sig_management_changes')
       .insert(insertPayload)
       .select('id, created_at, status')
       .single();
 
-    if (error) {
+    // Fallback de resiliencia: si la columna required_elements aún no existe en Supabase, reintentar sin ella
+    if (error && error.message?.includes('required_elements')) {
+      console.warn('Columna required_elements aún no migrada en Supabase. Reintentando inserción sin el campo...');
+      const fallbackPayload = { ...insertPayload };
+      delete (fallbackPayload as Record<string, unknown>).required_elements;
+      const retryRes = await supabase
+        .from('sig_management_changes')
+        .insert(fallbackPayload)
+        .select('id, created_at, status')
+        .single();
+      data = retryRes.data;
+      error = retryRes.error;
+    }
+
+    if (error || !data) {
       console.error('Error insertando cambio SIG en Supabase:', error);
-      return NextResponse.json({ error: `Error en base de datos: ${error.message}` }, { status: 500 });
+      return NextResponse.json({ error: `Error en base de datos: ${error?.message || 'Error desconocido'}` }, { status: 500 });
     }
 
     // 2. Despachar notificación automática por correo según selección
@@ -125,6 +141,7 @@ export async function POST(req: NextRequest) {
             change_description: String(change_description).trim(),
             justification: String(justification).trim(),
             affected_processes: String(affected_processes).trim(),
+            required_elements: Array.isArray(required_elements) ? required_elements : [],
             origins: Array.isArray(origins) ? origins : [],
             origins_other: origins_other ? String(origins_other).trim() : '',
             work_team: Array.isArray(work_team) ? work_team : [],

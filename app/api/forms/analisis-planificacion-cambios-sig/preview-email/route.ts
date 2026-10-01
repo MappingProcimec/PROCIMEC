@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
     change_description: 'Estandarización y digitalización del proceso de control de cambios operativos SIG en la nube, garantizando trazabilidad en tiempo real, respaldo fotográfico y generación automática del formato institucional.',
     justification: 'Cumplimiento de requisitos de la norma ISO 9001:2015 / ISO 45001 / ISO 14001 para la gestión de riesgos y oportunidades operacionales, optimizando tiempos de auditoría en un 70%.',
     affected_processes: 'Operaciones, Calidad, HSEQ, Gestión Tecnológica',
+    required_elements: ['Tecnológicos', 'Documental', 'Humanos'],
     origins: ['Requisitos legales o del cliente', 'Mejora continua', 'Acciones preventivas'],
     origins_other: '',
     work_team: [

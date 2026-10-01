@@ -1,5 +1,6 @@
 import https from 'https';
 import type { jsPDF } from 'jspdf';
+import { CORPORATE_LOGO_BASE64 } from './gpr/logoBase64';
 
 export const SIG_CHANGE_TEMPLATE_DRIVE_ID =
   process.env.GOOGLE_DRIVE_SIG_CHANGE_TEMPLATE_ID || '1wTRLk90fdyMPoDywI0hLYC3O4-ekDlyq';
@@ -34,6 +35,7 @@ export interface SigChangeData {
   change_description: string;
   justification: string;
   affected_processes: string;
+  required_elements?: string[] | string;
   origins: string[];
   origins_other?: string;
   work_team: SigChangeWorkTeamMember[];
@@ -163,6 +165,9 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
     'descripcion_cambio': data.change_description || '',
     'justificacion_cambio': data.justification || '',
     'procesos_afectados': data.affected_processes || '',
+    'elementos_cambio': Array.isArray(data.required_elements)
+      ? data.required_elements.join(', ')
+      : (data.required_elements || ''),
     'origen_cual': data.origins_other || '',
     'aprobacion_nombre': data.approval_name || '',
     'aprobacion_cargo': data.approval_position || '',
@@ -417,26 +422,48 @@ export async function generateSigChangePdf(data: SigChangeData): Promise<Buffer>
   const colWidths = [80, 56, 65, 68];
 
   // ─── 0. ENCABEZADO OFICIAL DE EXCEL ──────────────────────────────────────────
-  // Fila superior de metadatos (Versión y fecha de revisión del formato oficial)
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(60, 64, 72);
-  doc.text(`Versión: ${data.version || '1'}   |   Fecha de revisión formato: 24-sep-2026`, margin, currentY + 3);
-  doc.setFont('courier', 'bold');
-  doc.text(`CÓDIGO: ${data.official_code || 'FOR-SIG-001'}`, pageWidth - margin, currentY + 3, { align: 'right' });
+  // ─── 0. ENCABEZADO OFICIAL DE EXCEL CON LOGO INSTITUCIONAL ─────────────────
+  // Bloque unificado de 3 recuadros idéntico a las filas 1-3 del Excel oficial:
+  // [ LOGOTIPO INSTITUCIONAL ] [ TÍTULO OFICIAL ] [ CÓDIGO / VERSIÓN / FECHA ]
+  const headerHeight = 16;
+  const logoWidth = 56;
+  const metaWidth = 50;
+  const titleWidth = contentWidth - logoWidth - metaWidth; // 269 - 56 - 50 = 163mm
 
-  currentY += 6;
-
-  // Recuadro del Título Oficial idéntico a la fila 2 de Excel
   doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.6);
-  doc.rect(margin, currentY, contentWidth, 12);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(0, 0, 0);
-  doc.text('ANÁLISIS Y PLANIFICACIÓN DE LOS CAMBIOS QUE AFECTEN AL SIG', pageWidth / 2, currentY + 7.5, { align: 'center' });
+  doc.setLineWidth(0.4);
 
-  currentY += 15;
+  // 1. Recuadro izquierdo: Logotipo Institucional
+  doc.rect(margin, currentY, logoWidth, headerHeight);
+  try {
+    doc.addImage(CORPORATE_LOGO_BASE64, 'PNG', margin + 3, currentY + 2, logoWidth - 6, headerHeight - 4);
+  } catch (err) {
+    console.warn('Error dibujando logotipo en PDF:', err);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('PROCIMEC', margin + logoWidth / 2, currentY + headerHeight / 2 + 1, { align: 'center' });
+  }
+
+  // 2. Recuadro central: Título del Formato Oficial
+  doc.rect(margin + logoWidth, currentY, titleWidth, headerHeight);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  doc.text('FORMATO DE ANÁLISIS Y PLANIFICACIÓN DE', margin + logoWidth + titleWidth / 2, currentY + 6.5, { align: 'center' });
+  doc.text('LOS CAMBIOS QUE AFECTEN AL SIG', margin + logoWidth + titleWidth / 2, currentY + 11.5, { align: 'center' });
+
+  // 3. Recuadro derecho: Metadatos del Documento
+  doc.rect(margin + logoWidth + titleWidth, currentY, metaWidth, headerHeight);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Código: ${data.official_code || 'FOR-SIG-001'}`, margin + logoWidth + titleWidth + 3, currentY + 5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text(`Versión: ${data.version || '1'}`, margin + logoWidth + titleWidth + 3, currentY + 9.5);
+  doc.text('Fecha: 24-sep-2026', margin + logoWidth + titleWidth + 3, currentY + 14);
+
+  currentY += headerHeight + 4;
 
   // Orígenes normalizados
   const originsSet = new Set((data.origins || []).map((o) => o.toLowerCase().trim()));
@@ -492,9 +519,15 @@ export async function generateSigChangePdf(data: SigChangeData): Promise<Buffer>
     { content: data.justification || '', styles: { halign: 'left' } },
   ]);
 
+  const elementsTxt = Array.isArray(data.required_elements)
+    ? data.required_elements.join(', ')
+    : (data.required_elements || '');
+
   bodyRows.push([
     { content: 'Procesos afectados por el cambio:', styles: { fontStyle: 'bold' } },
-    { content: data.affected_processes || '', colSpan: 3, styles: { halign: 'left' } },
+    { content: data.affected_processes || '', styles: { halign: 'left' } },
+    { content: 'Elementos requeridos para el cambio:', styles: { fontStyle: 'bold' } },
+    { content: elementsTxt, styles: { halign: 'left' } },
   ]);
 
   // Subfranja gris de Origen del Cambio (#D8D8D8)

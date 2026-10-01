@@ -25,6 +25,9 @@ export function renderSigChangeEmailHtml(params: RenderSigChangeEmailParams): st
   const cleanDate = (params.changeData.identification_date || new Date().toISOString().split('T')[0]).replace(/[^0-9\-]/g, '');
   const cleanPerson = (params.changeData.identifier_name || params.submitterName || 'Colaborador').trim();
   const originsText = (params.changeData.origins || []).join(', ') || 'Gestión del cambio';
+  const elementsText = Array.isArray(params.changeData.required_elements)
+    ? params.changeData.required_elements.join(', ')
+    : (params.changeData.required_elements || 'No especificados');
   const activitiesCount = (params.changeData.activities || []).length;
   const risksCount = (params.changeData.risks || []).length;
   const hasPdf = params.hasPdfAttachment ?? true;
@@ -91,6 +94,10 @@ export function renderSigChangeEmailHtml(params: RenderSigChangeEmailParams): st
                 <tr style="border-bottom: 1px solid #E2E8F0;">
                   <td style="color: #64748B; font-weight: 600;">Procesos Afectados:</td>
                   <td style="color: #0F172A;">${params.changeData.affected_processes || 'Operaciones, HSEQ'}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #E2E8F0;">
+                  <td style="color: #64748B; font-weight: 600;">Elementos Requeridos:</td>
+                  <td style="color: #0F172A;">${elementsText}</td>
                 </tr>
                 <tr style="border-bottom: 1px solid #E2E8F0;">
                   <td style="color: #64748B; font-weight: 600;">Orígenes del Cambio:</td>

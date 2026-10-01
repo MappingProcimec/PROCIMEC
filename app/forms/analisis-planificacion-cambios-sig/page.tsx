@@ -18,6 +18,7 @@ import {
   CheckSquare,
   ClipboardList,
   Eye,
+  ChevronDown,
 } from 'lucide-react';
 import {
   SigChangeWorkTeamMember,
@@ -47,6 +48,16 @@ const CHANGE_ORIGINS = [
   { id: 'otro', label: 'Otro origen' },
 ];
 
+export const REQUIRED_CHANGE_ELEMENTS = [
+  'Tecnológicos',
+  'Financieros',
+  'Humanos',
+  'Físicos',
+  'Documental',
+  'Servicios externos',
+  'Tiempo',
+];
+
 export default function SigManagementChangeFormPage() {
   // Notificaciones por correo (Pruebas vs Producción)
   const [sendEmailNotification, setSendEmailNotification] = useState<boolean>(false);
@@ -63,6 +74,14 @@ export default function SigManagementChangeFormPage() {
   const [changeDescription, setChangeDescription] = useState('');
   const [justification, setJustification] = useState('');
   const [affectedProcesses, setAffectedProcesses] = useState('');
+  const [requiredElements, setRequiredElements] = useState<string[]>([]);
+  const [elementsDropdownOpen, setElementsDropdownOpen] = useState(false);
+
+  const toggleElement = (el: string) => {
+    setRequiredElements((prev) =>
+      prev.includes(el) ? prev.filter((item) => item !== el) : [...prev, el]
+    );
+  };
 
   // Orígenes
   const [selectedOrigins, setSelectedOrigins] = useState<string[]>([]);
@@ -195,6 +214,7 @@ export default function SigManagementChangeFormPage() {
         change_description: changeDescription.trim(),
         justification: justification.trim(),
         affected_processes: affectedProcesses.trim(),
+        required_elements: requiredElements,
         origins: selectedOrigins,
         origins_other: selectedOrigins.includes('otro') ? originsOther.trim() : null,
         work_team: workTeam.filter((m) => m.nombre.trim() !== ''),
@@ -243,6 +263,8 @@ export default function SigManagementChangeFormPage() {
     setChangeDescription('');
     setJustification('');
     setAffectedProcesses('');
+    setRequiredElements([]);
+    setElementsDropdownOpen(false);
     setSelectedOrigins([]);
     setOriginsOther('');
     setWorkTeam([{ nombre: '', cargo: '', proceso: '' }]);
@@ -437,7 +459,7 @@ export default function SigManagementChangeFormPage() {
                   />
                 </div>
 
-                <div className="sm:col-span-2">
+                <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Procesos afectados por el cambio <span className="text-accent">*</span>
                   </label>
@@ -446,9 +468,100 @@ export default function SigManagementChangeFormPage() {
                     required
                     value={affectedProcesses}
                     onChange={(e) => setAffectedProcesses(e.target.value)}
-                    placeholder="Ej: Operaciones GPR, Almacén, HSEQ, Todos los procesos"
+                    placeholder="Ej: Operaciones GPR, Almacén, HSEQ"
                     className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
                   />
+                </div>
+
+                {/* Lista desplegable multi-selección de Elementos Requeridos */}
+                <div className="relative">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
+                    Elementos requeridos para el cambio
+                  </label>
+                  
+                  {/* Botón trigger del selector */}
+                  <button
+                    type="button"
+                    onClick={() => setElementsDropdownOpen(!elementsDropdownOpen)}
+                    className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-left text-sm flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all min-h-[42px]"
+                  >
+                    <span className="truncate text-text-primary">
+                      {requiredElements.length === 0 ? (
+                        <span className="text-text-muted">Seleccionar elementos...</span>
+                      ) : (
+                        requiredElements.join(', ')
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {requiredElements.length > 0 && (
+                        <span className="bg-accent/15 border border-accent/40 text-primary-900 font-bold text-[10px] px-2 py-0.5 rounded-full">
+                          {requiredElements.length}
+                        </span>
+                      )}
+                      <ChevronDown
+                        className={`w-4 h-4 text-text-muted transition-transform duration-200 ${
+                          elementsDropdownOpen ? 'rotate-180 text-accent' : ''
+                        }`}
+                        strokeWidth={1.75}
+                      />
+                    </div>
+                  </button>
+
+                  {/* Menú desplegable */}
+                  {elementsDropdownOpen && (
+                    <>
+                      {/* Overlay para cerrar al hacer clic afuera */}
+                      <div
+                        className="fixed inset-0 z-20"
+                        onClick={() => setElementsDropdownOpen(false)}
+                      />
+                      
+                      <div className="absolute z-30 mt-1.5 w-full bg-white border border-border rounded-xl shadow-lg p-2 max-h-60 overflow-y-auto space-y-1 animate-fade-in">
+                        <div className="flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-text-secondary border-b border-border/60 mb-1">
+                          <span>Marcar opciones:</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setRequiredElements([...REQUIRED_CHANGE_ELEMENTS])}
+                              className="text-primary hover:text-accent font-bold"
+                            >
+                              Todos
+                            </button>
+                            <span>·</span>
+                            <button
+                              type="button"
+                              onClick={() => setRequiredElements([])}
+                              className="text-text-muted hover:text-red-600"
+                            >
+                              Limpiar
+                            </button>
+                          </div>
+                        </div>
+
+                        {REQUIRED_CHANGE_ELEMENTS.map((el) => {
+                          const isChecked = requiredElements.includes(el);
+                          return (
+                            <label
+                              key={el}
+                              className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer select-none transition-colors ${
+                                isChecked
+                                  ? 'bg-accent/10 text-primary font-bold'
+                                  : 'text-text-primary hover:bg-gray-50'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleElement(el)}
+                                className="w-3.5 h-3.5 rounded border-border text-accent focus:ring-accent cursor-pointer"
+                              />
+                              <span>{el}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
