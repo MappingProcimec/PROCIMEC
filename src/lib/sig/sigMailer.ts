@@ -26,8 +26,8 @@ export function renderSigChangeEmailHtml(params: RenderSigChangeEmailParams): st
   const cleanPerson = (params.changeData.identifier_name || params.submitterName || 'Colaborador').trim();
   const originsText = (params.changeData.origins || []).join(', ') || 'Gestión del cambio';
   const elementsText = Array.isArray(params.changeData.required_elements)
-    ? params.changeData.required_elements.join(', ')
-    : (params.changeData.required_elements || 'No especificados');
+    ? (params.changeData.required_elements.length > 0 ? params.changeData.required_elements.join(', ') : 'Ninguno especificado')
+    : (params.changeData.required_elements || 'Ninguno especificado');
   const activitiesCount = (params.changeData.activities || []).length;
   const risksCount = (params.changeData.risks || []).length;
   const hasPdf = params.hasPdfAttachment ?? true;

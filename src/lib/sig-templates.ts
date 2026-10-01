@@ -118,6 +118,27 @@ export async function fetchSigTemplateBuffer(fileId: string = SIG_CHANGE_TEMPLAT
   return buffer;
 }
 
+export function formatRequiredElements(val: unknown): string {
+  if (Array.isArray(val)) {
+    return val.filter(Boolean).join(', ');
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(Boolean).join(', ');
+        }
+      } catch {
+        // mantener trimmed
+      }
+    }
+    return trimmed;
+  }
+  return '';
+}
+
 /**
  * Llenado dinámico del archivo Excel utilizando las marcas oficiales del formato:
  * {{ nombre }}, {{ cargo }}, {{ fecha_identificacion }}, arrays dinámicos y marcas de verificación.
@@ -165,9 +186,7 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
     'descripcion_cambio': data.change_description || '',
     'justificacion_cambio': data.justification || '',
     'procesos_afectados': data.affected_processes || '',
-    'elementos_cambio': Array.isArray(data.required_elements)
-      ? data.required_elements.join(', ')
-      : (data.required_elements || ''),
+    'elementos_cambio': formatRequiredElements(data.required_elements),
     'origen_cual': data.origins_other || '',
     'aprobacion_nombre': data.approval_name || '',
     'aprobacion_cargo': data.approval_position || '',
@@ -519,9 +538,7 @@ export async function generateSigChangePdf(data: SigChangeData): Promise<Buffer>
     { content: data.justification || '', styles: { halign: 'left' } },
   ]);
 
-  const elementsTxt = Array.isArray(data.required_elements)
-    ? data.required_elements.join(', ')
-    : (data.required_elements || '');
+  const elementsTxt = formatRequiredElements(data.required_elements);
 
   bodyRows.push([
     { content: 'Procesos afectados por el cambio:', styles: { fontStyle: 'bold' } },
@@ -711,7 +728,7 @@ export async function generateSigChangePdf(data: SigChangeData): Promise<Buffer>
 
   bodyRows.push([
     {
-      content: data.effectiveness_notes_no || 'Observaciones / Plan de Acción: Ninguna observación adicional registrada.',
+      content: data.effectiveness_notes_no || 'Ninguna observación adicional registrada.',
       colSpan: 4,
       styles: { fontSize: 8, halign: 'left', minCellHeight: 12 },
     },

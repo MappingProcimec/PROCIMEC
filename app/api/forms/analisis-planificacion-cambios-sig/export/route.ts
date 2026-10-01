@@ -46,6 +46,9 @@ export async function GET(req: NextRequest) {
       change_description: record.change_description || '',
       justification: record.justification || '',
       affected_processes: record.affected_processes || '',
+      required_elements: Array.isArray(record.required_elements)
+        ? record.required_elements
+        : (record.required_elements ? [record.required_elements] : []),
       origins: Array.isArray(record.origins) ? record.origins : [],
       origins_other: record.origins_other || '',
       work_team: Array.isArray(record.work_team) ? record.work_team : [],
