@@ -54,6 +54,16 @@ export async function GET() {
     });
   }
 
+  if (!slugs.has('forms-audit')) {
+    tools.push({
+      id: 'forms-audit-synthetic',
+      slug: 'forms-audit',
+      name: 'Auditoría General de Formularios',
+      category: 'management',
+      is_universal: true,
+    });
+  }
+
   // Normalizar categorías canónicas
   const normalizedTools = tools.map((t) => {
     if (t.slug === 'cartas-audit') {

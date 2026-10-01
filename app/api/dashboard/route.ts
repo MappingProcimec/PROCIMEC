@@ -134,6 +134,9 @@ export async function GET(req: NextRequest) {
       if (!toolSlugs.has('warehouse-inventory')) {
         tools.push({ id: 'warehouse-inventory', slug: 'warehouse-inventory', name: 'Kárdex e Inventario Activo de Bodega', category: 'warehouse' });
       }
+      if (!toolSlugs.has('forms-audit')) {
+        tools.push({ id: 'forms-audit', slug: 'forms-audit', name: 'Auditoría General de Formularios', category: 'management' });
+      }
 
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('hseq-report')) {

@@ -30,6 +30,7 @@ import {
   Wallet,
   Calculator,
   ChevronDown,
+  ClipboardCheck,
   X
 } from 'lucide-react';
 
@@ -148,6 +149,11 @@ const TOOL_META: Record<string, { description: string; tag: string; path?: strin
     tag: 'Contabilidad',
     path: '/tools/accounting-invoices-board',
   },
+  'forms-audit': {
+    description: 'Consola unificada para la fiscalización, trazabilidad universal y auditoría de archivos de todos los formatos operativos.',
+    tag: 'Auditoría y Control',
+    path: '/tools/forms-audit',
+  },
 };
 
 function renderToolIcon(slug: string) {
@@ -192,6 +198,8 @@ function renderToolIcon(slug: string) {
       return <Wallet {...props} />;
     case 'accounting-invoices-board':
       return <Calculator {...props} />;
+    case 'forms-audit':
+      return <ClipboardCheck {...props} />;
     default:
       return <Wrench {...props} />;
   }
