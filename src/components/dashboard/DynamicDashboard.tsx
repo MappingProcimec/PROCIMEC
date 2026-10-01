@@ -35,6 +35,11 @@ const CATEGORY_LABEL: Record<string, string> = {
   universal: 'Universal',
   hseq: 'HSEQ',
   rrhh: 'RRHH',
+  warehouse: 'Almacén',
+  purchasing: 'Compras',
+  commercial: 'Comercial',
+  finance: 'Finanzas',
+  accounting: 'Contabilidad',
 };
 
 const CATEGORY_CHIP: Record<string, string> = {
@@ -44,6 +49,11 @@ const CATEGORY_CHIP: Record<string, string> = {
   universal: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100',
   hseq: 'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100',
   rrhh: 'bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100',
+  warehouse: 'bg-amber-100/70 border-amber-300 text-amber-900 hover:bg-amber-100',
+  purchasing: 'bg-blue-100/70 border-blue-300 text-blue-900 hover:bg-blue-100',
+  commercial: 'bg-emerald-100/70 border-emerald-300 text-emerald-900 hover:bg-emerald-100',
+  finance: 'bg-violet-100/70 border-violet-300 text-violet-900 hover:bg-violet-100',
+  accounting: 'bg-cyan-100/70 border-cyan-300 text-cyan-900 hover:bg-cyan-100',
 };
 
 export function DynamicDashboard({ data }: { data: DashboardData }) {

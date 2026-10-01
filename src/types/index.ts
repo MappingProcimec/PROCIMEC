@@ -273,7 +273,7 @@ export interface DashboardStats {
 
 // ─── Multi-división: Tools, Forms, Roles, Divisions ──────────────────────────
 
-export type ToolCategory = 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq' | 'rrhh';
+export type ToolCategory = 'gpr' | 'cad' | 'admin' | 'universal' | 'hseq' | 'rrhh' | 'warehouse' | 'purchasing' | 'commercial' | 'finance' | 'accounting';
 
 export type ToolSlug =
   | 'gsf-processor'
@@ -291,7 +291,12 @@ export type ToolSlug =
   | 'attendance-tracker'
   | 'evidence-board'
   | 'cartas-audit'
-  | 'elaboracion-cartas';
+  | 'elaboracion-cartas'
+  | 'warehouse-inventory'
+  | 'purchasing-dashboard'
+  | 'commercial-pipeline'
+  | 'finance-expenses-board'
+  | 'accounting-invoices-board';
 
 export interface Tool {
   id: string;

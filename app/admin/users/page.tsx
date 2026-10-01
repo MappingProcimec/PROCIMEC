@@ -169,6 +169,11 @@ const TOOL_CATEGORY_STYLES: Record<string, { label: string; type: string; bg: st
   universal: { label: 'Universal', type: 'universal', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800' },
   hseq: { label: 'HSEQ / Seguridad', type: 'hseq', bg: 'bg-teal-50 border-teal-200', text: 'text-teal-800' },
   rrhh: { label: 'RRHH / Gestión Humana', type: 'rrhh', bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-800' },
+  warehouse: { label: 'Almacén / Bodega', type: 'warehouse', bg: 'bg-amber-100/70 border-amber-300', text: 'text-amber-900' },
+  purchasing: { label: 'Compras / Proveedores', type: 'purchasing', bg: 'bg-blue-100/70 border-blue-300', text: 'text-blue-900' },
+  commercial: { label: 'Comercial / Pipeline', type: 'commercial', bg: 'bg-emerald-100/70 border-emerald-300', text: 'text-emerald-900' },
+  finance: { label: 'Finanzas / Viáticos', type: 'finance', bg: 'bg-violet-100/70 border-violet-300', text: 'text-violet-900' },
+  accounting: { label: 'Contabilidad / Facturas', type: 'accounting', bg: 'bg-cyan-100/70 border-cyan-300', text: 'text-cyan-900' },
 };
 
 function ToolCategoryIcon({ type }: { type: string }) {
