@@ -51,7 +51,7 @@
     @apply btn bg-accent text-primary-900 font-bold hover:bg-accent-400 focus:ring-accent shadow-sm hover:shadow-glow-accent;
   }
   .btn-secondary {
-    @apply btn bg-white text-text-primary border border-border hover:bg-gray-50 focus:ring-primary/20 shadow-xs;
+    @apply btn bg-white text-text-primary border border-border hover:bg-gray-50 focus:ring-primary/20 shadow-sm;
   }
   .btn-outline {
     @apply btn border border-primary-700 text-primary-700 bg-transparent hover:bg-primary-50 focus:ring-primary-700;

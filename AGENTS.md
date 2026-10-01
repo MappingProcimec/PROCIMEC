@@ -70,9 +70,9 @@ Toda interfaz, formulario, herramienta y componente del ecosistema **PROCIMEC / 
   - **Legibilidad de Enlaces y Acentos sobre Fondo Blanco:**
     - Prohibido renderizar texto directo `text-accent` plano sobre fondos blancos o tarjetas claras (ratio deficiente de 2.2:1). En su lugar utilizar `text-primary font-bold hover:text-accent` o tonalidades profundas como `text-accent-800`.
   - **Estandarización Canónica de Clases en `globals.css`:**
-    - `.btn-accent`: `@apply btn bg-accent text-primary-900 font-bold hover:bg-accent-400 focus:ring-accent/40 shadow-xs;`
-    - `.btn-primary`: `@apply btn bg-primary text-white hover:bg-primary-hover focus:ring-primary/40 shadow-xs;`
-    - `.btn-secondary`: `@apply btn bg-white text-text-primary border border-border hover:bg-gray-50 focus:ring-primary/20 shadow-xs;`
+    - `.btn-accent`: `@apply btn bg-accent text-primary-900 font-bold hover:bg-accent-400 focus:ring-accent shadow-sm hover:shadow-glow-accent;`
+    - `.btn-primary`: `@apply btn bg-primary-700 text-white hover:bg-primary-800 focus:ring-primary-700 shadow-sm hover:shadow-card;`
+    - `.btn-secondary`: `@apply btn bg-white text-text-primary border border-border hover:bg-gray-50 focus:ring-primary/20 shadow-sm;`
 
 ## 5. Estándares de Rendimiento y Algoritmia
 - **Indexación O(1):** Prohibido cruces de colecciones anidados O(N * M); indexar con `Map` (`indexBy`, `groupBy` en `@/lib/indexing`).

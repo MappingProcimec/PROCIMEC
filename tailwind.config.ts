@@ -67,6 +67,7 @@ const config: Config = {
         '3xl': '1.75rem',
       },
       boxShadow: {
+        xs: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
         soft: '0 2px 15px -3px rgba(30,34,41,0.06), 0 10px 20px -2px rgba(30,34,41,0.03)',
         glow: '0 0 20px rgba(30, 34, 41, 0.18)',
         'glow-accent': '0 0 20px rgba(234, 160, 35, 0.28)',
