@@ -115,6 +115,19 @@ Esta ley es de cumplimiento universal e innegociable en todo el proyecto:
 - **Capa de Mapeo y Traducción Visual:**
   - La sincronización entre el backend en inglés y el frontend en español se realiza estrictamente en la capa de presentación mediante diccionarios y componentes de mapeo (ejemplo: `STATUS_LABELS: Record<string, { label: string }> = { submitted: { label: 'Enviado' }, draft: { label: 'Borrador' }, reviewed: { label: 'Revisado' } }` o badges).
 
+## 8. Ley Suprema de Fidelidad Documental Estricta (PDF = Espejo Fiel del Excel Oficial)
+Esta ley es de cumplimiento universal e innegociable para todo formato y formulario actual y futuro del ecosistema PROCIMEC / PCM CLOUD:
+- **Prohibición Terminante de Formatos PDF Libres o Inventados:**
+  - Queda estrictamente prohibido diseñar o renderizar archivos PDF con formatos, tarjetas, barras oscuras o distribuciones libres que no coincidan con la plantilla oficial de la empresa.
+- **Réplica Fiel y Estructural del Formato Oficial de Excel:**
+  - Todo archivo PDF generado para descarga o adjunto en notificaciones por correo debe ser el **reflejo fotográfico y estructural exacto de la plantilla viva oficial en Excel (.xlsx)**:
+    1. **Orientación de Página:** Mantener la orientación definida en la plantilla (Horizontal / `landscape` o Vertical / `portrait` según el formato oficial).
+    2. **Paleta y Franjas Institucionales:** Reproducir fielmente los colores de cabecera de la plantilla (franjas doradas/ámbar de sección `#FFC000`, subfranjas grises `#D8D8D8`, fondos neutros de celdas).
+    3. **Cuadrícula y Bordes:** Mantener los bordes técnicos de tabla (líneas finas negras `#000000`) respetando el número y proporción de columnas del Excel.
+    4. **Inyección Dinámica con Herencia de Formato:** Al expandir tablas dinámicas (adición de filas en equipos, actividades, riesgos, listas de verificación o inventario), las nuevas filas deben heredar al 100% las fuentes (Arial), alineaciones (`vertical: middle`, `wrapText: true`), alturas de fila y bordes de la fila modelo original.
+    5. **Firmas Digitales Estampadas:** Toda firma digital capturada en el formulario debe estamparse directamente dentro de la celda de «Firma» de la tabla oficial de aprobación o seguimiento, preservando la proporción visual del recuadro.
+    6. **Casillas de Verificación:** Los selectores múltiples y orígenes deben estamparse con marcas canónicas `[X]` / `[ ]` en sus columnas exactas correspondientes.
+
 Para especificaciones completas, consultar [PRODUCT.md](PRODUCT.md), [.agents/rules/procimec_design_system.md](.agents/rules/procimec_design_system.md), [.agents/rules/procimec_architecture.md](.agents/rules/procimec_architecture.md) y [.agents/rules/procimec_performance.md](.agents/rules/procimec_performance.md).
 
 

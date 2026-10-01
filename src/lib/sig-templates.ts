@@ -201,6 +201,26 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
     });
   });
 
+  // Helper para insertar filas clonando fielmente el formato de la fila modelo de Excel
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const insertStyledRow = (insertAtIdx: number, modelRowNumber: number, cellValues: string[]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const modelRow = worksheet.getRow(modelRowNumber);
+    const newRow = worksheet.insertRow(insertAtIdx, cellValues);
+    newRow.height = modelRow.height || 15.75;
+
+    for (let c = 1; c <= 4; c++) {
+      const modelCell = modelRow.getCell(c);
+      const newCell = newRow.getCell(c);
+      if (modelCell.font) newCell.font = JSON.parse(JSON.stringify(modelCell.font));
+      if (modelCell.alignment) newCell.alignment = JSON.parse(JSON.stringify(modelCell.alignment));
+      if (modelCell.border) newCell.border = JSON.parse(JSON.stringify(modelCell.border));
+      if (modelCell.fill) newCell.fill = JSON.parse(JSON.stringify(modelCell.fill));
+      newCell.numFmt = '@';
+    }
+    return newRow;
+  };
+
   // 2. Expansión dinámica de tablas DE ABAJO HACIA ARRIBA (bottom-to-top)
   // Esto garantiza que la inserción de filas no desplace los índices de las secciones superiores.
 
@@ -209,14 +229,12 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
     if (data.activities.length > 1) {
       for (let i = 1; i < data.activities.length; i++) {
         const item = data.activities[i];
-        const newRow = worksheet.insertRow(actRowIdx + i, [
+        insertStyledRow(actRowIdx + i, actRowIdx, [
           item.actividad || '',
           item.responsable || '',
           item.fecha_limite || '',
           item.producto_esperado || '',
         ]);
-        newRow.height = 22;
-        newRow.font = { name: 'Calibri', size: 10 };
       }
     }
   }
@@ -226,13 +244,12 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
     if (data.risks.length > 1) {
       for (let i = 1; i < data.risks.length; i++) {
         const item = data.risks[i];
-        const newRow = worksheet.insertRow(riskRowIdx + i, [
+        insertStyledRow(riskRowIdx + i, riskRowIdx, [
           item.descripcion_efectos || '',
           item.tipo || 'Amenaza',
           item.controles_acciones || '',
+          '',
         ]);
-        newRow.height = 22;
-        newRow.font = { name: 'Calibri', size: 10 };
       }
     }
   }
@@ -242,16 +259,28 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
     if (data.work_team.length > 1) {
       for (let i = 1; i < data.work_team.length; i++) {
         const item = data.work_team[i];
-        const newRow = worksheet.insertRow(teamRowIdx + i, [
+        insertStyledRow(teamRowIdx + i, teamRowIdx, [
           item.nombre || '',
           item.cargo || '',
           item.proceso || '',
+          '',
         ]);
-        newRow.height = 20;
-        newRow.font = { name: 'Calibri', size: 10 };
       }
     }
   }
+
+  // Corrección explícita de formato en la celda D7 (justificación del cambio):
+  // Forzar texto puro '@' para remover cualquier formato de fecha 'd-mmm-yy' heredado de la plantilla original
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  worksheet.eachRow((row: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    row.eachCell((cell: any) => {
+      const v = String(cell.value || '');
+      if (v.includes('justificacion_cambio') || cell.address === 'D7') {
+        cell.numFmt = '@';
+      }
+    });
+  });
 
   // 3. Reemplazo de marcadores celda por celda (incluyendo el índice [0] de cada tabla)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -362,7 +391,9 @@ export async function fillSigChangeExcel(templateBuffer: Buffer, data: SigChange
 }
 
 /**
- * Genera el documento PDF formal institucional con tipografía bimodal y colores corporativos PROCIMEC.
+ * Genera el documento PDF como el espejo visual y estructural fiel del archivo Excel oficial (FOR-SIG-001).
+ * Orientación horizontal (Landscape A4), franjas doradas institucionales (#FFC000),
+ * subfranjas grises (#D8D8D8), cuadrícula de 4 columnas, casillas [X] y estampado de firmas digitales en celda.
  */
 export async function generateSigChangePdf(data: SigChangeData): Promise<Buffer> {
   const { jsPDF } = await import('jspdf');
@@ -370,345 +401,353 @@ export async function generateSigChangePdf(data: SigChangeData): Promise<Buffer>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const autoTable = (autoTableModule as any).default || autoTableModule;
 
+  // Orientación horizontal idéntica a la configuración de página del Excel oficial (A4 Landscape)
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation: 'landscape',
     unit: 'mm',
     format: 'a4',
   });
 
-  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageWidth = doc.internal.pageSize.getWidth(); // 297 mm
   const margin = 14;
-  const contentWidth = pageWidth - margin * 2;
-  let currentY = 14;
+  const contentWidth = pageWidth - margin * 2; // 269 mm
+  let currentY = 10;
 
-  // ─── ENCABEZADO INSTITUCIONAL PROCIMEC / PCM CLOUD ──────────────────────────
-  doc.setFillColor(30, 34, 41); // #1E2229 Carbón Técnico
-  doc.rect(margin, currentY, contentWidth, 22, 'F');
+  // Proporciones de columnas exactas del Excel (80mm, 56mm, 65mm, 68mm = 269mm)
+  const colWidths = [80, 56, 65, 68];
 
-  // Línea de acento Ámbar Geofísico
-  doc.setFillColor(234, 160, 35); // #EAA023 Ámbar
-  doc.rect(margin, currentY + 21, contentWidth, 1.2, 'F');
-
-  // Título e Identidad
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('PROCIMEC  |  PCM CLOUD - SISTEMA INTEGRADO DE GESTIÓN', margin + 4, currentY + 7);
-
-  doc.setFontSize(12);
-  doc.text('ANÁLISIS Y PLANIFICACIÓN DE LOS CAMBIOS QUE AFECTEN AL SIG', margin + 4, currentY + 14);
-
-  // Metadatos a la derecha (código y versión en JetBrains Mono style)
+  // ─── 0. ENCABEZADO OFICIAL DE EXCEL ──────────────────────────────────────────
+  // Fila superior de metadatos (Versión y fecha de revisión del formato oficial)
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(60, 64, 72);
+  doc.text(`Versión: ${data.version || '1'}   |   Fecha de revisión formato: 24-sep-2026`, margin, currentY + 3);
   doc.setFont('courier', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(234, 160, 35);
-  doc.text(data.official_code || 'FOR-SIG-001', pageWidth - margin - 4, currentY + 7, { align: 'right' });
-  doc.setTextColor(200, 205, 215);
-  doc.setFontSize(8);
-  doc.text(`Versión: ${data.version || '1'}  |  ${data.identification_date || '2026-10-01'}`, pageWidth - margin - 4, currentY + 14, { align: 'right' });
+  doc.text(`CÓDIGO: ${data.official_code || 'FOR-SIG-001'}`, pageWidth - margin, currentY + 3, { align: 'right' });
 
-  currentY += 27;
+  currentY += 6;
 
-  // Helper para secciones
-  function drawSectionHeader(title: string, yPos: number): number {
-    doc.setFillColor(42, 48, 60); // #2A303C Grafito
-    doc.rect(margin, yPos, contentWidth, 6.5, 'F');
-    doc.setTextColor(234, 160, 35);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text(title, margin + 3, yPos + 4.8);
-    return yPos + 8;
-  }
+  // Recuadro del Título Oficial idéntico a la fila 2 de Excel
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.6);
+  doc.rect(margin, currentY, contentWidth, 12);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  doc.text('ANÁLISIS Y PLANIFICACIÓN DE LOS CAMBIOS QUE AFECTEN AL SIG', pageWidth / 2, currentY + 7.5, { align: 'center' });
 
-  // ─── 1. IDENTIFICACIÓN Y ANÁLISIS DEL CAMBIO ────────────────────────────────
-  currentY = drawSectionHeader('1. IDENTIFICACIÓN Y ANÁLISIS DEL CAMBIO', currentY);
+  currentY += 15;
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2, textColor: [30, 34, 41] },
-    headStyles: { fillColor: [42, 48, 60], textColor: [255, 255, 255], fontStyle: 'bold' },
-    body: [
-      [
-        { content: 'Persona que Identifica:', styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } },
-        { content: data.identifier_name || '-' },
-        { content: 'Cargo:', styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } },
-        { content: data.identifier_position || '-' },
-      ],
-      [
-        { content: 'Proceso:', styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } },
-        { content: data.identifier_process || '-' },
-        { content: 'Fecha:', styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } },
-        { content: data.identification_date || '-', styles: { font: 'courier' } },
-      ],
-      [
-        { content: 'Descripción del Cambio:', styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } },
-        { content: data.change_description || '-', colSpan: 3 },
-      ],
-      [
-        { content: 'Justificación del Cambio:', styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } },
-        { content: data.justification || '-', colSpan: 3 },
-      ],
-      [
-        { content: 'Procesos Afectados:', styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } },
-        { content: data.affected_processes || '-', colSpan: 3 },
-      ],
-    ],
-  });
+  // Orígenes normalizados
+  const originsSet = new Set((data.origins || []).map((o) => o.toLowerCase().trim()));
+  const isOrigChecked = (key: string) => originsSet.has(key) || originsSet.has(`origen_${key}`);
+  const box = (checked: boolean) => (checked ? '[X]' : '[  ]');
 
+  // Arrays de orígenes en dos columnas exactas a las filas 10-18 de Excel
+  const originsList = [
+    { leftKey: 'direccionamiento', leftLabel: 'Cambios en el direccionamiento estratégico', rightKey: 'nuevos_proyectos', rightLabel: 'Nuevos proyectos' },
+    { leftKey: 'estructura_org', leftLabel: 'Cambios en la estructura organizacional', rightKey: 'legislacion', rightLabel: 'Cambios en la legislación' },
+    { leftKey: 'procesos_sig', leftLabel: 'Cambios en los procesos del SIG', rightKey: 'normas_sig', rightLabel: 'Actualización normas SIG' },
+    { leftKey: 'alcance_sig', leftLabel: 'Cambio en el alcance del SIG', rightKey: 'innovacion', rightLabel: 'Innovación' },
+    { leftKey: 'prestacion_servicio', leftLabel: 'Cambios en la prestación del servicio', rightKey: 'partes_interesadas', rightLabel: 'Necesidades/expectativas partes interesadas' },
+    { leftKey: 'instalaciones_equipos', leftLabel: 'Modificaciones en Instalaciones/equipos', rightKey: 'riesgos_oportunidades', rightLabel: 'Riesgos y/u oportunidades identificados' },
+    { leftKey: 'implementacion_mejoras', leftLabel: 'Implementación de mejoras', rightKey: 'contexto_interno_externo', rightLabel: 'Modificaciones en contexto interno o externo' },
+    { leftKey: 'adecuaciones_trabajo', leftLabel: 'Adecuaciones sitios de trabajo', rightKey: 'conocimiento_ssta', rightLabel: 'Cambios en el conocimiento en SSTA' },
+    { leftKey: 'otro', leftLabel: 'Otro', rightKey: 'cual', rightLabel: `¿Cuál?  ${data.origins_other || ''}` },
+  ];
+
+  // Construcción de la tabla completa de celdas idéntica al Excel
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentY = (doc as any).lastAutoTable.finalY + 4;
+  const bodyRows: any[] = [];
+  let approvalSignRowIdx = -1;
+  let trackingSignRowIdx = -1;
 
-  // Orígenes del Cambio
-  const ORIGIN_LABELS: Record<string, string> = {
-    direccionamiento: 'Cambios en el direccionamiento estratégico',
-    nuevos_proyectos: 'Nuevos proyectos',
-    estructura_org: 'Cambios en la estructura organizacional',
-    legislacion: 'Cambios en la legislación',
-    procesos_sig: 'Cambios en los procesos del SIG',
-    normas_sig: 'Actualización normas SIG',
-    alcance_sig: 'Cambio en el alcance del SIG',
-    innovacion: 'Innovación',
-    prestacion_servicio: 'Cambios en la prestación del servicio',
-    partes_interesadas: 'Necesidades/expectativas partes interesadas',
-    instalaciones_equipos: 'Modificaciones en Instalaciones/equipos',
-    riesgos_oportunidades: 'Riesgos y/u oportunidades identificados',
-    implementacion_mejoras: 'Implementación de mejoras',
-    contexto_interno_externo: 'Modificaciones en contexto interno o externo',
-    adecuaciones_trabajo: 'Adecuaciones sitios de trabajo',
-    conocimiento_ssta: 'Cambios en el conocimiento en SSTA',
-    otro: 'Otro origen',
-  };
-
-  const selectedOriginsText =
-    data.origins && data.origins.length > 0
-      ? data.origins
-          .map((o) => ORIGIN_LABELS[o.replace(/^origen_/, '')] || o)
-          .join('  •  ') + (data.origins_other ? ` (Detalle: ${data.origins_other})` : '')
-      : 'Ninguno especificado';
-
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2 },
-    body: [
-      [
-        { content: 'Orígenes del Cambio Detectados:', styles: { fontStyle: 'bold', fillColor: [245, 247, 250], width: 45 } },
-        { content: selectedOriginsText },
-      ],
-    ],
-  });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentY = (doc as any).lastAutoTable.finalY + 6;
-
-  // ─── 2. EQUIPO DE TRABAJO PARA EL CAMBIO ────────────────────────────────────
-  currentY = drawSectionHeader('2. EQUIPO DE TRABAJO PARA EL CAMBIO', currentY);
-
-  const teamRows = (data.work_team || []).map((m, i) => [
-    String(i + 1),
-    m.nombre || '-',
-    m.cargo || '-',
-    m.proceso || '-',
+  // 1. SECCIÓN 1: IDENTIFICACIÓN Y ANÁLISIS DEL CAMBIO (Fila dorada #FFC000)
+  bodyRows.push([
+    {
+      content: '1. IDENTIFICACIÓN Y ANÁLISIS DEL CAMBIO',
+      colSpan: 4,
+      styles: { fillColor: [255, 192, 0], fontStyle: 'bold', fontSize: 9, halign: 'left', minCellHeight: 6.5 },
+    },
   ]);
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [42, 48, 60], textColor: [255, 255, 255], fontStyle: 'bold' },
-    head: [['#', 'Nombre', 'Cargo', 'Proceso']],
-    body: teamRows.length > 0 ? teamRows : [['1', 'No registrado', '-', '-']],
-    columnStyles: { 0: { cellWidth: 10, halign: 'center' } },
-  });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentY = (doc as any).lastAutoTable.finalY + 6;
-
-  // ─── 3. ANÁLISIS DE RIESGOS Y OPORTUNIDADES ─────────────────────────────────
-  currentY = drawSectionHeader('3. ANÁLISIS DEL CAMBIO (RIESGOS Y OPORTUNIDADES ASOCIADOS)', currentY);
-
-  const riskRows = (data.risks || []).map((r, i) => [
-    String(i + 1),
-    r.descripcion_efectos || '-',
-    r.tipo || 'Amenaza',
-    r.controles_acciones || '-',
+  bodyRows.push([
+    { content: 'Nombre de la persona que identifica el cambio:', styles: { fontStyle: 'bold' } },
+    { content: data.identifier_name || '', styles: { halign: 'center' } },
+    { content: 'Cargo:', styles: { fontStyle: 'bold' } },
+    { content: data.identifier_position || '', styles: { halign: 'center' } },
   ]);
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [42, 48, 60], textColor: [255, 255, 255], fontStyle: 'bold' },
-    head: [['#', 'Descripción de Efectos Potenciales', 'Tipo', 'Controles / Acciones a Tomar']],
-    body: riskRows.length > 0 ? riskRows : [['1', 'Sin riesgos registrados', 'Amenaza', '-']],
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      2: { cellWidth: 26, halign: 'center', fontStyle: 'bold' },
-    },
-  });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentY = (doc as any).lastAutoTable.finalY + 6;
-
-  // Revisar si requiere nueva página antes del Plan de Trabajo
-  if (currentY > 210) {
-    doc.addPage();
-    currentY = 14;
-  }
-
-  // ─── 4. IMPLEMENTACIÓN DEL CAMBIO (ACTIVIDADES) ─────────────────────────────
-  currentY = drawSectionHeader('4. IMPLEMENTACIÓN DEL CAMBIO (PLAN DE ACTIVIDADES)', currentY);
-
-  const activityRows = (data.activities || []).map((a, i) => [
-    String(i + 1),
-    a.actividad || '-',
-    a.responsable || '-',
-    a.fecha_limite || '-',
-    a.producto_esperado || '-',
+  bodyRows.push([
+    { content: 'Fecha:', styles: { fontStyle: 'bold' } },
+    { content: data.identification_date || '', styles: { halign: 'center', font: 'courier' } },
+    { content: 'Proceso:', styles: { fontStyle: 'bold' } },
+    { content: data.identifier_process || '', styles: { halign: 'center' } },
   ]);
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [42, 48, 60], textColor: [255, 255, 255], fontStyle: 'bold' },
-    head: [['#', 'Actividad', 'Responsable', 'Fecha Límite', 'Producto Esperado']],
-    body: activityRows.length > 0 ? activityRows : [['1', 'Sin actividades registradas', '-', '-', '-']],
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      3: { cellWidth: 26, font: 'courier' },
+  bodyRows.push([
+    { content: 'Descripción del cambio, Fecha estimada:', styles: { fontStyle: 'bold' } },
+    { content: data.change_description || '', styles: { halign: 'left' } },
+    { content: 'Justificación del cambio:', styles: { fontStyle: 'bold' } },
+    { content: data.justification || '', styles: { halign: 'left' } },
+  ]);
+
+  bodyRows.push([
+    { content: 'Procesos afectados por el cambio:', styles: { fontStyle: 'bold' } },
+    { content: data.affected_processes || '', colSpan: 3, styles: { halign: 'left' } },
+  ]);
+
+  // Subfranja gris de Origen del Cambio (#D8D8D8)
+  bodyRows.push([
+    {
+      content: 'ORIGEN DEL CAMBIO',
+      colSpan: 4,
+      styles: { fillColor: [216, 216, 216], fontStyle: 'bold', fontSize: 8.5, halign: 'left', minCellHeight: 6 },
     },
-  });
+  ]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentY = (doc as any).lastAutoTable.finalY + 6;
+  // Filas de orígenes en 2 columnas
+  for (const o of originsList) {
+    const isOther = o.leftKey === 'otro';
+    const leftChecked = isOrigChecked(o.leftKey);
+    const rightChecked = isOther ? false : isOrigChecked(o.rightKey);
 
-  // Revisar si requiere nueva página para firmas y efectividad
-  if (currentY > 220) {
-    doc.addPage();
-    currentY = 14;
+    bodyRows.push([
+      { content: o.leftLabel, styles: { fontSize: 7.5 } },
+      { content: box(leftChecked), styles: { halign: 'center', font: 'courier', fontStyle: 'bold', fontSize: 8.5 } },
+      { content: o.rightLabel, styles: { fontSize: 7.5 } },
+      { content: isOther ? '' : box(rightChecked), styles: { halign: 'center', font: 'courier', fontStyle: 'bold', fontSize: 8.5 } },
+    ]);
   }
 
-  // ─── 5. APROBACIÓN Y SEGUIMIENTO DEL CAMBIO ─────────────────────────────────
-  currentY = drawSectionHeader('5. APROBACIÓN Y SEGUIMIENTO DEL CAMBIO', currentY);
+  // 2. SECCIÓN 2: EQUIPO DE TRABAJO (Fila dorada #FFC000)
+  bodyRows.push([
+    {
+      content: '2. EQUIPO DE TRABAJO PARA EL CAMBIO',
+      colSpan: 4,
+      styles: { fillColor: [255, 192, 0], fontStyle: 'bold', fontSize: 9, halign: 'left', minCellHeight: 6.5 },
+    },
+  ]);
 
-  const hasApprovalSignImg = Boolean(data.approval_signature?.startsWith('data:image'));
-  const hasTrackingSignImg = Boolean(data.tracking_signature?.startsWith('data:image'));
+  bodyRows.push([
+    { content: 'NOMBRE', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'CARGO', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'PROCESO', colSpan: 2, styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+  ]);
 
+  const teamList = data.work_team && data.work_team.length > 0 ? data.work_team : [{ nombre: '', cargo: '', proceso: '' }];
+  for (const member of teamList) {
+    bodyRows.push([
+      { content: member.nombre || '', styles: { halign: 'center', fontSize: 8 } },
+      { content: member.cargo || '', styles: { halign: 'center', fontSize: 8 } },
+      { content: member.proceso || '', colSpan: 2, styles: { halign: 'center', fontSize: 8 } },
+    ]);
+  }
+
+  // 3. SECCIÓN 3: ANÁLISIS DEL CAMBIO (Fila dorada #FFC000)
+  bodyRows.push([
+    {
+      content: '3. ANÁLISIS DEL CAMBIO',
+      colSpan: 4,
+      styles: { fillColor: [255, 192, 0], fontStyle: 'bold', fontSize: 9, halign: 'left', minCellHeight: 6.5 },
+    },
+  ]);
+
+  bodyRows.push([
+    {
+      content: 'RIESGOS ASOCIADOS AL CAMBIO (INCLUYE RIESGOS PARA LA SST)',
+      colSpan: 4,
+      styles: { fillColor: [216, 216, 216], fontStyle: 'bold', fontSize: 8.5, halign: 'left', minCellHeight: 6 },
+    },
+  ]);
+
+  bodyRows.push([
+    { content: 'Descripción de los efectos potenciales', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Tipo', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Controles / acciones a tomar', colSpan: 2, styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+  ]);
+
+  const risksList = data.risks && data.risks.length > 0 ? data.risks : [{ descripcion_efectos: '', tipo: 'Amenaza' as const, controles_acciones: '' }];
+  for (const rk of risksList) {
+    bodyRows.push([
+      { content: rk.descripcion_efectos || '', styles: { halign: 'left', fontSize: 8 } },
+      { content: rk.tipo || 'Amenaza', styles: { halign: 'center', fontSize: 8 } },
+      { content: rk.controles_acciones || '', colSpan: 2, styles: { halign: 'left', fontSize: 8 } },
+    ]);
+  }
+
+  // 4. SECCIÓN 4: IMPLEMENTACIÓN DEL CAMBIO (Fila dorada #FFC000)
+  bodyRows.push([
+    {
+      content: '4. IMPLEMENTACIÓN DEL CAMBIO',
+      colSpan: 4,
+      styles: { fillColor: [255, 192, 0], fontStyle: 'bold', fontSize: 9, halign: 'left', minCellHeight: 6.5 },
+    },
+  ]);
+
+  bodyRows.push([
+    { content: 'Actividades', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Responsable', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Fecha límite', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Producto esperado', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+  ]);
+
+  const actList = data.activities && data.activities.length > 0 ? data.activities : [{ actividad: '', responsable: '', fecha_limite: '', producto_esperado: '' }];
+  for (const act of actList) {
+    bodyRows.push([
+      { content: act.actividad || '', styles: { halign: 'left', fontSize: 8 } },
+      { content: act.responsable || '', styles: { halign: 'center', fontSize: 8 } },
+      { content: act.fecha_limite || '', styles: { halign: 'center', font: 'courier', fontSize: 8 } },
+      { content: act.producto_esperado || '', styles: { halign: 'left', fontSize: 8 } },
+    ]);
+  }
+
+  // 5. SECCIÓN 5: APROBACIÓN DEL CAMBIO (Fila dorada #FFC000)
+  bodyRows.push([
+    {
+      content: '4. APROBACIÓN DEL CAMBIO',
+      colSpan: 4,
+      styles: { fillColor: [255, 192, 0], fontStyle: 'bold', fontSize: 9, halign: 'left', minCellHeight: 6.5 },
+    },
+  ]);
+
+  bodyRows.push([
+    { content: 'Nombre de quien aprueba el cambio', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Cargo', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Proceso', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Firma', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+  ]);
+
+  approvalSignRowIdx = bodyRows.length;
+  bodyRows.push([
+    { content: data.approval_name || '', styles: { halign: 'center', fontSize: 8, minCellHeight: 18, valign: 'middle' } },
+    { content: data.approval_position || '', styles: { halign: 'center', fontSize: 8, minCellHeight: 18, valign: 'middle' } },
+    { content: data.approval_process || '', styles: { halign: 'center', fontSize: 8, minCellHeight: 18, valign: 'middle' } },
+    { content: data.approval_signature?.startsWith('data:image') ? '' : (data.approval_signature || (data.approval_name ? 'Aprobado digitalmente' : '')), styles: { halign: 'center', fontSize: 7.5, minCellHeight: 18, valign: 'middle' } },
+  ]);
+
+  bodyRows.push([
+    { content: 'Nombre del responsable del seguimiento del cambio', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Cargo', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Proceso', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+    { content: 'Firma', styles: { fontStyle: 'bold', halign: 'center', fontSize: 8 } },
+  ]);
+
+  trackingSignRowIdx = bodyRows.length;
+  bodyRows.push([
+    { content: data.tracking_name || '', styles: { halign: 'center', fontSize: 8, minCellHeight: 18, valign: 'middle' } },
+    { content: data.tracking_position || '', styles: { halign: 'center', fontSize: 8, minCellHeight: 18, valign: 'middle' } },
+    { content: data.tracking_process || '', styles: { halign: 'center', fontSize: 8, minCellHeight: 18, valign: 'middle' } },
+    { content: data.tracking_signature?.startsWith('data:image') ? '' : (data.tracking_signature || (data.tracking_name ? 'En seguimiento' : '')), styles: { halign: 'center', fontSize: 7.5, minCellHeight: 18, valign: 'middle' } },
+  ]);
+
+  // 6. SECCIÓN 6: EFECTIVIDAD DEL CAMBIO (Fila dorada #FFC000)
+  bodyRows.push([
+    {
+      content: '5. EFECTIVIDAD DEL CAMBIO',
+      colSpan: 4,
+      styles: { fillColor: [255, 192, 0], fontStyle: 'bold', fontSize: 9, halign: 'left', minCellHeight: 6.5 },
+    },
+  ]);
+
+  const ctrlSi = data.control_risks_controlled === true;
+  const ctrlNo = data.control_risks_controlled === false;
+  bodyRows.push([
+    { content: 'Se controlaron los riesgos generados por el cambio', styles: { fontSize: 8, fontStyle: 'bold' } },
+    { content: `SI ${box(ctrlSi)}`, styles: { halign: 'center', font: 'courier', fontStyle: 'bold' } },
+    { content: `NO ${box(ctrlNo)}`, styles: { halign: 'center', font: 'courier', fontStyle: 'bold' } },
+    { content: '', styles: {} },
+  ]);
+
+  const effSi = data.change_effective === true;
+  const effNo = data.change_effective === false;
+  bodyRows.push([
+    { content: 'Efectividad del Cambio', styles: { fontSize: 8, fontStyle: 'bold' } },
+    { content: `SI ${box(effSi)}`, styles: { halign: 'center', font: 'courier', fontStyle: 'bold' } },
+    { content: `NO ${box(effNo)}`, styles: { halign: 'center', font: 'courier', fontStyle: 'bold' } },
+    { content: '', styles: {} },
+  ]);
+
+  bodyRows.push([
+    {
+      content: 'Si la respuesta es no, se debe plantear acciones de mejora de acuerdo al procedimiento de Acciones Correctivas y de Mejora',
+      colSpan: 4,
+      styles: { fontSize: 7.5, fontStyle: 'italic', textColor: [60, 60, 60] },
+    },
+  ]);
+
+  bodyRows.push([
+    {
+      content: data.effectiveness_notes_no || 'Observaciones / Plan de Acción: Ninguna observación adicional registrada.',
+      colSpan: 4,
+      styles: { fontSize: 8, halign: 'left', minCellHeight: 12 },
+    },
+  ]);
+
+  // Renderizado de autoTable con bordes negros finos y réplica idéntica de Excel
   autoTable(doc, {
     startY: currentY,
-    margin: { left: margin, right: margin },
+    margin: { left: margin, right: margin, bottom: 12 },
+    tableWidth: contentWidth,
     theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2.5, minCellHeight: 12 },
-    headStyles: { fillColor: [42, 48, 60], textColor: [255, 255, 255], fontStyle: 'bold' },
-    head: [['Rol', 'Nombre Completo', 'Cargo', 'Proceso', 'Firma / Estado']],
-    body: [
-      [
-        'Aprobación:',
-        data.approval_name || 'Pendiente de aprobación',
-        data.approval_position || '-',
-        data.approval_process || '-',
-        hasApprovalSignImg ? '' : data.approval_signature || (data.approval_name ? 'Firmado Digitalmente' : 'Pendiente'),
-      ],
-      [
-        'Seguimiento:',
-        data.tracking_name || 'Designado por el SIG',
-        data.tracking_position || '-',
-        data.tracking_process || '-',
-        hasTrackingSignImg ? '' : data.tracking_signature || (data.tracking_name ? 'Registrado' : 'Pendiente'),
-      ],
-    ],
-    columnStyles: {
-      0: { cellWidth: 25, fontStyle: 'bold', fillColor: [245, 247, 250] },
-      4: { cellWidth: 36, halign: 'center' },
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+      textColor: [0, 0, 0],
+      lineColor: [0, 0, 0],
+      lineWidth: 0.25,
+      valign: 'middle',
     },
+    columnStyles: {
+      0: { cellWidth: colWidths[0] },
+      1: { cellWidth: colWidths[1] },
+      2: { cellWidth: colWidths[2] },
+      3: { cellWidth: colWidths[3] },
+    },
+    body: bodyRows,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     didDrawCell: (cellData: any) => {
-      if (cellData.column.index === 4) {
-        if (cellData.row.index === 0 && hasApprovalSignImg && data.approval_signature) {
+      // Estampar imagen de firma de aprobación si existe base64
+      if (cellData.row.index === approvalSignRowIdx && cellData.column.index === 3) {
+        if (data.approval_signature?.startsWith('data:image')) {
           try {
-            const padX = 2;
-            const padY = 1.5;
-            const drawW = Math.min(32, Math.max(10, cellData.cell.width - padX * 2));
-            const drawH = Math.min(10, Math.max(6, cellData.cell.height - padY * 2));
-            const drawX = cellData.cell.x + (cellData.cell.width - drawW) / 2;
-            const drawY = cellData.cell.y + (cellData.cell.height - drawH) / 2;
-            doc.addImage(data.approval_signature, 'PNG', drawX, drawY, drawW, drawH);
-          } catch {}
+            const padX = cellData.cell.x + 3;
+            const padY = cellData.cell.y + 1.5;
+            const w = Math.max(cellData.cell.width - 6, 10);
+            const h = Math.max(cellData.cell.height - 3, 10);
+            doc.addImage(data.approval_signature, 'PNG', padX, padY, w, h);
+          } catch (e) {
+            console.warn('Error dibujando firma de aprobación en PDF:', e);
+          }
         }
-        if (cellData.row.index === 1 && hasTrackingSignImg && data.tracking_signature) {
+      }
+
+      // Estampar imagen de firma de seguimiento si existe base64
+      if (cellData.row.index === trackingSignRowIdx && cellData.column.index === 3) {
+        if (data.tracking_signature?.startsWith('data:image')) {
           try {
-            const padX = 2;
-            const padY = 1.5;
-            const drawW = Math.min(32, Math.max(10, cellData.cell.width - padX * 2));
-            const drawH = Math.min(10, Math.max(6, cellData.cell.height - padY * 2));
-            const drawX = cellData.cell.x + (cellData.cell.width - drawW) / 2;
-            const drawY = cellData.cell.y + (cellData.cell.height - drawH) / 2;
-            doc.addImage(data.tracking_signature, 'PNG', drawX, drawY, drawW, drawH);
-          } catch {}
+            const padX = cellData.cell.x + 3;
+            const padY = cellData.cell.y + 1.5;
+            const w = Math.max(cellData.cell.width - 6, 10);
+            const h = Math.max(cellData.cell.height - 3, 10);
+            doc.addImage(data.tracking_signature, 'PNG', padX, padY, w, h);
+          } catch (e) {
+            console.warn('Error dibujando firma de seguimiento en PDF:', e);
+          }
         }
       }
     },
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentY = (doc as any).lastAutoTable.finalY + 6;
-
-  // ─── 6. EVALUACIÓN DE EFECTIVIDAD DEL CAMBIO ────────────────────────────────
-  currentY = drawSectionHeader('6. EFECTIVIDAD DEL CAMBIO (CIERRE PHVA)', currentY);
-
-  const controlTxt =
-    data.control_risks_controlled === true
-      ? 'SÍ (Riesgos controlados adecuadamente)'
-      : data.control_risks_controlled === false
-      ? 'NO (Se presentaron desviaciones no previstas)'
-      : 'Pendiente de evaluación';
-
-  const effTxt =
-    data.change_effective === true
-      ? 'SÍ (El cambio cumplió con los objetivos esperados)'
-      : data.change_effective === false
-      ? 'NO (No alcanzó el resultado esperado - Acciones de mejora requeridas)'
-      : 'Pendiente de evaluación';
-
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2.5 },
-    body: [
-      [
-        { content: '¿Se controlaron los riesgos generados por el cambio?', styles: { fontStyle: 'bold', fillColor: [245, 247, 250], width: 75 } },
-        { content: controlTxt },
-      ],
-      [
-        { content: 'Efectividad General del Cambio:', styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } },
-        { content: effTxt },
-      ],
-      [
-        { content: 'Observaciones / Plan de Acción Correctivo (si aplica):', styles: { fontStyle: 'bold', fillColor: [245, 247, 250] } },
-        { content: data.effectiveness_notes_no || 'Ninguna observación adicional registrada.' },
-      ],
-    ],
-  });
-
-  // ─── PIE DE PÁGINA INSTITUCIONAL ───────────────────────────────────────────
+  // Pie de página institucional discreto
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(120, 125, 135);
-
-    doc.line(margin, 287, pageWidth - margin, 287);
-    doc.text('PROCIMEC  •  PCM CLOUD  •  Sistema Integrado de Gestión HSEQ & Calidad', margin, 291);
-    doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, 291, { align: 'right' });
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text('PROCIMEC  •  PCM CLOUD  •  Sistema Integrado de Gestión (SIG)  •  Formato Oficial FOR-SIG-001', margin, 204);
+    doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, 204, { align: 'right' });
   }
 
   const pdfOutput = doc.output('arraybuffer');
