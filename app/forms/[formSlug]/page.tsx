@@ -28,6 +28,7 @@ import NewReportPage from '@/app/projects/[projectId]/new-report/page';
 import HseqReportFormPage from '@/app/forms/hseq-report/page';
 import ElaboracionCartasForm from '@/components/forms/ElaboracionCartasForm';
 import RegistroEquipoFormPage from '@/app/forms/registro-equipo/page';
+import SigManagementChangeFormPage from '@/app/forms/analisis-planificacion-cambios-sig/page';
 
 // --- Form catalog configurations ---
 const FORM_CONFIGS: Record<string, FormConfig> = {
@@ -578,6 +579,14 @@ export default function FormPage({ params }: { params: { formSlug: string } }) {
     params.formSlug === 'retorno'
   ) {
     return <RegistroEquipoFormPage />;
+  }
+
+  if (
+    params.formSlug === 'analisis-planificacion-cambios-sig' ||
+    params.formSlug === 'cambios-sig' ||
+    params.formSlug === 'gestion-cambio'
+  ) {
+    return <SigManagementChangeFormPage />;
   }
 
   return (
