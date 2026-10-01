@@ -77,7 +77,7 @@ async function fetchAll() {
   };
 }
 
-function deriveSystemRole(roleName: string): 'localizador' | 'operator' | 'dibujo' | 'warehouse' | 'purchasing' | 'commercial' | 'finance' | 'accounting' | 'management' {
+function deriveSystemRole(roleName: string): 'localizador' | 'operator' | 'dibujo' | 'warehouse' | 'purchasing' | 'commercial' | 'finance' | 'accounting' | 'management' | 'hseq' | 'hr' {
   const n = roleName.toLowerCase();
   if (n.includes('almacén') || n.includes('almacen') || n.includes('warehouse') || n.includes('almacenista')) return 'warehouse';
   if (n.includes('compras') || n.includes('purchasing') || n.includes('adquisiciones')) return 'purchasing';
@@ -85,6 +85,8 @@ function deriveSystemRole(roleName: string): 'localizador' | 'operator' | 'dibuj
   if (n.includes('finanzas') || n.includes('finance') || n.includes('tesoreria')) return 'finance';
   if (n.includes('contabilidad') || n.includes('accounting') || n.includes('contador')) return 'accounting';
   if (n.includes('gerencia') || n.includes('management') || n.includes('gerente') || n.includes('direccion')) return 'management';
+  if (n.includes('hseq') || n.includes('seguridad')) return 'hseq';
+  if (n.includes('rrhh') || n.includes('humano') || n.includes('recursos humanos') || n.includes('hr')) return 'hr';
   return n.includes('dibujo') || n.includes('cad') ? 'dibujo' : 'localizador';
 }
 
@@ -100,6 +102,8 @@ const SYSTEM_BADGE: Record<string, string> = {
   finance: 'bg-violet-100 text-violet-900 border border-violet-300 font-semibold',
   accounting: 'bg-cyan-100 text-cyan-900 border border-cyan-300 font-semibold',
   management: 'bg-slate-200 text-slate-900 border border-slate-400 font-semibold',
+  hseq: 'bg-teal-100 text-teal-800 border border-teal-200 font-semibold',
+  hr: 'bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold',
 };
 
 function getRoleBadgeClass(roleName?: string, userRole: string = 'localizador'): string {
@@ -123,8 +127,8 @@ function getRoleBadgeClass(roleName?: string, userRole: string = 'localizador'):
   if (lower.includes('gerencia') || lower.includes('management') || lower.includes('gerente') || lower.includes('direcci')) {
     return 'bg-slate-200 text-slate-900 border border-slate-400 font-semibold';
   }
-  if (lower.includes('hseq')) return 'bg-teal-100 text-teal-800 border border-teal-200';
-  if (lower.includes('rrhh') || lower.includes('humano')) return 'bg-indigo-100 text-indigo-800 border border-indigo-200';
+  if (lower.includes('hseq')) return 'bg-teal-100 text-teal-800 border border-teal-200 font-semibold';
+  if (lower.includes('rrhh') || lower.includes('humano')) return 'bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold';
   if (lower.includes('dibujo') || lower.includes('cad')) return 'badge-success';
   return SYSTEM_BADGE[userRole] ?? 'badge-accent';
 }
@@ -138,6 +142,8 @@ function userDisplayBadge(user: User, roleOptions: RoleOption[] = [], rolesById?
   if (user.role === 'finance') return { label: 'Finanzas', badge: 'bg-violet-100 text-violet-900 border border-violet-300 font-semibold' };
   if (user.role === 'accounting') return { label: 'Contabilidad', badge: 'bg-cyan-100 text-cyan-900 border border-cyan-300 font-semibold' };
   if (user.role === 'management') return { label: 'Gerencia', badge: 'bg-slate-200 text-slate-900 border border-slate-400 font-semibold' };
+  if (user.role === 'hseq') return { label: 'HSEQ', badge: 'bg-teal-100 text-teal-800 border border-teal-200 font-semibold' };
+  if (user.role === 'hr') return { label: 'Gestión Humana', badge: 'bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold' };
   if (user.roles?.name) return { label: user.roles.name, badge: getRoleBadgeClass(user.roles.name, user.role) };
 
   // Buscar en user_division_roles si no está directo en user.roles
@@ -152,7 +158,8 @@ function userDisplayBadge(user: User, roleOptions: RoleOption[] = [], rolesById?
     }
   }
 
-  return { label: user.role === 'dibujo' ? 'Dibujo' : 'Localizador', badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
+  const defaultLabel = user.role === 'dibujo' || user.role === 'drawing' ? 'Dibujo' : 'Localizador';
+  return { label: defaultLabel, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
 }
 
 const TOOL_CATEGORY_STYLES: Record<string, { label: string; type: string; bg: string; text: string }> = {
@@ -189,8 +196,15 @@ function getUserRoleIds(user: User, roleOptions: RoleOption[]): string[] {
       const rNameLower = r.name.toLowerCase();
       return rNameLower === roleLower ||
         ((user.role === 'operator' || user.role === 'localizador') && (rNameLower.includes('localizador') || rNameLower.includes('operador'))) ||
-        (user.role === 'dibujo' && rNameLower.includes('dibujo')) ||
-        (user.role === 'warehouse' && (rNameLower.includes('almacén') || rNameLower.includes('almacen') || rNameLower.includes('warehouse') || rNameLower.includes('almacenista')));
+        (user.role === 'dibujo' && (rNameLower.includes('dibujo') || rNameLower.includes('cad'))) ||
+        (user.role === 'warehouse' && (rNameLower.includes('almacén') || rNameLower.includes('almacen') || rNameLower.includes('warehouse') || rNameLower.includes('almacenista'))) ||
+        (user.role === 'purchasing' && (rNameLower.includes('compras') || rNameLower.includes('purchasing') || rNameLower.includes('adquisiciones'))) ||
+        (user.role === 'commercial' && (rNameLower.includes('comercial') || rNameLower.includes('commercial') || rNameLower.includes('ventas'))) ||
+        (user.role === 'finance' && (rNameLower.includes('finanzas') || rNameLower.includes('finance') || rNameLower.includes('tesoreria'))) ||
+        (user.role === 'accounting' && (rNameLower.includes('contabilidad') || rNameLower.includes('accounting') || rNameLower.includes('contador'))) ||
+        (user.role === 'management' && (rNameLower.includes('gerencia') || rNameLower.includes('management') || rNameLower.includes('gerente') || rNameLower.includes('direccion'))) ||
+        (user.role === 'hseq' && (rNameLower.includes('hseq') || rNameLower.includes('seguridad'))) ||
+        (user.role === 'hr' && (rNameLower.includes('rrhh') || rNameLower.includes('humano') || rNameLower.includes('recursos humanos') || rNameLower.includes('hr')));
     });
     if (match) ids.add(match.id);
   }
