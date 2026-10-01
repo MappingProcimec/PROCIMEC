@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -47,26 +47,8 @@ const CHANGE_ORIGINS = [
 ];
 
 export default function SigManagementChangeFormPage() {
-  // Proyectos y Notificaciones
-  const [projects, setProjects] = useState<{ id: string; name: string; cost_center?: string; code?: string }[]>([]);
-  const [projectId, setProjectId] = useState<string>('');
+  // Notificaciones por correo (Pruebas vs Producción)
   const [sendEmailNotification, setSendEmailNotification] = useState<boolean>(false);
-
-  // Cargar proyectos disponibles para asociar imputabilidad
-  useEffect(() => {
-    let isMounted = true;
-    fetch('/api/projects')
-      .then((res) => (res.ok ? res.json() : { data: [] }))
-      .then((data) => {
-        if (isMounted && Array.isArray(data.data)) {
-          setProjects(data.data);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   // Identificación
   const [identifierName, setIdentifierName] = useState('');
@@ -199,7 +181,7 @@ export default function SigManagementChangeFormPage() {
 
     try {
       const payload = {
-        project_id: projectId || null,
+        project_id: null,
         send_email_notification: sendEmailNotification,
         identifier_name: identifierName.trim(),
         identifier_position: identifierPosition.trim(),
@@ -247,7 +229,6 @@ export default function SigManagementChangeFormPage() {
 
   const handleReset = () => {
     setCreatedId(null);
-    setProjectId('');
     setSendEmailNotification(false);
     setIdentifierName('');
     setIdentifierPosition('');
@@ -366,28 +347,6 @@ export default function SigManagementChangeFormPage() {
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Selector de Proyecto Imputable */}
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">
-                    Proyecto Imputable / Asociado
-                  </label>
-                  <select
-                    value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all font-mono"
-                  >
-                    <option value="">-- Proyecto General / Corporativo (Sin Proyecto Específico) --</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.cost_center || p.code ? `${p.cost_center || p.code} — ` : ''}{p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[11px] text-text-muted mt-1">
-                    Seleccione el proyecto si el cambio es imputable a una obra o contrato específico, o mantenga "Proyecto General / Corporativo" para cambios transversales a toda la empresa.
-                  </p>
-                </div>
-
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">
                     Persona que identifica el cambio <span className="text-accent">*</span>
