@@ -10,6 +10,7 @@ import {
   Settings,
   Quote,
   ChevronDown,
+  ChevronRight,
   User,
   Activity,
   ShieldCheck,
@@ -19,6 +20,10 @@ import {
   FileText,
   Package,
   Users,
+  Building2,
+  Layers,
+  X,
+  type LucideIcon,
 } from 'lucide-react';
 import type { ActivityRecord } from '@/lib/dashboard-activities';
 
@@ -55,45 +60,151 @@ export interface DashboardData {
   recentActivity: ActivityRecord[];
 }
 
-const CATEGORY_LABEL: Record<string, string> = {
-  gpr: 'GPR',
-  cad: 'CAD / BIM',
-  admin: 'Administración',
-  universal: 'Universal',
-  hseq: 'HSEQ',
-  rrhh: 'RRHH',
-  warehouse: 'Almacén',
-  purchasing: 'Compras',
-  commercial: 'Comercial',
-  finance: 'Finanzas',
-  accounting: 'Contabilidad',
+interface CategoryMeta {
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  accentColor: string;
+  badgeClass: string;
+}
+
+const CANONICAL_CATEGORY_ORDER = [
+  'gpr',
+  'cad',
+  'hseq',
+  'warehouse',
+  'purchasing',
+  'commercial',
+  'finance',
+  'accounting',
+  'rrhh',
+  'admin',
+  'universal',
+];
+
+const CATEGORY_META: Record<string, CategoryMeta> = {
+  gpr: {
+    label: 'GPR / Georradar',
+    description: 'Procesamiento de radargramas, campo e inspección de subsuelo',
+    icon: Activity,
+    accentColor: 'text-blue-700',
+    badgeClass: 'bg-blue-50 border-blue-200 text-blue-900 group-hover:bg-blue-100',
+  },
+  cad: {
+    label: 'CAD / BIM',
+    description: 'Modelado, planimetría, Civil 3D y dibujo técnico',
+    icon: PenTool,
+    accentColor: 'text-amber-700',
+    badgeClass: 'bg-amber-50 border-amber-200 text-amber-900 group-hover:bg-amber-100',
+  },
+  hseq: {
+    label: 'HSEQ & SIG',
+    description: 'Seguridad, salud en el trabajo, inspecciones y gestión del cambio',
+    icon: ShieldCheck,
+    accentColor: 'text-teal-700',
+    badgeClass: 'bg-teal-50 border-teal-200 text-teal-900 group-hover:bg-teal-100',
+  },
+  warehouse: {
+    label: 'Almacén',
+    description: 'Kárdex de instrumental, despachos, retornos y consumibles',
+    icon: Package,
+    accentColor: 'text-amber-800',
+    badgeClass: 'bg-amber-100/70 border-amber-300 text-amber-900 group-hover:bg-amber-100',
+  },
+  purchasing: {
+    label: 'Compras',
+    description: 'Requerimientos, órdenes de compra y evaluación de proveedores',
+    icon: ShoppingCart,
+    accentColor: 'text-cyan-700',
+    badgeClass: 'bg-cyan-50 border-cyan-200 text-cyan-900 group-hover:bg-cyan-100',
+  },
+  commercial: {
+    label: 'Comercial',
+    description: 'Oportunidades, licitaciones, cotizaciones y cierres',
+    icon: Briefcase,
+    accentColor: 'text-emerald-700',
+    badgeClass: 'bg-emerald-50 border-emerald-200 text-emerald-900 group-hover:bg-emerald-100',
+  },
+  finance: {
+    label: 'Finanzas',
+    description: 'Viáticos, anticipos, legalización de gastos y pagos',
+    icon: DollarSign,
+    accentColor: 'text-violet-700',
+    badgeClass: 'bg-violet-50 border-violet-200 text-violet-900 group-hover:bg-violet-100',
+  },
+  accounting: {
+    label: 'Contabilidad',
+    description: 'Radicación de facturas, actas y soporte de cobro',
+    icon: FileText,
+    accentColor: 'text-indigo-700',
+    badgeClass: 'bg-indigo-50 border-indigo-200 text-indigo-900 group-hover:bg-indigo-100',
+  },
+  rrhh: {
+    label: 'Recursos Humanos',
+    description: 'Cartas laborales, certificaciones y talento humano',
+    icon: Users,
+    accentColor: 'text-rose-700',
+    badgeClass: 'bg-rose-50 border-rose-200 text-rose-900 group-hover:bg-rose-100',
+  },
+  admin: {
+    label: 'Administración',
+    description: 'Módulos ejecutivos, gestión y sistemas integrados GIS',
+    icon: Building2,
+    accentColor: 'text-purple-700',
+    badgeClass: 'bg-purple-50 border-purple-200 text-purple-900 group-hover:bg-purple-100',
+  },
+  universal: {
+    label: 'Universal',
+    description: 'Herramientas transversales, asistencia, chat y auditoría',
+    icon: Layers,
+    accentColor: 'text-slate-700',
+    badgeClass: 'bg-slate-50 border-slate-200 text-slate-900 group-hover:bg-slate-100',
+  },
 };
 
-const CATEGORY_CHIP: Record<string, string> = {
-  gpr: 'bg-blue-50 border-blue-200 text-blue-800 hover:bg-blue-100',
-  cad: 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100',
-  admin: 'bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100',
-  universal: 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100',
-  hseq: 'bg-teal-50 border-teal-200 text-teal-800 hover:bg-teal-100',
-  rrhh: 'bg-indigo-50 border-indigo-200 text-indigo-800 hover:bg-indigo-100',
-  warehouse: 'bg-amber-100/70 border-amber-300 text-amber-900 hover:bg-amber-100',
-  purchasing: 'bg-blue-100/70 border-blue-300 text-blue-900 hover:bg-blue-100',
-  commercial: 'bg-emerald-100/70 border-emerald-300 text-emerald-900 hover:bg-emerald-100',
-  finance: 'bg-violet-100/70 border-violet-300 text-violet-900 hover:bg-violet-100',
-  accounting: 'bg-cyan-100/70 border-cyan-300 text-cyan-900 hover:bg-cyan-100',
+const FORM_CATEGORY_MAP: Record<string, string> = {
+  // GPR
+  'gpr-field-form': 'gpr',
+  // CAD / BIM
+  'cad-register-form': 'cad',
+  'nueva-actividad': 'cad',
+  // HSEQ & SIG
+  'hseq-report': 'hseq',
+  'analisis-planificacion-cambios-sig': 'hseq',
+  // Almacén
+  'registro-equipo': 'warehouse',
+  'despacho-equipo': 'warehouse',
+  'retorno-equipo': 'warehouse',
+  // Compras
+  'requerimiento-compra': 'purchasing',
+  'orden-compra': 'purchasing',
+  'evaluacion-proveedor': 'purchasing',
+  // Comercial
+  'registro-oportunidad': 'commercial',
+  'cotizacion-comercial': 'commercial',
+  'cierre-comercial': 'commercial',
+  // Finanzas
+  'solicitud-viaticos': 'finance',
+  'legalizacion-gastos': 'finance',
+  'registro-pago': 'finance',
+  // Contabilidad
+  'radicacion-factura': 'accounting',
+  'soporte-cobro': 'accounting',
+  // RRHH
+  'elaboracion-cartas': 'rrhh',
 };
 
 const GREETINGS = [
-  '¡Bienvenido de nuevo!',
-  '¡Excelente jornada!',
-  '¡Qué gusto tenerte aquí!',
-  '¡Con toda la energía para hoy!',
-  '¡Precisión y rigor técnico!',
-  '¡Listos para transformar proyectos!',
-  '¡Un gran día para construir e innovar!',
-  '¡Bienvenido a PCM CLOUD!',
-  '¡Impulsando ingeniería de alto nivel!',
-  '¡Liderazgo y calidad en cada entrega!',
+  'bienvenido de nuevo',
+  'excelente jornada',
+  'qué gusto tenerte aquí',
+  'con toda la energía para hoy',
+  'precisión y rigor técnico',
+  'listos para transformar proyectos',
+  'un gran día para construir e innovar',
+  'bienvenido a PCM CLOUD',
+  'impulsando ingeniería de alto nivel',
+  'liderazgo y calidad en cada entrega',
 ];
 
 interface QuoteItem {
@@ -189,16 +300,32 @@ function formatDate(dateStr: string, createdAtStr?: string): string {
   }
 }
 
+interface FormGroup {
+  categoryKey: string;
+  categoryLabel: string;
+  items: Form[];
+}
+
+interface ToolGroup {
+  categoryKey: string;
+  categoryLabel: string;
+  items: Tool[];
+}
+
 export function DynamicDashboard({ data }: { data: DashboardData }) {
   const { user, division, role, projects, tools, forms, recentActivity = [], legacyRole, isRolePreview } = data;
   const isLegacyDibujo = legacyRole === 'dibujo' && !role;
 
-  // Estado para mensaje aleatorio y frase inspiradora (evita hydration mismatch)
+  // Estado para mensaje aleatorio y frase inspiradora
   const [greeting, setGreeting] = useState('¡Bienvenido!');
   const [quote, setQuote] = useState<QuoteItem>(INSPIRATIONAL_QUOTES[0]);
 
-  // Estado de paginación para actividades: inicia en 10, suma 10 hasta un límite de 100
+  // Estado de paginación para actividades (10 inicial, +10 hasta 100)
   const [displayCount, setDisplayCount] = useState(10);
+
+  // Estados para ventanas flotantes (Modales) de Grupos de Formularios y Herramientas
+  const [activeFormGroup, setActiveFormGroup] = useState<FormGroup | null>(null);
+  const [activeToolGroup, setActiveToolGroup] = useState<ToolGroup | null>(null);
 
   useEffect(() => {
     const randomGreeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
@@ -207,11 +334,83 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
     setQuote(randomQuote);
   }, []);
 
-  const toolsByCategory = tools.reduce<Record<string, Tool[]>>((acc, t) => {
-    if (!acc[t.category]) acc[t.category] = [];
-    acc[t.category].push(t);
+  // Manejo de tecla Escape para cerrar modales
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveFormGroup(null);
+        setActiveToolGroup(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Bloqueo de scroll cuando una ventana flotante está abierta
+  useEffect(() => {
+    if (activeFormGroup || activeToolGroup) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [activeFormGroup, activeToolGroup]);
+
+  // 1. Agrupar Formularios por Categoría Canónica
+  const formsByCategory = forms.reduce<Record<string, Form[]>>((acc, f) => {
+    const cat = FORM_CATEGORY_MAP[f.slug] || 'universal';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(f);
     return acc;
   }, {});
+
+  const formGroups: FormGroup[] = CANONICAL_CATEGORY_ORDER
+    .filter((catKey) => formsByCategory[catKey] && formsByCategory[catKey].length > 0)
+    .map((catKey) => ({
+      categoryKey: catKey,
+      categoryLabel: CATEGORY_META[catKey]?.label || catKey.toUpperCase(),
+      items: formsByCategory[catKey],
+    }));
+
+  // Agregar cualquier categoría remanente no canónica
+  Object.keys(formsByCategory).forEach((catKey) => {
+    if (!CANONICAL_CATEGORY_ORDER.includes(catKey) && formsByCategory[catKey].length > 0) {
+      formGroups.push({
+        categoryKey: catKey,
+        categoryLabel: CATEGORY_META[catKey]?.label || catKey.toUpperCase(),
+        items: formsByCategory[catKey],
+      });
+    }
+  });
+
+  // 2. Agrupar Herramientas por Categoría Canónica
+  const toolsByCategory = tools.reduce<Record<string, Tool[]>>((acc, t) => {
+    const cat = t.category || 'universal';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(t);
+    return acc;
+  }, {});
+
+  const toolGroups: ToolGroup[] = CANONICAL_CATEGORY_ORDER
+    .filter((catKey) => toolsByCategory[catKey] && toolsByCategory[catKey].length > 0)
+    .map((catKey) => ({
+      categoryKey: catKey,
+      categoryLabel: CATEGORY_META[catKey]?.label || catKey.toUpperCase(),
+      items: toolsByCategory[catKey],
+    }));
+
+  // Agregar cualquier categoría remanente no canónica
+  Object.keys(toolsByCategory).forEach((catKey) => {
+    if (!CANONICAL_CATEGORY_ORDER.includes(catKey) && toolsByCategory[catKey].length > 0) {
+      toolGroups.push({
+        categoryKey: catKey,
+        categoryLabel: CATEGORY_META[catKey]?.label || catKey.toUpperCase(),
+        items: toolsByCategory[catKey],
+      });
+    }
+  });
 
   const displayGreeting = user.nick_name || user.full_name || 'Usuario';
   const visibleActivities = recentActivity.slice(0, displayCount);
@@ -245,13 +444,10 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
               {(user.nick_name || user.full_name || user.email).charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs uppercase tracking-wider font-semibold text-accent-700">
-                {greeting}
-              </p>
-              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mt-0.5">
-                {displayGreeting}
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary capitalize-first">
+                Hola {greeting}, {displayGreeting}
               </h2>
-              <p className="text-xs text-text-muted truncate font-mono mt-0.5">{user.email}</p>
+              <p className="text-xs text-text-muted truncate font-mono mt-1">{user.email}</p>
               <div className="flex flex-wrap gap-2 mt-2.5">
                 {role ? (
                   <span className="badge badge-primary text-xs">{role.name}</span>
@@ -287,67 +483,101 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
       </div>
 
       {/* ─────────────────────────────────────────────────────────── */}
-      {/* 1. MIS FORMULARIOS (PRIMERO)                                */}
+      {/* 1. MIS FORMULARIOS (PRIMERO - AGRUPADOS CON MODAL)          */}
       {/* ─────────────────────────────────────────────────────────── */}
       {forms.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-text-primary">Mis Formularios</h2>
+            <div>
+              <h2 className="font-bold text-text-primary">Mis Formularios</h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                Selecciona una categoría para desplegar los formatos operativos disponibles
+              </p>
+            </div>
             <span className="text-xs text-text-muted font-medium font-mono">
-              {forms.length} disponible{forms.length !== 1 ? 's' : ''}
+              {forms.length} formato{forms.length !== 1 ? 's' : ''} en {formGroups.length} grupo{formGroups.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <div className="card border border-border overflow-hidden shadow-sm">
-            <ul className="divide-y divide-border">
-              {forms.map((f) => (
-                <li key={f.id}>
-                  <Link
-                    href={`/forms/${f.slug}`}
-                    className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors group"
-                  >
-                    <ClipboardList className="w-5 h-5 text-text-muted group-hover:text-primary transition-colors flex-shrink-0" strokeWidth={1.75} />
-                    <span className="text-sm font-medium text-text-primary group-hover:text-primary transition-colors flex-1">
-                      {f.name}
-                    </span>
-                    <span className="text-text-muted text-sm flex-shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+
+          {/* Rejilla de Grupos de Formularios */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {formGroups.map((g) => {
+              const meta = CATEGORY_META[g.categoryKey] || CATEGORY_META.universal;
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={g.categoryKey}
+                  type="button"
+                  onClick={() => setActiveFormGroup(g)}
+                  className="card border border-border p-4 hover:border-accent hover:shadow-md transition-all text-left flex items-center justify-between gap-3 group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 transition-colors ${meta.badgeClass}`}>
+                      <Icon className={`w-5 h-5 ${meta.accentColor}`} strokeWidth={1.75} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-text-primary group-hover:text-primary transition-colors truncate">
+                        {meta.label}
+                      </p>
+                      <p className="text-xs text-text-muted font-mono mt-0.5">
+                        {g.items.length} {g.items.length === 1 ? 'formulario' : 'formularios'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" strokeWidth={2} />
+                </button>
+              );
+            })}
           </div>
         </section>
       )}
 
       {/* ─────────────────────────────────────────────────────────── */}
-      {/* 2. MIS HERRAMIENTAS (SEGUNDO)                               */}
+      {/* 2. MIS HERRAMIENTAS (SEGUNDO - AGRUPADAS CON MODAL)         */}
       {/* ─────────────────────────────────────────────────────────── */}
       {tools.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-text-primary">Mis Herramientas</h2>
+            <div>
+              <h2 className="font-bold text-text-primary">Mis Herramientas</h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                Selecciona una categoría técnica para abrir los tableros y visores de trabajo
+              </p>
+            </div>
             <span className="text-xs text-text-muted font-medium font-mono">
-              {tools.length} activa{tools.length !== 1 ? 's' : ''}
+              {tools.length} herramienta{tools.length !== 1 ? 's' : ''} en {toolGroups.length} grupo{toolGroups.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <div className="space-y-3">
-            {Object.entries(toolsByCategory).map(([cat, catTools]) => (
-              <div key={cat} className="card border border-border p-4 shadow-sm">
-                <p className="text-xs font-bold text-text-secondary uppercase tracking-wide mb-3">
-                  {CATEGORY_LABEL[cat] ?? cat}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {catTools.map((t) => (
-                    <Link
-                      key={t.id}
-                      href={`/tools/${t.slug}`}
-                      className={`inline-flex items-center px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${CATEGORY_CHIP[cat] ?? 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'}`}
-                    >
-                      {t.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ))}
+
+          {/* Rejilla de Grupos de Herramientas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {toolGroups.map((g) => {
+              const meta = CATEGORY_META[g.categoryKey] || CATEGORY_META.universal;
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={g.categoryKey}
+                  type="button"
+                  onClick={() => setActiveToolGroup(g)}
+                  className="card border border-border p-4 hover:border-accent hover:shadow-md transition-all text-left flex items-center justify-between gap-3 group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 transition-colors ${meta.badgeClass}`}>
+                      <Icon className={`w-5 h-5 ${meta.accentColor}`} strokeWidth={1.75} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-text-primary group-hover:text-primary transition-colors truncate">
+                        {meta.label}
+                      </p>
+                      <p className="text-xs text-text-muted font-mono mt-0.5">
+                        {g.items.length} {g.items.length === 1 ? 'herramienta' : 'herramientas'}
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-text-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all flex-shrink-0" strokeWidth={2} />
+                </button>
+              );
+            })}
           </div>
         </section>
       )}
@@ -552,6 +782,169 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
           <p className="text-xs text-text-muted max-w-xs mx-auto">
             Tu cuenta aún no tiene proyectos, herramientas o formularios asignados. Contacta a un administrador.
           </p>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────── */}
+      {/* VENTANA FLOTANTE (MODAL): FORMULARIOS DE UN GRUPO           */}
+      {/* ─────────────────────────────────────────────────────────── */}
+      {activeFormGroup && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setActiveFormGroup(null)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-border shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del Modal */}
+            <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between gap-3 bg-surface/50">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${CATEGORY_META[activeFormGroup.categoryKey]?.badgeClass || 'bg-gray-100'}`}>
+                  {(() => {
+                    const Icon = CATEGORY_META[activeFormGroup.categoryKey]?.icon || ClipboardList;
+                    return <Icon className={`w-5 h-5 ${CATEGORY_META[activeFormGroup.categoryKey]?.accentColor || 'text-primary'}`} strokeWidth={1.75} />;
+                  })()}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-text-primary text-base sm:text-lg truncate">
+                    {CATEGORY_META[activeFormGroup.categoryKey]?.label || activeFormGroup.categoryLabel}
+                  </h3>
+                  <p className="text-xs text-text-muted font-mono">
+                    {activeFormGroup.items.length} {activeFormGroup.items.length === 1 ? 'formulario disponible' : 'formularios disponibles'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveFormGroup(null)}
+                className="text-text-muted hover:text-text-primary p-2 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
+                aria-label="Cerrar ventana"
+              >
+                <X className="w-5 h-5" strokeWidth={2} />
+              </button>
+            </div>
+
+            {/* Lista de Formularios */}
+            <div className="p-3 sm:p-4 overflow-y-auto divide-y divide-border/60">
+              {activeFormGroup.items.map((f) => (
+                <Link
+                  key={f.id}
+                  href={`/forms/${f.slug}`}
+                  onClick={() => setActiveFormGroup(null)}
+                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text-muted group-hover:text-primary group-hover:border-primary/40 transition-colors flex-shrink-0">
+                    <ClipboardList className="w-4 h-4" strokeWidth={1.75} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors truncate">
+                      {f.name}
+                    </p>
+                    <p className="text-[11px] font-mono text-text-muted">
+                      /forms/{f.slug}
+                    </p>
+                  </div>
+                  <span className="text-text-muted text-sm flex-shrink-0 group-hover:text-primary group-hover:translate-x-1 transition-all">→</span>
+                </Link>
+              ))}
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="p-3 bg-surface border-t border-border flex items-center justify-between">
+              <span className="text-xs text-text-muted">PROCIMEC · PCM CLOUD</span>
+              <button
+                type="button"
+                onClick={() => setActiveFormGroup(null)}
+                className="btn-secondary text-xs px-3.5 py-1.5 font-semibold cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────── */}
+      {/* VENTANA FLOTANTE (MODAL): HERRAMIENTAS DE UN GRUPO         */}
+      {/* ─────────────────────────────────────────────────────────── */}
+      {activeToolGroup && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setActiveToolGroup(null)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-border shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del Modal */}
+            <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between gap-3 bg-surface/50">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${CATEGORY_META[activeToolGroup.categoryKey]?.badgeClass || 'bg-gray-100'}`}>
+                  {(() => {
+                    const Icon = CATEGORY_META[activeToolGroup.categoryKey]?.icon || Settings;
+                    return <Icon className={`w-5 h-5 ${CATEGORY_META[activeToolGroup.categoryKey]?.accentColor || 'text-primary'}`} strokeWidth={1.75} />;
+                  })()}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-text-primary text-base sm:text-lg truncate">
+                    {CATEGORY_META[activeToolGroup.categoryKey]?.label || activeToolGroup.categoryLabel}
+                  </h3>
+                  <p className="text-xs text-text-muted font-mono">
+                    {activeToolGroup.items.length} {activeToolGroup.items.length === 1 ? 'herramienta técnica' : 'herramientas técnicas'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveToolGroup(null)}
+                className="text-text-muted hover:text-text-primary p-2 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
+                aria-label="Cerrar ventana"
+              >
+                <X className="w-5 h-5" strokeWidth={2} />
+              </button>
+            </div>
+
+            {/* Lista de Herramientas */}
+            <div className="p-3 sm:p-4 overflow-y-auto divide-y divide-border/60">
+              {activeToolGroup.items.map((t) => (
+                <Link
+                  key={t.id}
+                  href={`/tools/${t.slug}`}
+                  onClick={() => setActiveToolGroup(null)}
+                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text-muted group-hover:text-primary group-hover:border-primary/40 transition-colors flex-shrink-0">
+                    {(() => {
+                      const Icon = CATEGORY_META[activeToolGroup.categoryKey]?.icon || Settings;
+                      return <Icon className="w-4 h-4" strokeWidth={1.75} />;
+                    })()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors truncate">
+                      {t.name}
+                    </p>
+                    <p className="text-[11px] font-mono text-text-muted">
+                      /tools/{t.slug}
+                    </p>
+                  </div>
+                  <span className="text-text-muted text-sm flex-shrink-0 group-hover:text-primary group-hover:translate-x-1 transition-all">→</span>
+                </Link>
+              ))}
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="p-3 bg-surface border-t border-border flex items-center justify-between">
+              <span className="text-xs text-text-muted">PROCIMEC · PCM CLOUD</span>
+              <button
+                type="button"
+                onClick={() => setActiveToolGroup(null)}
+                className="btn-secondary text-xs px-3.5 py-1.5 font-semibold cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
