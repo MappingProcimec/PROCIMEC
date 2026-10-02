@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
+import { getDashboardActivities } from '@/lib/dashboard-activities';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -245,42 +246,11 @@ export async function GET(req: NextRequest) {
       });
   }
 
-  let cadActivityQuery = supabase
-    .from('drawing_activities')
-    .select('id, activity_date, elaboration_stage, software, hours_worked, project_name')
-    .order('activity_date', { ascending: false })
-    .limit(5);
-
-  if (dbUser.id && dbUser.email) {
-    cadActivityQuery = cadActivityQuery.or(`user_id.eq.${dbUser.id},responsible.ilike.${dbUser.email}`);
-  } else if (dbUser.id) {
-    cadActivityQuery = cadActivityQuery.eq('user_id', dbUser.id);
-  } else if (dbUser.email) {
-    cadActivityQuery = cadActivityQuery.ilike('responsible', dbUser.email);
-  }
-
-  const { data: cadActivity } = await cadActivityQuery;
-
-  type CadRow = {
-    id: string;
-    activity_date: string;
-    elaboration_stage?: string | null;
-    software?: string | null;
-    hours_worked?: number | null;
-    project_name?: string | null;
-  };
-
-  const recentActivity = (cadActivity ?? []).map((a) => {
-    const row = a as unknown as CadRow;
-    return {
-      id: row.id,
-      date: row.activity_date,
-      type: 'CAD/BIM',
-      formSlug: 'nueva-actividad',
-      projectName: row.project_name ?? '—',
-      projectCode: '—',
-      detail: `${Number(row.hours_worked || 8.5).toFixed(1)} h (${row.software || 'CAD'})`,
-    };
+  const recentActivity = await getDashboardActivities({
+    isAdmin: dbUser.role === 'admin' && !roleIdParam,
+    userId: dbUser.id,
+    userEmail: dbUser.email,
+    limit: 100,
   });
 
   const isRolePreview = Boolean(dbUser.role === 'admin' && roleIdParam);
