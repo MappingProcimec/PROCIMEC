@@ -71,7 +71,7 @@ function formatCurrency(amount: number): string {
 
 export default function RequerimientoCompraPage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   // Estados de carga e inicialización
   const [isLoading, setIsLoading] = useState(true);
@@ -115,14 +115,18 @@ export default function RequerimientoCompraPage() {
     },
   ]);
 
-  // Cargar datos iniciales desde el endpoint
+  // Cargar datos iniciales desde el endpoint (esperar a que status no sea 'loading')
   useEffect(() => {
+    if (status === 'loading') return;
+
     async function loadFormData() {
       try {
         setIsLoading(true);
+        setErrorMessage(null);
         const res = await fetch('/api/forms/requerimiento-compra');
         if (!res.ok) {
-          throw new Error('No se pudo cargar la configuración de la solicitud.');
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.error || 'No se pudo cargar la configuración de la solicitud.');
         }
         const data = await res.json();
         if (data.success) {
@@ -134,9 +138,6 @@ export default function RequerimientoCompraPage() {
             setApplicantName(data.user.full_name);
           } else if (session?.user?.name) {
             setApplicantName(session.user.name);
-          }
-          if (data.user?.phone) {
-            setContactPhone(data.user.phone);
           }
 
           // Si hay proyectos disponibles, pre-seleccionar el primero
@@ -153,7 +154,7 @@ export default function RequerimientoCompraPage() {
     }
 
     loadFormData();
-  }, [session]);
+  }, [status, session?.user?.email]);
 
   // Proyecto seleccionado actualmente
   const selectedProject = useMemo(() => {

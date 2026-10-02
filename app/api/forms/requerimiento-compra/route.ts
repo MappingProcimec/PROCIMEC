@@ -24,15 +24,38 @@ export async function GET() {
 
   const supabase = createAdminClient();
 
-  // 1. Obtener usuario de la base de datos (users no tiene columna phone)
-  const { data: dbUser, error: userError } = await supabase
-    .from('users')
-    .select('id, full_name, email, role')
-    .eq('email', session.user.email)
-    .single();
+  // 1. Obtener usuario de la base de datos (con fallback robusto a la sesión)
+  let dbUser: { id: string; full_name?: string | null; email: string; role: string } | null = null;
 
-  if (userError || !dbUser) {
-    return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+  try {
+    const { data: userByEmail } = await supabase
+      .from('users')
+      .select('id, full_name, email, role')
+      .ilike('email', session.user.email.trim())
+      .maybeSingle();
+
+    if (userByEmail) {
+      dbUser = userByEmail;
+    } else if (session.user.id) {
+      const { data: userById } = await supabase
+        .from('users')
+        .select('id, full_name, email, role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (userById) dbUser = userById;
+    }
+  } catch (err) {
+    console.warn('Error consultando tabla users en requerimiento-compra:', err);
+  }
+
+  // Fallback seguro si el usuario tiene sesión activa pero no existe en users
+  if (!dbUser) {
+    dbUser = {
+      id: session.user.id || 'session-user',
+      full_name: session.user.name || session.user.email.split('@')[0],
+      email: session.user.email,
+      role: session.user.role || 'operator',
+    };
   }
 
   if (dbUser.role === 'pending') {
@@ -40,42 +63,51 @@ export async function GET() {
   }
 
   // 2. Proyectos habilitados para el usuario
-  let projectsQuery = supabase
-    .from('projects')
-    .select('id, name, cost_center, code, client')
-    .eq('is_active', true)
-    .order('name', { ascending: true });
+  let projects: Array<{ id: string; name: string; cost_center: string; client: string }> = [];
 
-  const isUnrestricted =
-    dbUser.role === 'admin' ||
-    dbUser.role === 'management' ||
-    dbUser.role === 'gerencia' ||
-    dbUser.role === 'purchasing' ||
-    dbUser.role === 'compras';
+  try {
+    const { data: allProjects, error: pError } = await supabase
+      .from('projects')
+      .select('id, name, cost_center, code, client')
+      .eq('is_active', true)
+      .order('name', { ascending: true });
 
-  if (!isUnrestricted) {
-    const { data: userProjects } = await supabase
-      .from('user_projects')
-      .select('project_id')
-      .eq('user_id', dbUser.id);
+    if (!pError && allProjects) {
+      const formatted = allProjects.map((p: Record<string, unknown>) => ({
+        id: p.id as string,
+        name: (p.name as string) || '',
+        cost_center: ((p.cost_center as string) || (p.code as string) || '').trim(),
+        client: ((p.client as string) || '').trim(),
+      }));
 
-    const allowedIds = (userProjects ?? []).map((up: { project_id: string }) => up.project_id);
-    if (allowedIds.length > 0) {
-      projectsQuery = projectsQuery.in('id', allowedIds);
+      // Si no es rol administrativo/compras, verificar si tiene proyectos asignados
+      const isUnrestricted =
+        dbUser.role === 'admin' ||
+        dbUser.role === 'management' ||
+        dbUser.role === 'gerencia' ||
+        dbUser.role === 'purchasing' ||
+        dbUser.role === 'compras';
+
+      if (!isUnrestricted && dbUser.id) {
+        const { data: userProjects } = await supabase
+          .from('user_projects')
+          .select('project_id')
+          .eq('user_id', dbUser.id);
+
+        const assignedIds = new Set((userProjects ?? []).map((up: { project_id: string }) => up.project_id));
+        if (assignedIds.size > 0) {
+          projects = formatted.filter((p) => assignedIds.has(p.id));
+        } else {
+          // Si no tiene asignación explícita, se le permiten todos los proyectos activos de la empresa
+          projects = formatted;
+        }
+      } else {
+        projects = formatted;
+      }
     }
+  } catch (err) {
+    console.warn('Error consultando proyectos en requerimiento-compra:', err);
   }
-
-  const { data: projectsData, error: projectsError } = await projectsQuery;
-  if (projectsError) {
-    return NextResponse.json({ error: projectsError.message }, { status: 500 });
-  }
-
-  const projects = (projectsData ?? []).map((p: Record<string, unknown>) => ({
-    id: p.id as string,
-    name: (p.name as string) || '',
-    cost_center: ((p.cost_center as string) || (p.code as string) || '').trim(),
-    client: ((p.client as string) || '').trim(),
-  }));
 
   // 3. Calcular siguiente consecutivo automatizado con tolerancia de esquema
   let nextConsecutive = 1;
@@ -108,7 +140,6 @@ export async function GET() {
       id: dbUser.id,
       full_name: dbUser.full_name || session.user.name || '',
       email: dbUser.email,
-      phone: '',
       role: dbUser.role,
     },
     nextConsecutive,

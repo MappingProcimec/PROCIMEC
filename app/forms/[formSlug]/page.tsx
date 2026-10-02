@@ -457,12 +457,6 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
   const projectId = searchParams.get('projectId') ?? undefined;
   const router = useRouter();
 
-  useEffect(() => {
-    if (formSlug === 'requerimiento-compra') {
-      router.replace('/forms/requerimiento-compra');
-    }
-  }, [formSlug, router]);
-
   const config = FORM_CONFIGS[formSlug] ?? {
     name: `Formulario: ${formSlug}`,
     description: 'Formulario activo del catálogo',
