@@ -76,7 +76,7 @@ export async function GET() {
       const formatted = activeProjects.map((p: Record<string, unknown>) => ({
         id: p.id as string,
         name: (p.name as string) || '',
-        cost_center: String(p.cost_center || p.code || '').trim(),
+        cost_center: String(p.cost_center || '').trim(),
         client: ((p.client as string) || '').trim(),
       }));
 

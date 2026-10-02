@@ -152,7 +152,7 @@ export default function RequerimientoCompraPage() {
           resolvedProjects = projectsData.data.map((p: Record<string, unknown>) => ({
             id: p.id as string,
             name: (p.name as string) || '',
-            cost_center: String(p.cost_center || p.code || '').trim(),
+            cost_center: String(p.cost_center || '').trim(),
             client: String(p.client || '').trim(),
           }));
         } else if (Array.isArray(formData?.projects) && formData.projects.length > 0) {
