@@ -1141,6 +1141,16 @@ export default function PurchasingDashboardPage() {
               const sigPurchasing = selectedRequest.signatures?.purchasing;
               const sigManagement = selectedRequest.signatures?.management;
 
+              const formatViewTime = (viewedAt?: string) => {
+                if (!viewedAt) return '';
+                const parts = viewedAt.split(',');
+                if (parts.length > 1) {
+                  const timeWithSec = parts[1].trim();
+                  return timeWithSec.replace(/:\d{2}\s/, ' ');
+                }
+                return viewedAt;
+              };
+
               return (
                 <div className="bg-slate-50/80 border border-border rounded-xl p-3.5 space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -1198,9 +1208,25 @@ export default function PurchasingDashboardPage() {
                       <p className="font-semibold text-text-primary text-[11px] truncate" title={sigDirector?.name || selectedRequest.approver_name || 'Aprobador del Proyecto'}>
                         {sigDirector?.name || selectedRequest.approver_name || 'Aprobador Asignado'}
                       </p>
-                      <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
-                        <span className="truncate">{dirView ? '✓ Visto' : 'Sin ver'}</span>
-                        {dirView && <Eye className="w-3 h-3 text-emerald-600 flex-shrink-0" />}
+                      <div
+                        className="flex items-center justify-between text-[10px] text-text-muted mt-0.5 cursor-help"
+                        title={dirView ? `Visualizado por ${dirView.user_name} el ${dirView.viewed_at}` : 'Pendiente de visualización'}
+                      >
+                        <span className="truncate flex items-center gap-1 font-mono text-[9px]">
+                          {dirView ? (
+                            <>
+                              <span className="text-emerald-700 font-semibold font-sans">✓ Visto</span>
+                              <span className="text-text-secondary">{formatViewTime(dirView.viewed_at)}</span>
+                            </>
+                          ) : (
+                            <span className="italic text-text-muted/60">Sin ver</span>
+                          )}
+                        </span>
+                        {dirView ? (
+                          <Eye className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                        ) : (
+                          <Eye className="w-3 h-3 text-text-muted/40 flex-shrink-0" />
+                        )}
                       </div>
                     </div>
 
@@ -1229,9 +1255,25 @@ export default function PurchasingDashboardPage() {
                       <p className="font-semibold text-text-primary text-[11px] truncate" title={sigPurchasing?.name || 'Área de Compras'}>
                         {sigPurchasing?.name || 'Área de Compras'}
                       </p>
-                      <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
-                        <span className="truncate">{purView ? '✓ Visto' : 'Sin ver'}</span>
-                        {purView && <Eye className="w-3 h-3 text-blue-600 flex-shrink-0" />}
+                      <div
+                        className="flex items-center justify-between text-[10px] text-text-muted mt-0.5 cursor-help"
+                        title={purView ? `Visualizado por ${purView.user_name} el ${purView.viewed_at}` : 'Pendiente de visualización'}
+                      >
+                        <span className="truncate flex items-center gap-1 font-mono text-[9px]">
+                          {purView ? (
+                            <>
+                              <span className="text-blue-700 font-semibold font-sans">✓ Visto</span>
+                              <span className="text-text-secondary">{formatViewTime(purView.viewed_at)}</span>
+                            </>
+                          ) : (
+                            <span className="italic text-text-muted/60">Sin ver</span>
+                          )}
+                        </span>
+                        {purView ? (
+                          <Eye className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                        ) : (
+                          <Eye className="w-3 h-3 text-text-muted/40 flex-shrink-0" />
+                        )}
                       </div>
                     </div>
 
@@ -1260,9 +1302,25 @@ export default function PurchasingDashboardPage() {
                       <p className="font-semibold text-text-primary text-[11px] truncate" title={sigManagement?.name || 'Gerencia General'}>
                         {sigManagement?.name || 'Gerencia General'}
                       </p>
-                      <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
-                        <span className="truncate">{manView ? '✓ Visto' : 'Sin ver'}</span>
-                        {manView && <Eye className="w-3 h-3 text-purple-600 flex-shrink-0" />}
+                      <div
+                        className="flex items-center justify-between text-[10px] text-text-muted mt-0.5 cursor-help"
+                        title={manView ? `Visualizado por ${manView.user_name} el ${manView.viewed_at}` : 'Pendiente de visualización'}
+                      >
+                        <span className="truncate flex items-center gap-1 font-mono text-[9px]">
+                          {manView ? (
+                            <>
+                              <span className="text-purple-700 font-semibold font-sans">✓ Visto</span>
+                              <span className="text-text-secondary">{formatViewTime(manView.viewed_at)}</span>
+                            </>
+                          ) : (
+                            <span className="italic text-text-muted/60">Sin ver</span>
+                          )}
+                        </span>
+                        {manView ? (
+                          <Eye className="w-3 h-3 text-purple-600 flex-shrink-0" />
+                        ) : (
+                          <Eye className="w-3 h-3 text-text-muted/40 flex-shrink-0" />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1283,27 +1341,48 @@ export default function PurchasingDashboardPage() {
                         {sigApplicant && (
                           <div className="pt-1 first:pt-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
                             <span className="font-semibold text-text-primary">1. Solicitante: {sigApplicant.name}</span>
-                            <span className="font-mono text-[10px]">C.C. {sigApplicant.cedula || '—'} · {sigApplicant.date_time || 'Registrado'}</span>
+                            <span className="font-mono text-[10px]">Firma: C.C. {sigApplicant.cedula || '—'} · {sigApplicant.date_time || 'Registrado'}</span>
                           </div>
                         )}
-                        {sigDirector && (
-                          <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
-                            <span className="font-semibold text-text-primary">2. VB Técnico: {sigDirector.name} {sigDirector.notes ? `(${sigDirector.notes})` : ''}</span>
-                            <span className="font-mono text-[10px]">C.C. {sigDirector.cedula || '—'} · {sigDirector.date_time || '—'}</span>
+                        <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                          <div>
+                            <span className="font-semibold text-text-primary">2. VB Técnico: {sigDirector?.name || selectedRequest.approver_name || 'Pendiente'}</span>
+                            {dirView && (
+                              <span className="block text-[10px] text-text-secondary">
+                                👁️ Visto por: {dirView.user_name} (<span className="font-mono">{dirView.viewed_at}</span>)
+                              </span>
+                            )}
                           </div>
-                        )}
-                        {sigPurchasing && (
-                          <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
-                            <span className="font-semibold text-text-primary">3. Cotización Compras: {sigPurchasing.name} {sigPurchasing.notes ? `(${sigPurchasing.notes})` : ''}</span>
-                            <span className="font-mono text-[10px]">C.C. {sigPurchasing.cedula || '—'} · {sigPurchasing.date_time || '—'}</span>
+                          <span className="font-mono text-[10px]">
+                            {sigDirector ? `Firma: C.C. ${sigDirector.cedula || '—'} · ${sigDirector.date_time || '—'}` : 'Sin firma'}
+                          </span>
+                        </div>
+                        <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                          <div>
+                            <span className="font-semibold text-text-primary">3. Cotización: {sigPurchasing?.name || 'Área de Compras'}</span>
+                            {purView && (
+                              <span className="block text-[10px] text-text-secondary">
+                                👁️ Visto por: {purView.user_name} (<span className="font-mono">{purView.viewed_at}</span>)
+                              </span>
+                            )}
                           </div>
-                        )}
-                        {sigManagement && (
-                          <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
-                            <span className="font-semibold text-text-primary">4. Gerencia General: {sigManagement.name} {sigManagement.notes ? `(${sigManagement.notes})` : ''}</span>
-                            <span className="font-mono text-[10px]">C.C. {sigManagement.cedula || '—'} · {sigManagement.date_time || '—'}</span>
+                          <span className="font-mono text-[10px]">
+                            {sigPurchasing ? `Firma: C.C. ${sigPurchasing.cedula || '—'} · ${sigPurchasing.date_time || '—'}` : 'Sin firma'}
+                          </span>
+                        </div>
+                        <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                          <div>
+                            <span className="font-semibold text-text-primary">4. Gerencia General: {sigManagement?.name || 'Gerencia General'}</span>
+                            {manView && (
+                              <span className="block text-[10px] text-text-secondary">
+                                👁️ Visto por: {manView.user_name} (<span className="font-mono">{manView.viewed_at}</span>)
+                              </span>
+                            )}
                           </div>
-                        )}
+                          <span className="font-mono text-[10px]">
+                            {sigManagement ? `Firma: C.C. ${sigManagement.cedula || '—'} · ${sigManagement.date_time || '—'}` : 'Sin firma'}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
