@@ -76,18 +76,32 @@ export async function POST(req: NextRequest) {
       (requestRow.approver_name && dbUser.full_name && requestRow.approver_name.trim().toLowerCase() === dbUser.full_name.trim().toLowerCase()) ||
       (requestRow.approver_user_id && requestRow.approver_user_id === dbUser.id);
 
-    const hasDirectorView = currentRawViews.some((v) => v.instance === 'director');
-
-    // Si es el autor, solo registrar vista si fue expresamente asignado como Aprobador del proyecto y aún no está registrada
-    if (isAuthor && (!isDesignatedApprover || hasDirectorView)) {
-      return NextResponse.json({ success: true, isAuthor: true, viewed_by: currentRawViews });
-    }
-
-    // 4. Determinar instancia revisora según rol y etapa secuencial del requerimiento
     const sigs = (requestRow.signatures || {}) as Record<string, any>;
     const hasDirectorSig = Boolean(sigs.director?.name);
     const hasPurchasingSig = Boolean(sigs.purchasing?.name);
 
+    const hasDirectorView = currentRawViews.some((v) => v.instance === 'director');
+    const hasManagementView = currentRawViews.some((v) => v.instance === 'management');
+
+    const isAdminOrManagement =
+      userRole === 'admin' ||
+      userRole === 'management' ||
+      userRole === 'gerencia' ||
+      session.user.role === 'admin' ||
+      session.user.role === 'management';
+
+    // Opción 1: ¿Cuándo un autor sí puede registrar vista de revisor?
+    // 1) En Paso 1 (Proyecto): Si fue expresamente asignado como aprobador del proyecto y aún no tiene director view
+    // 2) En Paso 3 (Gerencia): Si tiene rol de Gerente o Admin, y el requerimiento ya fue cotizado (quoted o hasPurchasingSig) y aún no tiene management view
+    const isActingAsApprover = isDesignatedApprover && !hasDirectorSig && !hasDirectorView;
+    const isActingAsManagement = isAdminOrManagement && (hasPurchasingSig || requestRow.status === 'quoted') && !hasManagementView;
+
+    // Si es el autor y no está actuando ni como aprobador de proyecto ni como gerencia en fase de cotizada, no registrar
+    if (isAuthor && !isActingAsApprover && !isActingAsManagement) {
+      return NextResponse.json({ success: true, isAuthor: true, viewed_by: currentRawViews });
+    }
+
+    // 4. Determinar instancia revisora según rol y etapa secuencial del requerimiento
     let instance: 'director' | 'purchasing' | 'management' = 'director';
     let roleLabel = requestRow.approver_name
       ? `Aprobador: ${requestRow.approver_name}`
@@ -101,10 +115,10 @@ export async function POST(req: NextRequest) {
       roleLabel = 'Gerencia General (Punto 4)';
     } else if (userRole === 'admin') {
       // Para administradores: respetar el orden del flujo
-      if (!hasDirectorSig || isDesignatedApprover) {
+      if ((!hasDirectorSig && isDesignatedApprover) || (!hasDirectorSig && !isAuthor)) {
         instance = 'director';
         roleLabel = requestRow.approver_name ? `Aprobador: ${requestRow.approver_name}` : 'Aprobación de Proyecto';
-      } else if (!hasPurchasingSig) {
+      } else if (!hasPurchasingSig && !isAuthor) {
         instance = 'purchasing';
         roleLabel = 'Área de Compras (Admin)';
       } else {
@@ -117,7 +131,7 @@ export async function POST(req: NextRequest) {
       roleLabel = requestRow.approver_name ? `Aprobador: ${requestRow.approver_name}` : 'Aprobación de Proyecto';
     }
 
-    // 4. Procesar lista de visualizaciones (resiliente a JSONB y metadatos)
+    // 5. Procesar lista de visualizaciones (resiliente a JSONB y metadatos)
     let currentViews: Array<{
       user_id: string;
       user_name: string;
@@ -143,9 +157,8 @@ export async function POST(req: NextRequest) {
 
     const nowFormatted = formatDateTimeCO(new Date());
 
-    const existingIndex = currentViews.findIndex(
-      (v) => v.user_id === dbUser.id || (v.instance === instance && v.user_name === dbUser.full_name)
-    );
+    // Buscar si ya existe la vista para ESTA instancia específica
+    const existingIndex = currentViews.findIndex((v) => v.instance === instance);
 
     if (existingIndex >= 0) {
       currentViews[existingIndex] = {
