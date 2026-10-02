@@ -19,7 +19,9 @@ import {
   Phone,
   FileText,
   RotateCcw,
+  Download,
 } from 'lucide-react';
+import { downloadPurchaseRequestPdf } from '@/lib/purchasing/purchaseRequestPdfGenerator';
 
 interface ProjectOption {
   id: string;
@@ -78,12 +80,20 @@ export default function RequerimientoCompraPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [submittedData, setSubmittedData] = useState<{
     requestCode: string;
     consecutive: number;
     totalAmount: number;
     projectName: string;
     clientName: string;
+    costCenter: string;
+    applicantName: string;
+    approverName: string;
+    deliveryDate: string;
+    deliverySite: string;
+    contactPhone: string;
+    items: ItemRow[];
   } | null>(null);
 
   // Datos base del formulario
@@ -331,6 +341,13 @@ export default function RequerimientoCompraPage() {
         totalAmount: grandTotal,
         projectName: selectedProject?.name || 'Proyecto Asignado',
         clientName: selectedProject?.client || 'Cliente Corporativo',
+        costCenter: selectedProject?.cost_center || '',
+        applicantName: applicantName.trim(),
+        approverName: approverName.trim(),
+        deliveryDate: deliveryDate,
+        deliverySite: deliverySite.trim(),
+        contactPhone: contactPhone.trim(),
+        items: [...items],
       });
       setIsSuccess(true);
     } catch (err) {
@@ -338,6 +355,87 @@ export default function RequerimientoCompraPage() {
       setErrorMessage(err instanceof Error ? err.message : 'Error de comunicación con el servidor.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Manejo de descarga del PDF oficial tras guardar
+  const handleDownloadOfficialPdf = () => {
+    if (!submittedData) return;
+    try {
+      setIsGeneratingPdf(true);
+      downloadPurchaseRequestPdf({
+        requestCode: submittedData.requestCode,
+        consecutive: submittedData.consecutive,
+        createdDate: todayDate,
+        projectName: submittedData.projectName,
+        costCenter: submittedData.costCenter,
+        clientName: submittedData.clientName,
+        applicantName: submittedData.applicantName,
+        approverName: submittedData.approverName,
+        deliveryDate: submittedData.deliveryDate,
+        deliverySite: submittedData.deliverySite,
+        contactPhone: submittedData.contactPhone,
+        items: submittedData.items.map((it) => ({
+          item_no: it.item_no,
+          quantity: it.quantity,
+          unit: it.unit,
+          description: it.description,
+          client_quote_no: it.client_quote_no,
+          brand: it.brand,
+          suggested_supplier: it.suggested_supplier,
+          unit_price: it.unit_price,
+          total: (Number(it.quantity) || 1) * (Number(it.unit_price) || 0),
+        })),
+        totalAmount: submittedData.totalAmount,
+        status: 'pending',
+      });
+    } catch (err) {
+      console.error('Error al generar PDF oficial:', err);
+      alert('Ocurrió un error al generar la descarga del PDF.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  // Manejo de descarga del PDF directamente desde el formulario activo (Borrador/Previo)
+  const handleDownloadDraftPdf = () => {
+    if (!selectedProjectId) {
+      setErrorMessage('Selecciona primero el proyecto destino para generar el PDF.');
+      return;
+    }
+    try {
+      setIsGeneratingPdf(true);
+      downloadPurchaseRequestPdf({
+        requestCode: requestCode || `REQ-${String(consecutive).padStart(4, '0')}`,
+        consecutive: consecutive,
+        createdDate: todayDate,
+        projectName: selectedProject?.name || 'Proyecto Seleccionado',
+        costCenter: selectedProject?.cost_center || '',
+        clientName: selectedProject?.client || '',
+        applicantName: applicantName.trim() || 'Solicitante',
+        approverName: approverName.trim() || 'Por definir',
+        deliveryDate: deliveryDate || todayDate,
+        deliverySite: deliverySite.trim() || 'Por definir',
+        contactPhone: contactPhone.trim() || 'Por definir',
+        items: itemsWithTotal.map((it) => ({
+          item_no: it.item_no,
+          quantity: it.quantity,
+          unit: it.unit,
+          description: it.description || 'Ítem sin descripción',
+          client_quote_no: it.client_quote_no,
+          brand: it.brand,
+          suggested_supplier: it.suggested_supplier,
+          unit_price: it.unit_price,
+          total: it.calculatedTotal,
+        })),
+        totalAmount: grandTotal,
+        status: 'draft',
+      });
+    } catch (err) {
+      console.error('Error al generar PDF preliminar:', err);
+      setErrorMessage('No se pudo generar la descarga del documento PDF.');
+    } finally {
+      setIsGeneratingPdf(false);
     }
   };
 
@@ -399,11 +497,20 @@ export default function RequerimientoCompraPage() {
               </div>
             </div>
 
-            {/* Acciones canónicas sin atajos cruzados */}
+            {/* Acciones canónicas con descarga de PDF oficial */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleDownloadOfficialPdf}
+                disabled={isGeneratingPdf}
+                className="w-full sm:w-auto btn bg-accent text-primary-900 font-bold hover:bg-accent-400 focus:ring-accent shadow-sm px-6 py-2.5 rounded-lg text-sm flex items-center justify-center gap-2"
+              >
+                <Download className="w-4 h-4 text-primary-900 stroke-[2.5]" />
+                {isGeneratingPdf ? 'Generando PDF...' : 'Descargar PDF de la Solicitud'}
+              </button>
               <Link
                 href="/dashboard"
-                className="w-full sm:w-auto btn bg-accent text-primary-900 font-bold hover:bg-accent-400 focus:ring-accent shadow-sm px-6 py-2.5 rounded-lg text-sm"
+                className="w-full sm:w-auto btn bg-white text-text-primary border border-border hover:bg-gray-50 text-sm px-5 py-2.5 rounded-lg text-center"
               >
                 Volver a Mi Panel
               </Link>
@@ -833,13 +940,22 @@ export default function RequerimientoCompraPage() {
                 <span className="font-semibold text-text-primary">Nota importante:</span> Al enviar esta solicitud, se registrará formalmente con su consecutivo automático y fecha oficial para la revisión del área de Compras.
               </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
                 <Link
                   href="/dashboard"
                   className="w-full sm:w-auto btn bg-white text-text-primary border border-border hover:bg-gray-50 text-xs px-4 py-2.5 rounded-lg text-center"
                 >
                   Cancelar
                 </Link>
+                <button
+                  type="button"
+                  onClick={handleDownloadDraftPdf}
+                  disabled={isGeneratingPdf || isSubmitting}
+                  className="w-full sm:w-auto btn bg-white text-text-primary border border-border hover:bg-gray-50 text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4 text-accent" strokeWidth={2} />
+                  {isGeneratingPdf ? 'Generando...' : 'Descargar PDF'}
+                </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}

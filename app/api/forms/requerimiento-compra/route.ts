@@ -159,15 +159,40 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // 1. Obtener usuario de la base de datos
-  const { data: dbUser } = await supabase
-    .from('users')
-    .select('id, full_name, email, role')
-    .eq('email', session.user.email)
-    .single();
+  // 1. Obtener usuario de la base de datos (con coincidencia robusta)
+  let dbUser: { id: string; full_name?: string | null; email: string; role: string } | null = null;
+  try {
+    const { data: userByEmail } = await supabase
+      .from('users')
+      .select('id, full_name, email, role')
+      .ilike('email', session.user.email.trim())
+      .maybeSingle();
+
+    if (userByEmail) {
+      dbUser = userByEmail;
+    } else if (session.user.id) {
+      const { data: userById } = await supabase
+        .from('users')
+        .select('id, full_name, email, role')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      if (userById) dbUser = userById;
+    }
+  } catch (err) {
+    console.warn('Error consultando usuario en POST requerimiento-compra:', err);
+  }
+
+  if (!dbUser && session.user.id) {
+    dbUser = {
+      id: session.user.id,
+      full_name: session.user.name || session.user.email.split('@')[0],
+      email: session.user.email,
+      role: session.user.role || 'operator',
+    };
+  }
 
   if (!dbUser || dbUser.role === 'pending') {
-    return NextResponse.json({ error: 'Usuario no autorizado' }, { status: 403 });
+    return NextResponse.json({ error: 'Usuario no autorizado o pendiente de aprobación' }, { status: 403 });
   }
 
   // 2. Extraer y validar body

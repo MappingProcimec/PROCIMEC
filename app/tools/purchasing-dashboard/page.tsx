@@ -20,25 +20,60 @@ import {
   FileText,
   User,
   ExternalLink,
-  Info
+  Info,
+  Download,
+  Phone,
+  MapPin,
 } from 'lucide-react';
+import {
+  downloadPurchaseRequestPdf,
+  PurchaseRequestPdfItem,
+} from '@/lib/purchasing/purchaseRequestPdfGenerator';
+
+interface PurchaseRequestItemData {
+  item?: string;
+  item_no?: number;
+  description?: string;
+  quantity?: number | '';
+  unit?: string;
+  client_quote_no?: string;
+  brand?: string;
+  suggested_supplier?: string;
+  unit_price?: number | '';
+  total?: number;
+}
 
 interface PurchaseRequest {
   id: string;
+  project_id?: string;
+  user_id?: string;
   title: string;
   category: string;
   priority: string;
   required_date: string | null;
-  items: Array<{ item?: string; description?: string; quantity?: number; unit?: string }>;
+  items: PurchaseRequestItemData[];
   justification: string;
   status: string;
   created_at: string;
-  projects?: { id: string; name: string; cost_center?: string } | null;
+  consecutive?: number | null;
+  request_code?: string;
+  applicant_name?: string;
+  approver_name?: string;
+  delivery_date?: string;
+  delivery_site?: string;
+  contact_phone?: string;
+  cost_center?: string;
+  client_name?: string;
+  total_amount?: number;
+  projects?: { id: string; name: string; cost_center?: string; client?: string } | null;
   users?: { id: string; full_name: string; email: string } | null;
 }
 
 interface PurchaseOrder {
   id: string;
+  purchase_request_id?: string | null;
+  project_id?: string | null;
+  user_id?: string;
   order_code: string;
   supplier_name: string;
   supplier_nit: string | null;
@@ -51,7 +86,7 @@ interface PurchaseOrder {
   notes: string | null;
   status: string;
   created_at: string;
-  projects?: { id: string; name: string; cost_center?: string } | null;
+  projects?: { id: string; name: string; cost_center?: string; client?: string } | null;
   users?: { id: string; full_name: string; email: string } | null;
 }
 
@@ -68,6 +103,13 @@ interface SupplierEvaluation {
   users?: { id: string; full_name: string; email: string } | null;
 }
 
+interface ProjectOption {
+  id: string;
+  name: string;
+  cost_center: string;
+  client: string;
+}
+
 interface PurchasingDashboardData {
   stats: {
     pendingRequests: number;
@@ -78,6 +120,7 @@ interface PurchasingDashboardData {
   requests: PurchaseRequest[];
   orders: PurchaseOrder[];
   evaluations: SupplierEvaluation[];
+  projects?: ProjectOption[];
 }
 
 const STATUS_REQ_LABELS: Record<string, { label: string; badge: string }> = {
@@ -106,33 +149,48 @@ export default function PurchasingDashboardPage() {
   const [activeTab, setActiveTab] = useState<'requests' | 'orders' | 'suppliers'>('requests');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterProject, setFilterProject] = useState<string>('all');
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [downloadingReqId, setDownloadingReqId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery<{ data: PurchasingDashboardData }>({
     queryKey: ['purchasing-dashboard'],
     queryFn: async () => {
       const res = await fetch('/api/tools/purchasing-dashboard');
-      if (!res.ok) throw new Error('Error al cargar datos de compras');
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Error al cargar datos de compras');
+      }
       return res.json();
     },
   });
 
   const dashboard = data?.data;
 
+  // Filtrado de requerimientos
   const filteredRequests = useMemo(() => {
     if (!dashboard?.requests) return [];
     return dashboard.requests.filter((r) => {
       const matchSearch =
         search === '' ||
+        (r.request_code || '').toLowerCase().includes(search.toLowerCase()) ||
         r.title.toLowerCase().includes(search.toLowerCase()) ||
         (r.projects?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (r.applicant_name || '').toLowerCase().includes(search.toLowerCase()) ||
         (r.justification || '').toLowerCase().includes(search.toLowerCase());
-      const matchStatus = filterStatus === 'all' || r.status === filterStatus;
-      return matchSearch && matchStatus;
-    });
-  }, [dashboard?.requests, search, filterStatus]);
 
+      const matchStatus = filterStatus === 'all' || r.status === filterStatus;
+      const matchProject =
+        filterProject === 'all' ||
+        r.project_id === filterProject ||
+        r.projects?.id === filterProject;
+
+      return matchSearch && matchStatus && matchProject;
+    });
+  }, [dashboard?.requests, search, filterStatus, filterProject]);
+
+  // Filtrado de órdenes
   const filteredOrders = useMemo(() => {
     if (!dashboard?.orders) return [];
     return dashboard.orders.filter((o) => {
@@ -142,11 +200,18 @@ export default function PurchasingDashboardPage() {
         o.supplier_name.toLowerCase().includes(search.toLowerCase()) ||
         (o.supplier_nit || '').toLowerCase().includes(search.toLowerCase()) ||
         (o.projects?.name || '').toLowerCase().includes(search.toLowerCase());
-      const matchStatus = filterStatus === 'all' || o.status === filterStatus;
-      return matchSearch && matchStatus;
-    });
-  }, [dashboard?.orders, search, filterStatus]);
 
+      const matchStatus = filterStatus === 'all' || o.status === filterStatus;
+      const matchProject =
+        filterProject === 'all' ||
+        o.project_id === filterProject ||
+        o.projects?.id === filterProject;
+
+      return matchSearch && matchStatus && matchProject;
+    });
+  }, [dashboard?.orders, search, filterStatus, filterProject]);
+
+  // Filtrado de proveedores
   const filteredSuppliers = useMemo(() => {
     if (!dashboard?.evaluations) return [];
     return dashboard.evaluations.filter((ev) => {
@@ -166,10 +231,90 @@ export default function PurchasingDashboardPage() {
     }).format(val);
   };
 
+  // Descargar PDF de requerimiento
+  const handleDownloadPdf = (r: PurchaseRequest) => {
+    try {
+      setDownloadingReqId(r.id);
+      const itemsMapped: PurchaseRequestPdfItem[] = (r.items || []).map((it, idx) => ({
+        item_no: it.item_no || idx + 1,
+        quantity: it.quantity || 1,
+        unit: it.unit || 'Und',
+        description: it.description || it.item || 'Ítem sin descripción',
+        client_quote_no: it.client_quote_no || '',
+        brand: it.brand || '',
+        suggested_supplier: it.suggested_supplier || '',
+        unit_price: it.unit_price || 0,
+        total: it.total !== undefined ? it.total : (Number(it.quantity) || 1) * (Number(it.unit_price) || 0),
+      }));
+
+      const totalAmt =
+        r.total_amount !== undefined
+          ? Number(r.total_amount)
+          : itemsMapped.reduce((acc, it) => acc + (Number(it.total) || 0), 0);
+
+      downloadPurchaseRequestPdf({
+        requestCode: r.request_code || (r.consecutive ? `REQ-${String(r.consecutive).padStart(4, '0')}` : 'REQ-0001'),
+        consecutive: r.consecutive || undefined,
+        createdDate: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : undefined,
+        projectName: r.projects?.name || 'Proyecto Asignado',
+        costCenter: r.cost_center || r.projects?.cost_center || '',
+        clientName: r.client_name || r.projects?.client || '',
+        applicantName: r.applicant_name || r.users?.full_name || 'Solicitante',
+        approverName: r.approver_name || 'Aprobador de Proyecto',
+        deliveryDate: r.delivery_date || r.required_date || '',
+        deliverySite: r.delivery_site || 'Dirección de obra',
+        contactPhone: r.contact_phone || '—',
+        items: itemsMapped,
+        totalAmount: totalAmt,
+        status: r.status,
+      });
+    } catch (err) {
+      console.error('Error generando descarga de PDF:', err);
+      alert('Ocurrió un error al generar el archivo PDF.');
+    } finally {
+      setDownloadingReqId(null);
+    }
+  };
+
+  // Manejo de error de permisos / acceso
+  if (error) {
+    return (
+      <div className="min-h-[100dvh] bg-surface flex flex-col">
+        <Navbar />
+        <div className="page-hero">
+          <div className="max-w-6xl mx-auto">
+            <BackButton href="/dashboard" label="Volver a Mi Panel" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+              <ShoppingBag className="w-7 h-7 text-accent" strokeWidth={1.75} />
+              Gestión y Control de Compras
+            </h1>
+            <p className="text-white/70 text-sm mt-1">
+              Monitoreo centralizado de requerimientos, órdenes emitidas y evaluación de proveedores
+            </p>
+          </div>
+        </div>
+
+        <main className="flex-1 max-w-xl mx-auto px-4 py-16 text-center w-full">
+          <div className="bg-card border border-border rounded-xl p-8 shadow-card">
+            <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8" />
+            </div>
+            <h2 className="text-lg font-bold text-text-primary mb-2">Herramienta No Habilitada</h2>
+            <p className="text-text-secondary text-sm mb-6 leading-relaxed">
+              {error instanceof Error ? error.message : 'No tienes asignada la herramienta de Gestión de Compras para tu usuario o rol corporativo.'}
+            </p>
+            <BackButton href="/dashboard" label="Volver a Mi Panel" />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-[100dvh] bg-surface">
       <Navbar />
 
+      {/* Hero Canónico Sobrio PROCIMEC */}
       <div className="page-hero">
         <div className="max-w-6xl mx-auto">
           <BackButton href="/dashboard" label="Volver a Mi Panel" />
@@ -283,14 +428,14 @@ export default function PurchasingDashboardPage() {
         </div>
 
         {/* Filter Bar */}
-        <div className="card p-3 sm:p-4 border border-border flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <div className="card p-3 sm:p-4 border border-border flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" strokeWidth={1.75} />
             <input
               type="text"
               placeholder={
                 activeTab === 'requests'
-                  ? 'Buscar por título, proyecto o justificación...'
+                  ? 'Buscar por código REQ, título, solicitante o proyecto...'
                   : activeTab === 'orders'
                   ? 'Buscar por código, proveedor, NIT...'
                   : 'Buscar por nombre de proveedor...'
@@ -301,34 +446,56 @@ export default function PurchasingDashboardPage() {
             />
           </div>
 
-          {activeTab !== 'suppliers' && (
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-text-muted" strokeWidth={1.75} />
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="text-xs sm:text-sm py-1.5 px-2.5 rounded-lg border border-border bg-surface text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
-              >
-                <option value="all">Todos los estados</option>
-                {activeTab === 'requests' ? (
-                  <>
-                    <option value="pending">Pendientes</option>
-                    <option value="in_quotation">En Cotización</option>
-                    <option value="approved">Aprobadas</option>
-                    <option value="purchased">Compradas</option>
-                    <option value="rejected">Rechazadas</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="issued">Emitidas</option>
-                    <option value="partially_received">Recibidas Parcial</option>
-                    <option value="completed">Completadas</option>
-                    <option value="cancelled">Canceladas</option>
-                  </>
-                )}
-              </select>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Filtro por Proyecto Asignado */}
+            {dashboard?.projects && dashboard.projects.length > 0 && activeTab !== 'suppliers' && (
+              <div className="flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-text-muted" strokeWidth={1.75} />
+                <select
+                  value={filterProject}
+                  onChange={(e) => setFilterProject(e.target.value)}
+                  className="text-xs sm:text-sm py-1.5 px-2.5 rounded-lg border border-border bg-surface text-text-primary focus:outline-none focus:ring-1 focus:ring-accent max-w-[210px] truncate"
+                >
+                  <option value="all">Todos los proyectos ({dashboard.projects.length})</option>
+                  {dashboard.projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.cost_center ? `[${p.cost_center}] ` : ''}{p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Filtro por Estado */}
+            {activeTab !== 'suppliers' && (
+              <div className="flex items-center gap-1.5">
+                <Filter className="w-4 h-4 text-text-muted" strokeWidth={1.75} />
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="text-xs sm:text-sm py-1.5 px-2.5 rounded-lg border border-border bg-surface text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                >
+                  <option value="all">Todos los estados</option>
+                  {activeTab === 'requests' ? (
+                    <>
+                      <option value="pending">Pendientes</option>
+                      <option value="in_quotation">En Cotización</option>
+                      <option value="approved">Aprobadas</option>
+                      <option value="purchased">Compradas</option>
+                      <option value="rejected">Rechazadas</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="issued">Emitidas</option>
+                      <option value="partially_received">Recibidas Parcial</option>
+                      <option value="completed">Completadas</option>
+                      <option value="cancelled">Canceladas</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Tab 1: Requests */}
@@ -337,18 +504,22 @@ export default function PurchasingDashboardPage() {
             {isLoading ? (
               <div className="p-8 text-center text-text-muted text-sm">Cargando requerimientos...</div>
             ) : filteredRequests.length === 0 ? (
-              <div className="p-8 text-center text-text-muted text-sm">No se encontraron requerimientos registrados.</div>
+              <div className="p-8 text-center text-text-muted text-sm">
+                No se encontraron requerimientos registrados para los proyectos asignados.
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs sm:text-sm">
                   <thead className="bg-gray-50 border-b border-border text-text-secondary uppercase tracking-wider text-[11px] font-semibold">
                     <tr>
+                      <th className="py-3 px-4">Código</th>
                       <th className="py-3 px-4">Fecha</th>
-                      <th className="py-3 px-4">Título / Detalle</th>
-                      <th className="py-3 px-4">Proyecto</th>
+                      <th className="py-3 px-4">Proyecto / Cliente</th>
+                      <th className="py-3 px-4">Solicitante</th>
+                      <th className="py-3 px-4">Valor Estimado</th>
                       <th className="py-3 px-4">Prioridad</th>
                       <th className="py-3 px-4">Estado</th>
-                      <th className="py-3 px-4 text-right">Acción</th>
+                      <th className="py-3 px-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -357,20 +528,34 @@ export default function PurchasingDashboardPage() {
                       const pr = PRIORITY_LABELS[r.priority] ?? { label: r.priority, color: 'text-gray-700 bg-gray-50' };
                       return (
                         <tr key={r.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-mono font-bold text-xs px-2.5 py-1 rounded bg-accent/15 text-accent-800 border border-accent/30 inline-block">
+                              {r.request_code || 'REQ-0001'}
+                            </span>
+                          </td>
                           <td className="py-3 px-4 font-mono text-xs text-text-muted whitespace-nowrap">
                             {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
                           </td>
                           <td className="py-3 px-4 max-w-xs">
-                            <p className="font-semibold text-text-primary truncate">{r.title}</p>
-                            <p className="text-xs text-text-muted truncate capitalize">{r.category}</p>
+                            <p className="font-semibold text-text-primary truncate">
+                              {r.projects?.name || r.cost_center || 'Operación'}
+                            </p>
+                            <p className="text-[11px] text-text-muted truncate">
+                              {r.client_name || r.projects?.client || 'Cliente Corporativo'}
+                            </p>
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap">
-                            <span className="font-mono text-xs font-semibold text-primary">
-                              {r.projects?.cost_center || 'General'}
-                            </span>
-                            <p className="text-xs text-text-muted truncate max-w-[140px]">
-                              {r.projects?.name || 'Área Administrativa'}
+                            <p className="font-medium text-text-primary text-xs">
+                              {r.applicant_name || r.users?.full_name || '—'}
                             </p>
+                            {r.approver_name && (
+                              <p className="text-[10px] text-text-muted truncate max-w-[130px]">
+                                Aprueba: {r.approver_name}
+                              </p>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 font-mono font-bold text-text-primary text-xs whitespace-nowrap">
+                            {formatCOP(r.total_amount || 0)}
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${pr.color}`}>
@@ -383,13 +568,25 @@ export default function PurchasingDashboardPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedRequest(r)}
-                              className="text-xs text-primary font-semibold hover:underline"
-                            >
-                              Ver detalle →
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadPdf(r)}
+                                disabled={downloadingReqId === r.id}
+                                title="Descargar PDF Oficial"
+                                className="p-1.5 rounded-lg border border-border bg-white hover:bg-gray-100 text-text-primary transition-colors flex items-center gap-1 text-xs font-semibold"
+                              >
+                                <Download className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
+                                <span className="hidden sm:inline">PDF</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedRequest(r)}
+                                className="text-xs text-primary font-semibold hover:underline px-1 py-1"
+                              >
+                                Ver detalle →
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -430,23 +627,23 @@ export default function PurchasingDashboardPage() {
                           <td className="py-3 px-4 font-mono font-bold text-xs text-primary whitespace-nowrap">
                             {o.order_code}
                           </td>
-                          <td className="py-3 px-4 max-w-xs">
-                            <p className="font-semibold text-text-primary truncate">{o.supplier_name}</p>
-                            <p className="text-xs text-text-muted font-mono truncate">{o.supplier_nit || 'Sin NIT'}</p>
+                          <td className="py-3 px-4">
+                            <p className="font-semibold text-text-primary">{o.supplier_name}</p>
+                            <p className="text-xs text-text-muted">{o.supplier_nit ? `NIT: ${o.supplier_nit}` : 'Sin NIT'}</p>
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap">
-                            <span className="font-mono text-xs font-semibold text-text-secondary">
+                            <span className="font-mono text-xs font-semibold text-primary">
                               {o.projects?.cost_center || 'General'}
                             </span>
                             <p className="text-xs text-text-muted truncate max-w-[140px]">
                               {o.projects?.name || 'Administración'}
                             </p>
                           </td>
-                          <td className="py-3 px-4 font-mono font-bold text-text-primary whitespace-nowrap">
+                          <td className="py-3 px-4 font-mono font-bold text-text-primary text-xs whitespace-nowrap">
                             {formatCOP(Number(o.total_amount) || 0)}
                           </td>
                           <td className="py-3 px-4 font-mono text-xs text-text-muted whitespace-nowrap">
-                            {o.delivery_deadline ? new Date(o.delivery_deadline + 'T00:00:00').toLocaleDateString('es-CO') : 'Inmediato'}
+                            {o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : 'Inmediata'}
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap">
                             <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${st.badge}`}>
@@ -474,66 +671,65 @@ export default function PurchasingDashboardPage() {
 
         {/* Tab 3: Suppliers */}
         {activeTab === 'suppliers' && (
-          <div className="card border border-border overflow-hidden">
+          <div className="space-y-4">
             {isLoading ? (
-              <div className="p-8 text-center text-text-muted text-sm">Cargando evaluaciones...</div>
+              <div className="card p-8 border border-border text-center text-text-muted text-sm">Cargando evaluaciones...</div>
             ) : filteredSuppliers.length === 0 ? (
-              <div className="p-8 text-center text-text-muted text-sm">No se encontraron evaluaciones de proveedores.</div>
+              <div className="card p-8 border border-border text-center text-text-muted text-sm">
+                No se encontraron proveedores evaluados.
+              </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
-                  <thead className="bg-gray-50 border-b border-border text-text-secondary uppercase tracking-wider text-[11px] font-semibold">
-                    <tr>
-                      <th className="py-3 px-4">Fecha</th>
-                      <th className="py-3 px-4">Proveedor</th>
-                      <th className="py-3 px-4 text-center">Calidad</th>
-                      <th className="py-3 px-4 text-center">Tiempos</th>
-                      <th className="py-3 px-4 text-center">Servicio</th>
-                      <th className="py-3 px-4 text-center">Promedio</th>
-                      <th className="py-3 px-4">Recomendado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {filteredSuppliers.map((ev) => (
-                      <tr key={ev.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="py-3 px-4 font-mono text-xs text-text-muted whitespace-nowrap">
-                          {ev.created_at ? new Date(ev.created_at).toLocaleDateString('es-CO') : '—'}
-                        </td>
-                        <td className="py-3 px-4 font-semibold text-text-primary">
-                          {ev.supplier_name}
-                          {ev.comments && <p className="text-xs text-text-muted font-normal mt-0.5 truncate max-w-sm">{ev.comments}</p>}
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
-                          {ev.quality_score}/5
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
-                          {ev.delivery_time_score}/5
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
-                          {ev.service_score}/5
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-50 text-amber-900 border border-amber-300">
-                            ★ {Number(ev.overall_rating || ((ev.quality_score + ev.delivery_time_score + ev.service_score) / 3)).toFixed(1)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          {ev.recommend_supplier ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-800 font-semibold">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Recomendado
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-red-800 font-semibold">
-                              <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
-                              Observado
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredSuppliers.map((ev) => (
+                  <div key={ev.id} className="card p-5 border border-border space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="font-bold text-text-primary text-sm sm:text-base">{ev.supplier_name}</h4>
+                        <p className="text-xs text-text-muted mt-0.5">
+                          {ev.created_at ? new Date(ev.created_at).toLocaleDateString('es-CO') : 'Reciente'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-amber-800 text-xs font-bold font-mono">
+                        <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                        {Number(ev.overall_rating).toFixed(1)} / 5
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-gray-50 rounded-lg border border-border">
+                      <div>
+                        <span className="text-text-muted block text-[10px] uppercase font-semibold">Calidad</span>
+                        <span className="font-bold text-text-primary font-mono">{ev.quality_score}/5</span>
+                      </div>
+                      <div>
+                        <span className="text-text-muted block text-[10px] uppercase font-semibold">Tiempos</span>
+                        <span className="font-bold text-text-primary font-mono">{ev.delivery_time_score}/5</span>
+                      </div>
+                      <div>
+                        <span className="text-text-muted block text-[10px] uppercase font-semibold">Servicio</span>
+                        <span className="font-bold text-text-primary font-mono">{ev.service_score}/5</span>
+                      </div>
+                    </div>
+
+                    {ev.comments && (
+                      <p className="text-xs text-text-secondary italic line-clamp-2">
+                        &quot;{ev.comments}&quot;
+                      </p>
+                    )}
+
+                    <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
+                      <span className="text-text-muted">Recomendado:</span>
+                      {ev.recommend_supplier ? (
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Sí
+                        </span>
+                      ) : (
+                        <span className="text-red-700 font-semibold flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5" /> No
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -543,11 +739,18 @@ export default function PurchasingDashboardPage() {
       {/* Modal Detalle Requerimiento */}
       {selectedRequest && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-surface rounded-2xl border border-border max-w-lg w-full p-6 space-y-4 shadow-xl">
+          <div className="bg-surface rounded-2xl border border-border max-w-2xl w-full p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-border pb-3">
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">Detalle de Solicitud</span>
-                <h3 className="text-lg font-bold text-text-primary mt-0.5">{selectedRequest.title}</h3>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-accent/15 text-accent-800 border border-accent/30">
+                    {selectedRequest.request_code || 'REQ-0001'}
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+                    Detalle de Solicitud
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-text-primary mt-1">{selectedRequest.title}</h3>
               </div>
               <button
                 type="button"
@@ -558,47 +761,139 @@ export default function PurchasingDashboardPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            {/* Metadatos técnicos */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-surface-secondary p-3.5 rounded-xl border border-border">
               <div>
-                <p className="text-text-muted">Proyecto</p>
-                <p className="font-semibold text-text-primary mt-0.5">{selectedRequest.projects?.name || 'General'}</p>
+                <p className="text-text-muted">Proyecto Destino</p>
+                <p className="font-semibold text-text-primary mt-0.5">
+                  {selectedRequest.projects?.name || selectedRequest.cost_center || 'General'}
+                </p>
+              </div>
+              <div>
+                <p className="text-text-muted">Centro de Costo</p>
+                <p className="font-mono font-semibold text-text-primary mt-0.5">
+                  {selectedRequest.cost_center || selectedRequest.projects?.cost_center || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-text-muted">Cliente</p>
+                <p className="font-semibold text-text-primary mt-0.5">
+                  {selectedRequest.client_name || selectedRequest.projects?.client || '—'}
+                </p>
               </div>
               <div>
                 <p className="text-text-muted">Solicitante</p>
-                <p className="font-semibold text-text-primary mt-0.5">{selectedRequest.users?.full_name || '—'}</p>
+                <p className="font-semibold text-text-primary mt-0.5">
+                  {selectedRequest.applicant_name || selectedRequest.users?.full_name || '—'}
+                </p>
               </div>
               <div>
-                <p className="text-text-muted">Categoría</p>
-                <p className="font-semibold text-text-primary mt-0.5 capitalize">{selectedRequest.category}</p>
+                <p className="text-text-muted">Quien Aprueba</p>
+                <p className="font-semibold text-text-primary mt-0.5">
+                  {selectedRequest.approver_name || '—'}
+                </p>
               </div>
               <div>
                 <p className="text-text-muted">Fecha Requerida</p>
-                <p className="font-mono text-text-primary mt-0.5">{selectedRequest.required_date || 'No especificada'}</p>
+                <p className="font-mono text-text-primary mt-0.5">
+                  {selectedRequest.delivery_date || selectedRequest.required_date || 'No especificada'}
+                </p>
+              </div>
+              <div>
+                <p className="text-text-muted">Sitio de Entrega</p>
+                <p className="font-semibold text-text-primary mt-0.5 truncate">
+                  {selectedRequest.delivery_site || 'Dirección de obra'}
+                </p>
+              </div>
+              <div>
+                <p className="text-text-muted">Teléfono Contacto</p>
+                <p className="font-mono text-text-primary mt-0.5">
+                  {selectedRequest.contact_phone || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-text-muted">Valor Total Estimado</p>
+                <p className="font-mono font-bold text-accent-800 text-sm mt-0.5">
+                  {formatCOP(selectedRequest.total_amount || 0)}
+                </p>
               </div>
             </div>
 
-            <div className="space-y-1 text-xs">
-              <p className="text-text-muted">Justificación</p>
-              <div className="p-3 bg-gray-50 rounded-xl border border-border text-text-secondary leading-relaxed">
-                {selectedRequest.justification || 'Sin justificación registrada.'}
-              </div>
-            </div>
-
-            {selectedRequest.items && selectedRequest.items.length > 0 && (
+            {/* Justificación */}
+            {selectedRequest.justification && (
               <div className="space-y-1 text-xs">
-                <p className="text-text-muted font-semibold">Ítems Solicitados</p>
-                <ul className="border border-border rounded-xl divide-y divide-border overflow-hidden">
-                  {selectedRequest.items.map((it, idx) => (
-                    <li key={idx} className="p-2.5 flex justify-between bg-white">
-                      <span className="text-text-primary font-medium">{it.item || it.description || 'Ítem'}</span>
-                      <span className="font-mono text-text-muted">{it.quantity || 1} {it.unit || 'uds'}</span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="text-text-muted font-semibold">Justificación y Ubicación</p>
+                <div className="p-3 bg-gray-50 rounded-xl border border-border text-text-secondary leading-relaxed">
+                  {selectedRequest.justification}
+                </div>
               </div>
             )}
 
-            <div className="pt-2 flex justify-end">
+            {/* Tabla de Ítems Solicitados */}
+            {selectedRequest.items && selectedRequest.items.length > 0 && (
+              <div className="space-y-1.5 text-xs">
+                <p className="text-text-muted font-semibold">Bienes e Insumos Solicitados ({selectedRequest.items.length})</p>
+                <div className="border border-border rounded-xl overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-100 text-text-secondary font-semibold border-b border-border">
+                      <tr>
+                        <th className="p-2 text-center w-8">#</th>
+                        <th className="p-2">Descripción</th>
+                        <th className="p-2 text-center">Cant.</th>
+                        <th className="p-2">Marca / Prov.</th>
+                        <th className="p-2 text-right">Vlr. Unitario</th>
+                        <th className="p-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {selectedRequest.items.map((it, idx) => {
+                        const qty = Number(it.quantity) || 1;
+                        const price = Number(it.unit_price) || 0;
+                        const lineTotal = it.total !== undefined ? it.total : qty * price;
+                        return (
+                          <tr key={idx} className="hover:bg-gray-50/50">
+                            <td className="p-2 text-center font-mono text-text-muted">{it.item_no || idx + 1}</td>
+                            <td className="p-2 font-medium text-text-primary">
+                              {it.description || it.item || 'Ítem'}
+                              {it.client_quote_no && (
+                                <span className="block text-[10px] text-text-muted font-mono">
+                                  Cot: {it.client_quote_no}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2 text-center font-mono text-text-muted">
+                              {qty} {it.unit || 'Und'}
+                            </td>
+                            <td className="p-2 text-text-muted text-[11px]">
+                              {it.brand || it.suggested_supplier || '—'}
+                            </td>
+                            <td className="p-2 text-right font-mono text-text-muted">
+                              {formatCOP(price)}
+                            </td>
+                            <td className="p-2 text-right font-mono font-bold text-text-primary">
+                              {formatCOP(lineTotal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Acciones del Modal */}
+            <div className="pt-3 border-t border-border flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf(selectedRequest)}
+                disabled={downloadingReqId === selectedRequest.id}
+                className="btn bg-accent text-primary-900 font-bold hover:bg-accent-400 focus:ring-accent px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-sm"
+              >
+                <Download className="w-4 h-4 text-primary-900 stroke-[2.5]" />
+                {downloadingReqId === selectedRequest.id ? 'Generando PDF...' : 'Descargar PDF Oficial'}
+              </button>
+
               <button
                 type="button"
                 onClick={() => setSelectedRequest(null)}
