@@ -123,31 +123,51 @@ export default function RequerimientoCompraPage() {
       try {
         setIsLoading(true);
         setErrorMessage(null);
-        const res = await fetch('/api/forms/requerimiento-compra');
-        if (!res.ok) {
-          const errData = await res.json().catch(() => null);
-          throw new Error(errData?.error || 'No se pudo cargar la configuración de la solicitud.');
-        }
-        const data = await res.json();
-        if (data.success) {
-          setConsecutive(data.nextConsecutive || 1);
-          setRequestCode(data.requestCode || `REQ-${String(data.nextConsecutive || 1).padStart(4, '0')}`);
-          setProjects(data.projects || []);
-          if (data.today) setTodayDate(data.today);
-          if (data.user?.full_name) {
-            setApplicantName(data.user.full_name);
+
+        // Consultar endpoint del formulario y endpoint oficial de proyectos en paralelo
+        const [formRes, projectsRes] = await Promise.allSettled([
+          fetch('/api/forms/requerimiento-compra').then((r) => (r.ok ? r.json() : null)),
+          fetch('/api/projects').then((r) => (r.ok ? r.json() : null)),
+        ]);
+
+        const formData = formRes.status === 'fulfilled' ? formRes.value : null;
+        const projectsData = projectsRes.status === 'fulfilled' ? projectsRes.value : null;
+
+        if (formData?.success) {
+          setConsecutive(formData.nextConsecutive || 1);
+          setRequestCode(formData.requestCode || `REQ-${String(formData.nextConsecutive || 1).padStart(4, '0')}`);
+          if (formData.today) setTodayDate(formData.today);
+          if (formData.user?.full_name) {
+            setApplicantName(formData.user.full_name);
           } else if (session?.user?.name) {
             setApplicantName(session.user.name);
           }
+        } else if (session?.user?.name) {
+          setApplicantName(session.user.name);
+        }
 
-          // Si hay proyectos disponibles, pre-seleccionar el primero
-          if (data.projects && data.projects.length === 1) {
-            setSelectedProjectId(data.projects[0].id);
-          }
+        // Obtener proyectos: preferir los asignados devueltos por /api/projects o por el form endpoint
+        let resolvedProjects: ProjectOption[] = [];
+        if (Array.isArray(projectsData?.data) && projectsData.data.length > 0) {
+          resolvedProjects = projectsData.data.map((p: Record<string, unknown>) => ({
+            id: p.id as string,
+            name: (p.name as string) || '',
+            cost_center: String(p.cost_center || p.code || '').trim(),
+            client: String(p.client || '').trim(),
+          }));
+        } else if (Array.isArray(formData?.projects) && formData.projects.length > 0) {
+          resolvedProjects = formData.projects;
+        }
+
+        setProjects(resolvedProjects);
+
+        // Si solo hay un proyecto asignado, pre-seleccionarlo
+        if (resolvedProjects.length === 1) {
+          setSelectedProjectId(resolvedProjects[0].id);
         }
       } catch (err) {
         console.error('Error inicializando formulario:', err);
-        setErrorMessage(err instanceof Error ? err.message : 'Error al cargar los datos.');
+        setErrorMessage(err instanceof Error ? err.message : 'Error al cargar los datos del requerimiento.');
       } finally {
         setIsLoading(false);
       }

@@ -68,37 +68,38 @@ export async function GET() {
   try {
     const { data: allProjects, error: pError } = await supabase
       .from('projects')
-      .select('id, name, cost_center, code, client')
-      .eq('is_active', true)
+      .select('*')
       .order('name', { ascending: true });
 
     if (!pError && allProjects) {
-      const formatted = allProjects.map((p: Record<string, unknown>) => ({
+      const activeProjects = allProjects.filter((p) => p.is_active !== false);
+      const formatted = activeProjects.map((p: Record<string, unknown>) => ({
         id: p.id as string,
         name: (p.name as string) || '',
-        cost_center: ((p.cost_center as string) || (p.code as string) || '').trim(),
+        cost_center: String(p.cost_center || p.code || '').trim(),
         client: ((p.client as string) || '').trim(),
       }));
 
-      // Si no es rol administrativo/compras, verificar si tiene proyectos asignados
+      const effectiveUserId = session.user.id || dbUser.id;
       const isUnrestricted =
         dbUser.role === 'admin' ||
         dbUser.role === 'management' ||
         dbUser.role === 'gerencia' ||
-        dbUser.role === 'purchasing' ||
-        dbUser.role === 'compras';
+        session.user.role === 'admin' ||
+        session.user.role === 'management';
 
-      if (!isUnrestricted && dbUser.id) {
+      if (!isUnrestricted && effectiveUserId) {
+        // Consultar asignaciones de proyectos para el usuario
         const { data: userProjects } = await supabase
           .from('user_projects')
           .select('project_id')
-          .eq('user_id', dbUser.id);
+          .eq('user_id', effectiveUserId);
 
         const assignedIds = new Set((userProjects ?? []).map((up: { project_id: string }) => up.project_id));
         if (assignedIds.size > 0) {
           projects = formatted.filter((p) => assignedIds.has(p.id));
         } else {
-          // Si no tiene asignación explícita, se le permiten todos los proyectos activos de la empresa
+          // Si no tiene proyectos asignados específicamente, mostrar proyectos activos
           projects = formatted;
         }
       } else {
