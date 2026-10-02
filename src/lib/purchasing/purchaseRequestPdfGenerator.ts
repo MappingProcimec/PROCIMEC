@@ -14,6 +14,21 @@ export interface PurchaseRequestPdfItem {
   total?: number;
 }
 
+export interface PurchaseRequestPdfSignatureItem {
+  name?: string;
+  cedula?: string;
+  dateTime?: string;
+  roleLabel?: string;
+  notes?: string;
+}
+
+export interface PurchaseRequestPdfSignatures {
+  applicant?: PurchaseRequestPdfSignatureItem;
+  director?: PurchaseRequestPdfSignatureItem;
+  purchasing?: PurchaseRequestPdfSignatureItem;
+  management?: PurchaseRequestPdfSignatureItem;
+}
+
 export interface PurchaseRequestPdfData {
   requestCode: string;
   consecutive?: number;
@@ -31,6 +46,7 @@ export interface PurchaseRequestPdfData {
   items: PurchaseRequestPdfItem[];
   totalAmount?: number;
   status?: string;
+  signatures?: PurchaseRequestPdfSignatures;
 }
 
 function formatCOP(amount: number): string {
@@ -343,106 +359,123 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
-  doc.text('4. CONTROL DE FIRMAS, AUTORIZACIÓN Y RECEPCIÓN', marginX + 3, curY + 3.8);
+  doc.text('4. CONTROL DE FIRMAS, VALIDACIÓN TÉCNICA Y APROBACIONES (4 INSTANCIAS)', marginX + 3, curY + 3.8);
 
   curY += 5.5;
 
-  const boxW = contentWidth / 3;
-  const boxH = 30;
+  const numBoxes = 4;
+  const gap = 2;
+  const boxW = (contentWidth - (numBoxes - 1) * gap) / numBoxes; // 45 mm
+  const boxH = 32;
 
-  // Caja 1: Solicitado Por (Firma Electrónica / Digital)
-  doc.setFillColor(...COLOR_BG_LIGHT);
-  doc.rect(marginX, curY, boxW, boxH, 'F');
-  doc.setDrawColor(...COLOR_BORDER);
-  doc.setLineWidth(0.2);
-  doc.rect(marginX, curY, boxW, boxH, 'D');
+  const drawSigBox = (
+    bX: number,
+    bY: number,
+    boxTitle: string,
+    sig?: { name?: string; cedula?: string; dateTime?: string; roleLabel?: string },
+    fallbackName?: string,
+    fallbackRole?: string
+  ) => {
+    // Marco exterior
+    doc.setFillColor(...COLOR_BG_LIGHT);
+    doc.rect(bX, bY, boxW, boxH, 'F');
+    doc.setDrawColor(...COLOR_BORDER);
+    doc.setLineWidth(0.2);
+    doc.rect(bX, bY, boxW, boxH, 'D');
 
-  doc.setTextColor(...COLOR_MUTED);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.text('SOLICITADO POR:', marginX + 3, curY + 4);
+    // Título de caja
+    doc.setTextColor(...COLOR_MUTED);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    doc.text(boxTitle, bX + 2, bY + 3.5);
 
-  // Marco de Firma Digital
-  doc.setFillColor(241, 245, 249);
-  doc.roundedRect(marginX + 2.5, curY + 5.5, boxW - 5, boxH - 7.5, 1.5, 1.5, 'F');
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.2);
-  doc.roundedRect(marginX + 2.5, curY + 5.5, boxW - 5, boxH - 7.5, 1.5, 1.5, 'D');
+    const innerX = bX + 1.5;
+    const innerY = bY + 4.8;
+    const innerW = boxW - 3;
+    const innerH = boxH - 6.2;
 
-  // Sello de Firma Electrónica
-  doc.setTextColor(16, 185, 129); // Verde esmeralda institucional
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6);
-  doc.text('✓ FIRMA ELECTRÓNICA REGISTRADA', marginX + boxW / 2, curY + 9.5, { align: 'center' });
+    if (sig && sig.name && (sig.dateTime || sig.cedula)) {
+      // FIRMA REGISTRADA
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(innerX, innerY, innerW, innerH, 1, 1, 'F');
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.15);
+      doc.roundedRect(innerX, innerY, innerW, innerH, 1, 1, 'D');
 
-  // Nombre del Solicitante
-  doc.setTextColor(...COLOR_CHARCOAL);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text(data.applicantName || 'Solicitante', marginX + boxW / 2, curY + 14, { align: 'center' });
+      doc.setTextColor(16, 185, 129); // verde esmeralda
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5);
+      doc.text('✓ FIRMA REGISTRADA', bX + boxW / 2, innerY + 3.5, { align: 'center' });
 
-  // Cédula del Solicitante
-  doc.setTextColor(...COLOR_GRAPHITE);
-  doc.setFont('courier', 'bold');
-  doc.setFontSize(6.5);
-  const cedulaText = data.applicantCedula ? `C.C. ${data.applicantCedula}` : 'Cédula Registrada';
-  doc.text(cedulaText, marginX + boxW / 2, curY + 18, { align: 'center' });
+      doc.setTextColor(...COLOR_CHARCOAL);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6);
+      const displayName = sig.name.length > 22 ? sig.name.substring(0, 20) + '...' : sig.name;
+      doc.text(displayName, bX + boxW / 2, innerY + 7.5, { align: 'center' });
 
-  // Fecha y hora exacta de envío
-  doc.setTextColor(...COLOR_MUTED);
-  doc.setFont('courier', 'normal');
-  doc.setFontSize(5.8);
-  const timeText = data.submissionDateTime ? `Envío: ${data.submissionDateTime}` : `Fecha: ${data.createdDate || displayDate}`;
-  doc.text(timeText, marginX + boxW / 2, curY + 22, { align: 'center' });
+      doc.setTextColor(...COLOR_GRAPHITE);
+      doc.setFont('courier', 'bold');
+      doc.setFontSize(5.2);
+      doc.text(sig.cedula ? `C.C. ${sig.cedula}` : 'Cédula Registrada', bX + boxW / 2, innerY + 11.5, { align: 'center' });
 
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(5);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`PCM CLOUD — ${data.requestCode}`, marginX + boxW / 2, curY + 25.5, { align: 'center' });
+      doc.setTextColor(...COLOR_MUTED);
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(4.6);
+      const dtText = sig.dateTime || displayDate;
+      const cleanDt = dtText.length > 24 ? dtText.substring(0, 22) : dtText;
+      doc.text(cleanDt, bX + boxW / 2, innerY + 15.5, { align: 'center' });
 
-  // Caja 2: Aprobado Por
-  const box2X = marginX + boxW;
-  doc.setFillColor(...COLOR_BG_LIGHT);
-  doc.rect(box2X, curY, boxW, boxH, 'F');
-  doc.rect(box2X, curY, boxW, boxH, 'D');
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(4.2);
+      doc.setTextColor(148, 163, 184);
+      doc.text(sig.roleLabel || 'PCM CLOUD DIGITAL', bX + boxW / 2, innerY + 19.5, { align: 'center' });
+    } else {
+      // PENDIENTE
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(innerX, innerY, innerW, innerH, 1, 1, 'F');
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.15);
+      doc.roundedRect(innerX, innerY, innerW, innerH, 1, 1, 'D');
 
-  doc.setTextColor(...COLOR_MUTED);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.text('APROBADO POR (PROYECTO):', box2X + 3, curY + 4);
+      doc.setTextColor(156, 163, 175);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5);
+      doc.text('PENDIENTE DE FIRMA', bX + boxW / 2, innerY + 4, { align: 'center' });
 
-  doc.line(box2X + 4, curY + 19, box2X + boxW - 4, curY + 19);
+      doc.setTextColor(...COLOR_MUTED);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
+      const targetName = fallbackName || 'Por asignar';
+      const cleanTarget = targetName.length > 22 ? targetName.substring(0, 20) + '...' : targetName;
+      doc.text(cleanTarget, bX + boxW / 2, innerY + 9, { align: 'center' });
 
-  doc.setTextColor(...COLOR_CHARCOAL);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.text(data.approverName || 'Firma Aprobador', box2X + boxW / 2, curY + 22.5, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  doc.setTextColor(...COLOR_MUTED);
-  doc.text('Residente / Director de Proyecto', box2X + boxW / 2, curY + 26, { align: 'center' });
+      doc.setDrawColor(203, 213, 225);
+      doc.line(bX + 3, innerY + 14.5, bX + boxW - 3, innerY + 14.5);
 
-  // Caja 3: Recepción Compras
-  const box3X = marginX + boxW * 2;
-  doc.setFillColor(...COLOR_BG_LIGHT);
-  doc.rect(box3X, curY, boxW, boxH, 'F');
-  doc.rect(box3X, curY, boxW, boxH, 'D');
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(4.6);
+      doc.setTextColor(148, 163, 184);
+      doc.text(fallbackRole || 'Aprobador', bX + boxW / 2, innerY + 18.5, { align: 'center' });
+    }
+  };
 
-  doc.setTextColor(...COLOR_MUTED);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
-  doc.text('GESTIÓN DE COMPRAS Y SUMINISTROS:', box3X + 3, curY + 4);
+  // 1. Solicitante (Ingeniero de Campo)
+  const applicantSig = data.signatures?.applicant || (data.applicantName ? {
+    name: data.applicantName,
+    cedula: data.applicantCedula,
+    dateTime: data.submissionDateTime || data.createdDate || displayDate,
+    roleLabel: 'Solicitante / Campo',
+  } : undefined);
+  drawSigBox(marginX + 0 * (boxW + gap), curY, '1. SOLICITADO POR:', applicantSig, data.applicantName, 'Ingeniero de Campo');
 
-  doc.line(box3X + 4, curY + 19, box3X + boxW - 4, curY + 19);
+  // 2. Director de Proyecto (VB Técnico)
+  drawSigBox(marginX + 1 * (boxW + gap), curY, '2. VB TÉCNICO PROYECTO:', data.signatures?.director, data.approverName || 'Director de Obra', 'Director de Proyecto');
 
-  doc.setTextColor(...COLOR_CHARCOAL);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.text('Recepción y Radicación', box3X + boxW / 2, curY + 22.5, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  doc.setTextColor(...COLOR_MUTED);
-  doc.text('Área de Compras | PCM CLOUD', box3X + boxW / 2, curY + 26, { align: 'center' });
+  // 3. Compras (Cotización y Precios)
+  drawSigBox(marginX + 2 * (boxW + gap), curY, '3. GESTIÓN COMPRAS:', data.signatures?.purchasing, 'Área de Compras', 'Cotización y Precios');
+
+  // 4. Gerencia (Punto 4 - Aprobación Final)
+  drawSigBox(marginX + 3 * (boxW + gap), curY, '4. APROBADO GERENCIA:', data.signatures?.management, 'Gerencia General', 'Aprobación Final');
 
   // 5. PIE DE PÁGINA EN TODAS LAS PÁGINAS
   const totalPages = doc.getNumberOfPages();

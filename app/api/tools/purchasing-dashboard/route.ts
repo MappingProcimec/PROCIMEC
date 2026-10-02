@@ -170,27 +170,7 @@ export async function GET(req: NextRequest) {
     let requestsQuery = supabase
       .from('purchase_requests')
       .select(`
-        id,
-        project_id,
-        user_id,
-        title,
-        category,
-        priority,
-        required_date,
-        items,
-        justification,
-        status,
-        created_at,
-        consecutive,
-        request_code,
-        applicant_name,
-        approver_name,
-        delivery_date,
-        delivery_site,
-        contact_phone,
-        cost_center,
-        client_name,
-        total_amount,
+        *,
         projects(id, name, cost_center, client),
         users(id, full_name, email)
       `)
@@ -333,6 +313,27 @@ export async function GET(req: NextRequest) {
         }, 0);
       }
 
+      let signatures = (r.signatures as Record<string, unknown>) || {};
+      let viewedBy = (r.viewed_by as Array<Record<string, unknown>>) || [];
+      if ((!signatures || Object.keys(signatures).length === 0) && meta.signatures) {
+        signatures = meta.signatures as Record<string, unknown>;
+      }
+      if ((!viewedBy || viewedBy.length === 0) && Array.isArray(meta.viewed_by)) {
+        viewedBy = meta.viewed_by as Array<Record<string, unknown>>;
+      }
+
+      if (!signatures.applicant && applicantName) {
+        signatures = {
+          ...signatures,
+          applicant: {
+            name: applicantName,
+            cedula: applicantCedula,
+            date_time: (r.created_at as string) || '',
+            role_label: 'Solicitante / Ingeniero de Campo',
+          },
+        };
+      }
+
       return {
         ...r,
         id: (r.id as string) || '',
@@ -355,6 +356,8 @@ export async function GET(req: NextRequest) {
         client_name: clientName,
         total_amount: totalAmount,
         items: parsedItems,
+        signatures,
+        viewed_by: viewedBy,
       };
     });
 
@@ -372,6 +375,12 @@ export async function GET(req: NextRequest) {
         orders,
         evaluations,
         projects: availableProjects,
+        currentUser: {
+          id: dbUser.id,
+          name: dbUser.full_name || session.user.name || '',
+          email: dbUser.email || session.user.email || '',
+          role: dbUser.role || session.user.role || 'operator',
+        },
       },
     });
   } catch (err: unknown) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -24,10 +24,15 @@ import {
   Download,
   Phone,
   MapPin,
+  ChevronDown,
+  Eye,
+  PenTool,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   downloadPurchaseRequestPdf,
   PurchaseRequestPdfItem,
+  PurchaseRequestPdfSignatures,
 } from '@/lib/purchasing/purchaseRequestPdfGenerator';
 
 interface PurchaseRequestItemData {
@@ -41,6 +46,26 @@ interface PurchaseRequestItemData {
   suggested_supplier?: string;
   unit_price?: number | '';
   total?: number;
+}
+
+export interface RequestSignatureData {
+  name: string;
+  cedula: string;
+  date_time: string;
+  role_label: string;
+  user_id?: string;
+  notes?: string;
+  rejected?: boolean;
+}
+
+export interface RequestViewLogData {
+  user_id: string;
+  user_name: string;
+  user_email?: string;
+  instance: 'director' | 'purchasing' | 'management' | string;
+  role_label: string;
+  viewed_at: string;
+  view_count?: number;
 }
 
 interface PurchaseRequest {
@@ -68,6 +93,14 @@ interface PurchaseRequest {
   total_amount?: number;
   projects?: { id: string; name: string; cost_center?: string; client?: string } | null;
   users?: { id: string; full_name: string; email: string } | null;
+  signatures?: {
+    applicant?: RequestSignatureData;
+    director?: RequestSignatureData;
+    purchasing?: RequestSignatureData;
+    management?: RequestSignatureData;
+    [key: string]: RequestSignatureData | undefined;
+  };
+  viewed_by?: RequestViewLogData[];
 }
 
 interface PurchaseOrder {
@@ -122,12 +155,19 @@ interface PurchasingDashboardData {
   orders: PurchaseOrder[];
   evaluations: SupplierEvaluation[];
   projects?: ProjectOption[];
+  currentUser?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
 }
 
 const STATUS_REQ_LABELS: Record<string, { label: string; badge: string }> = {
-  pending: { label: 'Pendiente', badge: 'bg-amber-100/80 text-amber-900 border border-amber-300' },
+  pending: { label: 'Pendiente VB Técnico', badge: 'bg-amber-100/80 text-amber-900 border border-amber-300' },
   in_quotation: { label: 'En Cotización', badge: 'bg-blue-100/80 text-blue-900 border border-blue-300' },
-  approved: { label: 'Aprobada', badge: 'bg-emerald-100/80 text-emerald-900 border border-emerald-300' },
+  quoted: { label: 'Cotizada (Pendiente Gerencia)', badge: 'bg-purple-100/80 text-purple-900 border border-purple-300' },
+  approved: { label: 'Aprobada (Gerencia)', badge: 'bg-emerald-100/80 text-emerald-900 border border-emerald-300' },
   purchased: { label: 'Comprada', badge: 'bg-slate-100 text-slate-800 border border-slate-300' },
   rejected: { label: 'Rechazada', badge: 'bg-red-100/80 text-red-900 border border-red-300' },
 };
@@ -154,8 +194,17 @@ export default function PurchasingDashboardPage() {
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [downloadingReqId, setDownloadingReqId] = useState<string | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useQuery<{ data: PurchasingDashboardData }>({
+  // Estados para control de firmas electrónicas
+  const [signingStep, setSigningStep] = useState<'director' | 'purchasing' | 'management' | null>(null);
+  const [signingAction, setSigningAction] = useState<'approve' | 'reject'>('approve');
+  const [signerCedula, setSignerCedula] = useState('');
+  const [signerNotes, setSignerNotes] = useState('');
+  const [isSubmittingSignature, setIsSubmittingSignature] = useState(false);
+  const [signingSuccessMsg, setSigningSuccessMsg] = useState<string | null>(null);
+
+  const { data, isLoading, error, refetch } = useQuery<{ data: PurchasingDashboardData }>({
     queryKey: ['purchasing-dashboard'],
     queryFn: async () => {
       const res = await fetch('/api/tools/purchasing-dashboard');
@@ -166,6 +215,18 @@ export default function PurchasingDashboardPage() {
       return res.json();
     },
   });
+
+  // Cerrar desplegables al hacer clic fuera
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.dropdown-action-container')) {
+        setOpenDropdownId(null);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   const dashboard = data?.data;
 
@@ -251,10 +312,84 @@ export default function PurchasingDashboardPage() {
     }
   };
 
+  // Abrir detalle con registro silencioso de visualización ("Visto por")
+  const handleOpenDetail = (r: PurchaseRequest) => {
+    setSelectedRequest(r);
+    setSigningStep(null);
+    setSigningSuccessMsg(null);
+    setSignerCedula('');
+    setSignerNotes('');
+    setOpenDropdownId(null);
+
+    // Registro silencioso de auditoría de visualización
+    fetch('/api/tools/purchasing-dashboard/view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: r.id }),
+    })
+      .then((res) => res.json())
+      .then((resJson) => {
+        if (resJson?.success && resJson.viewed_by) {
+          setSelectedRequest((prev) => (prev && prev.id === r.id ? { ...prev, viewed_by: resJson.viewed_by } : prev));
+        }
+      })
+      .catch((err) => console.warn('Advertencia registrando vista:', err));
+  };
+
+  // Procesar firma electrónica y cambio de estado
+  const handleSignSubmit = async () => {
+    if (!selectedRequest || !signingStep) return;
+    if (signingAction === 'approve' && !signerCedula.trim()) {
+      alert('Debes ingresar tu número de cédula para registrar la firma electrónica.');
+      return;
+    }
+
+    try {
+      setIsSubmittingSignature(true);
+      const res = await fetch('/api/tools/purchasing-dashboard/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          request_id: selectedRequest.id,
+          step: signingStep,
+          action: signingAction,
+          cedula: signerCedula.trim(),
+          notes: signerNotes.trim(),
+        }),
+      });
+
+      const resJson = await res.json();
+      if (!res.ok) {
+        throw new Error(resJson.error || 'Error al registrar la firma electrónica');
+      }
+
+      // Actualizar request seleccionado
+      setSelectedRequest((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          status: resJson.status || prev.status,
+          signatures: resJson.signatures || prev.signatures,
+          total_amount: resJson.total_amount ?? prev.total_amount,
+          items: resJson.items || prev.items,
+        };
+      });
+
+      setSigningSuccessMsg(resJson.message || 'Firma electrónica registrada con éxito.');
+      setSigningStep(null);
+      refetch();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al registrar la firma');
+    } finally {
+      setIsSubmittingSignature(false);
+    }
+  };
+
   // Descargar PDF de requerimiento
   const handleDownloadPdf = (r: PurchaseRequest) => {
     try {
       setDownloadingReqId(r.id);
+      setOpenDropdownId(null);
       const itemsMapped: PurchaseRequestPdfItem[] = (r.items || []).map((it, idx) => ({
         item_no: it.item_no || idx + 1,
         quantity: it.quantity || 1,
@@ -291,6 +426,7 @@ export default function PurchasingDashboardPage() {
         items: itemsMapped,
         totalAmount: totalAmt,
         status: r.status,
+        signatures: r.signatures as PurchaseRequestPdfSignatures,
       });
     } catch (err) {
       console.error('Error generando descarga de PDF:', err);
@@ -592,24 +728,40 @@ export default function PurchasingDashboardPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="relative inline-block text-left dropdown-action-container">
                               <button
                                 type="button"
-                                onClick={() => handleDownloadPdf(r)}
-                                disabled={downloadingReqId === r.id}
-                                title="Descargar PDF Oficial"
-                                className="p-1.5 rounded-lg border border-border bg-white hover:bg-gray-100 text-text-primary transition-colors flex items-center gap-1 text-xs font-semibold"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenDropdownId(openDropdownId === r.id ? null : r.id);
+                                }}
+                                className="btn bg-white hover:bg-gray-50 border border-border text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-text-primary shadow-xs font-semibold"
                               >
-                                <Download className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
-                                <span className="hidden sm:inline">PDF</span>
+                                <span>Acciones</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => setSelectedRequest(r)}
-                                className="text-xs text-primary font-semibold hover:underline px-1 py-1"
-                              >
-                                Ver detalle →
-                              </button>
+
+                              {openDropdownId === r.id && (
+                                <div className="absolute right-0 mt-1 w-44 rounded-xl bg-white border border-border shadow-lg py-1 z-30 animate-fade-in text-left">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenDetail(r)}
+                                    className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 text-primary" />
+                                    Ver detalle
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadPdf(r)}
+                                    disabled={downloadingReqId === r.id}
+                                    className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium border-t border-border"
+                                  >
+                                    <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                                    {downloadingReqId === r.id ? 'Generando PDF...' : 'Descargar PDF Oficial'}
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -913,6 +1065,358 @@ export default function PurchasingDashboardPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* Trazabilidad de Visualización («Visto por» - 3 Instancias Revisoras) */}
+            <div className="bg-slate-50 border border-border rounded-xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-text-primary">
+                <span className="flex items-center gap-1.5">
+                  <Eye className="w-4 h-4 text-accent" />
+                  Trazabilidad de Visualización («Visto por»)
+                </span>
+                <span className="text-[11px] font-normal text-text-muted">3 Instancias Revisoras Obligatorias</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs pt-1">
+                {/* 1. Dirección de Proyecto */}
+                {(() => {
+                  const view = (selectedRequest.viewed_by || []).find((v) => v.instance === 'director');
+                  return (
+                    <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-text-primary text-[11px]">1. Dirección Obra</span>
+                        {view ? (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            ✓ Visto
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-text-muted bg-gray-100 px-1.5 py-0.5 rounded">
+                            Pendiente
+                          </span>
+                        )}
+                      </div>
+                      {view ? (
+                        <>
+                          <p className="text-text-primary font-medium truncate text-[11px]">{view.user_name}</p>
+                          <p className="text-text-muted font-mono text-[10px]">{view.viewed_at}</p>
+                        </>
+                      ) : (
+                        <p className="text-text-muted text-[10px] italic">No visualizada aún</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 2. Área de Compras */}
+                {(() => {
+                  const view = (selectedRequest.viewed_by || []).find((v) => v.instance === 'purchasing');
+                  return (
+                    <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-text-primary text-[11px]">2. Área Compras</span>
+                        {view ? (
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                            ✓ Visto
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-text-muted bg-gray-100 px-1.5 py-0.5 rounded">
+                            Pendiente
+                          </span>
+                        )}
+                      </div>
+                      {view ? (
+                        <>
+                          <p className="text-text-primary font-medium truncate text-[11px]">{view.user_name}</p>
+                          <p className="text-text-muted font-mono text-[10px]">{view.viewed_at}</p>
+                        </>
+                      ) : (
+                        <p className="text-text-muted text-[10px] italic">No visualizada aún</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 3. Gerencia (Punto 4) */}
+                {(() => {
+                  const view = (selectedRequest.viewed_by || []).find((v) => v.instance === 'management');
+                  return (
+                    <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-text-primary text-[11px]">3. Gerencia (Punto 4)</span>
+                        {view ? (
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                            ✓ Visto
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-text-muted bg-gray-100 px-1.5 py-0.5 rounded">
+                            Pendiente
+                          </span>
+                        )}
+                      </div>
+                      {view ? (
+                        <>
+                          <p className="text-text-primary font-medium truncate text-[11px]">{view.user_name}</p>
+                          <p className="text-text-muted font-mono text-[10px]">{view.viewed_at}</p>
+                        </>
+                      ) : (
+                        <p className="text-text-muted text-[10px] italic">Debe ver antes de aprobar</p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Control de Firmas Electrónicas Oficiales (4 Instancias) */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
+                <PenTool className="w-4 h-4 text-accent" />
+                Control de Firmas Electrónicas Oficiales (4 Instancias)
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                {/* 1. Solicitante */}
+                <div className="p-2.5 rounded-xl border border-border bg-slate-50 space-y-1">
+                  <span className="text-[10px] font-bold text-text-muted uppercase block">1. Solicitado</span>
+                  <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Firmado
+                  </div>
+                  <p className="font-medium text-text-primary text-[11px] truncate">
+                    {selectedRequest.signatures?.applicant?.name || selectedRequest.applicant_name || 'Solicitante'}
+                  </p>
+                  <p className="font-mono text-[10px] text-text-muted truncate">
+                    {selectedRequest.signatures?.applicant?.cedula ? `C.C. ${selectedRequest.signatures.applicant.cedula}` : (selectedRequest.applicant_cedula ? `C.C. ${selectedRequest.applicant_cedula}` : 'Cédula Registrada')}
+                  </p>
+                </div>
+
+                {/* 2. VB Técnico Director */}
+                <div className="p-2.5 rounded-xl border border-border bg-slate-50 space-y-1">
+                  <span className="text-[10px] font-bold text-text-muted uppercase block">2. VB Técnico</span>
+                  {selectedRequest.signatures?.director ? (
+                    <>
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Firmado
+                      </div>
+                      <p className="font-medium text-text-primary text-[11px] truncate">
+                        {selectedRequest.signatures.director.name}
+                      </p>
+                      <p className="font-mono text-[10px] text-text-muted truncate">
+                        C.C. {selectedRequest.signatures.director.cedula}
+                      </p>
+                      <p className="font-mono text-[9px] text-text-muted truncate">
+                        {selectedRequest.signatures.director.date_time}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="pt-1">
+                      <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 block text-center font-medium">
+                        Pendiente VB
+                      </span>
+                      <p className="text-[10px] text-text-muted text-center mt-1 truncate">
+                        {selectedRequest.approver_name || 'Director de Obra'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Compras */}
+                <div className="p-2.5 rounded-xl border border-border bg-slate-50 space-y-1">
+                  <span className="text-[10px] font-bold text-text-muted uppercase block">3. Cotización</span>
+                  {selectedRequest.signatures?.purchasing ? (
+                    <>
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Firmado
+                      </div>
+                      <p className="font-medium text-text-primary text-[11px] truncate">
+                        {selectedRequest.signatures.purchasing.name}
+                      </p>
+                      <p className="font-mono text-[10px] text-text-muted truncate">
+                        C.C. {selectedRequest.signatures.purchasing.cedula}
+                      </p>
+                      <p className="font-mono text-[9px] text-text-muted truncate">
+                        {selectedRequest.signatures.purchasing.date_time}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="pt-1">
+                      <span className="text-[10px] text-slate-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 block text-center font-medium">
+                        Pendiente
+                      </span>
+                      <p className="text-[10px] text-text-muted text-center mt-1">Área de Compras</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Gerencia (Punto 4) */}
+                <div className="p-2.5 rounded-xl border border-border bg-slate-50 space-y-1">
+                  <span className="text-[10px] font-bold text-text-muted uppercase block">4. Aprobación</span>
+                  {selectedRequest.signatures?.management ? (
+                    <>
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Aprobada
+                      </div>
+                      <p className="font-medium text-text-primary text-[11px] truncate">
+                        {selectedRequest.signatures.management.name}
+                      </p>
+                      <p className="font-mono text-[10px] text-text-muted truncate">
+                        C.C. {selectedRequest.signatures.management.cedula}
+                      </p>
+                      <p className="font-mono text-[9px] text-text-muted truncate">
+                        {selectedRequest.signatures.management.date_time}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="pt-1">
+                      <span className="text-[10px] text-slate-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 block text-center font-medium">
+                        Pendiente
+                      </span>
+                      <p className="text-[10px] text-text-muted text-center mt-1">Gerencia General</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Formulario de Firma o Mensaje de Éxito */}
+            {signingSuccessMsg && (
+              <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 text-xs font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                {signingSuccessMsg}
+              </div>
+            )}
+
+            {signingStep && (
+              <div className="p-4 rounded-xl border-2 border-accent/40 bg-accent/5 space-y-3 animate-fade-in text-xs">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-text-primary">
+                    {signingAction === 'reject' ? 'Rechazar Solicitud' : 'Estampar Firma Electrónica'} —{' '}
+                    {signingStep === 'director'
+                      ? 'Dirección de Proyecto (VB Técnico)'
+                      : signingStep === 'purchasing'
+                      ? 'Área de Compras (Validación Precios)'
+                      : 'Gerencia General (Aprobación Final)'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSigningStep(null)}
+                    className="text-text-muted hover:text-text-primary text-xs"
+                  >
+                    ✕ Cancelar
+                  </button>
+                </div>
+
+                {signingAction === 'approve' && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-text-primary mb-1">
+                      Cédula de Ciudadanía del Firmante <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={signerCedula}
+                      onChange={(e) => setSignerCedula(e.target.value)}
+                      placeholder="Ej: 1098765432"
+                      className="w-full text-xs rounded-lg border border-border bg-white px-3 py-2 font-mono text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-text-primary mb-1">
+                    {signingAction === 'reject' ? 'Motivo del Rechazo *' : 'Observaciones o Justificación (Opcional)'}
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={signerNotes}
+                    onChange={(e) => setSignerNotes(e.target.value)}
+                    placeholder={signingAction === 'reject' ? 'Explica por qué se rechaza la solicitud...' : 'Notas para compras o gerencia...'}
+                    className="w-full text-xs rounded-lg border border-border bg-white px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setSigningStep(null)}
+                    className="px-3 py-1.5 rounded-lg border border-border text-xs bg-white text-text-primary hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSignSubmit}
+                    disabled={isSubmittingSignature}
+                    className={`btn text-xs px-4 py-1.5 rounded-lg font-bold flex items-center gap-1.5 ${
+                      signingAction === 'reject'
+                        ? 'bg-red-600 text-white hover:bg-red-700'
+                        : 'bg-accent text-primary-900 hover:bg-accent-400'
+                    }`}
+                  >
+                    <PenTool className="w-3.5 h-3.5" />
+                    {isSubmittingSignature ? 'Registrando...' : signingAction === 'reject' ? 'Confirmar Rechazo' : 'Firmar y Registrar'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Barra de botones de acción rápida según rol del usuario conectado */}
+            {!signingStep && (
+              <div className="p-3 bg-surface-secondary rounded-xl border border-border flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="text-text-muted font-medium">Gestión y Firmas de Solicitud:</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Opción para Director de Proyecto: si está pendiente de VB */}
+                  {(!selectedRequest.signatures?.director && selectedRequest.status === 'pending') && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setSigningStep('director'); setSigningAction('reject'); }}
+                        className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 font-semibold"
+                      >
+                        Rechazar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setSigningStep('director'); setSigningAction('approve'); }}
+                        className="btn bg-accent text-primary-900 font-bold hover:bg-accent-400 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs"
+                      >
+                        <PenTool className="w-3.5 h-3.5" />
+                        Dar VB Técnico y Firmar
+                      </button>
+                    </>
+                  )}
+
+                  {/* Opción para Compras: si ya tiene VB y está en cotización */}
+                  {(selectedRequest.signatures?.director && !selectedRequest.signatures?.purchasing && selectedRequest.status !== 'rejected') && (
+                    <button
+                      type="button"
+                      onClick={() => { setSigningStep('purchasing'); setSigningAction('approve'); }}
+                      className="btn bg-accent text-primary-900 font-bold hover:bg-accent-400 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs"
+                    >
+                      <PenTool className="w-3.5 h-3.5" />
+                      Firmar Cotización de Compras
+                    </button>
+                  )}
+
+                  {/* Opción para Gerencia (Punto 4): si ya tiene firma de compras y no está aprobada aún */}
+                  {(selectedRequest.signatures?.purchasing && !selectedRequest.signatures?.management && selectedRequest.status !== 'rejected') && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setSigningStep('management'); setSigningAction('reject'); }}
+                        className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 font-semibold"
+                      >
+                        Rechazar Compra
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setSigningStep('management'); setSigningAction('approve'); }}
+                        className="btn bg-emerald-600 text-white font-bold hover:bg-emerald-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        Aprobar Compra Final (Gerencia)
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
