@@ -19,6 +19,7 @@ import {
   X,
   Car,
   ShieldCheck,
+  RotateCcw,
 } from 'lucide-react';
 import {
   type VehicleInspectionData,
@@ -46,7 +47,7 @@ interface EvidenceItem {
   fileName: string;
   excelFileName: string;
   fileSize: string;
-  status: 'conforme' | 'alerta';
+  status: 'conforme' | 'alerta' | 'atendida';
   hasAnomalies: boolean;
   hasCritical: boolean;
   criticalPoint: string;
@@ -64,14 +65,23 @@ interface EvidenceItem {
   sstaSignatureData?: string | null;
   vehicleData?: VehicleInspectionData | null;
   documentAlerts?: VehicleDocumentAlert[];
+  alertAcknowledged?: boolean;
+  alertAcknowledgedAt?: string | null;
+  alertAcknowledgedBy?: string | null;
+  alertAcknowledgedNote?: string | null;
+  hadAnomalies?: boolean;
 }
 
 function EvidenceActionsDropdown({
   evidence,
   onAudit,
+  onAcknowledgeAlert,
+  onReopenAlert,
 }: {
   evidence: EvidenceItem;
   onAudit: () => void;
+  onAcknowledgeAlert?: (evidence: EvidenceItem) => void;
+  onReopenAlert?: (evidence: EvidenceItem) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -90,6 +100,8 @@ function EvidenceActionsDropdown({
     };
   }, [isOpen]);
 
+  const hasActiveAlert = evidence.status === 'alerta' || (evidence.hadAnomalies && !evidence.alertAcknowledged);
+
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
@@ -102,7 +114,7 @@ function EvidenceActionsDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-1 w-44 origin-top-right rounded-xl border border-border bg-white p-1 shadow-lg ring-1 ring-black/5 focus:outline-none animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 z-50 mt-1 w-48 origin-top-right rounded-xl border border-border bg-white p-1 shadow-lg ring-1 ring-black/5 focus:outline-none animate-in fade-in zoom-in-95 duration-100">
           <button
             type="button"
             onClick={() => {
@@ -115,13 +127,45 @@ function EvidenceActionsDropdown({
             <span>Auditar</span>
           </button>
 
+          {/* Acción para atender la alerta de seguridad cuando está activa */}
+          {hasActiveAlert && onAcknowledgeAlert && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onAcknowledgeAlert(evidence);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-950 bg-amber-50/80 hover:bg-amber-100 transition-colors"
+              title="Marcar que la alerta fue vista y tenida en cuenta para quitarla de las alertas activas"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
+              <span>Marcar como Atendida</span>
+            </button>
+          )}
+
+          {/* Acción para reactivar alerta si ya fue atendida */}
+          {evidence.alertAcknowledged && onReopenAlert && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onReopenAlert(evidence);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-muted hover:bg-gray-100 transition-colors"
+              title="Volver a activar la alerta de seguridad"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />
+              <span>Reactivar Alerta</span>
+            </button>
+          )}
+
           {evidence.pdfUrl && (
             <a
               href={evidence.pdfUrl}
               target="_blank"
               rel="noreferrer"
               onClick={() => setIsOpen(false)}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-primary hover:bg-rose-50 hover:text-rose-900 transition-colors"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-text-primary hover:bg-rose-50 hover:text-rose-900 transition-colors border-t border-border/60 mt-0.5 pt-1.5"
             >
               <FileText className="w-3.5 h-3.5 text-rose-600 flex-shrink-0" />
               <span>Ver PDF</span>
@@ -213,7 +257,7 @@ export default function EvidenceBoardToolPage() {
   // Global & General Filters
   const [search, setSearch] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'conforme' | 'alerta' | 'observaciones'>('all');
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'conforme' | 'alerta' | 'atendida' | 'observaciones'>('all');
   const [selectedFormat, setSelectedFormat] = useState('all');
   const [selectedLocator, setSelectedLocator] = useState('all');
 
@@ -230,6 +274,136 @@ export default function EvidenceBoardToolPage() {
 
   // Modal selection
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceItem | null>(null);
+
+  // Gestión de Alertas Atendidas
+  const [acknowledgingEvidence, setAcknowledgingEvidence] = useState<EvidenceItem | null>(null);
+  const [acknowledgeNote, setAcknowledgeNote] = useState('');
+  const [isSubmittingAcknowledge, setIsSubmittingAcknowledge] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const handleConfirmAcknowledge = async () => {
+    if (!acknowledgingEvidence) return;
+    try {
+      setIsSubmittingAcknowledge(true);
+      const res = await fetch('/api/evidence-board', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: acknowledgingEvidence.id,
+          acknowledged: true,
+          note: acknowledgeNote,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al actualizar la alerta');
+
+      // Actualizar localmente la evidencia de forma inmediata
+      setEvidences((prev) =>
+        prev.map((e) =>
+          e.id === acknowledgingEvidence.id
+            ? {
+                ...e,
+                status: 'atendida',
+                hasAnomalies: false,
+                alertAcknowledged: true,
+                alertAcknowledgedAt: data.alertAcknowledgedAt || new Date().toISOString(),
+                alertAcknowledgedBy: data.alertAcknowledgedBy || 'Supervisión HSEQ',
+                alertAcknowledgedNote: data.alertAcknowledgedNote || (acknowledgeNote.trim() || null),
+              }
+            : e
+        )
+      );
+
+      // Si el modal de detalle está abierto para esta evidencia, sincronizarlo
+      if (selectedEvidence && selectedEvidence.id === acknowledgingEvidence.id) {
+        setSelectedEvidence((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'atendida',
+                hasAnomalies: false,
+                alertAcknowledged: true,
+                alertAcknowledgedAt: data.alertAcknowledgedAt || new Date().toISOString(),
+                alertAcknowledgedBy: data.alertAcknowledgedBy || 'Supervisión HSEQ',
+                alertAcknowledgedNote: data.alertAcknowledgedNote || (acknowledgeNote.trim() || null),
+              }
+            : null
+        );
+      }
+
+      setAcknowledgingEvidence(null);
+      setAcknowledgeNote('');
+      setActionFeedback({
+        type: 'success',
+        message: 'La alerta fue marcada como atendida y retirada de las alertas activas.',
+      });
+      setTimeout(() => setActionFeedback(null), 4000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setActionFeedback({ type: 'error', message: msg });
+    } finally {
+      setIsSubmittingAcknowledge(false);
+    }
+  };
+
+  const handleReopenAlert = async (evidence: EvidenceItem) => {
+    if (!confirm(`¿Deseas reactivar la alerta de seguridad para ${evidence.equipment}?`)) return;
+    try {
+      const res = await fetch('/api/evidence-board', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: evidence.id,
+          acknowledged: false,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al reactivar la alerta');
+
+      setEvidences((prev) =>
+        prev.map((e) =>
+          e.id === evidence.id
+            ? {
+                ...e,
+                status: 'alerta',
+                hasAnomalies: true,
+                alertAcknowledged: false,
+                alertAcknowledgedAt: null,
+                alertAcknowledgedBy: null,
+                alertAcknowledgedNote: null,
+              }
+            : e
+        )
+      );
+
+      if (selectedEvidence && selectedEvidence.id === evidence.id) {
+        setSelectedEvidence((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'alerta',
+                hasAnomalies: true,
+                alertAcknowledged: false,
+                alertAcknowledgedAt: null,
+                alertAcknowledgedBy: null,
+                alertAcknowledgedNote: null,
+              }
+            : null
+        );
+      }
+
+      setActionFeedback({
+        type: 'success',
+        message: 'La alerta ha sido reactivada.',
+      });
+      setTimeout(() => setActionFeedback(null), 4000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setActionFeedback({ type: 'error', message: msg });
+    }
+  };
 
   useEffect(() => {
     async function fetchEvidences() {
@@ -360,9 +534,11 @@ export default function EvidenceBoardToolPage() {
 
       let matchesStatus = true;
       if (selectedStatus === 'conforme') {
-        matchesStatus = ev.status === 'conforme';
+        matchesStatus = ev.status === 'conforme' || ev.status === 'atendida' || Boolean(ev.alertAcknowledged);
       } else if (selectedStatus === 'alerta') {
-        matchesStatus = ev.status === 'alerta';
+        matchesStatus = ev.status === 'alerta' && !ev.alertAcknowledged;
+      } else if (selectedStatus === 'atendida') {
+        matchesStatus = ev.status === 'atendida' || Boolean(ev.alertAcknowledged);
       } else if (selectedStatus === 'observaciones') {
         matchesStatus = Boolean(ev.hasObservations);
       }
@@ -435,8 +611,9 @@ export default function EvidenceBoardToolPage() {
 
   // Metrics counters
   const totalEvidences = evidences.length;
-  const conformesCount = evidences.filter((e) => e.status === 'conforme').length;
-  const alertasCount = evidences.filter((e) => e.status === 'alerta').length;
+  const conformesCount = evidences.filter((e) => e.status === 'conforme' || e.status === 'atendida' || e.alertAcknowledged).length;
+  const alertasCount = evidences.filter((e) => e.status === 'alerta' && !e.alertAcknowledged).length;
+  const atendidasCount = evidences.filter((e) => e.status === 'atendida' || e.alertAcknowledged).length;
 
   return (
     <div className="min-h-screen bg-surface">
@@ -788,12 +965,13 @@ export default function EvidenceBoardToolPage() {
                     <th className="p-2 font-normal text-center">
                       <select
                         value={selectedStatus}
-                        onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta' | 'observaciones')}
+                        onChange={(e) => setSelectedStatus(e.target.value as 'all' | 'conforme' | 'alerta' | 'atendida' | 'observaciones')}
                         className="w-full text-[11px] px-2 py-1 rounded-md border border-border bg-white text-text-primary focus:ring-1 focus:ring-teal-500 focus:outline-none font-medium"
                       >
                         <option value="all">Todos</option>
                         <option value="conforme">Conformes</option>
                         <option value="alerta">Alertas / Variaciones</option>
+                        <option value="atendida">Alertas Atendidas ({atendidasCount})</option>
                         <option value="observaciones">Con Observaciones</option>
                       </select>
                     </th>
@@ -898,6 +1076,18 @@ export default function EvidenceBoardToolPage() {
                           <span className="badge bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Conforme
                           </span>
+                        ) : ev.status === 'atendida' || ev.alertAcknowledged ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span className="badge bg-teal-50 text-teal-800 border border-teal-200 text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3 text-teal-600" /> Alerta Atendida
+                            </span>
+                            <span
+                              className="text-[9px] text-teal-700 font-semibold mt-0.5"
+                              title={ev.alertAcknowledgedBy ? `Atendida por ${ev.alertAcknowledgedBy}${ev.alertAcknowledgedAt ? ` el ${new Date(ev.alertAcknowledgedAt).toLocaleDateString('es-CO')}` : ''}` : undefined}
+                            >
+                              {ev.alertAcknowledgedBy ? `Por: ${ev.alertAcknowledgedBy.split(' ')[0]}` : 'Gestionada'}
+                            </span>
+                          </div>
                         ) : (
                           <div className="inline-flex flex-col items-center">
                             <span className="badge bg-red-50 text-red-700 border border-red-200 text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1 animate-pulse">
@@ -917,6 +1107,11 @@ export default function EvidenceBoardToolPage() {
                         <EvidenceActionsDropdown
                           evidence={ev}
                           onAudit={() => setSelectedEvidence(ev)}
+                          onAcknowledgeAlert={(item) => {
+                            setAcknowledgeNote('');
+                            setAcknowledgingEvidence(item);
+                          }}
+                          onReopenAlert={(item) => handleReopenAlert(item)}
                         />
                       </td>
                     </tr>
@@ -985,17 +1180,30 @@ export default function EvidenceBoardToolPage() {
                   (selectedEvidence.vehicleData
                     ? checkVehicleDocumentExpirations(selectedEvidence.vehicleData, selectedEvidence.date)
                     : []);
-                const isNonCompliant = selectedEvidence.hasAnomalies || activeDocAlerts.length > 0;
+                const isNonCompliant = (selectedEvidence.hasAnomalies || activeDocAlerts.length > 0) && !selectedEvidence.alertAcknowledged;
 
                 return isNonCompliant ? (
                   <div className="card border-2 border-red-300 bg-red-50 p-4">
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" strokeWidth={1.75} />
                       <div className="flex-1">
-                        <h4 className="text-xs font-bold text-red-900 uppercase tracking-wide">
-                          Inspección No Conforme / Alerta de Seguridad
-                        </h4>
-                        <p className="text-xs text-red-800 mt-0.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="text-xs font-bold text-red-900 uppercase tracking-wide">
+                            Inspección No Conforme / Alerta de Seguridad
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAcknowledgeNote('');
+                              setAcknowledgingEvidence(selectedEvidence);
+                            }}
+                            className="btn bg-accent text-primary-950 font-bold hover:bg-accent-400 text-xs py-1.5 px-3 rounded-xl flex items-center gap-1.5 shadow-sm active:scale-[0.98]"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-primary-950" />
+                            Marcar Alerta como Atendida
+                          </button>
+                        </div>
+                        <p className="text-xs text-red-800 mt-1">
                           Esta inspección contiene respuestas que difieren del estándar, observaciones de campo o alertas de vencimiento documental.
                         </p>
                         {selectedEvidence.nonCompliantCodes.length > 0 && (
@@ -1029,6 +1237,45 @@ export default function EvidenceBoardToolPage() {
                           </div>
                         )}
                       </div>
+                    </div>
+                  </div>
+                ) : selectedEvidence.alertAcknowledged ? (
+                  <div className="card border-2 border-teal-300 bg-teal-50 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <ShieldCheck className="w-6 h-6 text-teal-700 shrink-0 mt-0.5" strokeWidth={1.75} />
+                        <div>
+                          <h4 className="text-xs font-bold text-teal-900 uppercase tracking-wide">
+                            Alerta de Seguridad Atendida y Gestionada
+                          </h4>
+                          <p className="text-xs text-teal-800 mt-0.5">
+                            Esta alerta fue revisada y tenida en cuenta por supervisión HSEQ. Ha sido retirada de las alertas activas del sistema.
+                          </p>
+                          {selectedEvidence.alertAcknowledgedBy && (
+                            <p className="text-[11px] text-teal-950 font-semibold mt-1.5">
+                              Gestionada por: <strong>{selectedEvidence.alertAcknowledgedBy}</strong>
+                              {selectedEvidence.alertAcknowledgedAt && (
+                                <span className="font-normal text-teal-800">
+                                  {' '}el {new Date(selectedEvidence.alertAcknowledgedAt).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </p>
+                          )}
+                          {selectedEvidence.alertAcknowledgedNote && (
+                            <p className="text-xs text-teal-950 mt-1.5 bg-white/80 border border-teal-200 rounded-lg p-2 italic">
+                              &ldquo;{selectedEvidence.alertAcknowledgedNote}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleReopenAlert(selectedEvidence)}
+                        className="btn-secondary text-[11px] py-1 px-2.5 flex items-center gap-1 shrink-0"
+                        title="Reabrir alerta de seguridad"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-text-muted" /> Reactivar
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -1362,6 +1609,100 @@ export default function EvidenceBoardToolPage() {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación para Atender Alerta */}
+      {acknowledgingEvidence && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-border shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-5 h-5 text-amber-700" strokeWidth={1.75} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-text-primary">
+                  Gestionar Alerta de Seguridad
+                </h3>
+                <p className="text-xs text-text-muted mt-0.5 truncate">
+                  {acknowledgingEvidence.formatName} • {acknowledgingEvidence.equipment}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAcknowledgingEvidence(null)}
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-text-secondary bg-surface p-3.5 rounded-xl border border-border space-y-1.5">
+              <p>
+                ¿Confirmas que la alerta o punto crítico de esta inspección (<strong>{acknowledgingEvidence.code}</strong>) ya fue revisada y tenida en cuenta?
+              </p>
+              <p className="text-text-muted">
+                Al confirmar, <strong>se quitará la alerta activa</strong> del tablero general y pasará al estado de <em>Alerta Atendida</em>.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-text-secondary block mb-1.5">
+                Nota o Justificación de Atención (Opcional)
+              </label>
+              <textarea
+                rows={3}
+                value={acknowledgeNote}
+                onChange={(e) => setAcknowledgeNote(e.target.value)}
+                placeholder="Ej: Se verificó el equipo en bodega, se sustituyó el accesorio reportado y se autoriza operación..."
+                className="input text-xs w-full py-2 resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAcknowledgingEvidence(null)}
+                className="btn-secondary text-xs py-2 px-3.5"
+                disabled={isSubmittingAcknowledge}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAcknowledge}
+                disabled={isSubmittingAcknowledge}
+                className="btn bg-accent text-primary-950 font-bold hover:bg-accent-400 focus:ring-accent text-xs py-2 px-4 shadow-sm flex items-center gap-1.5 active:scale-[0.98]"
+              >
+                {isSubmittingAcknowledge ? (
+                  <span>Guardando...</span>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Confirmar y Quitar Alerta</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Feedback */}
+      {actionFeedback && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-lg border text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-3 duration-200 ${
+            actionFeedback.type === 'success'
+              ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+              : 'bg-red-50 text-red-900 border-red-300'
+          }`}
+        >
+          {actionFeedback.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-red-600" />
+          )}
+          <span>{actionFeedback.message}</span>
         </div>
       )}
 

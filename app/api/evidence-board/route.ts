@@ -228,13 +228,21 @@ export async function GET(req: NextRequest) {
       const documentAlerts = checkVehicleDocumentExpirations(vehicleData, row.inspection_date || undefined);
       const hasDocumentAlerts = documentAlerts.length > 0;
 
-      const hasAnomalies =
+      const isAlertAcknowledged = Boolean(
+        meta.alert_acknowledged ||
+        (row as any).alert_acknowledged
+      );
+
+      const rawHasAnomalies =
         hasDocumentAlerts ||
         ((row as any).has_anomalies !== undefined && (row as any).has_anomalies !== null
           ? Boolean((row as any).has_anomalies)
           : meta.has_anomalies !== undefined
           ? Boolean(meta.has_anomalies)
           : nonCompliantCodes.length > 0 || hasCritical || hasCustomObservations);
+
+      // Si la alerta ya fue vista y atendida por supervisión, se desactiva del estado de alerta activa
+      const hasAnomalies = isAlertAcknowledged ? false : rawHasAnomalies;
 
       // La división DEBE reflejar la división oficial a la que pertenece la persona que diligenció el formulario
       const userUdrDivision = row.users?.user_division_roles?.[0]?.divisions?.name;
@@ -331,7 +339,7 @@ export async function GET(req: NextRequest) {
         fileName: row.pdf_filename || `Inspeccion_${formatCode}.pdf`,
         excelFileName: excelFileStr,
         fileSize: '320 KB',
-        status: hasAnomalies ? 'alerta' : 'conforme',
+        status: isAlertAcknowledged ? 'atendida' : hasAnomalies ? 'alerta' : 'conforme',
         hasAnomalies,
         hasCritical,
         criticalPoint: criticalText || 'Ninguno',
@@ -349,6 +357,11 @@ export async function GET(req: NextRequest) {
         sstaSignatureData: row.ssta_signature_data || null,
         vehicleData,
         documentAlerts,
+        alertAcknowledged: isAlertAcknowledged,
+        alertAcknowledgedAt: (typeof meta.alert_acknowledged_at === 'string' && meta.alert_acknowledged_at) || null,
+        alertAcknowledgedBy: (typeof meta.alert_acknowledged_name === 'string' && meta.alert_acknowledged_name) || (typeof meta.alert_acknowledged_by === 'string' && meta.alert_acknowledged_by) || null,
+        alertAcknowledgedNote: (typeof meta.alert_acknowledged_note === 'string' && meta.alert_acknowledged_note) || null,
+        hadAnomalies: rawHasAnomalies,
       };
     });
 
@@ -366,6 +379,136 @@ export async function GET(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('Error en API evidence-board:', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const userRole = session.user.role;
+    const userId = session.user.id;
+
+    if (userRole === 'pending') {
+      return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
+    }
+
+    const supabase = createAdminClient();
+
+    // Validar permisos de supervisión HSEQ
+    let hasAccess = userRole === 'admin' || userRole === 'hseq' || userRole === 'management' || userRole === 'gerencia';
+    if (!hasAccess && userId) {
+      try {
+        const { data: ut } = await supabase
+          .from('user_tools')
+          .select('tools!inner(slug)')
+          .eq('user_id', userId)
+          .eq('tools.slug', 'evidence-board')
+          .maybeSingle();
+
+        if (ut) hasAccess = true;
+      } catch {
+        // Ignorar
+      }
+    }
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'No tienes permisos para gestionar alertas del Tablero HSEQ.' },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+    const { id, acknowledged = true, note = '' } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID de inspección requerido' }, { status: 400 });
+    }
+
+    // Obtener datos del usuario actual
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('id, full_name, email')
+      .eq('email', session.user.email)
+      .single();
+
+    // Consultar inspección existente
+    let { data: inspection, error: fetchErr } = await supabase
+      .from('hseq_inspections')
+      .select('id, items_responses, has_anomalies, status')
+      .eq('id', id)
+      .single();
+
+    let targetTable = 'hseq_inspections';
+
+    if (fetchErr && (fetchErr.code === 'PGRST205' || fetchErr.message?.includes('not find the table'))) {
+      const fb = await supabase
+        .from('hseq_drone_inspections')
+        .select('id, items_responses, has_anomalies, status')
+        .eq('id', id)
+        .single();
+      inspection = fb.data;
+      fetchErr = fb.error;
+      targetTable = 'hseq_drone_inspections';
+    }
+
+    if (fetchErr || !inspection) {
+      return NextResponse.json({ error: 'Inspección no encontrada' }, { status: 404 });
+    }
+
+    const rawResponses = (inspection.items_responses || {}) as Record<string, any>;
+    const meta = { ...(rawResponses._meta || {}) };
+
+    if (acknowledged) {
+      meta.alert_acknowledged = true;
+      meta.alert_acknowledged_at = new Date().toISOString();
+      meta.alert_acknowledged_by = session.user.email;
+      meta.alert_acknowledged_name = dbUser?.full_name || session.user.name || session.user.email;
+      if (note && typeof note === 'string' && note.trim()) {
+        meta.alert_acknowledged_note = note.trim();
+      }
+    } else {
+      delete meta.alert_acknowledged;
+      delete meta.alert_acknowledged_at;
+      delete meta.alert_acknowledged_by;
+      delete meta.alert_acknowledged_name;
+      delete meta.alert_acknowledged_note;
+    }
+
+    rawResponses._meta = meta;
+
+    const updatePayload: Record<string, any> = {
+      items_responses: rawResponses,
+      has_anomalies: !acknowledged,
+      status: acknowledged ? 'audited' : 'submitted',
+    };
+
+    const { error: updateErr } = await supabase
+      .from(targetTable)
+      .update(updatePayload)
+      .eq('id', id);
+
+    if (updateErr) {
+      console.error('Error actualizando alerta en inspección:', updateErr);
+      return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message: acknowledged ? 'Alerta marcada como atendida exitosamente' : 'Alerta reactivada exitosamente',
+      alertAcknowledged: acknowledged,
+      alertAcknowledgedAt: meta.alert_acknowledged_at || null,
+      alertAcknowledgedBy: meta.alert_acknowledged_name || meta.alert_acknowledged_by || null,
+      alertAcknowledgedNote: meta.alert_acknowledged_note || null,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Error en PATCH evidence-board:', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
