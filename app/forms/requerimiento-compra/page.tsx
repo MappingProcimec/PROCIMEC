@@ -15,15 +15,10 @@ import {
   Building2,
   Calendar,
   User,
-  ShieldCheck,
   MapPin,
   Phone,
   FileText,
-  DollarSign,
-  Tag,
-  Hash,
   RotateCcw,
-  Sparkles,
 } from 'lucide-react';
 
 interface ProjectOption {
@@ -452,29 +447,6 @@ export default function RequerimientoCompraPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Tarjeta de Datos de Cabecera */}
             <div className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-card space-y-5">
-              {/* Barra superior con Consecutivo y Fecha Inmutable */}
-              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-border">
-                <div className="flex items-center gap-3">
-                  <div className="px-3.5 py-1.5 rounded-lg bg-primary-900 border border-primary-800 flex items-center gap-2 shadow-xs">
-                    <Hash className="w-4 h-4 text-accent" />
-                    <span className="text-xs uppercase tracking-wider font-semibold text-white/70">Consecutivo:</span>
-                    <span className="font-mono font-bold text-accent text-sm tracking-wide">{requestCode}</span>
-                  </div>
-                  <span className="text-xs text-text-muted hidden sm:inline">
-                    Incremento secuencial automático
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 bg-surface-secondary px-3.5 py-1.5 rounded-lg border border-border">
-                  <Calendar className="w-4 h-4 text-text-muted" />
-                  <span className="text-xs text-text-secondary font-medium">Fecha de Diligenciamiento:</span>
-                  <span className="text-xs font-mono font-bold text-text-primary px-2 py-0.5 rounded bg-white border border-border">
-                    {todayDate}
-                  </span>
-                  <span className="text-[10px] text-text-muted italic ml-1">(Inmutable)</span>
-                </div>
-              </div>
-
               {/* Errores globales */}
               {errorMessage && (
                 <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 text-sm flex items-start gap-2.5 animate-fadeIn">
@@ -837,8 +809,7 @@ export default function RequerimientoCompraPage() {
             {/* Barra de Acciones Final */}
             <div className="bg-card border border-border rounded-xl p-5 shadow-card flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="text-xs text-text-muted">
-                <span className="font-semibold text-text-primary">Nota importante:</span> Al enviar esta solicitud, se registrará formalmente bajo el código{' '}
-                <strong className="font-mono text-text-primary font-bold">{requestCode}</strong> para la revisión del área de Compras.
+                <span className="font-semibold text-text-primary">Nota importante:</span> Al enviar esta solicitud, se registrará formalmente con su consecutivo automático y fecha oficial para la revisión del área de Compras.
               </div>
 
               <div className="flex items-center gap-3 w-full sm:w-auto">
