@@ -394,41 +394,45 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
     const innerW = boxW - 3;
     const innerH = boxH - 6.2;
 
-    if (sig && sig.name && (sig.dateTime || sig.cedula)) {
+    const isSigned = Boolean(sig && sig.name && sig.name.trim().length > 0);
+
+    if (isSigned && sig && sig.name) {
+      const signerName = sig.name.trim();
       // FIRMA REGISTRADA
       doc.setFillColor(241, 245, 249);
       doc.roundedRect(innerX, innerY, innerW, innerH, 1, 1, 'F');
-      doc.setDrawColor(203, 213, 225);
-      doc.setLineWidth(0.15);
+      doc.setDrawColor(16, 185, 129); // Verde esmeralda de firma registrada
+      doc.setLineWidth(0.3);
       doc.roundedRect(innerX, innerY, innerW, innerH, 1, 1, 'D');
 
       doc.setTextColor(16, 185, 129); // verde esmeralda
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5);
-      doc.text('✓ FIRMA REGISTRADA', bX + boxW / 2, innerY + 3.5, { align: 'center' });
+      doc.setFontSize(5.2);
+      doc.text('✓ FIRMA ELECTRÓNICA', bX + boxW / 2, innerY + 3.8, { align: 'center' });
 
       doc.setTextColor(...COLOR_CHARCOAL);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6);
-      const displayName = sig.name.length > 22 ? sig.name.substring(0, 20) + '...' : sig.name;
-      doc.text(displayName, bX + boxW / 2, innerY + 7.5, { align: 'center' });
+      doc.setFontSize(6.2);
+      const displayName = signerName.length > 22 ? signerName.substring(0, 20) + '...' : signerName;
+      doc.text(displayName, bX + boxW / 2, innerY + 7.8, { align: 'center' });
 
       doc.setTextColor(...COLOR_GRAPHITE);
       doc.setFont('courier', 'bold');
-      doc.setFontSize(5.2);
-      doc.text(sig.cedula ? `C.C. ${sig.cedula}` : 'Cédula Registrada', bX + boxW / 2, innerY + 11.5, { align: 'center' });
+      doc.setFontSize(5.5);
+      const cedulaText = sig.cedula && sig.cedula.trim() ? `C.C. ${sig.cedula}` : (data.applicantCedula ? `C.C. ${data.applicantCedula}` : 'Identificado');
+      doc.text(cedulaText, bX + boxW / 2, innerY + 11.6, { align: 'center' });
 
       doc.setTextColor(...COLOR_MUTED);
       doc.setFont('courier', 'normal');
-      doc.setFontSize(4.6);
-      const dtText = sig.dateTime || displayDate;
+      doc.setFontSize(4.8);
+      const dtText = sig.dateTime || data.submissionDateTime || displayDate;
       const cleanDt = dtText.length > 24 ? dtText.substring(0, 22) : dtText;
-      doc.text(cleanDt, bX + boxW / 2, innerY + 15.5, { align: 'center' });
+      doc.text(cleanDt, bX + boxW / 2, innerY + 15.6, { align: 'center' });
 
       doc.setFont('helvetica', 'italic');
-      doc.setFontSize(4.2);
-      doc.setTextColor(148, 163, 184);
-      doc.text(sig.roleLabel || 'PCM CLOUD DIGITAL', bX + boxW / 2, innerY + 19.5, { align: 'center' });
+      doc.setFontSize(4.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(sig.roleLabel || 'PCM CLOUD OFICIAL', bX + boxW / 2, innerY + 19.5, { align: 'center' });
     } else {
       // PENDIENTE
       doc.setFillColor(248, 250, 252);
@@ -459,13 +463,13 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
     }
   };
 
-  // 1. Solicitante (Ingeniero de Campo)
-  const applicantSig = data.signatures?.applicant || (data.applicantName ? {
-    name: data.applicantName,
-    cedula: data.applicantCedula,
+  // 1. Solicitante (Ingeniero de Campo - Siempre firmado desde la emisión inicial)
+  const applicantSig = data.signatures?.applicant || {
+    name: data.applicantName || 'Solicitante Registrado',
+    cedula: data.applicantCedula || '',
     dateTime: data.submissionDateTime || data.createdDate || displayDate,
     roleLabel: 'Solicitante / Campo',
-  } : undefined);
+  };
   drawSigBox(marginX + 0 * (boxW + gap), curY, '1. SOLICITADO POR:', applicantSig, data.applicantName, 'Ingeniero de Campo');
 
   // 2. Director de Proyecto (VB Técnico)

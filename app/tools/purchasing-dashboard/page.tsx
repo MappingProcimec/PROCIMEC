@@ -409,6 +409,17 @@ export default function PurchasingDashboardPage() {
 
       const submissionFormatted = formatDateTimeCO(r.created_at);
 
+      const existingSigs = r.signatures || {};
+      const finalSignatures: PurchaseRequestPdfSignatures = {
+        ...existingSigs,
+        applicant: existingSigs.applicant || {
+          name: r.applicant_name || r.users?.full_name || 'Solicitante Registrado',
+          cedula: r.applicant_cedula || '',
+          dateTime: submissionFormatted,
+          roleLabel: 'Solicitante / Ingeniero de Campo',
+        },
+      };
+
       downloadPurchaseRequestPdf({
         requestCode: r.request_code || (r.consecutive ? `REQ-${String(r.consecutive).padStart(4, '0')}` : 'REQ-0001'),
         consecutive: r.consecutive || undefined,
@@ -426,7 +437,7 @@ export default function PurchasingDashboardPage() {
         items: itemsMapped,
         totalAmount: totalAmt,
         status: r.status,
-        signatures: r.signatures as PurchaseRequestPdfSignatures,
+        signatures: finalSignatures,
       });
     } catch (err) {
       console.error('Error generando descarga de PDF:', err);

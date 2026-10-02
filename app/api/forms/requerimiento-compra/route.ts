@@ -15,6 +15,19 @@ export interface PurchaseRequestItem {
   total: number;
 }
 
+function formatDateTimeCO(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('es-CO', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZone: 'America/Bogota',
+  }).format(d);
+}
+
 // GET: Obtener proyectos habilitados, datos del usuario y siguiente consecutivo
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -298,6 +311,17 @@ export async function POST(req: NextRequest) {
   const title = `Requerimiento ${requestCode} - ${project_name || cost_center || 'Operación'}`;
   const justification = `Entrega en ${delivery_site}. Contacto: ${contact_phone}. Aprobado por: ${approver_name}. Cédula solicitante: ${String(applicant_cedula).trim()}.`;
 
+  const nowFormatted = formatDateTimeCO(new Date());
+  const initialSignatures = {
+    applicant: {
+      name: String(applicant_name).trim(),
+      cedula: String(applicant_cedula).trim(),
+      date_time: nowFormatted,
+      role_label: 'Solicitante / Ingeniero de Campo',
+      user_id: dbUser.id,
+    },
+  };
+
   // 4. Intentar inserción con esquema completo
   try {
     const { data, error } = await supabase
@@ -315,6 +339,7 @@ export async function POST(req: NextRequest) {
         consecutive,
         request_code: requestCode,
         applicant_name: String(applicant_name).trim(),
+        applicant_cedula: String(applicant_cedula).trim(),
         approver_name: String(approver_name).trim(),
         delivery_date,
         delivery_site: String(delivery_site).trim(),
@@ -322,6 +347,7 @@ export async function POST(req: NextRequest) {
         cost_center: String(cost_center || '').trim(),
         client_name: String(client_name || '').trim(),
         total_amount: totalAmount,
+        signatures: initialSignatures,
       })
       .select()
       .single();
@@ -343,6 +369,7 @@ export async function POST(req: NextRequest) {
             cost_center,
             client_name,
             total_amount: totalAmount,
+            signatures: initialSignatures,
           },
           items: sanitizedItems,
         };

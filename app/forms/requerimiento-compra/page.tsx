@@ -410,6 +410,14 @@ export default function RequerimientoCompraPage() {
         })),
         totalAmount: submittedData.totalAmount,
         status: 'pending',
+        signatures: {
+          applicant: {
+            name: submittedData.applicantName,
+            cedula: submittedData.applicantCedula,
+            dateTime: submittedData.submissionDateTime,
+            roleLabel: 'Solicitante / Ingeniero de Campo',
+          },
+        },
       });
     } catch (err) {
       console.error('Error al generar PDF oficial:', err);
