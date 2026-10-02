@@ -139,6 +139,7 @@ export async function POST(req: NextRequest) {
       instance: string;
       role_label: string;
       viewed_at: string;
+      last_viewed_at?: string;
       view_count?: number;
     }> = [];
 
@@ -161,10 +162,13 @@ export async function POST(req: NextRequest) {
     const existingIndex = currentViews.findIndex((v) => v.instance === instance);
 
     if (existingIndex >= 0) {
+      // Inmutabilidad de la PRIMERA visualización: la vista siempre ocurre ANTES de la firma.
+      // Preservar viewed_at original y registrar last_viewed_at para trazabilidad
       currentViews[existingIndex] = {
         ...currentViews[existingIndex],
         user_name: dbUser.full_name || currentViews[existingIndex].user_name,
-        viewed_at: nowFormatted,
+        viewed_at: currentViews[existingIndex].viewed_at || nowFormatted,
+        last_viewed_at: nowFormatted,
         view_count: (currentViews[existingIndex].view_count || 1) + 1,
       };
     } else {
@@ -175,6 +179,7 @@ export async function POST(req: NextRequest) {
         instance,
         role_label: roleLabel,
         viewed_at: nowFormatted,
+        last_viewed_at: nowFormatted,
         view_count: 1,
       });
     }

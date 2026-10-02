@@ -172,6 +172,7 @@ export async function POST(req: NextRequest) {
       instance: string;
       role_label: string;
       viewed_at: string;
+      last_viewed_at?: string;
       view_count?: number;
     }> = [];
 
@@ -193,10 +194,12 @@ export async function POST(req: NextRequest) {
     const instanceViewIdx = currentViews.findIndex((v) => v.instance === step);
 
     if (instanceViewIdx >= 0) {
+      // Inmutabilidad de la vista inicial: El revisor abrió el documento para evaluarlo ANTES de firmar
       currentViews[instanceViewIdx] = {
         ...currentViews[instanceViewIdx],
         user_name: signerName,
-        viewed_at: nowFormatted,
+        viewed_at: currentViews[instanceViewIdx].viewed_at || nowFormatted,
+        last_viewed_at: nowFormatted,
       };
     } else {
       currentViews.push({
@@ -206,6 +209,7 @@ export async function POST(req: NextRequest) {
         instance: step,
         role_label: step === 'director' ? (requestRow.approver_name ? `Aprobador: ${requestRow.approver_name}` : 'Aprobación de Proyecto') : step === 'purchasing' ? 'Área de Compras' : 'Gerencia General (Punto 4)',
         viewed_at: nowFormatted,
+        last_viewed_at: nowFormatted,
         view_count: 1,
       });
     }
