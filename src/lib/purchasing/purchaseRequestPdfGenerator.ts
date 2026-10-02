@@ -472,8 +472,8 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
   };
   drawSigBox(marginX + 0 * (boxW + gap), curY, '1. SOLICITADO POR:', applicantSig, data.applicantName, 'Ingeniero de Campo');
 
-  // 2. Director de Proyecto (VB Técnico)
-  drawSigBox(marginX + 1 * (boxW + gap), curY, '2. VB TÉCNICO PROYECTO:', data.signatures?.director, data.approverName || 'Director de Obra', 'Director de Proyecto');
+  // 2. Aprobado por (Usuario que aprueba en el proyecto)
+  drawSigBox(marginX + 1 * (boxW + gap), curY, '2. APROBADO POR:', data.signatures?.director, data.approverName || 'Aprobador de Proyecto', 'Aprobador del Proyecto');
 
   // 3. Compras (Cotización y Precios)
   drawSigBox(marginX + 2 * (boxW + gap), curY, '3. GESTIÓN COMPRAS:', data.signatures?.purchasing, 'Área de Compras', 'Cotización y Precios');

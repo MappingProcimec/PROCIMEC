@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
       .select(`
         *,
         projects(id, name, cost_center, client),
-        users(id, full_name, email)
+        users!purchase_requests_user_id_fkey(id, full_name, email)
       `)
       .order('created_at', { ascending: false });
 

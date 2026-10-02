@@ -48,25 +48,10 @@ export async function POST(req: NextRequest) {
 
     const userRole = (dbUser.role || '').toLowerCase();
 
-    // 2. Determinar instancia revisora según rol
-    let instance: 'director' | 'purchasing' | 'management' = 'director';
-    let roleLabel = 'Director de Proyecto';
-
-    if (userRole === 'admin' || userRole === 'management' || userRole === 'gerencia') {
-      instance = 'management';
-      roleLabel = 'Gerencia General (Punto 4)';
-    } else if (userRole === 'purchasing' || userRole === 'compras') {
-      instance = 'purchasing';
-      roleLabel = 'Área de Compras';
-    } else {
-      instance = 'director';
-      roleLabel = 'Dirección de Proyecto / Obra';
-    }
-
-    // 3. Obtener requerimiento actual
+    // 2. Obtener requerimiento actual con datos de aprobador, solicitante y firmas
     const { data: requestRow, error: reqErr } = await supabase
       .from('purchase_requests')
-      .select('id, items, viewed_by, user_id')
+      .select('id, items, viewed_by, user_id, applicant_name, approver_name, approver_user_id, signatures, status')
       .eq('id', request_id)
       .maybeSingle();
 
@@ -74,10 +59,59 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Requerimiento no encontrado' }, { status: 404 });
     }
 
-    // Si el usuario es el autor en modo director, no alterar el log como revisor externo
-    const isAuthor = requestRow.user_id === dbUser.id;
-    if (isAuthor && instance === 'director') {
-      return NextResponse.json({ success: true, isAuthor: true, viewed_by: requestRow.viewed_by || [] });
+    // 3. Excluir al autor / solicitante: No debe registrarse como revisor en "Visto por"
+    const isAuthor =
+      requestRow.user_id === dbUser.id ||
+      (requestRow.applicant_name &&
+        dbUser.full_name &&
+        requestRow.applicant_name.trim().toLowerCase() === dbUser.full_name.trim().toLowerCase());
+
+    const currentRawViews = Array.isArray(requestRow.viewed_by)
+      ? [...requestRow.viewed_by]
+      : requestRow.items && typeof requestRow.items === 'object' && !Array.isArray(requestRow.items) && Array.isArray((requestRow.items as Record<string, any>)._metadata?.viewed_by)
+      ? [...(requestRow.items as Record<string, any>)._metadata.viewed_by]
+      : [];
+
+    if (isAuthor) {
+      return NextResponse.json({ success: true, isAuthor: true, viewed_by: currentRawViews });
+    }
+
+    // 4. Determinar instancia revisora según rol y etapa secuencial del requerimiento
+    const sigs = (requestRow.signatures || {}) as Record<string, any>;
+    const hasDirectorSig = Boolean(sigs.director?.name);
+    const hasPurchasingSig = Boolean(sigs.purchasing?.name);
+
+    let instance: 'director' | 'purchasing' | 'management' = 'director';
+    let roleLabel = requestRow.approver_name
+      ? `Aprobador: ${requestRow.approver_name}`
+      : 'Aprobación de Proyecto';
+
+    const isDesignatedApprover =
+      (requestRow.approver_name && dbUser.full_name && requestRow.approver_name.trim().toLowerCase() === dbUser.full_name.trim().toLowerCase()) ||
+      (requestRow.approver_user_id && requestRow.approver_user_id === dbUser.id);
+
+    if (userRole === 'purchasing' || userRole === 'compras') {
+      instance = 'purchasing';
+      roleLabel = 'Área de Compras';
+    } else if (userRole === 'management' || userRole === 'gerencia') {
+      instance = 'management';
+      roleLabel = 'Gerencia General (Punto 4)';
+    } else if (userRole === 'admin') {
+      // Para administradores: respetar el orden del flujo
+      if (!hasDirectorSig || isDesignatedApprover) {
+        instance = 'director';
+        roleLabel = requestRow.approver_name ? `Aprobador: ${requestRow.approver_name}` : 'Aprobación de Proyecto';
+      } else if (!hasPurchasingSig) {
+        instance = 'purchasing';
+        roleLabel = 'Área de Compras (Admin)';
+      } else {
+        instance = 'management';
+        roleLabel = 'Gerencia General (Punto 4)';
+      }
+    } else {
+      // Usuario de campo / proyecto
+      instance = 'director';
+      roleLabel = requestRow.approver_name ? `Aprobador: ${requestRow.approver_name}` : 'Aprobación de Proyecto';
     }
 
     // 4. Procesar lista de visualizaciones (resiliente a JSONB y metadatos)

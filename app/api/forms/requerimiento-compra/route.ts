@@ -123,7 +123,54 @@ export async function GET() {
     console.warn('Error consultando proyectos en requerimiento-compra:', err);
   }
 
-  // 3. Calcular siguiente consecutivo automatizado con tolerancia de esquema
+  // 3. Consultar usuarios asignados por proyecto para el desplegable de aprobadores
+  let projectUsers: Record<string, Array<{ id: string; full_name: string; email: string; role: string }>> = {};
+  let allApprovers: Array<{ id: string; full_name: string; email: string; role: string }> = [];
+
+  try {
+    const { data: upRows } = await supabase
+      .from('user_projects')
+      .select('project_id, user_id, users(id, full_name, email, role, is_active)');
+
+    if (upRows) {
+      for (const up of upRows) {
+        const u = up.users as unknown as { id: string; full_name: string; email: string; role: string; is_active: boolean } | null;
+        if (u && u.is_active !== false && up.project_id) {
+          if (!projectUsers[up.project_id]) {
+            projectUsers[up.project_id] = [];
+          }
+          if (!projectUsers[up.project_id].some((existing) => existing.id === u.id)) {
+            projectUsers[up.project_id].push({
+              id: u.id,
+              full_name: u.full_name,
+              email: u.email,
+              role: u.role,
+            });
+          }
+        }
+      }
+    }
+
+    // Usuarios con roles de gestión o activos para fallback garantizado
+    const { data: adminUsers } = await supabase
+      .from('users')
+      .select('id, full_name, email, role, is_active')
+      .eq('is_active', true)
+      .order('full_name', { ascending: true });
+
+    if (adminUsers) {
+      allApprovers = adminUsers.map((u) => ({
+        id: u.id,
+        full_name: u.full_name,
+        email: u.email,
+        role: u.role,
+      }));
+    }
+  } catch (uErr) {
+    console.warn('Error obteniendo usuarios de proyectos:', uErr);
+  }
+
+  // 4. Calcular siguiente consecutivo automatizado con tolerancia de esquema
   let nextConsecutive = 1;
   try {
     const { count } = await supabase
@@ -159,6 +206,8 @@ export async function GET() {
     nextConsecutive,
     requestCode,
     projects,
+    projectUsers,
+    allApprovers,
     today: new Date().toISOString().split('T')[0],
   });
 }
@@ -218,6 +267,7 @@ export async function POST(req: NextRequest) {
     applicant_name,
     applicant_cedula,
     approver_name,
+    approver_user_id,
     delivery_date,
     delivery_site,
     contact_phone,
@@ -341,6 +391,7 @@ export async function POST(req: NextRequest) {
         applicant_name: String(applicant_name).trim(),
         applicant_cedula: String(applicant_cedula).trim(),
         approver_name: String(approver_name).trim(),
+        approver_user_id: approver_user_id || null,
         delivery_date,
         delivery_site: String(delivery_site).trim(),
         contact_phone: String(contact_phone).trim(),

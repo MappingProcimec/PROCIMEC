@@ -109,6 +109,9 @@ export default function RequerimientoCompraPage() {
   const [applicantName, setApplicantName] = useState<string>('');
   const [applicantCedula, setApplicantCedula] = useState<string>('');
   const [approverName, setApproverName] = useState<string>('');
+  const [approverUserId, setApproverUserId] = useState<string>('');
+  const [projectUsers, setProjectUsers] = useState<Record<string, Array<{ id: string; full_name: string; email: string; role: string }>>>({});
+  const [allApprovers, setAllApprovers] = useState<Array<{ id: string; full_name: string; email: string; role: string }>>([]);
   const [deliveryDate, setDeliveryDate] = useState<string>('');
   const [deliverySite, setDeliverySite] = useState<string>('');
   const [contactPhone, setContactPhone] = useState<string>('');
@@ -155,6 +158,12 @@ export default function RequerimientoCompraPage() {
           } else if (session?.user?.name) {
             setApplicantName(session.user.name);
           }
+          if (formData.projectUsers) {
+            setProjectUsers(formData.projectUsers);
+          }
+          if (formData.allApprovers) {
+            setAllApprovers(formData.allApprovers);
+          }
         } else if (session?.user?.name) {
           setApplicantName(session.user.name);
         }
@@ -193,6 +202,37 @@ export default function RequerimientoCompraPage() {
   const selectedProject = useMemo(() => {
     return projects.find((p) => p.id === selectedProjectId) || null;
   }, [projects, selectedProjectId]);
+
+  // Aprobadores disponibles para el proyecto seleccionado
+  const availableApprovers = useMemo(() => {
+    if (!selectedProjectId) return [];
+    const inProject = projectUsers[selectedProjectId] || [];
+    if (inProject.length > 0) return inProject;
+    return allApprovers;
+  }, [selectedProjectId, projectUsers, allApprovers]);
+
+  // Sincronizar aprobador cuando cambia el proyecto
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setApproverName('');
+      setApproverUserId('');
+      return;
+    }
+    const assigned = projectUsers[selectedProjectId] || [];
+    if (assigned.length > 0) {
+      const exists = assigned.some((u) => u.full_name === approverName);
+      if (!exists) {
+        setApproverName(assigned[0].full_name);
+        setApproverUserId(assigned[0].id);
+      }
+    } else if (allApprovers.length > 0) {
+      const exists = allApprovers.some((u) => u.full_name === approverName);
+      if (!exists) {
+        setApproverName(allApprovers[0].full_name);
+        setApproverUserId(allApprovers[0].id);
+      }
+    }
+  }, [selectedProjectId, projectUsers, allApprovers]);
 
   // Manejo de ítems en la tabla
   const handleAddItem = () => {
@@ -317,6 +357,7 @@ export default function RequerimientoCompraPage() {
         applicant_name: applicantName.trim(),
         applicant_cedula: applicantCedula.trim(),
         approver_name: approverName.trim(),
+        approver_user_id: approverUserId || undefined,
         delivery_date: deliveryDate,
         delivery_site: deliverySite.trim(),
         contact_phone: contactPhone.trim(),
@@ -680,19 +721,66 @@ export default function RequerimientoCompraPage() {
                     />
                   </div>
 
-                  {/* Nombre de quien aprueba */}
+                  {/* Nombre de quien aprueba (Desplegable de usuarios del proyecto) */}
                   <div>
                     <label className="block text-xs font-semibold text-text-primary mb-1">
                       Nombre Quien Aprueba <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
+                    <select
                       required
                       value={approverName}
-                      onChange={(e) => setApproverName(e.target.value)}
-                      placeholder="Ej: Residente / Director de Obra"
-                      className="w-full text-sm rounded-lg border border-border bg-white px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
+                      disabled={!selectedProjectId}
+                      onChange={(e) => {
+                        const selectedVal = e.target.value;
+                        setApproverName(selectedVal);
+                        const matched = availableApprovers.find((u) => u.full_name === selectedVal);
+                        setApproverUserId(matched ? matched.id : '');
+                      }}
+                      className="w-full text-sm rounded-lg border border-border bg-white px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      {!selectedProjectId ? (
+                        <option value="">-- Selecciona el proyecto primero --</option>
+                      ) : availableApprovers.length === 0 ? (
+                        <option value="">-- Sin usuarios asignados a este proyecto --</option>
+                      ) : (
+                        <>
+                          <option value="">-- Selecciona quién aprueba --</option>
+                          {/* Usuarios asignados directamente al proyecto en user_projects */}
+                          {(projectUsers[selectedProjectId] || []).length > 0 && (
+                            <optgroup label="Usuarios asignados al proyecto">
+                              {(projectUsers[selectedProjectId] || []).map((u) => (
+                                <option key={u.id} value={u.full_name}>
+                                  {u.full_name} ({u.role.toUpperCase()})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {/* Otros miembros / líderes para respaldo si no está asignado explícitamente */}
+                          {allApprovers.filter(
+                            (u) => !(projectUsers[selectedProjectId] || []).some((pU) => pU.id === u.id)
+                          ).length > 0 && (
+                            <optgroup label={(projectUsers[selectedProjectId] || []).length === 0 ? "Usuarios del sistema" : "Otros miembros / Dirección"}>
+                              {allApprovers
+                                .filter((u) => !(projectUsers[selectedProjectId] || []).some((pU) => pU.id === u.id))
+                                .map((u) => (
+                                  <option key={u.id} value={u.full_name}>
+                                    {u.full_name} ({u.role.toUpperCase()})
+                                  </option>
+                                ))}
+                            </optgroup>
+                          )}
+                        </>
+                      )}
+                    </select>
+                    {!selectedProjectId ? (
+                      <p className="text-[11px] text-text-muted mt-1">Elige un proyecto para ver los usuarios.</p>
+                    ) : (
+                      (projectUsers[selectedProjectId] || []).length > 0 && (
+                        <p className="text-[11px] text-emerald-700 mt-1">
+                          {(projectUsers[selectedProjectId] || []).length} usuario(s) asignado(s) a este proyecto.
+                        </p>
+                      )
+                    )}
                   </div>
 
                   {/* Fecha de Entrega */}

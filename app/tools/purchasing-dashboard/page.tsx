@@ -1090,13 +1090,15 @@ export default function PurchasingDashboardPage() {
                 <span className="text-[11px] font-normal text-text-muted">3 Instancias Revisoras Obligatorias</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs pt-1">
-                {/* 1. Dirección de Proyecto */}
+                {/* 1. Aprobador del Proyecto */}
                 {(() => {
                   const view = (selectedRequest.viewed_by || []).find((v) => v.instance === 'director');
                   return (
                     <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-text-primary text-[11px]">1. Dirección Obra</span>
+                        <span className="font-semibold text-text-primary text-[11px] truncate max-w-[140px]" title={selectedRequest.approver_name || 'Aprobador del Proyecto'}>
+                          1. {selectedRequest.approver_name ? `Aprueba: ${selectedRequest.approver_name}` : 'Aprobación Proyecto'}
+                        </span>
                         {view ? (
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                             ✓ Visto
@@ -1113,7 +1115,9 @@ export default function PurchasingDashboardPage() {
                           <p className="text-text-muted font-mono text-[10px]">{view.viewed_at}</p>
                         </>
                       ) : (
-                        <p className="text-text-muted text-[10px] italic">No visualizada aún</p>
+                        <p className="text-text-muted text-[10px] italic">
+                          Pendiente por {selectedRequest.approver_name || 'aprobador'}
+                        </p>
                       )}
                     </div>
                   );
@@ -1200,13 +1204,13 @@ export default function PurchasingDashboardPage() {
                   </p>
                 </div>
 
-                {/* 2. VB Técnico Director */}
+                {/* 2. Aprobación del Proyecto */}
                 <div className="p-2.5 rounded-xl border border-border bg-slate-50 space-y-1">
-                  <span className="text-[10px] font-bold text-text-muted uppercase block">2. VB Técnico</span>
+                  <span className="text-[10px] font-bold text-text-muted uppercase block">2. Aprobación Proyecto</span>
                   {selectedRequest.signatures?.director ? (
                     <>
                       <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Firmado
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Aprobado
                       </div>
                       <p className="font-medium text-text-primary text-[11px] truncate">
                         {selectedRequest.signatures.director.name}
@@ -1223,8 +1227,8 @@ export default function PurchasingDashboardPage() {
                       <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 block text-center font-medium">
                         Pendiente VB
                       </span>
-                      <p className="text-[10px] text-text-muted text-center mt-1 truncate">
-                        {selectedRequest.approver_name || 'Director de Obra'}
+                      <p className="text-[10px] text-text-muted text-center mt-1 truncate" title={selectedRequest.approver_name || 'Aprobador del Proyecto'}>
+                        {selectedRequest.approver_name || 'Aprobador Asignado'}
                       </p>
                     </div>
                   )}
