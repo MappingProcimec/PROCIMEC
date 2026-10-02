@@ -485,13 +485,22 @@ export async function PATCH(req: NextRequest) {
     const updatePayload: Record<string, any> = {
       items_responses: rawResponses,
       has_anomalies: !acknowledged,
-      status: acknowledged ? 'audited' : 'submitted',
     };
 
-    const { error: updateErr } = await supabase
+    let { error: updateErr } = await supabase
       .from(targetTable)
       .update(updatePayload)
       .eq('id', id);
+
+    if (updateErr && updateErr.message?.includes('has_anomalies')) {
+      const resFallback = await supabase
+        .from(targetTable)
+        .update({
+          items_responses: rawResponses,
+        })
+        .eq('id', id);
+      updateErr = resFallback.error;
+    }
 
     if (updateErr) {
       console.error('Error actualizando alerta en inspección:', updateErr);
