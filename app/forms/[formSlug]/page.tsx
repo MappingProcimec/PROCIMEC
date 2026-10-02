@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -456,6 +456,12 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('projectId') ?? undefined;
   const router = useRouter();
+
+  useEffect(() => {
+    if (formSlug === 'requerimiento-compra') {
+      router.replace('/forms/requerimiento-compra');
+    }
+  }, [formSlug, router]);
 
   const config = FORM_CONFIGS[formSlug] ?? {
     name: `Formulario: ${formSlug}`,
