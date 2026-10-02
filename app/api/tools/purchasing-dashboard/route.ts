@@ -292,6 +292,11 @@ export async function GET(req: NextRequest) {
         userObj?.email ||
         '';
 
+      const applicantCedula =
+        (r.applicant_cedula as string) ||
+        (meta.applicant_cedula as string) ||
+        '';
+
       const approverName = (r.approver_name as string) || (meta.approver_name as string) || '';
       const deliveryDate =
         (r.delivery_date as string) ||
@@ -341,6 +346,7 @@ export async function GET(req: NextRequest) {
         consecutive,
         request_code: requestCode,
         applicant_name: applicantName,
+        applicant_cedula: applicantCedula,
         approver_name: approverName,
         delivery_date: deliveryDate,
         delivery_site: deliverySite,

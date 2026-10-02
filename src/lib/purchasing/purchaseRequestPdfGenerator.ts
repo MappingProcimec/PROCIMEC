@@ -18,10 +18,12 @@ export interface PurchaseRequestPdfData {
   requestCode: string;
   consecutive?: number;
   createdDate?: string;
+  submissionDateTime?: string;
   projectName: string;
   costCenter?: string;
   clientName?: string;
   applicantName: string;
+  applicantCedula?: string;
   approverName: string;
   deliveryDate: string;
   deliverySite: string;
@@ -346,9 +348,9 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
   curY += 5.5;
 
   const boxW = contentWidth / 3;
-  const boxH = 26;
+  const boxH = 30;
 
-  // Caja 1: Solicitado Por
+  // Caja 1: Solicitado Por (Firma Electrónica / Digital)
   doc.setFillColor(...COLOR_BG_LIGHT);
   doc.rect(marginX, curY, boxW, boxH, 'F');
   doc.setDrawColor(...COLOR_BORDER);
@@ -360,18 +362,43 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
   doc.setFontSize(6.5);
   doc.text('SOLICITADO POR:', marginX + 3, curY + 4);
 
-  doc.setDrawColor(...COLOR_MUTED);
-  doc.setLineWidth(0.3);
-  doc.line(marginX + 4, curY + 18, marginX + boxW - 4, curY + 18);
+  // Marco de Firma Digital
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(marginX + 2.5, curY + 5.5, boxW - 5, boxH - 7.5, 1.5, 1.5, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(marginX + 2.5, curY + 5.5, boxW - 5, boxH - 7.5, 1.5, 1.5, 'D');
 
+  // Sello de Firma Electrónica
+  doc.setTextColor(16, 185, 129); // Verde esmeralda institucional
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6);
+  doc.text('✓ FIRMA ELECTRÓNICA REGISTRADA', marginX + boxW / 2, curY + 9.5, { align: 'center' });
+
+  // Nombre del Solicitante
   doc.setTextColor(...COLOR_CHARCOAL);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.text(data.applicantName || 'Firma Solicitante', marginX + boxW / 2, curY + 21, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
+  doc.setFontSize(7.5);
+  doc.text(data.applicantName || 'Solicitante', marginX + boxW / 2, curY + 14, { align: 'center' });
+
+  // Cédula del Solicitante
+  doc.setTextColor(...COLOR_GRAPHITE);
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(6.5);
+  const cedulaText = data.applicantCedula ? `C.C. ${data.applicantCedula}` : 'Cédula Registrada';
+  doc.text(cedulaText, marginX + boxW / 2, curY + 18, { align: 'center' });
+
+  // Fecha y hora exacta de envío
   doc.setTextColor(...COLOR_MUTED);
-  doc.text('Responsable de Operación / Solicitante', marginX + boxW / 2, curY + 24, { align: 'center' });
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(5.8);
+  const timeText = data.submissionDateTime ? `Envío: ${data.submissionDateTime}` : `Fecha: ${data.createdDate || displayDate}`;
+  doc.text(timeText, marginX + boxW / 2, curY + 22, { align: 'center' });
+
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(5);
+  doc.setTextColor(148, 163, 184);
+  doc.text(`PCM CLOUD — ${data.requestCode}`, marginX + boxW / 2, curY + 25.5, { align: 'center' });
 
   // Caja 2: Aprobado Por
   const box2X = marginX + boxW;
@@ -384,16 +411,16 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
   doc.setFontSize(6.5);
   doc.text('APROBADO POR (PROYECTO):', box2X + 3, curY + 4);
 
-  doc.line(box2X + 4, curY + 18, box2X + boxW - 4, curY + 18);
+  doc.line(box2X + 4, curY + 19, box2X + boxW - 4, curY + 19);
 
   doc.setTextColor(...COLOR_CHARCOAL);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
-  doc.text(data.approverName || 'Firma Aprobador', box2X + boxW / 2, curY + 21, { align: 'center' });
+  doc.text(data.approverName || 'Firma Aprobador', box2X + boxW / 2, curY + 22.5, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6);
   doc.setTextColor(...COLOR_MUTED);
-  doc.text('Residente / Director de Proyecto', box2X + boxW / 2, curY + 24, { align: 'center' });
+  doc.text('Residente / Director de Proyecto', box2X + boxW / 2, curY + 26, { align: 'center' });
 
   // Caja 3: Recepción Compras
   const box3X = marginX + boxW * 2;
@@ -406,16 +433,16 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
   doc.setFontSize(6.5);
   doc.text('GESTIÓN DE COMPRAS Y SUMINISTROS:', box3X + 3, curY + 4);
 
-  doc.line(box3X + 4, curY + 18, box3X + boxW - 4, curY + 18);
+  doc.line(box3X + 4, curY + 19, box3X + boxW - 4, curY + 19);
 
   doc.setTextColor(...COLOR_CHARCOAL);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
-  doc.text('Recepción y Radicación', box3X + boxW / 2, curY + 21, { align: 'center' });
+  doc.text('Recepción y Radicación', box3X + boxW / 2, curY + 22.5, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6);
   doc.setTextColor(...COLOR_MUTED);
-  doc.text('Área de Compras | PCM CLOUD', box3X + boxW / 2, curY + 24, { align: 'center' });
+  doc.text('Área de Compras | PCM CLOUD', box3X + boxW / 2, curY + 26, { align: 'center' });
 
   // 5. PIE DE PÁGINA EN TODAS LAS PÁGINAS
   const totalPages = doc.getNumberOfPages();

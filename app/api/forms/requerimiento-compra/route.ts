@@ -203,6 +203,7 @@ export async function POST(req: NextRequest) {
     project_name,
     client_name,
     applicant_name,
+    applicant_cedula,
     approver_name,
     delivery_date,
     delivery_site,
@@ -216,6 +217,10 @@ export async function POST(req: NextRequest) {
 
   if (!applicant_name || !String(applicant_name).trim()) {
     return NextResponse.json({ error: 'El nombre del solicitante es obligatorio.' }, { status: 400 });
+  }
+
+  if (!applicant_cedula || !String(applicant_cedula).trim()) {
+    return NextResponse.json({ error: 'La cédula del solicitante es obligatoria para la firma digital.' }, { status: 400 });
   }
 
   if (!approver_name || !String(approver_name).trim()) {
@@ -291,7 +296,7 @@ export async function POST(req: NextRequest) {
 
   const requestCode = `REQ-${String(consecutive).padStart(4, '0')}`;
   const title = `Requerimiento ${requestCode} - ${project_name || cost_center || 'Operación'}`;
-  const justification = `Entrega en ${delivery_site}. Contacto: ${contact_phone}. Aprobado por: ${approver_name}.`;
+  const justification = `Entrega en ${delivery_site}. Contacto: ${contact_phone}. Aprobado por: ${approver_name}. Cédula solicitante: ${String(applicant_cedula).trim()}.`;
 
   // 4. Intentar inserción con esquema completo
   try {
@@ -330,6 +335,7 @@ export async function POST(req: NextRequest) {
             consecutive,
             request_code: requestCode,
             applicant_name,
+            applicant_cedula: String(applicant_cedula).trim(),
             approver_name,
             delivery_date,
             delivery_site,
@@ -376,6 +382,7 @@ export async function POST(req: NextRequest) {
       data,
       request_code: requestCode,
       consecutive,
+      applicant_cedula: String(applicant_cedula).trim(),
     });
   } catch (insertError: unknown) {
     console.error('Error insertando en purchase_requests:', insertError);

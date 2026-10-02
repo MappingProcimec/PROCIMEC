@@ -89,11 +89,13 @@ export default function RequerimientoCompraPage() {
     clientName: string;
     costCenter: string;
     applicantName: string;
+    applicantCedula: string;
     approverName: string;
     deliveryDate: string;
     deliverySite: string;
     contactPhone: string;
     items: ItemRow[];
+    submissionDateTime: string;
   } | null>(null);
 
   // Datos base del formulario
@@ -105,6 +107,7 @@ export default function RequerimientoCompraPage() {
   // Campos de cabecera
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [applicantName, setApplicantName] = useState<string>('');
+  const [applicantCedula, setApplicantCedula] = useState<string>('');
   const [approverName, setApproverName] = useState<string>('');
   const [deliveryDate, setDeliveryDate] = useState<string>('');
   const [deliverySite, setDeliverySite] = useState<string>('');
@@ -264,6 +267,11 @@ export default function RequerimientoCompraPage() {
       return;
     }
 
+    if (!applicantCedula.trim()) {
+      setErrorMessage('La cédula del solicitante es obligatoria para la firma digital del requerimiento.');
+      return;
+    }
+
     if (!approverName.trim()) {
       setErrorMessage('Debe indicar el nombre de la persona que aprueba el requerimiento.');
       return;
@@ -307,6 +315,7 @@ export default function RequerimientoCompraPage() {
         project_name: selectedProject?.name || '',
         client_name: selectedProject?.client || '',
         applicant_name: applicantName.trim(),
+        applicant_cedula: applicantCedula.trim(),
         approver_name: approverName.trim(),
         delivery_date: deliveryDate,
         delivery_site: deliverySite.trim(),
@@ -335,6 +344,15 @@ export default function RequerimientoCompraPage() {
         throw new Error(json.error || 'Error al guardar la solicitud de requerimiento.');
       }
 
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const secs = String(now.getSeconds()).padStart(2, '0');
+      const formattedDateTime = `${day}/${month}/${year} ${hours}:${mins}:${secs}`;
+
       setSubmittedData({
         requestCode: json.request_code || requestCode,
         consecutive: json.consecutive || consecutive,
@@ -343,11 +361,13 @@ export default function RequerimientoCompraPage() {
         clientName: selectedProject?.client || 'Cliente Corporativo',
         costCenter: selectedProject?.cost_center || '',
         applicantName: applicantName.trim(),
+        applicantCedula: applicantCedula.trim(),
         approverName: approverName.trim(),
         deliveryDate: deliveryDate,
         deliverySite: deliverySite.trim(),
         contactPhone: contactPhone.trim(),
         items: [...items],
+        submissionDateTime: formattedDateTime,
       });
       setIsSuccess(true);
     } catch (err) {
@@ -358,7 +378,7 @@ export default function RequerimientoCompraPage() {
     }
   };
 
-  // Manejo de descarga del PDF oficial tras guardar
+  // Manejo de descarga del PDF oficial tras guardar con firma digital
   const handleDownloadOfficialPdf = () => {
     if (!submittedData) return;
     try {
@@ -367,10 +387,12 @@ export default function RequerimientoCompraPage() {
         requestCode: submittedData.requestCode,
         consecutive: submittedData.consecutive,
         createdDate: todayDate,
+        submissionDateTime: submittedData.submissionDateTime,
         projectName: submittedData.projectName,
         costCenter: submittedData.costCenter,
         clientName: submittedData.clientName,
         applicantName: submittedData.applicantName,
+        applicantCedula: submittedData.applicantCedula,
         approverName: submittedData.approverName,
         deliveryDate: submittedData.deliveryDate,
         deliverySite: submittedData.deliverySite,
@@ -397,47 +419,7 @@ export default function RequerimientoCompraPage() {
     }
   };
 
-  // Manejo de descarga del PDF directamente desde el formulario activo (Borrador/Previo)
-  const handleDownloadDraftPdf = () => {
-    if (!selectedProjectId) {
-      setErrorMessage('Selecciona primero el proyecto destino para generar el PDF.');
-      return;
-    }
-    try {
-      setIsGeneratingPdf(true);
-      downloadPurchaseRequestPdf({
-        requestCode: requestCode || `REQ-${String(consecutive).padStart(4, '0')}`,
-        consecutive: consecutive,
-        createdDate: todayDate,
-        projectName: selectedProject?.name || 'Proyecto Seleccionado',
-        costCenter: selectedProject?.cost_center || '',
-        clientName: selectedProject?.client || '',
-        applicantName: applicantName.trim() || 'Solicitante',
-        approverName: approverName.trim() || 'Por definir',
-        deliveryDate: deliveryDate || todayDate,
-        deliverySite: deliverySite.trim() || 'Por definir',
-        contactPhone: contactPhone.trim() || 'Por definir',
-        items: itemsWithTotal.map((it) => ({
-          item_no: it.item_no,
-          quantity: it.quantity,
-          unit: it.unit,
-          description: it.description || 'Ítem sin descripción',
-          client_quote_no: it.client_quote_no,
-          brand: it.brand,
-          suggested_supplier: it.suggested_supplier,
-          unit_price: it.unit_price,
-          total: it.calculatedTotal,
-        })),
-        totalAmount: grandTotal,
-        status: 'draft',
-      });
-    } catch (err) {
-      console.error('Error al generar PDF preliminar:', err);
-      setErrorMessage('No se pudo generar la descarga del documento PDF.');
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
+  // Manejo de formulario limpio tras envío exitoso
 
   // Pantalla de éxito
   if (isSuccess && submittedData) {
@@ -486,11 +468,17 @@ export default function RequerimientoCompraPage() {
                 <span className="font-semibold text-text-primary">{submittedData.clientName}</span>
               </div>
               <div>
-                <span className="text-text-muted block">Fecha de Registro:</span>
-                <span className="font-mono text-text-primary">{todayDate}</span>
+                <span className="text-text-muted block">Solicitante (Firmante):</span>
+                <span className="font-semibold text-text-primary">
+                  {submittedData.applicantName} <span className="font-mono text-text-muted">(C.C. {submittedData.applicantCedula})</span>
+                </span>
               </div>
               <div>
-                <span className="text-text-muted block">Valor Total Estimado:</span>
+                <span className="text-text-muted block">Fecha y Hora de Firma/Envío:</span>
+                <span className="font-mono font-bold text-text-primary">{submittedData.submissionDateTime}</span>
+              </div>
+              <div className="sm:col-span-2 pt-2 border-t border-border flex justify-between items-center">
+                <span className="text-text-muted">Valor Total Estimado:</span>
                 <span className="font-mono font-bold text-accent-800 text-sm">
                   {formatCurrency(submittedData.totalAmount)}
                 </span>
@@ -669,6 +657,21 @@ export default function RequerimientoCompraPage() {
                     />
                   </div>
 
+                  {/* Cédula del Solicitante para Firma Digital */}
+                  <div>
+                    <label className="block text-xs font-semibold text-text-primary mb-1">
+                      Cédula del Solicitante <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={applicantCedula}
+                      onChange={(e) => setApplicantCedula(e.target.value)}
+                      placeholder="Ej: 1098765432"
+                      className="w-full text-sm rounded-lg border border-border bg-white px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent font-mono"
+                    />
+                  </div>
+
                   {/* Nombre de quien aprueba */}
                   <div>
                     <label className="block text-xs font-semibold text-text-primary mb-1">
@@ -699,7 +702,7 @@ export default function RequerimientoCompraPage() {
                   </div>
 
                   {/* Contacto / Teléfono */}
-                  <div>
+                  <div className="sm:col-span-1 lg:col-span-2">
                     <label className="block text-xs font-semibold text-text-primary mb-1">
                       Contacto / Teléfono <span className="text-red-500">*</span>
                     </label>
@@ -716,8 +719,8 @@ export default function RequerimientoCompraPage() {
                     </div>
                   </div>
 
-                  {/* Sitio de Entrega (Ocupa 2 columnas o ancho completo) */}
-                  <div className="sm:col-span-2 lg:col-span-4">
+                  {/* Sitio de Entrega */}
+                  <div className="sm:col-span-1 lg:col-span-2">
                     <label className="block text-xs font-semibold text-text-primary mb-1">
                       Sitio Físico de Entrega <span className="text-red-500">*</span>
                     </label>
@@ -940,22 +943,13 @@ export default function RequerimientoCompraPage() {
                 <span className="font-semibold text-text-primary">Nota importante:</span> Al enviar esta solicitud, se registrará formalmente con su consecutivo automático y fecha oficial para la revisión del área de Compras.
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                 <Link
                   href="/dashboard"
                   className="w-full sm:w-auto btn bg-white text-text-primary border border-border hover:bg-gray-50 text-xs px-4 py-2.5 rounded-lg text-center"
                 >
                   Cancelar
                 </Link>
-                <button
-                  type="button"
-                  onClick={handleDownloadDraftPdf}
-                  disabled={isGeneratingPdf || isSubmitting}
-                  className="w-full sm:w-auto btn bg-white text-text-primary border border-border hover:bg-gray-50 text-xs px-4 py-2.5 rounded-lg flex items-center justify-center gap-2"
-                >
-                  <Download className="w-4 h-4 text-accent" strokeWidth={2} />
-                  {isGeneratingPdf ? 'Generando...' : 'Descargar PDF'}
-                </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}

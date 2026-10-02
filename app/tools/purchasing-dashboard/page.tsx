@@ -58,6 +58,7 @@ interface PurchaseRequest {
   consecutive?: number | null;
   request_code?: string;
   applicant_name?: string;
+  applicant_cedula?: string;
   approver_name?: string;
   delivery_date?: string;
   delivery_site?: string;
@@ -231,6 +232,25 @@ export default function PurchasingDashboardPage() {
     }).format(val);
   };
 
+  const formatDateTimeCO = (dateStr?: string | null) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      return new Intl.DateTimeFormat('es-CO', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+        timeZone: 'America/Bogota',
+      }).format(d);
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Descargar PDF de requerimiento
   const handleDownloadPdf = (r: PurchaseRequest) => {
     try {
@@ -252,14 +272,18 @@ export default function PurchasingDashboardPage() {
           ? Number(r.total_amount)
           : itemsMapped.reduce((acc, it) => acc + (Number(it.total) || 0), 0);
 
+      const submissionFormatted = formatDateTimeCO(r.created_at);
+
       downloadPurchaseRequestPdf({
         requestCode: r.request_code || (r.consecutive ? `REQ-${String(r.consecutive).padStart(4, '0')}` : 'REQ-0001'),
         consecutive: r.consecutive || undefined,
         createdDate: r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : undefined,
+        submissionDateTime: submissionFormatted,
         projectName: r.projects?.name || 'Proyecto Asignado',
         costCenter: r.cost_center || r.projects?.cost_center || '',
         clientName: r.client_name || r.projects?.client || '',
         applicantName: r.applicant_name || r.users?.full_name || 'Solicitante',
+        applicantCedula: r.applicant_cedula || '',
         approverName: r.approver_name || 'Aprobador de Proyecto',
         deliveryDate: r.delivery_date || r.required_date || '',
         deliverySite: r.delivery_site || 'Dirección de obra',
@@ -782,15 +806,26 @@ export default function PurchasingDashboardPage() {
                 </p>
               </div>
               <div>
-                <p className="text-text-muted">Solicitante</p>
+                <p className="text-text-muted">Solicitante (Firmante)</p>
                 <p className="font-semibold text-text-primary mt-0.5">
                   {selectedRequest.applicant_name || selectedRequest.users?.full_name || '—'}
                 </p>
+                {selectedRequest.applicant_cedula && (
+                  <span className="text-[10px] text-text-muted font-mono block">
+                    C.C. {selectedRequest.applicant_cedula}
+                  </span>
+                )}
               </div>
               <div>
                 <p className="text-text-muted">Quien Aprueba</p>
                 <p className="font-semibold text-text-primary mt-0.5">
                   {selectedRequest.approver_name || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-text-muted">Fecha y Hora de Firma</p>
+                <p className="font-mono text-text-primary mt-0.5 text-[11px]">
+                  {formatDateTimeCO(selectedRequest.created_at) || '—'}
                 </p>
               </div>
               <div>
