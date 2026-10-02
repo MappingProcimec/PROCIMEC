@@ -85,6 +85,7 @@ interface PurchaseRequest {
   applicant_name?: string;
   applicant_cedula?: string;
   approver_name?: string;
+  approver_user_id?: string | null;
   delivery_date?: string;
   delivery_site?: string;
   contact_phone?: string;
@@ -229,6 +230,25 @@ export default function PurchasingDashboardPage() {
   }, []);
 
   const dashboard = data?.data;
+
+  const currentUser = dashboard?.currentUser;
+  const currentRole = (currentUser?.role || '').toLowerCase();
+  const currentUserId = currentUser?.id || '';
+  const currentUserName = (currentUser?.name || '').toLowerCase().trim();
+
+  const isAdmin = currentRole === 'admin';
+  const isManagement = isAdmin || currentRole === 'management' || currentRole === 'gerencia';
+  const isPurchasing = isAdmin || currentRole === 'purchasing' || currentRole === 'compras';
+
+  // Verificar si el usuario conectado es el aprobador asignado en la solicitud seleccionada
+  const isDesignatedApprover = selectedRequest
+    ? (Boolean(selectedRequest.approver_name) &&
+        Boolean(currentUserName) &&
+        (selectedRequest.approver_name || '').toLowerCase().trim() === currentUserName) ||
+      (Boolean(selectedRequest.approver_user_id) && selectedRequest.approver_user_id === currentUserId)
+    : false;
+
+  const canSignDirector = isAdmin || isManagement || isDesignatedApprover;
 
   // Filtrado de requerimientos
   const filteredRequests = useMemo(() => {
@@ -649,8 +669,9 @@ export default function PurchasingDashboardPage() {
                   <option value="all">Todos los estados</option>
                   {activeTab === 'requests' ? (
                     <>
-                      <option value="pending">Pendientes</option>
+                      <option value="pending">Pendientes VB</option>
                       <option value="in_quotation">En Cotización</option>
+                      <option value="quoted">Cotizadas (Pendiente Gerencia)</option>
                       <option value="approved">Aprobadas</option>
                       <option value="purchased">Compradas</option>
                       <option value="rejected">Rechazadas</option>
@@ -1403,58 +1424,84 @@ export default function PurchasingDashboardPage() {
               <div className="p-3 bg-surface-secondary rounded-xl border border-border flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="text-text-muted font-medium">Gestión y Firmas de Solicitud:</span>
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Opción para Director de Proyecto: si está pendiente de VB */}
+                  {/* Opción 1: Aprobación del Proyecto (si está pendiente de VB inicial) */}
                   {(!selectedRequest.signatures?.director && selectedRequest.status === 'pending') && (
-                    <>
+                    canSignDirector ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => { setSigningStep('director'); setSigningAction('reject'); }}
+                          className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 font-semibold"
+                        >
+                          Rechazar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setSigningStep('director'); setSigningAction('approve'); }}
+                          className="btn bg-accent text-primary-900 font-bold hover:bg-accent-400 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs"
+                        >
+                          <PenTool className="w-3.5 h-3.5" />
+                          Dar Aprobación y Firmar
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 font-medium">
+                        Pendiente de aprobación por {selectedRequest.approver_name || 'Aprobador del Proyecto'}
+                      </span>
+                    )
+                  )}
+
+                  {/* Opción 2: Cotización de Compras (si ya tiene VB de proyecto y está en cotización) */}
+                  {(selectedRequest.signatures?.director && !selectedRequest.signatures?.purchasing && selectedRequest.status !== 'rejected') && (
+                    isPurchasing ? (
                       <button
                         type="button"
-                        onClick={() => { setSigningStep('director'); setSigningAction('reject'); }}
-                        className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 font-semibold"
-                      >
-                        Rechazar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setSigningStep('director'); setSigningAction('approve'); }}
+                        onClick={() => { setSigningStep('purchasing'); setSigningAction('approve'); }}
                         className="btn bg-accent text-primary-900 font-bold hover:bg-accent-400 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs"
                       >
                         <PenTool className="w-3.5 h-3.5" />
-                        Dar VB Técnico y Firmar
+                        Firmar Cotización de Compras
                       </button>
-                    </>
+                    ) : (
+                      <span className="text-xs text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 font-medium">
+                        En gestión de cotización por el Área de Compras
+                      </span>
+                    )
                   )}
 
-                  {/* Opción para Compras: si ya tiene VB y está en cotización */}
-                  {(selectedRequest.signatures?.director && !selectedRequest.signatures?.purchasing && selectedRequest.status !== 'rejected') && (
-                    <button
-                      type="button"
-                      onClick={() => { setSigningStep('purchasing'); setSigningAction('approve'); }}
-                      className="btn bg-accent text-primary-900 font-bold hover:bg-accent-400 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs"
-                    >
-                      <PenTool className="w-3.5 h-3.5" />
-                      Firmar Cotización de Compras
-                    </button>
-                  )}
-
-                  {/* Opción para Gerencia (Punto 4): si ya tiene firma de compras y no está aprobada aún */}
+                  {/* Opción 3: Aprobación Final de Gerencia (si ya fue cotizada y está pendiente de firma final) */}
                   {(selectedRequest.signatures?.purchasing && !selectedRequest.signatures?.management && selectedRequest.status !== 'rejected') && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => { setSigningStep('management'); setSigningAction('reject'); }}
-                        className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 font-semibold"
-                      >
-                        Rechazar Compra
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setSigningStep('management'); setSigningAction('approve'); }}
-                        className="btn bg-emerald-600 text-white font-bold hover:bg-emerald-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs"
-                      >
-                        <ShieldCheck className="w-4 h-4" />
-                        Aprobar Compra Final (Gerencia)
-                      </button>
-                    </>
+                    isManagement ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => { setSigningStep('management'); setSigningAction('reject'); }}
+                          className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 font-semibold"
+                        >
+                          Rechazar Compra
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setSigningStep('management'); setSigningAction('approve'); }}
+                          className="btn bg-emerald-600 text-white font-bold hover:bg-emerald-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs"
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                          Aprobar Compra Final (Gerencia)
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-purple-800 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 font-medium">
+                        Cotización registrada. En espera de aprobación final por Gerencia General
+                      </span>
+                    )
+                  )}
+
+                  {/* Estado finalizado de solicitud aprobada */}
+                  {Boolean(selectedRequest.signatures?.management || selectedRequest.status === 'approved') && (
+                    <span className="text-xs text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Solicitud aprobada formalmente por Gerencia General
+                    </span>
                   )}
                 </div>
               </div>

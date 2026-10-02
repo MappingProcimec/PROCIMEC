@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
             return it;
           });
         }
-        newStatus = 'in_quotation';
+        newStatus = 'quoted';
       } else if (step === 'management') {
         roleLabel = 'Gerencia General / Aprobación Final';
         newStatus = 'approved'; // Aprobada para emisión de orden

@@ -362,7 +362,7 @@ export async function GET(req: NextRequest) {
     });
 
     const stats = {
-      pendingRequests: requests.filter((r) => r.status === 'pending' || r.status === 'in_quotation').length,
+      pendingRequests: requests.filter((r) => r.status === 'pending' || r.status === 'in_quotation' || r.status === 'quoted').length,
       activeOrders: orders.filter((o) => o.status === 'issued' || o.status === 'partially_received').length,
       totalCommittedCOP: orders.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0),
       evaluatedSuppliers: evaluations.length,
