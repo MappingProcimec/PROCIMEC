@@ -60,6 +60,10 @@ const STATUS_MAP: Record<string, string> = {
   won: 'Ganado',
   lost: 'Perdido',
   audited: 'Auditado',
+  radicada: 'Radicada',
+  causada: 'Causada',
+  pagada: 'Pagada',
+  anulada: 'Anulada',
 };
 
 export async function GET(req: NextRequest) {
@@ -74,7 +78,7 @@ export async function GET(req: NextRequest) {
     // Validar usuario
     const { data: dbUser } = await supabase
       .from('users')
-      .select('id, email, full_name, role')
+      .select('id, email, full_name, role, role_id')
       .eq('email', session.user.email)
       .single();
 
@@ -91,6 +95,89 @@ export async function GET(req: NextRequest) {
     const filterDateTo = searchParams.get('date_to') || '';
     const filterHasFiles = searchParams.get('has_files') || 'all';
     const searchQuery = (searchParams.get('search') || '').trim().toLowerCase();
+
+    // 0. Determinar alcance de permisos del usuario autenticado (user_forms prioritario)
+    const isAdmin = dbUser.role === 'admin';
+    const allowedFormSlugs = new Set<string>();
+
+    if (!isAdmin) {
+      // Prioridad 1: Asignaciones específicas directas en user_forms (individual por usuario)
+      const { data: userFormsData, error: ufError } = await supabase
+        .from('user_forms')
+        .select('form_id, forms(id, slug, name)')
+        .eq('user_id', dbUser.id);
+
+      const formIds: string[] = [];
+      if (!ufError && userFormsData && userFormsData.length > 0) {
+        for (const uf of userFormsData) {
+          if (uf.form_id) formIds.push(uf.form_id);
+          const formObj = (uf as any)?.forms;
+          if (formObj?.slug) {
+            allowedFormSlugs.add(formObj.slug);
+          }
+        }
+
+        // Si algún formulario no trajo slug en el join, resolver directamente por IDs en forms
+        if (allowedFormSlugs.size < userFormsData.length && formIds.length > 0) {
+          const { data: directForms } = await supabase
+            .from('forms')
+            .select('id, slug')
+            .in('id', formIds);
+          for (const df of directForms ?? []) {
+            if (df.slug) allowedFormSlugs.add(df.slug);
+          }
+        }
+      } else {
+        // Fallback: Si el usuario no tiene registros en user_forms (usuario no editado individualmente),
+        // consultar role_forms según su role_id
+        if (dbUser.role_id) {
+          const { data: roleFormsData } = await supabase
+            .from('role_forms')
+            .select('forms(slug)')
+            .eq('role_id', dbUser.role_id);
+          for (const rf of roleFormsData ?? []) {
+            const slug = (rf as any)?.forms?.slug;
+            if (slug) allowedFormSlugs.add(slug);
+          }
+        }
+
+        // Si aún está vacío, recurrir a la matriz canónica por defecto del rol
+        if (allowedFormSlugs.size === 0 && dbUser.role) {
+          const CANONICAL_ROLE_FORMS: Record<string, string[]> = {
+            hseq: ['hseq-report', 'analisis-planificacion-cambios-sig'],
+            operator: ['gpr-field-form'],
+            localizador: ['gpr-field-form'],
+            dibujo: ['cad-register-form'],
+            drawing: ['cad-register-form'],
+            warehouse: ['registro-equipo'],
+            almacen: ['registro-equipo'],
+            purchasing: ['requerimiento-compra', 'orden-compra', 'evaluacion-proveedor'],
+            compras: ['requerimiento-compra', 'orden-compra', 'evaluacion-proveedor'],
+            commercial: ['registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial'],
+            comercial: ['registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial'],
+            finance: ['solicitud-viaticos', 'legalizacion-gastos', 'registro-pago'],
+            finanzas: ['solicitud-viaticos', 'legalizacion-gastos', 'registro-pago'],
+            accounting: ['radicacion-factura', 'soporte-cobro'],
+            contabilidad: ['radicacion-factura', 'soporte-cobro'],
+            hr: ['elaboracion-cartas'],
+            rrhh: ['elaboracion-cartas'],
+          };
+          const defaults = CANONICAL_ROLE_FORMS[dbUser.role.toLowerCase()] ?? [];
+          defaults.forEach((s) => allowedFormSlugs.add(s));
+        }
+      }
+    }
+
+    const isAllowedForm = (slug: string) => {
+      if (isAdmin) return true;
+      return allowedFormSlugs.has(slug);
+    };
+
+    const shouldFetchForm = (slug: string) => {
+      if (!isAllowedForm(slug)) return false;
+      if (filterFormSlug === 'all') return true;
+      return filterFormSlug === slug;
+    };
 
     // 1. Cargar Proyectos y Usuarios para cruce O(1)
     const [projectsRes, usersRes] = await Promise.all([
@@ -140,7 +227,7 @@ export async function GET(req: NextRequest) {
     const tasks: Promise<void>[] = [];
 
     // A) SIG - Análisis y Planificación de Cambios (FOR-SIG-001)
-    if (filterFormSlug === 'all' || filterFormSlug === 'analisis-planificacion-cambios-sig') {
+    if (shouldFetchForm('analisis-planificacion-cambios-sig')) {
       tasks.push(
         (async () => {
           try {
@@ -232,7 +319,7 @@ export async function GET(req: NextRequest) {
     }
 
     // B) HSEQ - Inspecciones Pre-operacionales y de Campo
-    if (filterFormSlug === 'all' || filterFormSlug === 'hseq-report') {
+    if (shouldFetchForm('hseq-report')) {
       tasks.push(
         (async () => {
           try {
@@ -324,7 +411,7 @@ export async function GET(req: NextRequest) {
     }
 
     // C) GPR - Reportes de Campo
-    if (filterFormSlug === 'all' || filterFormSlug === 'gpr-field-form') {
+    if (shouldFetchForm('gpr-field-form')) {
       tasks.push(
         (async () => {
           try {
@@ -378,7 +465,7 @@ export async function GET(req: NextRequest) {
     }
 
     // D) RRHH - Cartas y Certificaciones Laborales
-    if (filterFormSlug === 'all' || filterFormSlug === 'elaboracion-cartas') {
+    if (shouldFetchForm('elaboracion-cartas')) {
       tasks.push(
         (async () => {
           try {
@@ -433,7 +520,7 @@ export async function GET(req: NextRequest) {
     }
 
     // E) CAD / BIM - Bitácora de Actividades de Dibujo
-    if (filterFormSlug === 'all' || filterFormSlug === 'cad-register-form') {
+    if (shouldFetchForm('cad-register-form')) {
       tasks.push(
         (async () => {
           try {
@@ -477,7 +564,7 @@ export async function GET(req: NextRequest) {
     }
 
     // F) COMPRAS - Requerimientos de Compra
-    if (filterFormSlug === 'all' || filterFormSlug === 'requerimiento-compra') {
+    if (shouldFetchForm('requerimiento-compra')) {
       tasks.push(
         (async () => {
           try {
@@ -521,7 +608,7 @@ export async function GET(req: NextRequest) {
     }
 
     // G) COMPRAS - Órdenes de Compra
-    if (filterFormSlug === 'all' || filterFormSlug === 'orden-compra') {
+    if (shouldFetchForm('orden-compra')) {
       tasks.push(
         (async () => {
           try {
@@ -565,7 +652,7 @@ export async function GET(req: NextRequest) {
     }
 
     // H) FINANZAS - Solicitud de Viáticos
-    if (filterFormSlug === 'all' || filterFormSlug === 'solicitud-viaticos') {
+    if (shouldFetchForm('solicitud-viaticos')) {
       tasks.push(
         (async () => {
           try {
@@ -609,7 +696,7 @@ export async function GET(req: NextRequest) {
     }
 
     // I) FINANZAS - Legalización de Gastos
-    if (filterFormSlug === 'all' || filterFormSlug === 'legalizacion-gastos') {
+    if (shouldFetchForm('legalizacion-gastos')) {
       tasks.push(
         (async () => {
           try {
@@ -668,19 +755,33 @@ export async function GET(req: NextRequest) {
     }
 
     // J) CONTABILIDAD - Radicación de Facturas
-    if (filterFormSlug === 'all' || filterFormSlug === 'radicacion-factura') {
+    if (shouldFetchForm('radicacion-factura')) {
       tasks.push(
         (async () => {
           try {
-            const { data } = await supabase
-              .from('invoices_payable')
+            // Soporta tanto invoice_filings (tabla canónica corporativa) como invoices_payable
+            let data: any[] | null = null;
+            const resFilings = await supabase
+              .from('invoice_filings')
               .select('*')
               .order('created_at', { ascending: false })
               .limit(100);
 
+            if (!resFilings.error && resFilings.data && resFilings.data.length > 0) {
+              data = resFilings.data;
+            } else {
+              const resPayable = await supabase
+                .from('invoices_payable')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(100);
+              data = resPayable.data ?? resFilings.data;
+            }
+
             for (const r of data ?? []) {
               const u = resolveUser(r.user_id);
               const p = resolveProject(r.project_id);
+              const amount = r.total_amount ?? r.amount ?? 0;
 
               allRecords.push({
                 id: r.id,
@@ -695,17 +796,17 @@ export async function GET(req: NextRequest) {
                 user_name: u.user_name,
                 user_email: u.user_email,
                 created_at: r.created_at,
-                submission_date: r.due_date || r.created_at.split('T')[0],
+                submission_date: r.due_date || r.issue_date || r.created_at.split('T')[0],
                 status: r.status || 'pending',
                 status_label: STATUS_MAP[r.status] || r.status,
-                summary: `Proveedor: ${r.supplier_name || 'N/A'} - Factura N°: ${r.invoice_number || 'N/A'} - Monto: $${Number(r.amount || 0).toLocaleString('es-CO')} COP`,
+                summary: `Proveedor: ${r.supplier_name || 'N/A'} - Factura N°: ${r.invoice_number || 'N/A'} - Monto: $${Number(amount).toLocaleString('es-CO')} COP`,
                 files: [],
                 signatures: [],
                 raw_data: r,
               });
             }
           } catch (e) {
-            console.error('Error cargando invoices_payable:', e);
+            console.error('Error cargando invoice_filings:', e);
           }
         })()
       );
@@ -789,6 +890,10 @@ export async function GET(req: NextRequest) {
       { slug: 'radicacion-factura', name: 'Radicación de Factura Proveedor', category: 'accounting' },
     ];
 
+    const effectiveFormsCatalog = isAdmin
+      ? formsCatalog
+      : formsCatalog.filter((f) => allowedFormSlugs.has(f.slug));
+
     // Proyectos activos para dropdown
     const projectsCatalog = Array.from(projectsMap.entries()).map(([id, p]) => ({
       id,
@@ -806,7 +911,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       data: filtered,
       stats,
-      forms_catalog: formsCatalog,
+      forms_catalog: effectiveFormsCatalog,
       projects_catalog: projectsCatalog,
       users_catalog: usersCatalog,
     });
