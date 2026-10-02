@@ -581,7 +581,7 @@ export async function GET(req: NextRequest) {
               allRecords.push({
                 id: r.id,
                 form_slug: 'requerimiento-compra',
-                form_name: 'Requerimiento de Compra e Insumos',
+                form_name: 'Solicitud de Requerimiento',
                 form_category: 'purchasing',
                 official_code: `REQ-${String(r.id).substring(0, 8).toUpperCase()}`,
                 project_id: r.project_id,
@@ -883,7 +883,7 @@ export async function GET(req: NextRequest) {
       { slug: 'gpr-field-form', name: 'Reporte Diario de Campo GPR', category: 'gpr' },
       { slug: 'cad-register-form', name: 'Bitácora de Dibujo CAD / BIM', category: 'cad' },
       { slug: 'elaboracion-cartas', name: 'Elaboración de Cartas y Certificaciones', category: 'rrhh' },
-      { slug: 'requerimiento-compra', name: 'Requerimiento de Compra e Insumos', category: 'purchasing' },
+      { slug: 'requerimiento-compra', name: 'Solicitud de Requerimiento', category: 'purchasing' },
       { slug: 'orden-compra', name: 'Orden de Compra y Adjudicación', category: 'purchasing' },
       { slug: 'solicitud-viaticos', name: 'Solicitud de Viáticos y Anticipos', category: 'finance' },
       { slug: 'legalizacion-gastos', name: 'Legalización y Rendición de Gastos', category: 'finance' },

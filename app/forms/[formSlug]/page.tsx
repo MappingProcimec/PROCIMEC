@@ -141,7 +141,7 @@ const FORM_CONFIGS: Record<string, FormConfig> = {
 
   // ─── COMPRAS (purchasing) ──────────────────────────────────────────────────
   'requerimiento-compra': {
-    name: 'Requerimiento de Compra',
+    name: 'Solicitud de Requerimiento',
     description: 'Solicitud interna de insumos, herramientas o servicios requeridos por proyectos o áreas.',
     hasAttachments: false,
     step1Fields: [

@@ -10,20 +10,41 @@ export async function GET() {
   }
 
   const supabase = createAdminClient();
+
+  // Sincronizar nombre canónico si existe en la base de datos
+  await supabase
+    .from('forms')
+    .update({ name: 'Solicitud de Requerimiento' })
+    .eq('slug', 'requerimiento-compra');
+
   const { data, error } = await supabase
     .from('forms')
     .select('id, slug, name, description, steps_count, has_attachments, created_at')
     .order('name', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const normalized = (data ?? []).map((f) => {
+
+  interface FormRow {
+    id: string;
+    slug: string;
+    name: string;
+    description?: string | null;
+    steps_count?: number;
+    has_attachments?: boolean;
+    created_at?: string;
+  }
+
+  const normalized: FormRow[] = ((data ?? []) as FormRow[]).map((f: FormRow) => {
     if (f.slug === 'gpr-field-form') {
       return { ...f, steps_count: 3, has_attachments: true };
+    }
+    if (f.slug === 'requerimiento-compra') {
+      return { ...f, name: 'Solicitud de Requerimiento' };
     }
     return f;
   });
 
-  const formSlugs = new Set(normalized.map((f) => f.slug));
+  const formSlugs = new Set(normalized.map((f: FormRow) => f.slug));
   if (!formSlugs.has('hseq-report')) {
     normalized.push({
       id: 'hseq-report-synthetic',
@@ -65,7 +86,7 @@ export async function GET() {
     normalized.push({
       id: 'requerimiento-compra-synthetic',
       slug: 'requerimiento-compra',
-      name: 'Requerimiento de Compra',
+      name: 'Solicitud de Requerimiento',
       description: 'Solicitud interna de insumos, herramientas o servicios requeridos por proyectos o áreas.',
       steps_count: 2,
       has_attachments: false,
@@ -191,8 +212,8 @@ export async function GET() {
 
   // Filtrar formularios obsoletos/unificados (solo un formulario unificado para Almacén)
   const filtered = normalized
-    .filter((f) => f.slug !== 'despacho-equipo' && f.slug !== 'retorno-equipo')
-    .map((f) => {
+    .filter((f: FormRow) => f.slug !== 'despacho-equipo' && f.slug !== 'retorno-equipo')
+    .map((f: FormRow) => {
       if (f.slug === 'registro-equipo') {
         return {
           ...f,

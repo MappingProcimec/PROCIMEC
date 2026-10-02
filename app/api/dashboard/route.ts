@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Formularios corporativos para Admin
-      if (!formSlugs.has('requerimiento-compra')) forms.push({ id: 'requerimiento-compra', slug: 'requerimiento-compra', name: 'Requerimiento de Compra' });
+      if (!formSlugs.has('requerimiento-compra')) forms.push({ id: 'requerimiento-compra', slug: 'requerimiento-compra', name: 'Solicitud de Requerimiento' });
       if (!formSlugs.has('orden-compra')) forms.push({ id: 'orden-compra', slug: 'orden-compra', name: 'Orden de Compra y Adjudicación' });
       if (!formSlugs.has('evaluacion-proveedor')) forms.push({ id: 'evaluacion-proveedor', slug: 'evaluacion-proveedor', name: 'Evaluación y Recepción de Proveedor' });
       if (!formSlugs.has('registro-oportunidad')) forms.push({ id: 'registro-oportunidad', slug: 'registro-oportunidad', name: 'Registro de Oportunidad / Licitación' });
@@ -159,10 +159,14 @@ export async function GET(req: NextRequest) {
       if (!formSlugs.has('radicacion-factura')) forms.push({ id: 'radicacion-factura', slug: 'radicacion-factura', name: 'Radicación de Factura Proveedor' });
       if (!formSlugs.has('soporte-cobro')) forms.push({ id: 'soporte-cobro', slug: 'soporte-cobro', name: 'Soporte de Cobro y Facturación' });
 
-      // Dejar un solo formulario unificado para Almacén
+      // Dejar un solo formulario unificado para Almacén y normalizar nombres corporativos
       forms = forms
         .filter((f) => f.slug !== 'despacho-equipo' && f.slug !== 'retorno-equipo')
-        .map((f) => f.slug === 'registro-equipo' ? { ...f, name: 'Movimientos y Registro de Almacén' } : f);
+        .map((f) => {
+          if (f.slug === 'registro-equipo') return { ...f, name: 'Movimientos y Registro de Almacén' };
+          if (f.slug === 'requerimiento-compra') return { ...f, name: 'Solicitud de Requerimiento' };
+          return f;
+        });
 
       projects = ((allProjectsRes.data ?? []) as unknown as Project[]).map((p) => {
         const cc = p.cost_center || p.code || '';
@@ -204,7 +208,7 @@ export async function GET(req: NextRequest) {
       }
     } else if (dbUser.role === 'purchasing') {
       const formSlugs = new Set(forms.map((f) => f.slug));
-      if (!formSlugs.has('requerimiento-compra')) forms.push({ id: 'requerimiento-compra', slug: 'requerimiento-compra', name: 'Requerimiento de Compra' });
+      if (!formSlugs.has('requerimiento-compra')) forms.push({ id: 'requerimiento-compra', slug: 'requerimiento-compra', name: 'Solicitud de Requerimiento' });
       if (!formSlugs.has('orden-compra')) forms.push({ id: 'orden-compra', slug: 'orden-compra', name: 'Orden de Compra y Adjudicación' });
       if (!formSlugs.has('evaluacion-proveedor')) forms.push({ id: 'evaluacion-proveedor', slug: 'evaluacion-proveedor', name: 'Evaluación y Recepción de Proveedor' });
     } else if (dbUser.role === 'commercial') {
@@ -223,10 +227,14 @@ export async function GET(req: NextRequest) {
       if (!formSlugs.has('soporte-cobro')) forms.push({ id: 'soporte-cobro', slug: 'soporte-cobro', name: 'Soporte de Cobro y Facturación' });
     }
 
-    // Dejar un solo formulario unificado para Almacén
+    // Dejar un solo formulario unificado para Almacén y normalizar nombres corporativos
     forms = forms
       .filter((f) => f.slug !== 'despacho-equipo' && f.slug !== 'retorno-equipo')
-      .map((f) => f.slug === 'registro-equipo' ? { ...f, name: 'Movimientos y Registro de Almacén' } : f);
+      .map((f) => {
+        if (f.slug === 'registro-equipo') return { ...f, name: 'Movimientos y Registro de Almacén' };
+        if (f.slug === 'requerimiento-compra') return { ...f, name: 'Solicitud de Requerimiento' };
+        return f;
+      });
 
     projects = (userProjectsRes.data ?? [])
       .map((up) => (up as unknown as { projects: Project | null }).projects)
