@@ -28,6 +28,8 @@ import {
   Eye,
   PenTool,
   ShieldCheck,
+  Check,
+  X,
 } from 'lucide-react';
 import {
   downloadPurchaseRequestPdf,
@@ -204,6 +206,7 @@ export default function PurchasingDashboardPage() {
   const [signerNotes, setSignerNotes] = useState('');
   const [isSubmittingSignature, setIsSubmittingSignature] = useState(false);
   const [signingSuccessMsg, setSigningSuccessMsg] = useState<string | null>(null);
+  const [showAuditDetails, setShowAuditDetails] = useState(false);
 
   const { data, isLoading, error, refetch } = useQuery<{ data: PurchasingDashboardData }>({
     queryKey: ['purchasing-dashboard'],
@@ -1101,241 +1104,212 @@ export default function PurchasingDashboardPage() {
               </div>
             )}
 
-            {/* Trazabilidad de Visualización («Visto por» - 3 Instancias Revisoras) */}
-            <div className="bg-slate-50 border border-border rounded-xl p-3.5 space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold text-text-primary">
-                <span className="flex items-center gap-1.5">
-                  <Eye className="w-4 h-4 text-accent" />
-                  Trazabilidad de Visualización («Visto por»)
-                </span>
-                <span className="text-[11px] font-normal text-text-muted">3 Instancias Revisoras Obligatorias</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs pt-1">
-                {/* 1. Aprobador del Proyecto */}
-                {(() => {
-                  const view =
-                    (selectedRequest.viewed_by || []).find((v) => v.instance === 'director') ||
-                    (selectedRequest.signatures?.director
-                      ? {
-                          user_name: selectedRequest.signatures.director.name,
-                          viewed_at: selectedRequest.signatures.director.date_time,
-                          instance: 'director',
-                        }
-                      : undefined);
-                  return (
-                    <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-text-primary text-[11px] truncate max-w-[140px]" title={selectedRequest.approver_name || 'Aprobador del Proyecto'}>
-                          1. {selectedRequest.approver_name ? `Aprueba: ${selectedRequest.approver_name}` : 'Aprobación Proyecto'}
-                        </span>
-                        {view ? (
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                            ✓ Visto
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-text-muted bg-gray-100 px-1.5 py-0.5 rounded">
-                            Pendiente
-                          </span>
-                        )}
-                      </div>
-                      {view ? (
-                        <>
-                          <p className="text-text-primary font-medium truncate text-[11px]">{view.user_name}</p>
-                          <p className="text-text-muted font-mono text-[10px]">{view.viewed_at}</p>
-                        </>
-                      ) : (
-                        <p className="text-text-muted text-[10px] italic">
-                          Pendiente por {selectedRequest.approver_name || 'aprobador'}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })()}
+            {/* Control de Firmas y Trazabilidad (4 Pasos - UX Compacto de Alta Legibilidad) */}
+            {(() => {
+              const dirView =
+                (selectedRequest.viewed_by || []).find((v) => v.instance === 'director') ||
+                (selectedRequest.signatures?.director
+                  ? {
+                      user_name: selectedRequest.signatures.director.name,
+                      viewed_at: selectedRequest.signatures.director.date_time,
+                      instance: 'director',
+                    }
+                  : undefined);
 
-                {/* 2. Área de Compras */}
-                {(() => {
-                  const view =
-                    (selectedRequest.viewed_by || []).find((v) => v.instance === 'purchasing') ||
-                    (selectedRequest.signatures?.purchasing
-                      ? {
-                          user_name: selectedRequest.signatures.purchasing.name,
-                          viewed_at: selectedRequest.signatures.purchasing.date_time,
-                          instance: 'purchasing',
-                        }
-                      : undefined);
-                  return (
-                    <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-text-primary text-[11px]">2. Área Compras</span>
-                        {view ? (
-                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                            ✓ Visto
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-text-muted bg-gray-100 px-1.5 py-0.5 rounded">
-                            Pendiente
-                          </span>
-                        )}
-                      </div>
-                      {view ? (
-                        <>
-                          <p className="text-text-primary font-medium truncate text-[11px]">{view.user_name}</p>
-                          <p className="text-text-muted font-mono text-[10px]">{view.viewed_at}</p>
-                        </>
-                      ) : (
-                        <p className="text-text-muted text-[10px] italic">No visualizada aún</p>
-                      )}
-                    </div>
-                  );
-                })()}
+              const purView =
+                (selectedRequest.viewed_by || []).find((v) => v.instance === 'purchasing') ||
+                (selectedRequest.signatures?.purchasing
+                  ? {
+                      user_name: selectedRequest.signatures.purchasing.name,
+                      viewed_at: selectedRequest.signatures.purchasing.date_time,
+                      instance: 'purchasing',
+                    }
+                  : undefined);
 
-                {/* 3. Gerencia (Punto 4) */}
-                {(() => {
-                  const view =
-                    (selectedRequest.viewed_by || []).find((v) => v.instance === 'management') ||
-                    (selectedRequest.signatures?.management
-                      ? {
-                          user_name: selectedRequest.signatures.management.name,
-                          viewed_at: selectedRequest.signatures.management.date_time,
-                          instance: 'management',
-                        }
-                      : undefined);
-                  return (
-                    <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-text-primary text-[11px]">3. Gerencia (Punto 4)</span>
-                        {view ? (
-                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                            ✓ Visto
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-text-muted bg-gray-100 px-1.5 py-0.5 rounded">
-                            Pendiente
-                          </span>
-                        )}
-                      </div>
-                      {view ? (
-                        <>
-                          <p className="text-text-primary font-medium truncate text-[11px]">{view.user_name}</p>
-                          <p className="text-text-muted font-mono text-[10px]">{view.viewed_at}</p>
-                        </>
-                      ) : (
-                        <p className="text-text-muted text-[10px] italic">Debe ver antes de aprobar</p>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
+              const manView =
+                (selectedRequest.viewed_by || []).find((v) => v.instance === 'management') ||
+                (selectedRequest.signatures?.management
+                  ? {
+                      user_name: selectedRequest.signatures.management.name,
+                      viewed_at: selectedRequest.signatures.management.date_time,
+                      instance: 'management',
+                    }
+                  : undefined);
 
-            {/* Control de Firmas Electrónicas Oficiales (4 Instancias) */}
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
-                <PenTool className="w-4 h-4 text-accent" />
-                Control de Firmas Electrónicas Oficiales (4 Instancias)
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                {/* 1. Solicitante */}
-                <div className="p-2.5 rounded-xl border border-border bg-slate-50 space-y-1">
-                  <span className="text-[10px] font-bold text-text-muted uppercase block">1. Solicitado</span>
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Firmado
+              const sigApplicant = selectedRequest.signatures?.applicant;
+              const sigDirector = selectedRequest.signatures?.director;
+              const sigPurchasing = selectedRequest.signatures?.purchasing;
+              const sigManagement = selectedRequest.signatures?.management;
+
+              return (
+                <div className="bg-slate-50/80 border border-border rounded-xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                      <PenTool className="w-3.5 h-3.5 text-accent" />
+                      Flujo de Firmas y Trazabilidad (4 Pasos)
+                    </span>
+                    <span className="text-[11px] text-text-muted hidden sm:inline">
+                      Firmas completas y sellos en PDF oficial
+                    </span>
                   </div>
-                  <p className="font-medium text-text-primary text-[11px] truncate">
-                    {selectedRequest.signatures?.applicant?.name || selectedRequest.applicant_name || 'Solicitante'}
-                  </p>
-                  <p className="font-mono text-[10px] text-text-muted truncate">
-                    {selectedRequest.signatures?.applicant?.cedula ? `C.C. ${selectedRequest.signatures.applicant.cedula}` : (selectedRequest.applicant_cedula ? `C.C. ${selectedRequest.applicant_cedula}` : 'Cédula Registrada')}
-                  </p>
-                </div>
 
-                {/* 2. Aprobación del Proyecto */}
-                <div className="p-2.5 rounded-xl border border-border bg-slate-50 space-y-1">
-                  <span className="text-[10px] font-bold text-text-muted uppercase block">2. Aprobación Proyecto</span>
-                  {selectedRequest.signatures?.director ? (
-                    <>
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Aprobado
+                  {/* Grid de 4 Pasos compactos */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                    {/* 1. Solicitante */}
+                    <div className="p-2.5 rounded-lg border border-border bg-white flex flex-col justify-between min-h-[68px] shadow-2xs">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                          1. Solicitud
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Firmado
+                        </span>
                       </div>
-                      <p className="font-medium text-text-primary text-[11px] truncate">
-                        {selectedRequest.signatures.director.name}
+                      <p className="font-semibold text-text-primary text-[11px] truncate" title={sigApplicant?.name || selectedRequest.applicant_name || 'Solicitante'}>
+                        {sigApplicant?.name || selectedRequest.applicant_name || 'Solicitante'}
                       </p>
-                      <p className="font-mono text-[10px] text-text-muted truncate">
-                        C.C. {selectedRequest.signatures.director.cedula}
-                      </p>
-                      <p className="font-mono text-[9px] text-text-muted truncate">
-                        {selectedRequest.signatures.director.date_time}
-                      </p>
-                    </>
-                  ) : (
-                    <div className="pt-1">
-                      <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 block text-center font-medium">
-                        Pendiente VB
+                      <span className="text-[10px] text-text-muted font-mono truncate">
+                        {sigApplicant?.cedula ? `C.C. ${sigApplicant.cedula}` : (selectedRequest.applicant_cedula ? `C.C. ${selectedRequest.applicant_cedula}` : 'Firmado')}
                       </span>
-                      <p className="text-[10px] text-text-muted text-center mt-1 truncate" title={selectedRequest.approver_name || 'Aprobador del Proyecto'}>
-                        {selectedRequest.approver_name || 'Aprobador Asignado'}
-                      </p>
                     </div>
-                  )}
-                </div>
 
-                {/* 3. Compras */}
-                <div className="p-2.5 rounded-xl border border-border bg-slate-50 space-y-1">
-                  <span className="text-[10px] font-bold text-text-muted uppercase block">3. Cotización</span>
-                  {selectedRequest.signatures?.purchasing ? (
-                    <>
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Firmado
+                    {/* 2. VB Técnico (Director) */}
+                    <div className="p-2.5 rounded-lg border border-border bg-white flex flex-col justify-between min-h-[68px] shadow-2xs">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                          2. VB Técnico
+                        </span>
+                        {sigDirector ? (
+                          sigDirector.rejected ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                              <X className="w-3 h-3 text-rose-600" /> Rechazado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Aprobado
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                            <Clock className="w-3 h-3 text-amber-600" /> Pendiente
+                          </span>
+                        )}
                       </div>
-                      <p className="font-medium text-text-primary text-[11px] truncate">
-                        {selectedRequest.signatures.purchasing.name}
+                      <p className="font-semibold text-text-primary text-[11px] truncate" title={sigDirector?.name || selectedRequest.approver_name || 'Aprobador del Proyecto'}>
+                        {sigDirector?.name || selectedRequest.approver_name || 'Aprobador Asignado'}
                       </p>
-                      <p className="font-mono text-[10px] text-text-muted truncate">
-                        C.C. {selectedRequest.signatures.purchasing.cedula}
-                      </p>
-                      <p className="font-mono text-[9px] text-text-muted truncate">
-                        {selectedRequest.signatures.purchasing.date_time}
-                      </p>
-                    </>
-                  ) : (
-                    <div className="pt-1">
-                      <span className="text-[10px] text-slate-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 block text-center font-medium">
-                        Pendiente
-                      </span>
-                      <p className="text-[10px] text-text-muted text-center mt-1">Área de Compras</p>
+                      <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
+                        <span className="truncate">{dirView ? '✓ Visto' : 'Sin ver'}</span>
+                        {dirView && <Eye className="w-3 h-3 text-emerald-600 flex-shrink-0" />}
+                      </div>
                     </div>
-                  )}
-                </div>
 
-                {/* 4. Gerencia (Punto 4) */}
-                <div className="p-2.5 rounded-xl border border-border bg-slate-50 space-y-1">
-                  <span className="text-[10px] font-bold text-text-muted uppercase block">4. Aprobación</span>
-                  {selectedRequest.signatures?.management ? (
-                    <>
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Aprobada
+                    {/* 3. Cotización (Compras) */}
+                    <div className="p-2.5 rounded-lg border border-border bg-white flex flex-col justify-between min-h-[68px] shadow-2xs">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                          3. Cotización
+                        </span>
+                        {sigPurchasing ? (
+                          sigPurchasing.rejected ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                              <X className="w-3 h-3 text-rose-600" /> Rechazado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Cotizado
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            <Clock className="w-3 h-3 text-slate-500" /> En espera
+                          </span>
+                        )}
                       </div>
-                      <p className="font-medium text-text-primary text-[11px] truncate">
-                        {selectedRequest.signatures.management.name}
+                      <p className="font-semibold text-text-primary text-[11px] truncate" title={sigPurchasing?.name || 'Área de Compras'}>
+                        {sigPurchasing?.name || 'Área de Compras'}
                       </p>
-                      <p className="font-mono text-[10px] text-text-muted truncate">
-                        C.C. {selectedRequest.signatures.management.cedula}
-                      </p>
-                      <p className="font-mono text-[9px] text-text-muted truncate">
-                        {selectedRequest.signatures.management.date_time}
-                      </p>
-                    </>
-                  ) : (
-                    <div className="pt-1">
-                      <span className="text-[10px] text-slate-600 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 block text-center font-medium">
-                        Pendiente
-                      </span>
-                      <p className="text-[10px] text-text-muted text-center mt-1">Gerencia General</p>
+                      <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
+                        <span className="truncate">{purView ? '✓ Visto' : 'Sin ver'}</span>
+                        {purView && <Eye className="w-3 h-3 text-blue-600 flex-shrink-0" />}
+                      </div>
                     </div>
-                  )}
+
+                    {/* 4. Aprobación Final (Gerencia) */}
+                    <div className="p-2.5 rounded-lg border border-border bg-white flex flex-col justify-between min-h-[68px] shadow-2xs">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                          4. Aprobación
+                        </span>
+                        {sigManagement ? (
+                          sigManagement.rejected ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                              <X className="w-3 h-3 text-rose-600" /> Rechazado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Aprobada
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                            <Clock className="w-3 h-3 text-slate-500" /> En espera
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-semibold text-text-primary text-[11px] truncate" title={sigManagement?.name || 'Gerencia General'}>
+                        {sigManagement?.name || 'Gerencia General'}
+                      </p>
+                      <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
+                        <span className="truncate">{manView ? '✓ Visto' : 'Sin ver'}</span>
+                        {manView && <Eye className="w-3 h-3 text-purple-600 flex-shrink-0" />}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acordeón opcional de detalles de auditoría técnica */}
+                  <div className="pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowAuditDetails(!showAuditDetails)}
+                      className="text-[10px] font-medium text-text-muted hover:text-text-primary flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <ChevronDown className={`w-3 h-3 transition-transform ${showAuditDetails ? 'rotate-180 text-accent' : ''}`} />
+                      <span>{showAuditDetails ? 'Ocultar detalles de firmas y fechas' : 'Ver detalle de firmas electrónicas y fechas'}</span>
+                    </button>
+
+                    {showAuditDetails && (
+                      <div className="mt-2 p-2.5 bg-white rounded-lg border border-border divide-y divide-border text-[11px] text-text-muted space-y-1.5 animate-fade-in">
+                        {sigApplicant && (
+                          <div className="pt-1 first:pt-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
+                            <span className="font-semibold text-text-primary">1. Solicitante: {sigApplicant.name}</span>
+                            <span className="font-mono text-[10px]">C.C. {sigApplicant.cedula || '—'} · {sigApplicant.date_time || 'Registrado'}</span>
+                          </div>
+                        )}
+                        {sigDirector && (
+                          <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
+                            <span className="font-semibold text-text-primary">2. VB Técnico: {sigDirector.name} {sigDirector.notes ? `(${sigDirector.notes})` : ''}</span>
+                            <span className="font-mono text-[10px]">C.C. {sigDirector.cedula || '—'} · {sigDirector.date_time || '—'}</span>
+                          </div>
+                        )}
+                        {sigPurchasing && (
+                          <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
+                            <span className="font-semibold text-text-primary">3. Cotización Compras: {sigPurchasing.name} {sigPurchasing.notes ? `(${sigPurchasing.notes})` : ''}</span>
+                            <span className="font-mono text-[10px]">C.C. {sigPurchasing.cedula || '—'} · {sigPurchasing.date_time || '—'}</span>
+                          </div>
+                        )}
+                        {sigManagement && (
+                          <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
+                            <span className="font-semibold text-text-primary">4. Gerencia General: {sigManagement.name} {sigManagement.notes ? `(${sigManagement.notes})` : ''}</span>
+                            <span className="font-mono text-[10px]">C.C. {sigManagement.cedula || '—'} · {sigManagement.date_time || '—'}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* Formulario de Firma o Mensaje de Éxito */}
             {signingSuccessMsg && (

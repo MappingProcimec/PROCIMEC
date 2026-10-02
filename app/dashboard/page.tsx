@@ -8,7 +8,7 @@ import { DynamicDashboard, type DashboardData } from '@/components/dashboard/Dyn
 
 async function fetchDashboard(roleId?: string | null): Promise<DashboardData> {
   const url = roleId ? `/api/dashboard?roleId=${encodeURIComponent(roleId)}` : '/api/dashboard';
-  const res = await fetch(url);
+  const res = await fetch(url, { cache: 'no-store' });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || 'Error al cargar el panel');
   return json.data as DashboardData;
@@ -18,9 +18,12 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const roleId = searchParams.get('roleId');
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['dashboard', roleId],
     queryFn: () => fetchDashboard(roleId),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   });
 
   return (
@@ -62,7 +65,13 @@ function DashboardContent() {
           </div>
         )}
 
-        {data && <DynamicDashboard data={data} />}
+        {data && (
+          <DynamicDashboard
+            data={data}
+            onRefresh={() => refetch()}
+            isRefreshing={isFetching}
+          />
+        )}
       </div>
     </div>
   );

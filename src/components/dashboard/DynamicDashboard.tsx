@@ -22,6 +22,7 @@ import {
   Users,
   Building2,
   Layers,
+  RefreshCw,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -285,6 +286,40 @@ function getActivityBadgeClass(category: string) {
   }
 }
 
+function getActivityStatusBadgeClass(status?: string, statusLabel?: string): string {
+  const norm = (statusLabel || status || '').toLowerCase();
+  if (
+    norm.includes('aprobado') ||
+    norm.includes('aprobada') ||
+    norm.includes('ganada') ||
+    norm.includes('pagado') ||
+    norm.includes('pagada')
+  ) {
+    return 'bg-emerald-50 text-emerald-900 border-emerald-200';
+  }
+  if (
+    norm.includes('cotizado') ||
+    norm.includes('cotización') ||
+    norm.includes('cotizacion')
+  ) {
+    return 'bg-sky-50 text-sky-900 border-sky-200';
+  }
+  if (
+    norm.includes('rechazad') ||
+    norm.includes('cancelad') ||
+    norm.includes('perdid')
+  ) {
+    return 'bg-rose-50 text-rose-900 border-rose-200';
+  }
+  if (norm.includes('pendiente')) {
+    return 'bg-amber-50 text-amber-900 border-amber-200';
+  }
+  if (norm.includes('campo') || norm.includes('retornado') || norm.includes('revisado')) {
+    return 'bg-blue-50 text-blue-900 border-blue-200';
+  }
+  return 'bg-gray-100 text-gray-800 border-gray-200';
+}
+
 function formatDate(dateStr: string, createdAtStr?: string): string {
   try {
     const target = createdAtStr ? new Date(createdAtStr) : new Date(dateStr + 'T12:00:00Z');
@@ -312,7 +347,15 @@ interface ToolGroup {
   items: Tool[];
 }
 
-export function DynamicDashboard({ data }: { data: DashboardData }) {
+export function DynamicDashboard({
+  data,
+  onRefresh,
+  isRefreshing,
+}: {
+  data: DashboardData;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+}) {
   const { user, division, role, projects, tools, forms, recentActivity = [], legacyRole, isRolePreview } = data;
   const isLegacyDibujo = legacyRole === 'dibujo' && !role;
 
@@ -621,7 +664,21 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
       {/* ─────────────────────────────────────────────────────────── */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-text-primary">Actividades Recientes</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="font-bold text-text-primary">Actividades Recientes</h2>
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                title="Actualizar actividades recientes"
+                className="p-1 rounded-lg text-text-muted hover:text-accent hover:bg-gray-100 transition-colors disabled:opacity-50 cursor-pointer"
+                aria-label="Actualizar actividades"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-accent' : ''}`} strokeWidth={2} />
+              </button>
+            )}
+          </div>
           {recentActivity.length > 0 && (
             <span className="text-xs text-text-muted font-medium font-mono">
               {visibleActivities.length} de {totalAvailable}
@@ -687,7 +744,7 @@ export function DynamicDashboard({ data }: { data: DashboardData }) {
                     <span className="text-xs font-mono text-text-muted">
                       {formatDate(a.date, a.created_at)}
                     </span>
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${getActivityStatusBadgeClass(a.status, a.statusLabel)}`}>
                       {a.statusLabel || a.status}
                     </span>
                   </div>

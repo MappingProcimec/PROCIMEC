@@ -255,6 +255,22 @@ export async function getDashboardActivities({
         for (const r of data ?? []) {
           const u = resolveUser(r.user_id);
           const p = resolveProject(r.project_id);
+          const s = (r.status || 'pending').toLowerCase();
+          let statusLabel = 'Pendiente';
+          if (s === 'approved') {
+            statusLabel = 'Aprobado';
+          } else if (s === 'in_quotation') {
+            statusLabel = 'En Cotización';
+          } else if (s === 'quoted') {
+            statusLabel = 'Cotizado';
+          } else if (s === 'purchased') {
+            statusLabel = 'Comprado';
+          } else if (s === 'rejected') {
+            statusLabel = 'Rechazado';
+          } else {
+            statusLabel = 'Pendiente';
+          }
+
           activities.push({
             id: `req-${r.id}`,
             created_at: r.created_at,
@@ -267,8 +283,8 @@ export async function getDashboardActivities({
             detail: `${r.title} · Prioridad: ${r.priority || 'Media'}`,
             userName: u.name,
             userEmail: u.email,
-            status: r.status || 'pending',
-            statusLabel: r.status === 'approved' ? 'Aprobado' : 'Pendiente',
+            status: s,
+            statusLabel,
           });
         }
       } catch (err) {
