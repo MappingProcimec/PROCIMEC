@@ -164,6 +164,52 @@ export async function POST(req: NextRequest) {
       };
     }
 
+    // Asegurar que viewed_by registre la vista de esta instancia que acaba de firmar
+    let currentViews: Array<{
+      user_id: string;
+      user_name: string;
+      user_email: string;
+      instance: string;
+      role_label: string;
+      viewed_at: string;
+      view_count?: number;
+    }> = [];
+
+    if (Array.isArray(requestRow.viewed_by)) {
+      currentViews = [...requestRow.viewed_by];
+    } else if (
+      requestRow.items &&
+      typeof requestRow.items === 'object' &&
+      !Array.isArray(requestRow.items)
+    ) {
+      const metaObj = (requestRow.items as Record<string, any>)._metadata;
+      if (metaObj && Array.isArray(metaObj.viewed_by)) {
+        currentViews = [...metaObj.viewed_by];
+      }
+    }
+
+    const signerName = dbUser.full_name || session.user.name || 'Aprobador';
+    const signerEmail = dbUser.email || '';
+    const instanceViewIdx = currentViews.findIndex((v) => v.instance === step);
+
+    if (instanceViewIdx >= 0) {
+      currentViews[instanceViewIdx] = {
+        ...currentViews[instanceViewIdx],
+        user_name: signerName,
+        viewed_at: nowFormatted,
+      };
+    } else {
+      currentViews.push({
+        user_id: dbUser.id,
+        user_name: signerName,
+        user_email: signerEmail,
+        instance: step,
+        role_label: step === 'director' ? (requestRow.approver_name ? `Aprobador: ${requestRow.approver_name}` : 'Aprobación de Proyecto') : step === 'purchasing' ? 'Área de Compras' : 'Gerencia General (Punto 4)',
+        viewed_at: nowFormatted,
+        view_count: 1,
+      });
+    }
+
     // Recalcular monto total
     const totalAmount = currentItems.reduce((acc: number, it: Record<string, unknown>) => {
       const q = Number(it.quantity) || 1;
@@ -176,6 +222,7 @@ export async function POST(req: NextRequest) {
     const updatePayload: Record<string, unknown> = {
       status: newStatus,
       updated_at: new Date().toISOString(),
+      viewed_by: currentViews,
     };
 
     // Intentar actualización completa

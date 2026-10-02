@@ -72,7 +72,14 @@ export async function POST(req: NextRequest) {
       ? [...(requestRow.items as Record<string, any>)._metadata.viewed_by]
       : [];
 
-    if (isAuthor) {
+    const isDesignatedApprover =
+      (requestRow.approver_name && dbUser.full_name && requestRow.approver_name.trim().toLowerCase() === dbUser.full_name.trim().toLowerCase()) ||
+      (requestRow.approver_user_id && requestRow.approver_user_id === dbUser.id);
+
+    const hasDirectorView = currentRawViews.some((v) => v.instance === 'director');
+
+    // Si es el autor, solo registrar vista si fue expresamente asignado como Aprobador del proyecto y aún no está registrada
+    if (isAuthor && (!isDesignatedApprover || hasDirectorView)) {
       return NextResponse.json({ success: true, isAuthor: true, viewed_by: currentRawViews });
     }
 
@@ -85,10 +92,6 @@ export async function POST(req: NextRequest) {
     let roleLabel = requestRow.approver_name
       ? `Aprobador: ${requestRow.approver_name}`
       : 'Aprobación de Proyecto';
-
-    const isDesignatedApprover =
-      (requestRow.approver_name && dbUser.full_name && requestRow.approver_name.trim().toLowerCase() === dbUser.full_name.trim().toLowerCase()) ||
-      (requestRow.approver_user_id && requestRow.approver_user_id === dbUser.id);
 
     if (userRole === 'purchasing' || userRole === 'compras') {
       instance = 'purchasing';

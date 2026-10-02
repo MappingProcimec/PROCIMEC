@@ -1092,7 +1092,15 @@ export default function PurchasingDashboardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs pt-1">
                 {/* 1. Aprobador del Proyecto */}
                 {(() => {
-                  const view = (selectedRequest.viewed_by || []).find((v) => v.instance === 'director');
+                  const view =
+                    (selectedRequest.viewed_by || []).find((v) => v.instance === 'director') ||
+                    (selectedRequest.signatures?.director
+                      ? {
+                          user_name: selectedRequest.signatures.director.name,
+                          viewed_at: selectedRequest.signatures.director.date_time,
+                          instance: 'director',
+                        }
+                      : undefined);
                   return (
                     <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
                       <div className="flex items-center justify-between">
@@ -1125,7 +1133,15 @@ export default function PurchasingDashboardPage() {
 
                 {/* 2. Área de Compras */}
                 {(() => {
-                  const view = (selectedRequest.viewed_by || []).find((v) => v.instance === 'purchasing');
+                  const view =
+                    (selectedRequest.viewed_by || []).find((v) => v.instance === 'purchasing') ||
+                    (selectedRequest.signatures?.purchasing
+                      ? {
+                          user_name: selectedRequest.signatures.purchasing.name,
+                          viewed_at: selectedRequest.signatures.purchasing.date_time,
+                          instance: 'purchasing',
+                        }
+                      : undefined);
                   return (
                     <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
                       <div className="flex items-center justify-between">
@@ -1154,7 +1170,15 @@ export default function PurchasingDashboardPage() {
 
                 {/* 3. Gerencia (Punto 4) */}
                 {(() => {
-                  const view = (selectedRequest.viewed_by || []).find((v) => v.instance === 'management');
+                  const view =
+                    (selectedRequest.viewed_by || []).find((v) => v.instance === 'management') ||
+                    (selectedRequest.signatures?.management
+                      ? {
+                          user_name: selectedRequest.signatures.management.name,
+                          viewed_at: selectedRequest.signatures.management.date_time,
+                          instance: 'management',
+                        }
+                      : undefined);
                   return (
                     <div className="p-2.5 rounded-lg border border-border bg-white space-y-1">
                       <div className="flex items-center justify-between">
