@@ -24,10 +24,10 @@ export async function GET() {
 
   const supabase = createAdminClient();
 
-  // 1. Obtener usuario de la base de datos
+  // 1. Obtener usuario de la base de datos (users no tiene columna phone)
   const { data: dbUser, error: userError } = await supabase
     .from('users')
-    .select('id, full_name, email, role, phone')
+    .select('id, full_name, email, role')
     .eq('email', session.user.email)
     .single();
 
@@ -46,19 +46,21 @@ export async function GET() {
     .eq('is_active', true)
     .order('name', { ascending: true });
 
-  const isAdmin = dbUser.role === 'admin' || dbUser.role === 'management' || dbUser.role === 'gerencia';
+  const isUnrestricted =
+    dbUser.role === 'admin' ||
+    dbUser.role === 'management' ||
+    dbUser.role === 'gerencia' ||
+    dbUser.role === 'purchasing' ||
+    dbUser.role === 'compras';
 
-  if (!isAdmin) {
+  if (!isUnrestricted) {
     const { data: userProjects } = await supabase
       .from('user_projects')
       .select('project_id')
       .eq('user_id', dbUser.id);
 
     const allowedIds = (userProjects ?? []).map((up: { project_id: string }) => up.project_id);
-    if (allowedIds.length === 0) {
-      // Si no tiene proyectos asignados individualmente pero tiene rol operativo, consultar si hay proyectos públicos
-      projectsQuery = projectsQuery.in('id', ['none']);
-    } else {
+    if (allowedIds.length > 0) {
       projectsQuery = projectsQuery.in('id', allowedIds);
     }
   }
@@ -75,10 +77,15 @@ export async function GET() {
     client: ((p.client as string) || '').trim(),
   }));
 
-  // 3. Calcular siguiente consecutivo automatizado
+  // 3. Calcular siguiente consecutivo automatizado con tolerancia de esquema
   let nextConsecutive = 1;
   try {
-    const { data: maxRow } = await supabase
+    const { count } = await supabase
+      .from('purchase_requests')
+      .select('*', { count: 'exact', head: true });
+    nextConsecutive = (count ?? 0) + 1;
+
+    const { data: maxRow, error: maxErr } = await supabase
       .from('purchase_requests')
       .select('consecutive')
       .not('consecutive', 'is', null)
@@ -86,14 +93,8 @@ export async function GET() {
       .limit(1)
       .maybeSingle();
 
-    if (maxRow?.consecutive && typeof maxRow.consecutive === 'number') {
-      nextConsecutive = maxRow.consecutive + 1;
-    } else {
-      // Alternativa: contar total de registros
-      const { count } = await supabase
-        .from('purchase_requests')
-        .select('*', { count: 'exact', head: true });
-      nextConsecutive = (count ?? 0) + 1;
+    if (!maxErr && maxRow?.consecutive && typeof maxRow.consecutive === 'number') {
+      nextConsecutive = Math.max(nextConsecutive, maxRow.consecutive + 1);
     }
   } catch (e) {
     console.warn('Advertencia al consultar consecutivo de purchase_requests:', e);
@@ -107,7 +108,7 @@ export async function GET() {
       id: dbUser.id,
       full_name: dbUser.full_name || session.user.name || '',
       email: dbUser.email,
-      phone: dbUser.phone || '',
+      phone: '',
       role: dbUser.role,
     },
     nextConsecutive,
