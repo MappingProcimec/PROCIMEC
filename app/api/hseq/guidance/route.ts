@@ -42,7 +42,7 @@ function buildFallbackFromItems(
 
 // Función auxiliar para llamar a Gemini con soporte para múltiples modelos
 async function callGemini(apiKey: string, prompt: string): Promise<string | null> {
-  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'];
 
   for (const model of models) {
     try {

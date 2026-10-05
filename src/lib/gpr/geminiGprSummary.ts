@@ -251,7 +251,8 @@ REGLAS DE REDACCIÓN OBLIGATORIAS:
 5. IMPORTANTE: Menciona explícitamente a qué servicios públicos específicos se refiere el levantamiento (ej: Telecomunicaciones, Tubería Agua, Gas, etc.) indicando su diámetro y profundidad estimada.
 6. Cero emojis, sin saludos ni despedidas, mantén una redacción concisa, rigurosa y asertiva en tercera persona.`;
 
-  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+  // Modelos exclusivamente gratuitos de Google AI
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'];
 
   for (const model of models) {
     try {
