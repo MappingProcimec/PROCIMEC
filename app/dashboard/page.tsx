@@ -31,7 +31,7 @@ function DashboardContent() {
       <Navbar />
 
       <div className="page-hero">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           {isLoading ? (
             <div className="h-8 w-40 bg-white/20 rounded-lg animate-pulse" />
           ) : (
@@ -45,7 +45,7 @@ function DashboardContent() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 -mt-6 pb-20">
+      <div className="max-w-5xl mx-auto px-4 -mt-6 pb-20">
         {isLoading && (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (

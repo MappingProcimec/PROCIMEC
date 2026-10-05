@@ -47,6 +47,12 @@ export async function GET(req: NextRequest) {
   let tools: Tool[] = [];
   let forms: Form[] = [];
   let projects: Project[] = [];
+  let adminStats: {
+    activeProjectsCount: number;
+    totalML: number;
+    totalDrawingHours: number;
+    pendingUsersCount: number;
+  } | null = null;
 
   if (dbUser.division_id) {
     const { data } = await supabase
@@ -119,11 +125,44 @@ export async function GET(req: NextRequest) {
         });
     } else {
       // Administrador: acceso completo a todas las herramientas, formularios y proyectos activos
-      const [allToolsRes, allFormsRes, allProjectsRes] = await Promise.all([
+      const [
+        allToolsRes,
+        allFormsRes,
+        allProjectsRes,
+        pendingUsersRes,
+        reportsRes,
+      ] = await Promise.all([
         supabase.from('tools').select('id, slug, name, category').not('slug', 'in', '("forms-area","projects-area")'),
         supabase.from('forms').select('id, slug, name'),
         supabase.from('projects').select('id, cost_center, name, client').eq('is_active', true),
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'pending'),
+        supabase.from('field_reports').select('operational_summary'),
       ]);
+
+      let totalDrawingHours = 0;
+      let drawingFrom = 0;
+      while (true) {
+        const { data: dChunk } = await supabase
+          .from('drawing_activities')
+          .select('hours_worked')
+          .range(drawingFrom, drawingFrom + 999);
+        if (!dChunk || dChunk.length === 0) break;
+        totalDrawingHours += dChunk.reduce((s, a) => s + (Number(a.hours_worked) || 0), 0);
+        if (dChunk.length < 1000) break;
+        drawingFrom += 1000;
+      }
+
+      const totalML = (reportsRes.data ?? []).reduce((sum, r: { operational_summary?: { ml?: number }[] }) => {
+        const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
+        return sum + rows.reduce((s, row) => s + (Number(row.ml) || 0), 0);
+      }, 0);
+
+      adminStats = {
+        activeProjectsCount: (allProjectsRes.data ?? []).length,
+        totalML,
+        totalDrawingHours,
+        pendingUsersCount: pendingUsersRes.count ?? 0,
+      };
 
       tools = (allToolsRes.data ?? []) as Tool[];
       forms = (allFormsRes.data ?? []) as Form[];
@@ -272,6 +311,7 @@ export async function GET(req: NextRequest) {
         tools,
         forms,
         recentActivity,
+        adminStats,
       },
     },
     {

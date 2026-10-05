@@ -24,6 +24,9 @@ import {
   Layers,
   RefreshCw,
   X,
+  Clock,
+  ArrowRight,
+  LayoutDashboard,
   type LucideIcon,
 } from 'lucide-react';
 import type { ActivityRecord } from '@/lib/dashboard-activities';
@@ -49,6 +52,13 @@ interface Project {
   client: string;
 }
 
+export interface AdminStats {
+  activeProjectsCount: number;
+  totalML: number;
+  totalDrawingHours: number;
+  pendingUsersCount: number;
+}
+
 export interface DashboardData {
   user: { id: string; email: string; full_name: string; nick_name?: string };
   legacyRole?: string | null;
@@ -59,6 +69,7 @@ export interface DashboardData {
   tools: Tool[];
   forms: Form[];
   recentActivity: ActivityRecord[];
+  adminStats?: AdminStats | null;
 }
 
 interface CategoryMeta {
@@ -356,7 +367,7 @@ export function DynamicDashboard({
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }) {
-  const { user, division, role, projects, tools, forms, recentActivity = [], legacyRole, isRolePreview } = data;
+  const { user, division, role, projects, tools, forms, recentActivity = [], legacyRole, isRolePreview, adminStats } = data;
   const isLegacyDibujo = legacyRole === 'dibujo' && !role;
 
   // Estado para mensaje aleatorio y frase inspiradora
@@ -524,6 +535,122 @@ export function DynamicDashboard({
           </div>
         </div>
       </div>
+
+      {/* ─────────────────────────────────────────────────────────── */}
+      {/* 0. MÉTRICAS GLOBALES DE OPERACIÓN (SOLO ADMINISTRADOR)      */}
+      {/* ─────────────────────────────────────────────────────────── */}
+      {legacyRole === 'admin' && !isRolePreview && adminStats && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-bold text-text-primary text-base sm:text-lg flex items-center gap-2">
+                <LayoutDashboard className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                Métricas Globales de Operación
+              </h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                Consolidado en tiempo real de proyectos, producción geofísica, CAD y aprobaciones
+              </p>
+            </div>
+            <Link
+              href="/admin/dashboard"
+              className="text-xs font-semibold text-primary-900 hover:text-accent flex items-center gap-1 transition-colors bg-white border border-border px-2.5 py-1.5 rounded-lg shadow-2xs"
+            >
+              <span>Panel Admin</span>
+              <ArrowRight className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* 1. Proyectos Activos */}
+            <Link href="/admin/projects" className="group">
+              <div className="rounded-2xl p-4 sm:p-5 bg-primary-900 text-white border border-primary-800 shadow-card hover:shadow-glow-accent transition-all group-active:scale-[0.98] h-full flex flex-col justify-between">
+                <div className="mb-2.5 flex items-center justify-between">
+                  <div className="p-2 rounded-xl bg-black/20 text-accent">
+                    <Building2 className="w-5 h-5" strokeWidth={1.75} />
+                  </div>
+                  <ArrowRight className="w-4 h-4 opacity-60 group-hover:translate-x-0.5 transition-transform" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight mb-0.5">
+                    {adminStats.activeProjectsCount}
+                  </div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-white/80">
+                    Proyectos Activos
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            {/* 2. ML Ejecutados */}
+            <div className="rounded-2xl p-4 sm:p-5 bg-primary-900 text-white border border-primary-800 shadow-card h-full flex flex-col justify-between">
+              <div className="mb-2.5 flex items-center justify-between">
+                <div className="p-2 rounded-xl bg-black/20 text-accent">
+                  <Activity className="w-5 h-5" strokeWidth={1.75} />
+                </div>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight mb-0.5">
+                  {adminStats.totalML.toFixed(0)} ml
+                </div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-white/80">
+                  ML Ejecutados
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Horas CAD / BIM */}
+            <div className="rounded-2xl p-4 sm:p-5 bg-accent text-primary-950 border border-amber-500 font-bold shadow-card h-full flex flex-col justify-between">
+              <div className="mb-2.5 flex items-center justify-between">
+                <div className="p-2 rounded-xl bg-black/10 text-primary-950">
+                  <PenTool className="w-5 h-5" strokeWidth={1.75} />
+                </div>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight mb-0.5 text-primary-950">
+                  {adminStats.totalDrawingHours.toFixed(1)} h
+                </div>
+                <div className="text-[11px] font-bold uppercase tracking-wider text-primary-950/90">
+                  Horas CAD / BIM
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Aprobación Pendiente */}
+            <Link href="/admin/users" className="group">
+              <div
+                className={`rounded-2xl p-4 sm:p-5 border shadow-card transition-all group-active:scale-[0.98] h-full flex flex-col justify-between ${
+                  adminStats.pendingUsersCount > 0
+                    ? 'bg-amber-400 text-primary-950 border-amber-500 font-bold animate-pulse-soft'
+                    : 'bg-primary-900 text-white border-primary-800'
+                }`}
+              >
+                <div className="mb-2.5 flex items-center justify-between">
+                  <div
+                    className={`p-2 rounded-xl ${
+                      adminStats.pendingUsersCount > 0 ? 'bg-black/10 text-primary-950' : 'bg-black/20 text-accent'
+                    }`}
+                  >
+                    <Clock className="w-5 h-5" strokeWidth={1.75} />
+                  </div>
+                  <ArrowRight className="w-4 h-4 opacity-60 group-hover:translate-x-0.5 transition-transform" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight mb-0.5">
+                    {adminStats.pendingUsersCount}
+                  </div>
+                  <div
+                    className={`text-[11px] font-semibold uppercase tracking-wider ${
+                      adminStats.pendingUsersCount > 0 ? 'text-primary-950' : 'text-white/80'
+                    }`}
+                  >
+                    Aprobación Pendiente
+                  </div>
+                </div>
+              </div>
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* ─────────────────────────────────────────────────────────── */}
       {/* 1. MIS FORMULARIOS (PRIMERO - AGRUPADOS CON MODAL)          */}
