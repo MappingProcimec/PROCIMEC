@@ -2,6 +2,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
+import { z } from 'zod';
+
+const userUpdateSchema = z.object({
+  id: z.string().min(1, 'ID de usuario requerido'),
+  role: z.string().optional(),
+  is_active: z.boolean().optional(),
+  role_id: z.string().nullable().optional(),
+  full_name: z.string().optional(),
+  nick_name: z.string().nullable().optional(),
+  email: z.string().optional(),
+  phone: z.string().nullable().optional(),
+  project_ids: z.array(z.string()).optional(),
+  division_roles: z
+    .array(
+      z.object({
+        division_id: z.string(),
+        role_id: z.string().nullable().optional(),
+      })
+    )
+    .optional(),
+  tool_ids: z.array(z.string()).optional(),
+  form_ids: z.array(z.string()).optional(),
+});
 
 // GET /api/admin/users
 export async function GET() {
@@ -18,38 +41,30 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Safe fetch user_tools and user_forms (if tables exist)
+  const userIds = (users ?? []).map((u) => u.id);
   const userToolsMap: Record<string, { tool_id: string }[]> = {};
   const userFormsMap: Record<string, { form_id: string }[]> = {};
 
-  try {
-    const { data: utData, error: utErr } = await supabase
-      .from('user_tools')
-      .select('user_id, tool_id');
+  if (userIds.length > 0) {
+    // Consultas concurrentes y acotadas únicamente a los usuarios recuperados
+    const [utResult, ufResult] = await Promise.allSettled([
+      supabase.from('user_tools').select('user_id, tool_id').in('user_id', userIds),
+      supabase.from('user_forms').select('user_id, form_id').in('user_id', userIds),
+    ]);
 
-    if (!utErr && utData) {
-      utData.forEach((ut: { user_id: string; tool_id: string }) => {
+    if (utResult.status === 'fulfilled' && !utResult.value.error && utResult.value.data) {
+      utResult.value.data.forEach((ut: { user_id: string; tool_id: string }) => {
         if (!userToolsMap[ut.user_id]) userToolsMap[ut.user_id] = [];
         userToolsMap[ut.user_id].push({ tool_id: ut.tool_id });
       });
     }
-  } catch {
-    // Si la tabla no existe aún, se ignora silenciosamente
-  }
 
-  try {
-    const { data: ufData, error: ufErr } = await supabase
-      .from('user_forms')
-      .select('user_id, form_id');
-
-    if (!ufErr && ufData) {
-      ufData.forEach((uf: { user_id: string; form_id: string }) => {
+    if (ufResult.status === 'fulfilled' && !ufResult.value.error && ufResult.value.data) {
+      ufResult.value.data.forEach((uf: { user_id: string; form_id: string }) => {
         if (!userFormsMap[uf.user_id]) userFormsMap[uf.user_id] = [];
         userFormsMap[uf.user_id].push({ form_id: uf.form_id });
       });
     }
-  } catch {
-    // Si la tabla no existe aún, se ignora silenciosamente
   }
 
   const enrichedUsers = (users ?? []).map((u) => ({
@@ -61,6 +76,68 @@ export async function GET() {
   return NextResponse.json({ data: enrichedUsers });
 }
 
+// Helpers concurrentes para sincronización en PATCH
+async function syncUserProjects(supabase: ReturnType<typeof createAdminClient>, userId: string, projectIds: string[]) {
+  await supabase.from('user_projects').delete().eq('user_id', userId);
+  if (projectIds.length > 0) {
+    const { error } = await supabase.from('user_projects').insert(
+      projectIds.map((pid: string) => ({ user_id: userId, project_id: pid }))
+    );
+    if (error) throw new Error(error.message);
+  }
+}
+
+async function syncUserDivisionRoles(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+  divisionRoles: { division_id: string; role_id?: string | null }[]
+) {
+  await supabase.from('user_division_roles').delete().eq('user_id', userId);
+  const valid = divisionRoles.filter((dr) => dr.division_id);
+  if (valid.length > 0) {
+    const { error } = await supabase.from('user_division_roles').insert(
+      valid.map((dr) => ({ user_id: userId, division_id: dr.division_id, role_id: dr.role_id || null }))
+    );
+    if (error) throw new Error(error.message);
+  }
+}
+
+async function syncUserTools(supabase: ReturnType<typeof createAdminClient>, userId: string, toolIds: string[]) {
+  try {
+    const { error: delErr } = await supabase.from('user_tools').delete().eq('user_id', userId);
+    if (delErr) {
+      return 'Nota: Para guardar herramientas específicas, ejecuta la migración 007_user_tools_and_forms.sql en Supabase SQL Editor.';
+    }
+    if (toolIds.length > 0) {
+      const { error: insErr } = await supabase.from('user_tools').insert(
+        toolIds.map((tid: string) => ({ user_id: userId, tool_id: tid }))
+      );
+      if (insErr) return insErr.message;
+    }
+  } catch (e) {
+    console.warn('user_tools sync error:', e);
+  }
+  return null;
+}
+
+async function syncUserForms(supabase: ReturnType<typeof createAdminClient>, userId: string, formIds: string[]) {
+  try {
+    const { error: delErr } = await supabase.from('user_forms').delete().eq('user_id', userId);
+    if (delErr) {
+      return 'Nota: Para guardar formularios específicos, ejecuta la migración 007_user_tools_and_forms.sql en Supabase SQL Editor.';
+    }
+    if (formIds.length > 0) {
+      const { error: insErr } = await supabase.from('user_forms').insert(
+        formIds.map((fid: string) => ({ user_id: userId, form_id: fid }))
+      );
+      if (insErr) return insErr.message;
+    }
+  } catch (e) {
+    console.warn('user_forms sync error:', e);
+  }
+  return null;
+}
+
 // PATCH /api/admin/users — update role, active status, project assignments, division roles, user_tools, user_forms
 export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -68,19 +145,40 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
-  const body = await request.json();
-  const { id, role, is_active, project_ids, role_id, division_roles, tool_ids, form_ids, full_name, nick_name, email, phone } = body;
-  if (!id) return NextResponse.json({ error: 'ID de usuario requerido' }, { status: 400 });
+  const rawBody = await request.json();
+  const parseResult = userUpdateSchema.safeParse(rawBody);
+  if (!parseResult.success) {
+    const firstIssue = parseResult.error.issues[0];
+    return NextResponse.json(
+      { error: firstIssue?.message || 'Datos de actualización inválidos' },
+      { status: 400 }
+    );
+  }
+
+  const {
+    id,
+    role,
+    is_active,
+    project_ids,
+    role_id,
+    division_roles,
+    tool_ids,
+    form_ids,
+    full_name,
+    nick_name,
+    email,
+    phone,
+  } = parseResult.data;
 
   const supabase = createAdminClient();
-
   const updates: Record<string, unknown> = {};
+
   if (role !== undefined) updates.role = role;
   if (is_active !== undefined) updates.is_active = is_active;
   if (role_id !== undefined) updates.role_id = role_id || null;
 
   if (full_name !== undefined) {
-    const trimmedName = typeof full_name === 'string' ? full_name.trim() : '';
+    const trimmedName = full_name.trim();
     if (!trimmedName) {
       return NextResponse.json({ error: 'El nombre no puede estar vacío' }, { status: 400 });
     }
@@ -88,12 +186,12 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (nick_name !== undefined) {
-    const trimmedNick = typeof nick_name === 'string' ? nick_name.trim() : '';
+    const trimmedNick = nick_name ? nick_name.trim() : '';
     updates.nick_name = trimmedNick || null;
   }
 
   if (email !== undefined) {
-    const trimmedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
       return NextResponse.json({ error: 'Ingresa un correo electrónico válido' }, { status: 400 });
     }
@@ -101,7 +199,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (phone !== undefined) {
-    updates.phone = typeof phone === 'string' && phone.trim() ? phone.trim() : null;
+    updates.phone = phone && phone.trim() ? phone.trim() : null;
   }
 
   let dbWarning: string | null = null;
@@ -109,13 +207,11 @@ export async function PATCH(request: NextRequest) {
   if (Object.keys(updates).length > 0) {
     const { error } = await supabase.from('users').update(updates).eq('id', id);
     if (error) {
-      // Manejar correo duplicado
       if (error.code === '23505' || error.message?.includes('users_email_key') || error.message?.includes('duplicate key')) {
         return NextResponse.json({ error: 'El correo electrónico ya está registrado por otro usuario' }, { status: 400 });
       }
 
-      // Si la columna nick_name o phone aún no han sido creadas en la base de datos de Supabase
-      if ((error.message?.includes('nick_name') || error.message?.includes('phone') || error.code === '42703')) {
+      if (error.message?.includes('nick_name') || error.message?.includes('phone') || error.code === '42703') {
         if (updates.nick_name !== undefined) delete updates.nick_name;
         if (updates.phone !== undefined) delete updates.phone;
         const retry = await supabase.from('users').update(updates).eq('id', id);
@@ -129,66 +225,33 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
-  // Sync project assignments
+  // Sincronizaciones concurrentes para reducir la latencia de waterfall
+  const syncTasks: Promise<string | null | void>[] = [];
+
   if (Array.isArray(project_ids)) {
-    await supabase.from('user_projects').delete().eq('user_id', id);
-    if (project_ids.length > 0) {
-      const { error } = await supabase.from('user_projects').insert(
-        project_ids.map((pid: string) => ({ user_id: id, project_id: pid }))
-      );
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    syncTasks.push(syncUserProjects(supabase, id, project_ids));
   }
 
-  // Sync user_division_roles
   if (Array.isArray(division_roles)) {
-    await supabase.from('user_division_roles').delete().eq('user_id', id);
-    type DR = { division_id: string; role_id: string | null };
-    const valid = (division_roles as DR[]).filter((dr) => dr.division_id);
-    if (valid.length > 0) {
-      await supabase.from('user_division_roles').insert(
-        valid.map((dr) => ({ user_id: id, division_id: dr.division_id, role_id: dr.role_id || null }))
-      );
-    }
+    syncTasks.push(syncUserDivisionRoles(supabase, id, division_roles));
   }
 
-  // Sync user_tools (asignación individual de herramientas)
   let toolsWarning: string | null = null;
   if (Array.isArray(tool_ids)) {
-    try {
-      const { error: delErr } = await supabase.from('user_tools').delete().eq('user_id', id);
-      if (delErr) {
-        toolsWarning = 'Nota: Para guardar herramientas específicas, ejecuta la migración 007_user_tools_and_forms.sql en Supabase SQL Editor.';
-      } else if (tool_ids.length > 0) {
-        const { error: insErr } = await supabase.from('user_tools').insert(
-          tool_ids.map((tid: string) => ({ user_id: id, tool_id: tid }))
-        );
-        if (insErr) {
-          toolsWarning = insErr.message;
-        }
-      }
-    } catch (e) {
-      console.warn('user_tools sync error:', e);
-    }
+    syncTasks.push(syncUserTools(supabase, id, tool_ids).then((w) => { toolsWarning = w; }));
   }
 
-  // Sync user_forms (asignación individual de formularios)
   let formsWarning: string | null = null;
   if (Array.isArray(form_ids)) {
+    syncTasks.push(syncUserForms(supabase, id, form_ids).then((w) => { formsWarning = w; }));
+  }
+
+  if (syncTasks.length > 0) {
     try {
-      const { error: delErr } = await supabase.from('user_forms').delete().eq('user_id', id);
-      if (delErr) {
-        formsWarning = 'Nota: Para guardar formularios específicos, ejecuta la migración 007_user_tools_and_forms.sql en Supabase SQL Editor.';
-      } else if (form_ids.length > 0) {
-        const { error: insErr } = await supabase.from('user_forms').insert(
-          form_ids.map((fid: string) => ({ user_id: id, form_id: fid }))
-        );
-        if (insErr) {
-          formsWarning = insErr.message;
-        }
-      }
-    } catch (e) {
-      console.warn('user_forms sync error:', e);
+      await Promise.all(syncTasks);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error en la sincronización de asignaciones';
+      return NextResponse.json({ error: msg }, { status: 500 });
     }
   }
 

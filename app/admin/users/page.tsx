@@ -1,62 +1,32 @@
 'use client';
 
-import Link from 'next/link';
-import { Navbar } from '@/components/layout/Navbar';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  Users,
+  Search,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Building2,
+  Clock,
+  RotateCcw,
+} from 'lucide-react';
+import { Navbar } from '@/components/layout/Navbar';
+import { BackButton } from '@/components/BackButton';
 import { indexBy } from '@/lib/indexing';
 
 import {
-  Radio,
-  PenTool,
-  ShieldCheck,
-  Globe,
-  Settings,
-  ChevronDown,
-  UserCog,
-  Clock,
-  UserX,
-  UserCheck,
-  AlertTriangle,
-  MessageSquare,
-  Building2,
-  Layers,
-  Wrench,
-  FileText,
-  RotateCcw,
-  Info,
-  Users,
-  User as UserIcon,
-} from 'lucide-react';
-
-interface DivisionOption { id: string; name: string }
-interface RoleOption {
-  id: string;
-  name: string;
-  division_id: string | null;
-  divisions?: { name: string } | null;
-  role_tools?: { tools: { id: string; slug?: string; name?: string; category?: string } }[];
-  role_forms?: { forms: { id: string; slug?: string; name?: string } }[];
-}
-interface ProjectOption { id: string; code?: string; cost_center?: string; name: string; is_active?: boolean; divisions?: { id: string }[] }
-interface ToolOption { id: string; slug: string; name: string; category: string; is_universal: boolean }
-interface FormOption { id: string; slug: string; name: string; description?: string; steps_count?: number }
-
-interface UserDivisionRole { division_id: string; role_id: string | null }
-interface User {
-  id: string; email: string; full_name: string; nick_name?: string | null; avatar_url?: string;
-  phone?: string | null;
-  role: 'admin' | 'localizador' | 'operator' | 'pending' | 'dibujo' | 'drawing' | 'hr' | 'hseq' | 'warehouse' | 'purchasing' | 'commercial' | 'finance' | 'accounting' | 'management';
-  role_id: string | null;
-  roles: { id: string; name: string } | null;
-  is_active: boolean; created_at: string;
-  user_projects?: { project_id: string }[];
-  user_division_roles?: UserDivisionRole[];
-  user_tools?: { tool_id: string }[];
-  user_forms?: { form_id: string }[];
-}
-
-interface DivisionBlock { divisionId: string; roleId: string; projectIds: Set<string> }
+  User,
+  RoleOption,
+  ProjectOption,
+  DivisionOption,
+  ToolOption,
+  FormOption,
+} from '@/components/admin/users/types';
+import { UserRow } from '@/components/admin/users/UserRow';
+import { UserEditModal } from '@/components/admin/users/UserEditModal';
+import { UserDeactivateModal } from '@/components/admin/users/UserDeactivateModal';
 
 async function fetchAll() {
   const [usersRes, projectsRes, rolesRes, divisionsRes, toolsRes, formsRes] = await Promise.all([
@@ -67,6 +37,7 @@ async function fetchAll() {
     fetch('/api/admin/tools'),
     fetch('/api/admin/forms'),
   ]);
+
   return {
     users: (await usersRes.json()).data ?? [],
     projects: (await projectsRes.json()).data ?? [],
@@ -77,383 +48,36 @@ async function fetchAll() {
   };
 }
 
-function deriveSystemRole(roleName: string): 'localizador' | 'operator' | 'dibujo' | 'warehouse' | 'purchasing' | 'commercial' | 'finance' | 'accounting' | 'management' | 'hseq' | 'hr' {
-  const n = roleName.toLowerCase();
-  if (n.includes('almacén') || n.includes('almacen') || n.includes('warehouse') || n.includes('almacenista')) return 'warehouse';
-  if (n.includes('compras') || n.includes('purchasing') || n.includes('adquisiciones')) return 'purchasing';
-  if (n.includes('comercial') || n.includes('commercial') || n.includes('ventas')) return 'commercial';
-  if (n.includes('finanzas') || n.includes('finance') || n.includes('tesoreria')) return 'finance';
-  if (n.includes('contabilidad') || n.includes('accounting') || n.includes('contador')) return 'accounting';
-  if (n.includes('gerencia') || n.includes('management') || n.includes('gerente') || n.includes('direccion')) return 'management';
-  if (n.includes('hseq') || n.includes('seguridad')) return 'hseq';
-  if (n.includes('rrhh') || n.includes('humano') || n.includes('recursos humanos') || n.includes('hr')) return 'hr';
-  return n.includes('dibujo') || n.includes('cad') ? 'dibujo' : 'localizador';
-}
-
-const SYSTEM_BADGE: Record<string, string> = {
-  admin: 'badge-primary',
-  pending: 'badge-warning',
-  operator: 'badge-accent',
-  localizador: 'badge-accent',
-  dibujo: 'badge-success',
-  warehouse: 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold',
-  purchasing: 'bg-blue-100 text-blue-900 border border-blue-300 font-semibold',
-  commercial: 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold',
-  finance: 'bg-violet-100 text-violet-900 border border-violet-300 font-semibold',
-  accounting: 'bg-cyan-100 text-cyan-900 border border-cyan-300 font-semibold',
-  management: 'bg-slate-200 text-slate-900 border border-slate-400 font-semibold',
-  hseq: 'bg-teal-100 text-teal-800 border border-teal-200 font-semibold',
-  hr: 'bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold',
-};
-
-function getRoleBadgeClass(roleName?: string, userRole: string = 'localizador'): string {
-  if (!roleName) return SYSTEM_BADGE[userRole] ?? 'badge-accent';
-  const lower = roleName.toLowerCase();
-  if (lower.includes('almacén') || lower.includes('almacen') || lower.includes('warehouse') || lower.includes('almacenista')) {
-    return 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold';
-  }
-  if (lower.includes('compras') || lower.includes('purchasing')) {
-    return 'bg-blue-100 text-blue-900 border border-blue-300 font-semibold';
-  }
-  if (lower.includes('comercial') || lower.includes('commercial') || lower.includes('ventas')) {
-    return 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold';
-  }
-  if (lower.includes('finanzas') || lower.includes('finance') || lower.includes('tesorer')) {
-    return 'bg-violet-100 text-violet-900 border border-violet-300 font-semibold';
-  }
-  if (lower.includes('contabilidad') || lower.includes('accounting') || lower.includes('contador')) {
-    return 'bg-cyan-100 text-cyan-900 border border-cyan-300 font-semibold';
-  }
-  if (lower.includes('gerencia') || lower.includes('management') || lower.includes('gerente') || lower.includes('direcci')) {
-    return 'bg-slate-200 text-slate-900 border border-slate-400 font-semibold';
-  }
-  if (lower.includes('hseq')) return 'bg-teal-100 text-teal-800 border border-teal-200 font-semibold';
-  if (lower.includes('rrhh') || lower.includes('humano')) return 'bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold';
-  if (lower.includes('dibujo') || lower.includes('cad')) return 'badge-success';
-  return SYSTEM_BADGE[userRole] ?? 'badge-accent';
-}
-
-function userDisplayBadge(user: User, roleOptions: RoleOption[] = [], rolesById?: Map<string, RoleOption>) {
-  if (user.role === 'admin') return { label: 'Administrador', badge: 'badge-primary' };
-  if (user.role === 'pending') return { label: 'Pendiente', badge: 'badge-warning' };
-  if (user.role === 'warehouse') return { label: 'Almacén', badge: 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold' };
-  if (user.role === 'purchasing') return { label: 'Compras', badge: 'bg-blue-100 text-blue-900 border border-blue-300 font-semibold' };
-  if (user.role === 'commercial') return { label: 'Comercial', badge: 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-semibold' };
-  if (user.role === 'finance') return { label: 'Finanzas', badge: 'bg-violet-100 text-violet-900 border border-violet-300 font-semibold' };
-  if (user.role === 'accounting') return { label: 'Contabilidad', badge: 'bg-cyan-100 text-cyan-900 border border-cyan-300 font-semibold' };
-  if (user.role === 'management') return { label: 'Gerencia', badge: 'bg-slate-200 text-slate-900 border border-slate-400 font-semibold' };
-  if (user.role === 'hseq') return { label: 'HSEQ', badge: 'bg-teal-100 text-teal-800 border border-teal-200 font-semibold' };
-  if (user.role === 'hr') return { label: 'Gestión Humana', badge: 'bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold' };
-  if (user.roles?.name) return { label: user.roles.name, badge: getRoleBadgeClass(user.roles.name, user.role) };
-
-  // Buscar en user_division_roles si no está directo en user.roles
-  const udrList = user.user_division_roles;
-  if (udrList && udrList.length > 0) {
-    for (let i = 0; i < udrList.length; i++) {
-      const udrRoleId = udrList[i].role_id;
-      if (udrRoleId) {
-        const foundRole = rolesById ? rolesById.get(udrRoleId) : roleOptions.find(r => r.id === udrRoleId);
-        if (foundRole) return { label: foundRole.name, badge: getRoleBadgeClass(foundRole.name, user.role) };
-      }
-    }
-  }
-
-  const defaultLabel = user.role === 'dibujo' || user.role === 'drawing' ? 'Dibujo' : 'Localizador';
-  return { label: defaultLabel, badge: SYSTEM_BADGE[user.role] ?? 'badge-accent' };
-}
-
-const TOOL_CATEGORY_STYLES: Record<string, { label: string; type: string; bg: string; text: string }> = {
-  gpr: { label: 'GPR / Geofísica', type: 'gpr', bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800' },
-  cad: { label: 'CAD / BIM', type: 'cad', bg: 'bg-slate-100 border-slate-200', text: 'text-slate-800' },
-  admin: { label: 'Administración', type: 'admin', bg: 'bg-purple-50 border-purple-200', text: 'text-purple-800' },
-  universal: { label: 'Universal', type: 'universal', bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800' },
-  hseq: { label: 'HSEQ / Seguridad', type: 'hseq', bg: 'bg-teal-50 border-teal-200', text: 'text-teal-800' },
-  rrhh: { label: 'RRHH / Gestión Humana', type: 'rrhh', bg: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-800' },
-  warehouse: { label: 'Almacén / Bodega', type: 'warehouse', bg: 'bg-amber-100/70 border-amber-300', text: 'text-amber-900' },
-  purchasing: { label: 'Compras / Proveedores', type: 'purchasing', bg: 'bg-blue-100/70 border-blue-300', text: 'text-blue-900' },
-  commercial: { label: 'Comercial / Pipeline', type: 'commercial', bg: 'bg-emerald-100/70 border-emerald-300', text: 'text-emerald-900' },
-  finance: { label: 'Finanzas / Viáticos', type: 'finance', bg: 'bg-violet-100/70 border-violet-300', text: 'text-violet-900' },
-  accounting: { label: 'Contabilidad / Facturas', type: 'accounting', bg: 'bg-cyan-100/70 border-cyan-300', text: 'text-cyan-900' },
-};
-
-function ToolCategoryIcon({ type }: { type: string }) {
-  if (type === 'gpr') return <Radio className="w-4 h-4 text-accent" strokeWidth={1.75} />;
-  if (type === 'cad') return <PenTool className="w-4 h-4 text-slate-700" strokeWidth={1.75} />;
-  if (type === 'admin') return <ShieldCheck className="w-4 h-4 text-purple-600" strokeWidth={1.75} />;
-  if (type === 'hseq') return <ShieldCheck className="w-4 h-4 text-teal-600" strokeWidth={1.75} />;
-  if (type === 'rrhh') return <Users className="w-4 h-4 text-indigo-600" strokeWidth={1.75} />;
-  return <Globe className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />;
-}
-
-// ── Helpers para resolver herramientas y formularios del rol ──────────────────
-function getUserRoleIds(user: User, roleOptions: RoleOption[]): string[] {
-  const ids = new Set<string>();
-  if (user.role_id) ids.add(user.role_id);
-  const udrList = user.user_division_roles;
-  if (udrList) {
-    for (let i = 0; i < udrList.length; i++) {
-      if (udrList[i].role_id) ids.add(udrList[i].role_id!);
-    }
-  }
-  if (ids.size === 0 && user.role && user.role !== 'admin' && user.role !== 'pending') {
-    const roleLower = user.role.toLowerCase();
-    const match = roleOptions.find(r => {
-      const rNameLower = r.name.toLowerCase();
-      return rNameLower === roleLower ||
-        ((user.role === 'operator' || user.role === 'localizador') && (rNameLower.includes('localizador') || rNameLower.includes('operador'))) ||
-        (user.role === 'dibujo' && (rNameLower.includes('dibujo') || rNameLower.includes('cad'))) ||
-        (user.role === 'warehouse' && (rNameLower.includes('almacén') || rNameLower.includes('almacen') || rNameLower.includes('warehouse') || rNameLower.includes('almacenista'))) ||
-        (user.role === 'purchasing' && (rNameLower.includes('compras') || rNameLower.includes('purchasing') || rNameLower.includes('adquisiciones'))) ||
-        (user.role === 'commercial' && (rNameLower.includes('comercial') || rNameLower.includes('commercial') || rNameLower.includes('ventas'))) ||
-        (user.role === 'finance' && (rNameLower.includes('finanzas') || rNameLower.includes('finance') || rNameLower.includes('tesoreria'))) ||
-        (user.role === 'accounting' && (rNameLower.includes('contabilidad') || rNameLower.includes('accounting') || rNameLower.includes('contador'))) ||
-        (user.role === 'management' && (rNameLower.includes('gerencia') || rNameLower.includes('management') || rNameLower.includes('gerente') || rNameLower.includes('direccion'))) ||
-        (user.role === 'hseq' && (rNameLower.includes('hseq') || rNameLower.includes('seguridad'))) ||
-        (user.role === 'hr' && (rNameLower.includes('rrhh') || rNameLower.includes('humano') || rNameLower.includes('recursos humanos') || rNameLower.includes('hr')));
-    });
-    if (match) ids.add(match.id);
-  }
-  return Array.from(ids);
-}
-
-function getToolsAndFormsFromRoles(roleIds: string[], roleOptions: RoleOption[], rolesById?: Map<string, RoleOption>) {
-  const toolIds = new Set<string>();
-  const formIds = new Set<string>();
-
-  for (let i = 0; i < roleIds.length; i++) {
-    const rid = roleIds[i];
-    const r = rolesById ? rolesById.get(rid) : roleOptions.find(opt => opt.id === rid);
-    if (r) {
-      (r.role_tools ?? []).forEach(rt => {
-        if (rt.tools?.id) toolIds.add(rt.tools.id);
-      });
-      (r.role_forms ?? []).forEach(rf => {
-        if (rf.forms?.id) formIds.add(rf.forms.id);
-      });
-    }
-  }
-
-  return { toolIds, formIds };
-}
-
-function getUserEffectiveToolsAndForms(user: User) {
-  // Las herramientas y formularios son estrictamente los que están asignados al usuario en user_tools y user_forms
-  const toolIds = new Set<string>((user.user_tools ?? []).map(ut => ut.tool_id));
-  const formIds = new Set<string>((user.user_forms ?? []).map(uf => uf.form_id));
-
-  return {
-    toolCount: toolIds.size,
-    formCount: formIds.size,
-    toolIds,
-    formIds,
-  };
-}
-
-// ── DivisionBlockCard ─────────────────────────────────────────────────────────
-function DivisionBlockCard({
-  block, blockIndex, divisions, roleOptions, allProjects, usedDivisionIds, canRemove,
-  onDivisionChange, onRoleChange, onToggleProject, onRemove,
-  projectsByDivisionId, rolesByDivisionId, globalRoles,
-}: {
-  block: DivisionBlock; blockIndex: number;
-  divisions: DivisionOption[]; roleOptions: RoleOption[]; allProjects: ProjectOption[];
-  usedDivisionIds: string[]; canRemove: boolean;
-  onDivisionChange: (i: number, divId: string) => void;
-  onRoleChange: (i: number, roleId: string) => void;
-  onToggleProject: (i: number, projId: string) => void;
-  onRemove: (i: number) => void;
-  projectsByDivisionId?: Map<string, ProjectOption[]>;
-  rolesByDivisionId?: Map<string, RoleOption[]>;
-  globalRoles?: RoleOption[];
-}) {
-  const [search, setSearch] = useState('');
-
-  const divProjects = useMemo(() => {
-    if (projectsByDivisionId) {
-      return projectsByDivisionId.get(block.divisionId) || [];
-    }
-    return allProjects.filter(p => (p.divisions ?? []).some(d => d.id === block.divisionId));
-  }, [projectsByDivisionId, block.divisionId, allProjects]);
-
-  const filtered = useMemo(() => {
-    if (!search) return divProjects;
-    const s = search.toLowerCase();
-    return divProjects.filter(p =>
-      p.name.toLowerCase().includes(s) ||
-      ((p.cost_center || p.code || '').toLowerCase().includes(s))
-    );
-  }, [divProjects, search]);
-
-  // Roles específicos de esta división y roles globales (sin división asignada, ej. HSEQ)
-  const divSpecificRoles = useMemo(() => {
-    if (rolesByDivisionId) {
-      return rolesByDivisionId.get(block.divisionId) || [];
-    }
-    return roleOptions.filter(r => r.division_id === block.divisionId);
-  }, [rolesByDivisionId, block.divisionId, roleOptions]);
-
-  const resolvedGlobalRoles = useMemo(() => {
-    if (globalRoles) return globalRoles;
-    return roleOptions.filter(r => !r.division_id);
-  }, [globalRoles, roleOptions]);
-
-  const availableRoles = useMemo(
-    () => [...divSpecificRoles, ...resolvedGlobalRoles],
-    [divSpecificRoles, resolvedGlobalRoles]
-  );
-
-  return (
-    <div className="border border-border rounded-xl p-4 space-y-3 bg-gray-50/40">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-text-secondary uppercase tracking-wide">División</span>
-        {canRemove && (
-          <button type="button" onClick={() => onRemove(blockIndex)} className="text-xs text-error hover:underline">
-            Quitar
-          </button>
-        )}
-      </div>
-
-      {/* Division selector */}
-      <select
-        value={block.divisionId}
-        onChange={e => onDivisionChange(blockIndex, e.target.value)}
-        className="select text-sm"
-      >
-        <option value="">— Seleccionar división —</option>
-        {divisions
-          .filter(d => d.id === block.divisionId || !usedDivisionIds.includes(d.id))
-          .map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-      </select>
-
-      {block.divisionId && (
-        <>
-          {/* Projects */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="label text-xs">
-                Proyectos
-                <span className="ml-1 text-text-muted font-normal">
-                  ({block.projectIds.size}/{divProjects.length})
-                </span>
-              </label>
-              {divProjects.length > 0 && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => divProjects.forEach(p => {
-                      if (!block.projectIds.has(p.id)) onToggleProject(blockIndex, p.id);
-                    })}
-                    className="text-primary hover:underline font-semibold"
-                  >
-                    Todos
-                  </button>
-                  <span className="text-gray-300">|</span>
-                  <button
-                    type="button"
-                    onClick={() => divProjects.forEach(p => {
-                      if (block.projectIds.has(p.id)) onToggleProject(blockIndex, p.id);
-                    })}
-                    className="text-text-muted hover:text-error hover:underline font-medium"
-                  >
-                    Ninguno
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {divProjects.length === 0 ? (
-              <p className="text-xs text-text-muted">Esta división no tiene proyectos vinculados.</p>
-            ) : (
-              <>
-                <div className="relative mb-1.5">
-                  <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                  </svg>
-                  <input
-                    type="text" value={search} onChange={e => setSearch(e.target.value)}
-                    placeholder="Buscar proyecto..." className="input pl-7 py-1 text-xs"
-                  />
-                </div>
-                <div className="border border-border rounded-xl max-h-36 overflow-y-auto divide-y divide-border bg-white">
-                  {filtered.length === 0 ? (
-                    <p className="px-3 py-3 text-xs text-text-muted text-center">Sin resultados</p>
-                  ) : filtered.map(p => (
-                    <label key={p.id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox" checked={block.projectIds.has(p.id)}
-                        onChange={() => onToggleProject(blockIndex, p.id)}
-                        className="rounded text-primary"
-                      />
-                      <span className="text-xs font-bold text-text-muted w-12 flex-shrink-0">{p.cost_center || p.code || '—'}</span>
-                      <span className="text-sm text-text-primary flex-1 truncate">{p.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Role */}
-          <div>
-            <label className="label text-xs mb-1.5 block">Rol</label>
-            <select
-              value={block.roleId}
-              onChange={e => onRoleChange(blockIndex, e.target.value)}
-              className="select text-sm"
-            >
-              <option value="">— Seleccionar rol —</option>
-              {divSpecificRoles.length > 0 && (
-                <optgroup label="Roles de la división">
-                  {divSpecificRoles.map(r => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </optgroup>
-              )}
-              {resolvedGlobalRoles.length > 0 && (
-                <optgroup label="Roles globales">
-                  {resolvedGlobalRoles.map(r => (
-                    <option key={r.id} value={r.id}>{r.name} (Global)</option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            {availableRoles.length === 0 && (
-              <p className="text-xs text-text-muted mt-1">Esta división no tiene roles asignados ni roles globales disponibles.</p>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Page ──────────────────────────────────────────────────────────────────────
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
+
+  // Estados de modales y acciones
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editNickName, setEditNickName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [validationError, setValidationError] = useState<string | null>(null);
-
-  const [accessType, setAccessType] = useState<'admin' | 'pending' | 'division'>('division');
-  const [editBlocks, setEditBlocks] = useState<DivisionBlock[]>([]);
-  const [blocksReady, setBlocksReady] = useState(false);
-
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [confirmDeactivateUser, setConfirmDeactivateUser] = useState<User | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  // Pestaña activa dentro del modal de edición
-  const [sectionTab, setSectionTab] = useState<'division' | 'tools' | 'forms'>('division');
+  // Estados de filtrado y búsqueda (Paso 4)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'inactive'>('all');
+  const [divisionFilter, setDivisionFilter] = useState<string>('all');
 
-  // Herramientas y Formularios asignados al usuario específico
-  const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
-  const [selectedFormIds, setSelectedFormIds] = useState<Set<string>>(new Set());
-  const [toolSearch, setToolSearch] = useState('');
-  const [formSearch, setFormSearch] = useState('');
+  // Notificación tipo toast corporativo (Paso 5)
+  const [toastNotice, setToastNotice] = useState<{
+    type: 'success' | 'warning' | 'error';
+    message: string;
+  } | null>(null);
 
-  const { data, isLoading } = useQuery({ queryKey: ['admin-users'], queryFn: fetchAll });
+  const showToast = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
+    setToastNotice({ message, type });
+    setTimeout(() => {
+      setToastNotice((prev) => (prev?.message === message ? null : prev));
+    }, 4500);
+  };
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: fetchAll,
+  });
 
   const users: User[] = useMemo(() => data?.users ?? [], [data?.users]);
   const allProjects: ProjectOption[] = useMemo(() => data?.projects ?? [], [data?.projects]);
@@ -462,7 +86,7 @@ export default function AdminUsersPage() {
   const allTools: ToolOption[] = useMemo(() => data?.tools ?? [], [data?.tools]);
   const allForms: FormOption[] = useMemo(() => data?.forms ?? [], [data?.forms]);
 
-  const rolesById = useMemo(() => indexBy(roleOptions, r => r.id), [roleOptions]);
+  const rolesById = useMemo(() => indexBy(roleOptions, (r) => r.id), [roleOptions]);
 
   const projectsByDivisionId = useMemo(() => {
     const map = new Map<string, ProjectOption[]>();
@@ -497,81 +121,21 @@ export default function AdminUsersPage() {
     return map;
   }, [roleOptions]);
 
-  const globalRoles = useMemo(() => roleOptions.filter(r => !r.division_id), [roleOptions]);
+  const globalRoles = useMemo(() => roleOptions.filter((r) => !r.division_id), [roleOptions]);
 
-  const projectsForDiv = useCallback(
-    (divId: string) => (divId ? projectsByDivisionId.get(divId) || [] : []),
-    [projectsByDivisionId]
-  );
-
-  // Initialize blocks and sync role tools/forms when data and user are ready
-  useEffect(() => {
-    if (!editingUser || accessType !== 'division' || blocksReady) return;
-    if (!roleOptions.length || !allProjects.length) return;
-
-    const userProjIds = new Set(editingUser.user_projects?.map(up => up.project_id) ?? []);
-    const udrList = editingUser.user_division_roles ?? [];
-
-    if (udrList.length > 0) {
-      const blocks = udrList.filter(u => u.division_id).map(u => {
-        const divProjs = projectsForDiv(u.division_id);
-        const selected = divProjs.filter(p => userProjIds.has(p.id)).map(p => p.id);
-        return {
-          divisionId: u.division_id,
-          roleId: u.role_id ?? '',
-          projectIds: new Set<string>(selected.length > 0 ? selected : divProjs.map(p => p.id)),
-        };
-      });
-      setEditBlocks(blocks.length > 0 ? blocks : [{ divisionId: '', roleId: '', projectIds: new Set() }]);
-    } else if (editingUser.role_id) {
-      const role = rolesById.get(editingUser.role_id);
-      if (role?.division_id) {
-        const divProjs = projectsForDiv(role.division_id);
-        const selected = divProjs.filter(p => userProjIds.has(p.id)).map(p => p.id);
-        setEditBlocks([{
-          divisionId: role.division_id,
-          roleId: editingUser.role_id,
-          projectIds: new Set(selected.length > 0 ? selected : divProjs.map(p => p.id)),
-        }]);
-      } else {
-        // Rol global: intentar inferir la división de sus proyectos si tiene alguno
-        let inferredDivId = '';
-        if (userProjIds.size > 0) {
-          const firstProj = allProjects.find(p => userProjIds.has(p.id));
-          if (firstProj?.divisions && firstProj.divisions.length > 0) {
-            inferredDivId = firstProj.divisions[0].id;
-          }
-        }
-        const divProjs = inferredDivId ? projectsForDiv(inferredDivId) : [];
-        const selected = divProjs.filter(p => userProjIds.has(p.id)).map(p => p.id);
-
-        setEditBlocks([{
-          divisionId: inferredDivId,
-          roleId: editingUser.role_id,
-          projectIds: new Set(selected.length > 0 ? selected : (inferredDivId ? divProjs.map(p => p.id) : [])),
-        }]);
-      }
-    } else {
-      setEditBlocks([{ divisionId: '', roleId: '', projectIds: new Set() }]);
-    }
-
-    // Pre-cargar herramientas y formularios asignados individualmente
-    const effective = getUserEffectiveToolsAndForms(editingUser);
-    setSelectedToolIds(prev => prev.size > 0 ? prev : new Set(effective.toolIds));
-    setSelectedFormIds(prev => prev.size > 0 ? prev : new Set(effective.formIds));
-
-    setBlocksReady(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingUser, accessType, blocksReady, roleOptions.length, allProjects.length]);
-
+  // Mutación de actualización de usuario
   const updateMutation = useMutation({
     mutationFn: async (payload: {
-      id: string; role?: string; role_id?: string | null;
-      is_active?: boolean; project_ids?: string[];
+      id: string;
+      role?: string;
+      role_id?: string | null;
+      is_active?: boolean;
+      project_ids?: string[];
       division_roles?: { division_id: string; role_id: string | null }[];
       tool_ids?: string[];
       form_ids?: string[];
       full_name?: string;
+      nick_name?: string | null;
       email?: string;
       phone?: string | null;
     }) => {
@@ -588,857 +152,309 @@ export default function AdminUsersPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setEditingUser(null);
       if (resData?.warning) {
-        alert(resData.warning);
+        showToast(resData.warning, 'warning');
+      } else {
+        showToast('Usuario actualizado con éxito', 'success');
       }
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Error inesperado al actualizar';
+      showToast(msg, 'error');
     },
   });
 
-  const openEdit = (user: User) => {
-    setEditingUser(user);
-    setEditName(user.full_name || '');
-    setEditNickName(user.nick_name || user.full_name || '');
-    setEditEmail(user.email || '');
-    setEditPhone(user.phone || '');
-    setValidationError(null);
-    setAccessType(user.role === 'admin' ? 'admin' : user.role === 'pending' ? 'pending' : 'division');
-    setEditBlocks([]);
-    setBlocksReady(false);
-    setSectionTab('division');
-
-    // Pre-cargar exactamente las herramientas y formularios que YA tiene asignados
-    const effective = getUserEffectiveToolsAndForms(user);
-    setSelectedToolIds(new Set(effective.toolIds));
-    setSelectedFormIds(new Set(effective.formIds));
-
-    setToolSearch('');
-    setFormSearch('');
+  const toggleActive = (user: User) => {
+    updateMutation.mutate({ id: user.id, is_active: !user.is_active });
   };
 
-  const handleSave = () => {
-    if (!editingUser) return;
+  // Contadores
+  const pendingCount = useMemo(() => users.filter((u) => u.role === 'pending').length, [users]);
+  const activeCount = useMemo(() => users.filter((u) => u.is_active && u.role !== 'pending').length, [users]);
+  const inactiveCount = useMemo(() => users.filter((u) => !u.is_active).length, [users]);
 
-    const trimmedName = editName.trim();
-    const trimmedNickName = editNickName.trim() || trimmedName;
-    const trimmedEmail = editEmail.trim().toLowerCase();
-    const trimmedPhone = editPhone.trim();
+  // Filtrado reactivo de usuarios
+  const filteredUsers = useMemo(() => {
+    let list = [...users];
 
-    if (!trimmedName) {
-      setValidationError('El nombre completo no puede estar vacío.');
-      return;
+    // Filtro por Estado
+    if (statusFilter === 'pending') {
+      list = list.filter((u) => u.role === 'pending');
+    } else if (statusFilter === 'active') {
+      list = list.filter((u) => u.is_active && u.role !== 'pending');
+    } else if (statusFilter === 'inactive') {
+      list = list.filter((u) => !u.is_active);
     }
 
-    if (!trimmedEmail || !trimmedEmail.includes('@')) {
-      setValidationError('Ingresa un correo electrónico válido.');
-      return;
-    }
-
-    setValidationError(null);
-
-    const tool_ids = Array.from(selectedToolIds);
-    const form_ids = Array.from(selectedFormIds);
-
-    const basePayload = {
-      id: editingUser.id,
-      full_name: trimmedName,
-      nick_name: trimmedNickName,
-      email: trimmedEmail,
-      phone: trimmedPhone || null,
-      tool_ids,
-      form_ids,
-    };
-
-    if (accessType === 'admin') {
-      updateMutation.mutate({
-        ...basePayload,
-        role: 'admin',
-        role_id: null,
-        division_roles: [],
-        project_ids: [],
-      });
-    } else if (accessType === 'pending') {
-      updateMutation.mutate({
-        ...basePayload,
-        role: 'pending',
-        role_id: null,
-        division_roles: [],
-        project_ids: [],
-      });
-    } else {
-      const valid = editBlocks.filter(b => b.divisionId);
-      const division_roles = valid.map(b => ({ division_id: b.divisionId, role_id: b.roleId || null }));
-      const project_ids = Array.from(new Set(valid.flatMap(b => Array.from(b.projectIds))));
-      const primaryRoleId = valid.map(b => b.roleId).find(Boolean) || null;
-      const primaryRole = roleOptions.find(r => r.id === primaryRoleId);
-      const sysRole = primaryRole ? deriveSystemRole(primaryRole.name) : 'localizador';
-      updateMutation.mutate({
-        ...basePayload,
-        role: sysRole,
-        role_id: primaryRoleId,
-        division_roles,
-        project_ids,
+    // Filtro por División
+    if (divisionFilter !== 'all') {
+      list = list.filter((u) => {
+        const inUdr = (u.user_division_roles ?? []).some((udr) => udr.division_id === divisionFilter);
+        const inDirect = (u as { division_id?: string }).division_id === divisionFilter;
+        return inUdr || inDirect;
       });
     }
-  };
 
-  const toggleActive = (user: User) => updateMutation.mutate({ id: user.id, is_active: !user.is_active });
-
-  // Block operations
-  const addBlock = () => setEditBlocks(prev => [...prev, { divisionId: '', roleId: '', projectIds: new Set() }]);
-  const removeBlock = (i: number) => setEditBlocks(prev => prev.filter((_, idx) => idx !== i));
-
-  const onDivisionChange = (i: number, divId: string) => {
-    const divProjs = projectsForDiv(divId);
-    setEditBlocks(prev => prev.map((b, idx) => {
-      if (idx !== i) return b;
-      const currentRole = roleOptions.find(r => r.id === b.roleId);
-      const keepRole = currentRole && (!currentRole.division_id || currentRole.division_id === divId);
-      return {
-        divisionId: divId,
-        roleId: keepRole ? b.roleId : '',
-        projectIds: new Set(divProjs.map(p => p.id)),
-      };
-    }));
-  };
-
-  // Al cambiar de rol, fusionar automáticamente las herramientas y formularios correspondientes
-  const onRoleChange = (i: number, roleId: string) => {
-    setEditBlocks(prev => prev.map((b, idx) => idx === i ? { ...b, roleId } : b));
-    if (roleId) {
-      const { toolIds: newToolIds, formIds: newFormIds } = getToolsAndFormsFromRoles([roleId], roleOptions, rolesById);
-      setSelectedToolIds(prev => {
-        const next = new Set(prev);
-        newToolIds.forEach(id => next.add(id));
-        return next;
-      });
-      setSelectedFormIds(prev => {
-        const next = new Set(prev);
-        newFormIds.forEach(id => next.add(id));
-        return next;
-      });
+    // Filtro por Búsqueda (Nombre, Apodo, Correo, Teléfono)
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      list = list.filter(
+        (u) =>
+          u.full_name.toLowerCase().includes(q) ||
+          (u.nick_name && u.nick_name.toLowerCase().includes(q)) ||
+          u.email.toLowerCase().includes(q) ||
+          (u.phone && u.phone.includes(q))
+      );
     }
-  };
 
-  const onToggleProject = (blockIndex: number, projId: string) =>
-    setEditBlocks(prev => prev.map((b, idx) => {
-      if (idx !== blockIndex) return b;
-      const next = new Set(b.projectIds);
-      if (next.has(projId)) next.delete(projId); else next.add(projId);
-      return { ...b, projectIds: next };
-    }));
-
-  // Toggle de herramienta específica
-  const onToggleTool = (toolId: string) => {
-    setSelectedToolIds(prev => {
-      const next = new Set(prev);
-      if (next.has(toolId)) next.delete(toolId); else next.add(toolId);
-      return next;
-    });
-  };
-
-  // Toggle de formulario específico
-  const onToggleForm = (formId: string) => {
-    setSelectedFormIds(prev => {
-      const next = new Set(prev);
-      if (next.has(formId)) next.delete(formId); else next.add(formId);
-      return next;
-    });
-  };
-
-  const usedDivisionIds = useMemo(() => editBlocks.map(b => b.divisionId).filter(Boolean), [editBlocks]);
-  const pendingCount = useMemo(() => users.filter(u => u.role === 'pending').length, [users]);
-
-  // Filtrado de herramientas por búsqueda (memoizado)
-  const filteredTools = useMemo(() => {
-    if (!toolSearch) return allTools;
-    const q = toolSearch.toLowerCase();
-    return allTools.filter(t =>
-      t.name.toLowerCase().includes(q) ||
-      t.slug.toLowerCase().includes(q) ||
-      (t.category && t.category.toLowerCase().includes(q))
-    );
-  }, [allTools, toolSearch]);
-
-  // Filtrado de formularios por búsqueda (memoizado)
-  const filteredForms = useMemo(() => {
-    if (!formSearch) return allForms;
-    const q = formSearch.toLowerCase();
-    return allForms.filter(f =>
-      f.name.toLowerCase().includes(q) ||
-      f.slug.toLowerCase().includes(q) ||
-      (f.description && f.description.toLowerCase().includes(q))
-    );
-  }, [allForms, formSearch]);
-
-  // Permisos otorgados por el rol activo en el modal
-  const currentModalRoleIds = useMemo(() => {
-    const fromBlocks = editBlocks.map(b => b.roleId).filter(Boolean);
-    if (fromBlocks.length > 0) return fromBlocks;
-    if (editingUser) return getUserRoleIds(editingUser, roleOptions);
-    return [];
-  }, [editBlocks, editingUser, roleOptions]);
-
-  const currentRolePermissions = useMemo(() => {
-    return getToolsAndFormsFromRoles(currentModalRoleIds, roleOptions, rolesById);
-  }, [currentModalRoleIds, roleOptions, rolesById]);
-
-  // Ordenamiento de usuarios memoizado (evita mutar en cada render)
-  const sortedUsers = useMemo(() => {
-    return [...users].sort((a, b) => {
+    // Ordenamiento canónico: Pendientes primero, luego activos
+    return list.sort((a, b) => {
       if (a.role === 'pending' && b.role !== 'pending') return -1;
       if (a.role !== 'pending' && b.role === 'pending') return 1;
       return 0;
     });
-  }, [users]);
-
-  // Función para restablecer exactamente a las herramientas de su rol
-  const handleResetToRoleDefaults = () => {
-    setSelectedToolIds(new Set(currentRolePermissions.toolIds));
-    setSelectedFormIds(new Set(currentRolePermissions.formIds));
-  };
+  }, [users, statusFilter, divisionFilter, searchTerm]);
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-[100dvh] bg-surface flex flex-col">
       <Navbar />
 
+      {/* Hero Canónico según AGENTS.md */}
       <div className="page-hero">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-2xl font-bold text-white mb-1">Gestión de Usuarios</h1>
-          <div className="flex items-center gap-3">
-            <p className="text-white/70 text-sm">{users.length} usuarios registrados</p>
-            {pendingCount > 0 && (
-              <span className="badge bg-amber-400 text-primary-950 font-bold animate-pulse-soft">
-                {pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
+        <div className="max-w-6xl mx-auto space-y-2">
+          <BackButton href="/dashboard" label="Volver a Mi Panel" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+            <Users className="w-7 h-7 text-accent" strokeWidth={1.75} />
+            Gestión de Usuarios
+          </h1>
+          <p className="text-white/70 text-sm mt-1">
+            Administración centralizada de colaboradores, roles por división y permisos de acceso.
+          </p>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 -mt-10 pb-20">
-        <div className="card overflow-visible">
+      <div className="max-w-6xl mx-auto px-4 -mt-8 pb-20 w-full flex-1 space-y-4">
+        {/* Barra de Filtros y Búsqueda */}
+        <div className="card p-3.5 sm:p-4 bg-white border border-border shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Buscador reactivo */}
+            <div className="relative flex-1">
+              <Search
+                className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+                strokeWidth={1.75}
+              />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nombre, correo, apodo o teléfono..."
+                className="input pl-9 pr-8 py-2 text-xs sm:text-sm w-full bg-slate-50 focus:bg-white"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary p-0.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Selector de División */}
+            {divisions.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <Building2 className="w-4 h-4 text-text-muted hidden sm:block" strokeWidth={1.75} />
+                <select
+                  value={divisionFilter}
+                  onChange={(e) => setDivisionFilter(e.target.value)}
+                  className="select text-xs py-2 bg-slate-50 focus:bg-white"
+                >
+                  <option value="all">Todas las divisiones</option>
+                  {divisions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Píldoras de Filtro por Estado */}
+          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-[0.98] ${
+                  statusFilter === 'all'
+                    ? 'bg-primary-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-text-secondary hover:bg-slate-200/70'
+                }`}
+              >
+                Todos <span className="opacity-75 font-mono ml-1">({users.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter('pending')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 active:scale-[0.98] ${
+                  statusFilter === 'pending'
+                    ? 'bg-accent text-primary-950 font-bold shadow-sm'
+                    : 'bg-slate-100 text-text-secondary hover:bg-slate-200/70'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" strokeWidth={2} />
+                Pendientes
+                {pendingCount > 0 && (
+                  <span className="bg-amber-400 text-primary-950 px-1.5 py-0.2 rounded-full text-[11px] font-bold font-mono">
+                    {pendingCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter('active')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-[0.98] ${
+                  statusFilter === 'active'
+                    ? 'bg-primary-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-text-secondary hover:bg-slate-200/70'
+                }`}
+              >
+                Activos <span className="opacity-75 font-mono ml-1">({activeCount})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter('inactive')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-[0.98] ${
+                  statusFilter === 'inactive'
+                    ? 'bg-primary-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-text-secondary hover:bg-slate-200/70'
+                }`}
+              >
+                Inactivos <span className="opacity-75 font-mono ml-1">({inactiveCount})</span>
+              </button>
+            </div>
+
+            {/* Contador de resultados */}
+            <span className="text-xs text-text-muted font-mono">
+              Mostrando {filteredUsers.length} de {users.length}
+            </span>
+          </div>
+        </div>
+
+        {/* Tabla / Listado de Usuarios */}
+        <div className="card overflow-visible bg-white border border-border shadow-sm">
           {isLoading ? (
-            <div className="p-8 text-center text-text-muted">Cargando usuarios...</div>
+            <div className="p-12 text-center text-text-muted space-y-2">
+              <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto" />
+              <p className="text-xs font-medium">Cargando colaboradores...</p>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="p-12 text-center text-text-muted space-y-3">
+              <Users className="w-10 h-10 text-slate-300 mx-auto" strokeWidth={1.5} />
+              <p className="text-sm font-semibold text-text-primary">No se encontraron usuarios</p>
+              <p className="text-xs text-text-muted max-w-sm mx-auto">
+                No hay ningún colaborador que coincida con los criterios de búsqueda o filtros seleccionados.
+              </p>
+              {(searchTerm || statusFilter !== 'all' || divisionFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                    setDivisionFilter('all');
+                  }}
+                  className="btn-sm btn-outline text-xs px-3 py-1.5 inline-flex items-center gap-1.5 mt-2"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.75} />
+                  Restablecer filtros
+                </button>
+              )}
+            </div>
           ) : (
             <div className="divide-y divide-border">
-              {sortedUsers.map(user => {
-                const badge = userDisplayBadge(user, roleOptions, rolesById);
-
-                  return (
-                    <div key={user.id} className={`p-4 sm:p-5 flex items-center gap-4 transition-colors ${
-                      user.role === 'pending' ? 'bg-amber-50' : !user.is_active ? 'bg-gray-50 opacity-60' : 'hover:bg-gray-50'
-                    }`}>
-                      {user.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={user.avatar_url} alt={user.full_name} className="w-11 h-11 rounded-full flex-shrink-0" />
-                      ) : (
-                        <div className="w-11 h-11 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-primary font-bold">{(user.full_name || 'U').charAt(0).toUpperCase()}</span>
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <p className="font-semibold text-text-primary text-sm">{user.full_name}</p>
-                          <span className={`badge ${badge.badge} text-xs`}>{badge.label}</span>
-                          {!user.is_active && <span className="badge badge-gray text-xs">Inactivo</span>}
-                          {user.role === 'pending' && (
-                            <span className="badge bg-accent text-primary-900 text-xs animate-pulse-soft flex items-center gap-1 font-bold">
-                              <Clock className="w-3 h-3 text-primary-900" strokeWidth={2} /> Pendiente
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-text-muted flex-wrap font-mono">
-                          <span>{user.email}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <div className="relative inline-block text-left">
-                          <button
-                            onClick={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
-                            className="btn-sm btn-outline text-xs px-2.5 py-1.5 flex items-center gap-1.5 hover:bg-gray-100 rounded-lg font-medium text-text-primary active:scale-[0.98] transition-transform duration-150"
-                          >
-                            <Settings className="w-3.5 h-3.5 text-text-secondary" strokeWidth={1.75} />
-                            <span>Acciones</span>
-                            <ChevronDown className="w-3 h-3 text-text-muted" strokeWidth={1.75} />
-                          </button>
-
-                          {openMenuId === user.id && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-20 cursor-default"
-                                onClick={() => setOpenMenuId(null)}
-                              />
-                              <div className="absolute right-0 mt-1 w-52 bg-white rounded-xl shadow-xl border border-border py-1.5 z-30 animate-slide-up origin-top-right">
-                                <button
-                                  onClick={() => {
-                                    setOpenMenuId(null);
-                                    openEdit(user);
-                                  }}
-                                  className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
-                                >
-                                  <UserCog className="w-3.5 h-3.5 text-text-secondary" strokeWidth={1.75} />
-                                  <span>Editar usuario y roles</span>
-                                </button>
-
-                                {user.role !== 'pending' && (
-                                  <Link
-                                    href={`/tools/attendance-tracker?userId=${user.id}`}
-                                    onClick={() => setOpenMenuId(null)}
-                                    className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
-                                    title="Ver registro de asistencia de este colaborador"
-                                  >
-                                    <Clock className="w-3.5 h-3.5 text-text-secondary" strokeWidth={1.75} />
-                                    <span>Ver asistencia</span>
-                                  </Link>
-                                )}
-
-                                <div className="border-t border-gray-100 my-1" />
-
-                                {user.is_active ? (
-                                  <button
-                                    onClick={() => {
-                                      setOpenMenuId(null);
-                                      setConfirmDeactivateUser(user);
-                                    }}
-                                    className="w-full text-left px-3.5 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 font-semibold transition-colors"
-                                  >
-                                    <UserX className="w-3.5 h-3.5 text-red-600" strokeWidth={1.75} />
-                                    <span>Desactivar usuario</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => {
-                                      setOpenMenuId(null);
-                                      toggleActive(user);
-                                    }}
-                                    disabled={updateMutation.isPending}
-                                    className="w-full text-left px-3.5 py-2 text-xs text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 font-semibold transition-colors"
-                                  >
-                                    <UserCheck className="w-3.5 h-3.5 text-emerald-600" strokeWidth={1.75} />
-                                    <span>Activar usuario</span>
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              {filteredUsers.map((user) => (
+                <UserRow
+                  key={user.id}
+                  user={user}
+                  roleOptions={roleOptions}
+                  rolesById={rolesById}
+                  isMenuOpen={openMenuId === user.id}
+                  onToggleMenu={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
+                  onCloseMenu={() => setOpenMenuId(null)}
+                  onEdit={() => setEditingUser(user)}
+                  onToggleActive={() => toggleActive(user)}
+                  onConfirmDeactivate={() => setConfirmDeactivateUser(user)}
+                  isActionPending={updateMutation.isPending}
+                />
+              ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* ── Edit modal ──────────────────────────────────────────────────────── */}
+      {/* Modal de Edición Desacoplado */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-          <div className="card w-full max-w-xl animate-slide-up max-h-[92vh] flex flex-col shadow-2xl">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between flex-shrink-0">
-              <div>
-                <h3 className="font-bold text-text-primary text-base">Editar Usuario</h3>
-              </div>
-              <button onClick={() => setEditingUser(null)} className="btn-icon btn-ghost">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
-              {/* User info Card */}
-              <div className="flex items-center gap-3.5 pb-3 border-b border-border">
-                {editingUser.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={editingUser.avatar_url} alt={editName || editingUser.full_name} className="w-12 h-12 rounded-full border border-border flex-shrink-0" />
-                ) : (
-                  <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-primary font-bold text-lg">{(editName || editingUser.full_name || 'U').charAt(0).toUpperCase()}</span>
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold text-text-primary text-sm sm:text-base truncate">{editName || editingUser.full_name}</p>
-                  <p className="text-xs text-text-muted truncate">{editEmail || editingUser.email}</p>
-                </div>
-              </div>
-
-              {/* Información Personal y Contacto */}
-              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-xs text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <UserIcon className="w-3.5 h-3.5 text-slate-600" strokeWidth={1.75} />
-                    <span>Datos Personales</span>
-                  </label>
-                </div>
-
-                <div className="space-y-2.5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block text-xs font-semibold text-text-secondary mb-1">
-                        Nombre Completo <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={e => {
-                          setEditName(e.target.value);
-                          if (validationError) setValidationError(null);
-                        }}
-                        placeholder="Nombre completo"
-                        className="input text-xs w-full py-2 bg-white"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-text-secondary mb-1">
-                        Apodo
-                      </label>
-                      <input
-                        type="text"
-                        value={editNickName}
-                        onChange={e => setEditNickName(e.target.value)}
-                        placeholder="Apodo"
-                        className="input text-xs w-full py-2 bg-white"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block text-xs font-semibold text-text-secondary mb-1">
-                        Correo <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={editEmail}
-                        onChange={e => {
-                          setEditEmail(e.target.value);
-                          if (validationError) setValidationError(null);
-                        }}
-                        placeholder="correo@ejemplo.com"
-                        className="input text-xs w-full py-2 bg-white"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-text-secondary mb-1 flex items-center gap-1">
-                        <MessageSquare className="w-3.5 h-3.5 text-text-secondary" strokeWidth={1.75} /> WhatsApp
-                      </label>
-                      <input
-                        type="tel"
-                        value={editPhone}
-                        onChange={e => setEditPhone(e.target.value)}
-                        placeholder="Ej. +57 300 123 4567"
-                        className="input text-xs w-full py-2 bg-white font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {validationError && (
-                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2 font-medium flex items-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" strokeWidth={1.75} />
-                    <span>{validationError}</span>
-                  </p>
-                )}
-              </div>
-
-              {/* Access type buttons */}
-              <div className="form-group">
-                <label className="label font-semibold text-xs text-text-secondary uppercase tracking-wider mb-2 block">
-                  Tipo de acceso
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(['admin', 'pending', 'division'] as const).map(t => (
-                    <button key={t} type="button"
-                      onClick={() => setAccessType(t)}
-                      className={`py-2.5 px-3 rounded-xl border-2 text-xs font-semibold transition-all active:scale-[0.98] ${
-                        accessType === t
-                          ? 'border-primary bg-primary text-white shadow-sm'
-                          : 'border-border text-text-secondary hover:border-primary/40 bg-white'
-                      }`}>
-                      {t === 'admin' ? (
-                        <span className="flex items-center justify-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" strokeWidth={1.75} /> Administrador</span>
-                      ) : t === 'pending' ? (
-                        <span className="flex items-center justify-center gap-1.5"><Clock className="w-3.5 h-3.5" strokeWidth={1.75} /> Pendiente</span>
-                      ) : (
-                        <span className="flex items-center justify-center gap-1.5"><Building2 className="w-3.5 h-3.5" strokeWidth={1.75} /> División</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {accessType === 'pending' && (
-                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" strokeWidth={1.75} />
-                  <span>Sin acceso asignado hasta aprobación</span>
-                </div>
-              )}
-
-              {accessType === 'division' && (
-                <div className="space-y-4">
-                  {/* Selector de Pestañas: División vs Herramientas vs Formularios */}
-                  <div className="flex border-b border-border gap-1 bg-gray-50/70 p-1 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => setSectionTab('division')}
-                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
-                        sectionTab === 'division'
-                          ? 'bg-white text-primary shadow-sm border border-border'
-                          : 'text-text-muted hover:text-text-primary'
-                      }`}
-                    >
-                      <Layers className="w-3.5 h-3.5" strokeWidth={1.75} />
-                      <span>División & Proyectos</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSectionTab('tools')}
-                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
-                        sectionTab === 'tools'
-                          ? 'bg-white text-primary shadow-sm border border-border'
-                          : 'text-text-muted hover:text-text-primary'
-                      }`}
-                    >
-                      <Wrench className="w-3.5 h-3.5" strokeWidth={1.75} />
-                      <span>Herramientas</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold font-mono ${
-                        selectedToolIds.size > 0 ? 'bg-primary-100 text-primary' : 'bg-gray-200 text-gray-600'
-                      }`}>
-                        {selectedToolIds.size}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSectionTab('forms')}
-                      className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] ${
-                        sectionTab === 'forms'
-                          ? 'bg-white text-primary shadow-sm border border-border'
-                          : 'text-text-muted hover:text-text-primary'
-                      }`}
-                    >
-                      <FileText className="w-3.5 h-3.5" strokeWidth={1.75} />
-                      <span>Formularios</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold font-mono ${
-                        selectedFormIds.size > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-600'
-                      }`}>
-                        {selectedFormIds.size}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* PESTAÑA 1: DIVISIÓN, PROYECTOS Y ROL */}
-                  {sectionTab === 'division' && (
-                    <div className="space-y-3">
-                      {!blocksReady && (
-                        <div className="text-xs text-text-muted animate-pulse text-center py-4">Cargando asignaciones...</div>
-                      )}
-                      {blocksReady && editBlocks.map((block, i) => (
-                        <DivisionBlockCard
-                          key={i}
-                          block={block}
-                          blockIndex={i}
-                          divisions={divisions}
-                          roleOptions={roleOptions}
-                          allProjects={allProjects}
-                          projectsByDivisionId={projectsByDivisionId}
-                          rolesByDivisionId={rolesByDivisionId}
-                          globalRoles={globalRoles}
-                          usedDivisionIds={usedDivisionIds}
-                          canRemove={editBlocks.length > 1}
-                          onDivisionChange={onDivisionChange}
-                          onRoleChange={onRoleChange}
-                          onToggleProject={onToggleProject}
-                          onRemove={removeBlock}
-                        />
-                      ))}
-
-                      {blocksReady && (
-                        <button
-                          type="button"
-                          onClick={addBlock}
-                          disabled={usedDivisionIds.length >= divisions.length}
-                          className="w-full py-2.5 border-2 border-dashed border-border rounded-xl text-xs text-text-muted hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                          </svg>
-                          + Otra división
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* PESTAÑA 2: HERRAMIENTAS ASIGNADAS */}
-                  {sectionTab === 'tools' && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                            Herramientas
-                          </h4>
-                          <p className="text-[11px] text-text-muted font-mono">
-                            {selectedToolIds.size} / {allTools.length} seleccionadas
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <button
-                            type="button"
-                            onClick={handleResetToRoleDefaults}
-                            className="text-primary hover:underline font-semibold flex items-center gap-1"
-                            title="Restablecer a las herramientas otorgadas por su rol"
-                          >
-                            <RotateCcw className="w-3 h-3" strokeWidth={1.75} />
-                            <span>Por Rol</span>
-                          </button>
-                          <span className="text-gray-300">|</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedToolIds(new Set(allTools.map(t => t.id)))}
-                            className="text-primary hover:underline font-semibold"
-                          >
-                            Todas
-                          </button>
-                          <span className="text-gray-300">|</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedToolIds(new Set())}
-                            className="text-text-muted hover:text-error hover:underline font-medium"
-                          >
-                            Ninguna
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Buscador de herramientas */}
-                      <div className="relative">
-                        <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                        </svg>
-                        <input
-                          type="text"
-                          value={toolSearch}
-                          onChange={e => setToolSearch(e.target.value)}
-                          placeholder="Buscar herramienta por nombre o categoría..."
-                          className="input pl-7 py-1.5 text-xs"
-                        />
-                      </div>
-
-                      {/* Lista de herramientas */}
-                      <div className="border border-border rounded-xl max-h-64 overflow-y-auto divide-y divide-border bg-white">
-                        {filteredTools.length === 0 ? (
-                          <p className="px-3 py-4 text-xs text-text-muted text-center">No se encontraron herramientas</p>
-                        ) : (
-                          filteredTools.map(tool => {
-                            const isChecked = selectedToolIds.has(tool.id);
-                            const isGrantedByRole = currentRolePermissions.toolIds.has(tool.id);
-                            const catStyle = TOOL_CATEGORY_STYLES[tool.category] ?? {
-                              label: tool.category, type: 'admin', bg: 'bg-gray-50 border-gray-200', text: 'text-gray-700',
-                            };
-
-                            return (
-                              <label
-                                key={tool.id}
-                                className={`flex items-center gap-3 px-3.5 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors ${
-                                  isChecked ? 'bg-primary-50/30' : ''
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => onToggleTool(tool.id)}
-                                  className="rounded text-primary focus:ring-primary w-4 h-4"
-                                />
-                                <span className="flex-shrink-0 flex items-center"><ToolCategoryIcon type={catStyle.type} /></span>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-semibold text-text-primary truncate">{tool.name}</span>
-                                    <span className={`px-1.5 py-0.2 rounded border text-[10px] font-medium ${catStyle.bg} ${catStyle.text}`}>
-                                      {catStyle.label}
-                                    </span>
-                                    {isGrantedByRole && (
-                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-gray-100 text-text-secondary border border-gray-200">
-                                        Rol
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </label>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PESTAÑA 3: FORMULARIOS ASIGNADOS */}
-                  {sectionTab === 'forms' && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-xs font-bold text-text-primary uppercase tracking-wide">
-                            Formularios
-                          </h4>
-                          <p className="text-[11px] text-text-muted font-mono">
-                            {selectedFormIds.size} / {allForms.length} seleccionados
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          <button
-                            type="button"
-                            onClick={handleResetToRoleDefaults}
-                            className="text-primary hover:underline font-semibold flex items-center gap-1"
-                            title="Restablecer a los formularios otorgados por su rol"
-                          >
-                            <RotateCcw className="w-3 h-3" strokeWidth={1.75} />
-                            <span>Por Rol</span>
-                          </button>
-                          <span className="text-gray-300">|</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedFormIds(new Set(allForms.map(f => f.id)))}
-                            className="text-primary hover:underline font-semibold"
-                          >
-                            Todos
-                          </button>
-                          <span className="text-gray-300">|</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedFormIds(new Set())}
-                            className="text-text-muted hover:text-error hover:underline font-medium"
-                          >
-                            Ninguno
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Buscador de formularios */}
-                      <div className="relative">
-                        <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-                        </svg>
-                        <input
-                          type="text"
-                          value={formSearch}
-                          onChange={e => setFormSearch(e.target.value)}
-                          placeholder="Buscar formulario..."
-                          className="input pl-7 py-1.5 text-xs"
-                        />
-                      </div>
-
-                      {/* Lista de formularios */}
-                      <div className="border border-border rounded-xl max-h-64 overflow-y-auto divide-y divide-border bg-white">
-                        {filteredForms.length === 0 ? (
-                          <p className="px-3 py-4 text-xs text-text-muted text-center">No se encontraron formularios</p>
-                        ) : (
-                          filteredForms.map(form => {
-                            const isChecked = selectedFormIds.has(form.id);
-                            const isGrantedByRole = currentRolePermissions.formIds.has(form.id);
-
-                            return (
-                              <label
-                                key={form.id}
-                                className={`flex items-start gap-3 px-3.5 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors ${
-                                  isChecked ? 'bg-emerald-50/40' : ''
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => onToggleForm(form.id)}
-                                  className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 mt-0.5"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-xs font-semibold text-text-primary">{form.name}</p>
-                                    {isGrantedByRole && (
-                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-gray-100 text-text-secondary border border-gray-200">
-                                        Rol
-                                      </span>
-                                    )}
-                                  </div>
-                                  {form.description && (
-                                    <p className="text-[11px] text-text-muted mt-0.5">{form.description}</p>
-                                  )}
-                                </div>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
-                                  {form.slug}
-                                </span>
-                              </label>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {updateMutation.isError && (
-                <p className="text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded-lg border border-red-200 flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" strokeWidth={1.75} />
-                  <span>{updateMutation.error instanceof Error ? updateMutation.error.message : 'Error al actualizar usuario'}</span>
-                </p>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex gap-3 p-5 border-t border-border flex-shrink-0 bg-gray-50/50 rounded-b-2xl">
-              <button onClick={() => setEditingUser(null)} className="btn-ghost flex-1">Cancelar</button>
-              <button onClick={handleSave} disabled={updateMutation.isPending} className="btn-primary flex-1">
-                {updateMutation.isPending
-                  ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Guardando...</>
-                  : 'Guardar cambios'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <UserEditModal
+          user={editingUser}
+          allProjects={allProjects}
+          roleOptions={roleOptions}
+          divisions={divisions}
+          allTools={allTools}
+          allForms={allForms}
+          rolesById={rolesById}
+          projectsByDivisionId={projectsByDivisionId}
+          rolesByDivisionId={rolesByDivisionId}
+          globalRoles={globalRoles}
+          isPending={updateMutation.isPending}
+          onClose={() => setEditingUser(null)}
+          onSave={(payload) => updateMutation.mutate(payload)}
+          mutationError={
+            updateMutation.isError
+              ? updateMutation.error instanceof Error
+                ? updateMutation.error.message
+                : 'Error al actualizar usuario'
+              : null
+          }
+        />
       )}
 
-      {/* ── Modal Confirmar Desactivación de Usuario ───────────────────── */}
+      {/* Modal de Desactivación Desacoplado */}
       {confirmDeactivateUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="card w-full max-w-md p-6 bg-white rounded-2xl shadow-2xl space-y-4 border border-border animate-slide-up">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" strokeWidth={2} />
-            </div>
-            <div className="text-center space-y-1.5">
-              <h3 className="text-lg font-bold text-text-primary">¿Desactivar este usuario?</h3>
-              <p className="text-xs text-text-secondary">
-                Estás a punto de desactivar a{' '}
-                <span className="font-bold text-text-primary">{confirmDeactivateUser.full_name}</span>{' '}
-                ({confirmDeactivateUser.email}).
-              </p>
-              <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 text-left leading-relaxed flex items-start gap-2">
-                <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" strokeWidth={1.75} />
-                <span>
-                  <strong>Nota:</strong> El colaborador perderá inmediatamente el acceso y no podrá iniciar sesión en PROCIMEC hasta que sea reactivado por un administrador.
-                </span>
-              </div>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setConfirmDeactivateUser(null)}
-                className="btn-ghost flex-1 text-xs py-2.5 rounded-xl"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  toggleActive(confirmDeactivateUser);
-                  setConfirmDeactivateUser(null);
-                }}
-                disabled={updateMutation.isPending}
-                className="flex-1 text-xs py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors shadow-sm disabled:opacity-50 active:scale-[0.98]"
-              >
-                {updateMutation.isPending ? 'Desactivando...' : 'Sí, desactivar'}
-              </button>
-            </div>
-          </div>
+        <UserDeactivateModal
+          user={confirmDeactivateUser}
+          isPending={updateMutation.isPending}
+          onClose={() => setConfirmDeactivateUser(null)}
+          onConfirm={() => {
+            toggleActive(confirmDeactivateUser);
+            setConfirmDeactivateUser(null);
+          }}
+        />
+      )}
+
+      {/* Toast Notificación Corporativa */}
+      {toastNotice && (
+        <div className="fixed bottom-6 right-6 z-50 animate-slide-up flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl border bg-primary-950 text-white border-primary-800">
+          {toastNotice.type === 'success' && (
+            <CheckCircle2 className="w-5 h-5 text-accent flex-shrink-0" strokeWidth={2} />
+          )}
+          {toastNotice.type === 'warning' && (
+            <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" strokeWidth={2} />
+          )}
+          {toastNotice.type === 'error' && (
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" strokeWidth={2} />
+          )}
+          <span className="text-xs font-medium text-white/95 max-w-sm">{toastNotice.message}</span>
+          <button
+            type="button"
+            onClick={() => setToastNotice(null)}
+            className="text-white/60 hover:text-white ml-2 p-0.5"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>
