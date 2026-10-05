@@ -413,28 +413,28 @@ export function OrgChartCanvas({
           <div className="flex items-center gap-1 pl-1">
             <button
               onClick={() => setReachMode(reachMode === 'upstream' ? null : 'upstream')}
-              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors active:scale-[0.98] ${
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg transition-colors active:scale-[0.98] ${
                 reachMode === 'upstream'
-                  ? 'bg-[#EAA023] text-black font-semibold'
-                  : 'text-neutral-300 hover:text-white bg-[#1E2229] border border-[#2A303C]'
+                  ? 'bg-accent text-primary-950 font-bold'
+                  : 'text-neutral-300 hover:text-white bg-[#1E2229] border border-[#2A303C] font-medium'
               }`}
               title="Rastrear dependencias superiores"
             >
               <ArrowUpRight className="w-3.5 h-3.5" strokeWidth={1.75} />
-              <span>Upstream</span>
+              <span>Dependencias</span>
             </button>
 
             <button
               onClick={() => setReachMode(reachMode === 'downstream' ? null : 'downstream')}
-              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors active:scale-[0.98] ${
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg transition-colors active:scale-[0.98] ${
                 reachMode === 'downstream'
-                  ? 'bg-[#EAA023] text-black font-semibold'
-                  : 'text-neutral-300 hover:text-white bg-[#1E2229] border border-[#2A303C]'
+                  ? 'bg-accent text-primary-950 font-bold'
+                  : 'text-neutral-300 hover:text-white bg-[#1E2229] border border-[#2A303C] font-medium'
               }`}
-              title="Rastrear impacto aguas abajo"
+              title="Rastrear impacto y personal a cargo"
             >
               <ArrowDownRight className="w-3.5 h-3.5" strokeWidth={1.75} />
-              <span>Downstream</span>
+              <span>Impacto</span>
             </button>
 
             {reachMode && (

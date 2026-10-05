@@ -145,32 +145,125 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Check if there are RRHH users but no RRHH division in DB
-    const hasRrhhUsers = dbUsers.some((u) => u.role === 'rrhh');
-    const hasRrhhDivision = rawNodes.some((n) => n.type === 'division' && n.category === 'rrhh');
-    if (hasRrhhUsers && !hasRrhhDivision) {
-      const rrhhNodeId = 'div-rrhh-auto';
-      divisionIdMap.set('rrhh-auto', rrhhNodeId);
-      rawNodes.push({
-        id: rrhhNodeId,
-        type: 'division',
+    // Ensure all corporate departments with assigned users are represented
+    const FUNCTIONAL_DIVISIONS: Record<string, { title: string; subtitle: string; category: string; badge: string; tags: string[] }> = {
+      gpr: {
+        title: 'División Geofísica & GPR',
+        subtitle: 'Exploración de Subsuelo y Radargramas',
+        category: 'gpr',
+        badge: 'GPR / Campo',
+        tags: ['GPR', 'Georradar', 'Localización'],
+      },
+      cad: {
+        title: 'Oficina Técnica CAD / BIM',
+        subtitle: 'Planimetría, Modelado Civil 3D y Revit',
+        category: 'cad',
+        badge: 'CAD / BIM',
+        tags: ['CAD', 'BIM', 'Civil 3D'],
+      },
+      warehouse: {
+        title: 'División Almacén & Logística',
+        subtitle: 'Kárdex de Instrumental, Despachos y Bodega',
+        category: 'warehouse',
+        badge: 'Almacén',
+        tags: ['Equipos', 'Kárdex', 'Logística'],
+      },
+      purchasing: {
+        title: 'División Compras & Suministros',
+        subtitle: 'Cotizaciones, Proveedores y Órdenes de Compra',
+        category: 'purchasing',
+        badge: 'Compras',
+        tags: ['Compras', 'Adquisiciones', 'Proveedores'],
+      },
+      commercial: {
+        title: 'División Comercial & Licitaciones',
+        subtitle: 'Propuestas Técnicas, Ofertas y Oportunidades',
+        category: 'commercial',
+        badge: 'Comercial',
+        tags: ['Comercial', 'Licitaciones', 'Clientes'],
+      },
+      finance: {
+        title: 'División Finanzas & Tesorería',
+        subtitle: 'Viáticos, Anticipos y Rendición de Gastos',
+        category: 'finance',
+        badge: 'Finanzas',
+        tags: ['Finanzas', 'Tesorería', 'Viáticos'],
+      },
+      accounting: {
+        title: 'División Contabilidad & Impuestos',
+        subtitle: 'Radicación de Facturas y Soporte de Cobro',
+        category: 'accounting',
+        badge: 'Contabilidad',
+        tags: ['Facturas', 'Impuestos', 'Cobro'],
+      },
+      hseq: {
+        title: 'Coordinación HSEQ & SST',
+        subtitle: 'Inspecciones Preoperacionales, Calidad y SST',
+        category: 'hseq',
+        badge: 'HSEQ & SST',
+        tags: ['Seguridad', 'HSEQ', 'SST'],
+      },
+      rrhh: {
         title: 'División Gestión Humana & RRHH',
         subtitle: 'Administración de Personal, Cartas y Nómina',
         category: 'rrhh',
         badge: 'RRHH',
-        status: 'active',
-        level: 1,
-        parentId: rootId,
         tags: ['Talento Humano', 'Cartas', 'Asistencia'],
+      },
+    };
+
+    const roleToDivisionKey: Record<string, string> = {
+      localizador: 'gpr',
+      operator: 'gpr',
+      gpr: 'gpr',
+      dibujo: 'cad',
+      cad: 'cad',
+      warehouse: 'warehouse',
+      almacen: 'warehouse',
+      purchasing: 'purchasing',
+      compras: 'purchasing',
+      commercial: 'commercial',
+      comercial: 'commercial',
+      finance: 'finance',
+      finanzas: 'finance',
+      accounting: 'accounting',
+      contabilidad: 'accounting',
+      hseq: 'hseq',
+      rrhh: 'rrhh',
+    };
+
+    // Auto-create missing division nodes if active users or roles belong to them
+    Object.entries(FUNCTIONAL_DIVISIONS).forEach(([divKey, divMeta]) => {
+      const exists = rawNodes.some((n) => n.type === 'division' && n.category === divMeta.category);
+      const hasUsers = dbUsers.some((u) => {
+        const uRole = (u.role || '').toLowerCase();
+        return roleToDivisionKey[uRole] === divKey;
       });
 
-      edges.push({
-        id: `e-${rootId}-${rrhhNodeId}`,
-        source: rootId,
-        target: rrhhNodeId,
-        animated: true,
-      });
-    }
+      if (!exists && hasUsers) {
+        const autoDivNodeId = `div-${divKey}-auto`;
+        divisionIdMap.set(divKey, autoDivNodeId);
+        rawNodes.push({
+          id: autoDivNodeId,
+          type: 'division',
+          title: divMeta.title,
+          subtitle: divMeta.subtitle,
+          category: divMeta.category,
+          badge: divMeta.badge,
+          status: 'active',
+          level: 1,
+          parentId: rootId,
+          tags: divMeta.tags,
+        });
+
+        edges.push({
+          id: `e-${rootId}-${autoDivNodeId}`,
+          source: rootId,
+          target: autoDivNodeId,
+          animated: true,
+        });
+      }
+    });
 
     // Level 2: Usuarios / Especialistas
     const userProjectsMap = new Map<string, string[]>();
@@ -190,23 +283,20 @@ export async function GET(req: NextRequest) {
       // Find parent division
       let parentDivId = roleObj?.division_id ? divisionIdMap.get(roleObj.division_id) : undefined;
       if (!parentDivId) {
-        if (u.role === 'admin') {
+        if (u.role === 'admin' || u.role === 'management') {
           // Direct reports to Gerencia
           parentDivId = rootId;
-        } else if (u.role === 'rrhh') {
-          const rrhhDiv = rawNodes.find((n) => n.type === 'division' && n.category === 'rrhh');
-          parentDivId = rrhhDiv ? rrhhDiv.id : rootId;
-        } else if (u.role === 'localizador' || u.role === 'operator') {
-          const gprDiv = rawNodes.find((n) => n.type === 'division' && n.category === 'gpr');
-          parentDivId = gprDiv ? gprDiv.id : Array.from(divisionIdMap.values())[0];
-        } else if (u.role === 'dibujo') {
-          const cadDiv = rawNodes.find((n) => n.type === 'division' && n.category === 'cad');
-          parentDivId = cadDiv ? cadDiv.id : Array.from(divisionIdMap.values())[0];
-        } else if (u.role === 'hseq') {
-          const hseqDiv = rawNodes.find((n) => n.type === 'division' && n.category === 'hseq');
-          parentDivId = hseqDiv ? hseqDiv.id : Array.from(divisionIdMap.values())[0];
         } else {
-          parentDivId = Array.from(divisionIdMap.values())[0] || rootId;
+          const divKey = roleToDivisionKey[(u.role || '').toLowerCase()];
+          if (divKey) {
+            const matchingDiv = rawNodes.find((n) => n.type === 'division' && n.category === divKey);
+            if (matchingDiv) {
+              parentDivId = matchingDiv.id;
+            }
+          }
+          if (!parentDivId) {
+            parentDivId = Array.from(divisionIdMap.values())[0] || rootId;
+          }
         }
       }
 

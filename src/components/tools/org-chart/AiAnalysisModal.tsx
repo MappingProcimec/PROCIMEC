@@ -264,7 +264,7 @@ export function AiAnalysisModal({ isOpen, onClose, payload }: AiAnalysisModalPro
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-1.5 text-xs font-medium text-black bg-[#EAA023] hover:bg-[#d8921e] rounded-lg transition-colors active:scale-[0.98]"
+              className="px-4 py-1.5 text-xs font-bold text-primary-950 bg-accent hover:bg-accent-400 rounded-lg transition-colors active:scale-[0.98]"
             >
               Aceptar
             </button>

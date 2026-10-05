@@ -119,73 +119,66 @@ export default function OrgChartAiPage() {
     <div className="min-h-[100dvh] bg-[#14171C] text-white flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-5">
-        {/* Hub Return Button */}
-        <div className="flex items-center justify-between">
+      {/* Hero Canónico según AGENTS.md */}
+      <div className="page-hero">
+        <div className="max-w-7xl mx-auto space-y-2">
           <BackButton href="/dashboard" label="Volver a Mi Panel" />
-        </div>
-
-        {/* Header Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#2A303C]">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#EAA023]/10 text-[#EAA023] border border-[#EAA023]/30">
-                <GitBranch className="w-4 h-4" strokeWidth={1.75} />
-              </div>
-              <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-3">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
+                <GitBranch className="w-7 h-7 text-accent" strokeWidth={1.75} />
                 Organigrama & Arquitectura de Cargos
-                <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded bg-[#EAA023]/15 text-[#EAA023] border border-[#EAA023]/30">
-                  PCM CLOUD · Archify Engine
-                </span>
               </h1>
+              <p className="text-white/70 text-sm mt-1">
+                Estructura corporativa, asignación de cuadrillas y pipeline técnico de datos en vivo
+              </p>
             </div>
-            <p className="text-xs text-neutral-400">
-              Visualización interactiva de estructura corporativa, asignación de cuadrillas y pipeline técnico de datos en vivo.
-            </p>
-          </div>
 
-          {/* Right Action Bar */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Live Auto-sync status */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1E2229] border border-[#2A303C] text-xs font-mono">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span className="text-neutral-300">
-                {isFetching ? 'Sincronizando...' : 'En vivo (Auto-sync)'}
-              </span>
+            {/* Right Action Bar */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Live Auto-sync status */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary-900 border border-primary-800 text-xs font-mono">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-white/90">
+                  {isFetching ? 'Sincronizando...' : 'En vivo (Auto-sync)'}
+                </span>
+                <button
+                  onClick={() => refetch()}
+                  disabled={isFetching}
+                  className="text-white/60 hover:text-white p-0.5 rounded transition-transform active:scale-90"
+                  title="Forzar actualización inmediata"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin text-accent' : ''}`} strokeWidth={1.75} />
+                </button>
+              </div>
+
+              {/* AI Diagnosis Button */}
               <button
-                onClick={() => refetch()}
-                disabled={isFetching}
-                className="text-neutral-400 hover:text-white p-0.5 rounded transition-transform active:scale-90"
-                title="Forzar actualización inmediata"
+                onClick={() => setIsAiModalOpen(true)}
+                className="btn-accent text-xs px-3.5 py-2 flex items-center gap-2 rounded-xl cursor-pointer"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin text-[#EAA023]' : ''}`} strokeWidth={1.75} />
+                <Brain className="w-4 h-4 text-primary-950" strokeWidth={1.75} />
+                <span>Diagnóstico IA</span>
               </button>
             </div>
-
-            {/* AI Diagnosis Button */}
-            <button
-              onClick={() => setIsAiModalOpen(true)}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#EAA023] text-black font-semibold text-xs hover:bg-[#d8921e] active:scale-[0.98] transition-all shadow-md shadow-[#EAA023]/10"
-            >
-              <Brain className="w-4 h-4" strokeWidth={1.75} />
-              <span>Diagnóstico IA</span>
-            </button>
           </div>
         </div>
+      </div>
 
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 -mt-6 pb-12 flex flex-col gap-5">
         {/* Navigation Tabs and Stats Strip */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           {/* View Mode Switcher */}
           <div className="flex items-center p-1 rounded-xl bg-[#1E2229] border border-[#2A303C]">
             <button
               onClick={() => setViewMode('org')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-colors active:scale-[0.98] ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-lg transition-colors active:scale-[0.98] ${
                 viewMode === 'org'
-                  ? 'bg-[#EAA023] text-black font-semibold shadow-sm'
-                  : 'text-neutral-400 hover:text-white'
+                  ? 'bg-accent text-primary-950 font-bold shadow-sm'
+                  : 'text-neutral-400 hover:text-white font-medium'
               }`}
             >
               <Users className="w-3.5 h-3.5" strokeWidth={1.75} />
@@ -193,10 +186,10 @@ export default function OrgChartAiPage() {
             </button>
             <button
               onClick={() => setViewMode('pipeline')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-colors active:scale-[0.98] ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-lg transition-colors active:scale-[0.98] ${
                 viewMode === 'pipeline'
-                  ? 'bg-[#EAA023] text-black font-semibold shadow-sm'
-                  : 'text-neutral-400 hover:text-white'
+                  ? 'bg-accent text-primary-950 font-bold shadow-sm'
+                  : 'text-neutral-400 hover:text-white font-medium'
               }`}
             >
               <Layers className="w-3.5 h-3.5" strokeWidth={1.75} />
