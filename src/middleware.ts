@@ -32,9 +32,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // Admin going to /pending → redirect to admin dashboard
+  // Redirect legacy /admin/dashboard to /admin
+  if (pathname === '/admin/dashboard') {
+    return NextResponse.redirect(new URL('/admin', request.url));
+  }
+
+  // Admin going to /pending → redirect to dashboard
   if (role === 'admin' && pathname === '/pending') {
-    return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();

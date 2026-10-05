@@ -14,8 +14,7 @@ export default function PendingPage() {
   useEffect(() => {
     if (status === 'authenticated' && session?.user?.role) {
       const role = session.user.role;
-      if (role === 'admin') router.replace('/admin/dashboard');
-      else if (role !== 'pending') router.replace('/dashboard');
+      if (role !== 'pending') router.replace('/dashboard');
     }
   }, [session, status, router]);
 

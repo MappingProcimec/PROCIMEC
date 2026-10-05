@@ -17,8 +17,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (status === 'authenticated') {
       const role = session?.user?.role;
-      if (role === 'admin') router.replace('/admin/dashboard');
-      else if (role === 'pending') router.replace('/pending');
+      if (role === 'pending') router.replace('/pending');
       else router.replace('/dashboard');
     }
   }, [session, status, router]);

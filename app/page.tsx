@@ -22,8 +22,7 @@ export default function LandingPage() {
   const role = session?.user?.role;
 
   let dashboardUrl = '/login';
-  if (role === 'admin') dashboardUrl = '/admin/dashboard';
-  else if (role === 'pending') dashboardUrl = '/pending';
+  if (role === 'pending') dashboardUrl = '/pending';
   else if (role) dashboardUrl = '/dashboard';
 
   return (

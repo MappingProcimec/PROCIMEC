@@ -185,7 +185,7 @@ export function Navbar() {
 
         {/* Logo Corporativo Oficial */}
         <Link
-          href={isAdmin ? '/admin/dashboard' : '/dashboard'}
+          href="/dashboard"
           className="flex items-center gap-2 hover:opacity-90 transition-opacity"
         >
           <Image

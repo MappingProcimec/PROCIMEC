@@ -67,22 +67,24 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Redirigir la antigua ruta /admin/dashboard hacia /admin
+  if (pathname === '/admin/dashboard') {
+    return NextResponse.redirect(new URL('/admin', request.url));
+  }
+
   // Landing ('/') → redirigir a su panel según rol efectivo
   if (pathname === '/') {
-    if (effectiveRole === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
     if (effectiveRole === 'pending') return NextResponse.redirect(new URL('/pending', request.url));
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   // Si la cuenta ya fue aprobada pero está intentando acceder a /pending -> redirigir a su módulo
   if (pathname === '/pending' && effectiveRole !== 'pending') {
-    if (effectiveRole === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   // Si está autenticado y entra a /login → redirigir a su panel
   if (pathname === '/login' && effectiveRole !== 'pending') {
-    if (effectiveRole === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url));
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

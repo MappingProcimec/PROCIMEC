@@ -552,11 +552,13 @@ export function DynamicDashboard({
               </p>
             </div>
             <Link
-              href="/admin/dashboard"
-              className="text-xs font-semibold text-primary-900 hover:text-accent flex items-center gap-1 transition-colors bg-white border border-border px-2.5 py-1.5 rounded-lg shadow-2xs"
+              href="/admin"
+              className="text-xs font-semibold text-primary-900 hover:text-accent flex items-center gap-1.5 transition-colors bg-white border border-border hover:border-accent/40 px-2.5 py-1.5 rounded-lg shadow-2xs group"
+              title="Centro de configuración y administración global de la plataforma"
             >
-              <span>Panel Admin</span>
-              <ArrowRight className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+              <Settings className="w-3.5 h-3.5 text-accent group-hover:rotate-45 transition-transform" strokeWidth={1.75} />
+              <span>Configuración de Plataforma</span>
+              <ArrowRight className="w-3.5 h-3.5 text-text-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all" strokeWidth={1.75} />
             </Link>
           </div>
 
