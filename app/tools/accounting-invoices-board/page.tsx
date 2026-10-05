@@ -9,16 +9,10 @@ import {
   Receipt,
   FileSpreadsheet,
   Clock,
-  CheckCircle2,
-  AlertTriangle,
   Search,
   Filter,
   DollarSign,
-  Building2,
-  Calendar,
   ExternalLink,
-  Layers,
-  ArrowRight,
   X,
 } from 'lucide-react';
 

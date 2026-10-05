@@ -212,6 +212,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      if (status && !VALID_STATUSES.includes(status as EquipmentStatus)) {
+        return NextResponse.json(
+          { error: `Estado inválido. Debe ser uno de: ${VALID_STATUSES.join(', ')}` },
+          { status: 400 }
+        );
+      }
+
       const cleanCode = code.trim().toUpperCase();
 
       const { data: existing } = await supabase

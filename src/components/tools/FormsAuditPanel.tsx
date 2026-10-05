@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   ClipboardCheck,
@@ -14,19 +14,12 @@ import {
   CheckCircle2,
   Clock,
   RotateCcw,
-  Calendar,
-  FolderGit2,
-  User,
   ShieldCheck,
   X,
   FileCode,
-  PenTool,
-  Check,
-  Radio,
   FileSignature,
-  FileBadge,
 } from 'lucide-react';
-import type { FormAuditRecord, FormAuditFile, FormAuditSignature } from '@/app/api/tools/forms-audit/route';
+import type { FormAuditRecord } from '@/app/api/tools/forms-audit/route';
 
 interface FilterState {
   form_slug: string;
@@ -55,7 +48,7 @@ export function FormsAuditPanel() {
   const [modalTab, setModalTab] = useState<'files' | 'signatures' | 'metadata' | 'data'>('files');
 
   // Consulta al backend unificado de auditoría
-  const { data: auditResponse, isLoading, refetch } = useQuery({
+  const { data: auditResponse, isLoading } = useQuery({
     queryKey: [
       'forms-audit-data',
       filters.form_slug,
@@ -701,6 +694,7 @@ export function FormsAuditPanel() {
                           {/* Canvas de firma */}
                           <div className="bg-gray-50 border border-border rounded-lg p-2 flex items-center justify-center min-h-[100px]">
                             {sig.signature_data.startsWith('data:image') || sig.signature_data.startsWith('http') ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
                               <img
                                 src={sig.signature_data}
                                 alt={`Firma de ${sig.signee_name}`}

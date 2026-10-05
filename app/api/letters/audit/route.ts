@@ -91,6 +91,10 @@ export async function GET(req: NextRequest) {
       query = query.eq('project_id', projectId);
     }
 
+    if (letterType !== 'all') {
+      query = query.eq('letter_type', letterType);
+    }
+
     if (fromDate) {
       query = query.gte('created_at', `${fromDate}T00:00:00Z`);
     }

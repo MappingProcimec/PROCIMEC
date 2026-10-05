@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -13,7 +12,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Building2,
-  Calendar,
   User,
   MapPin,
   Phone,
@@ -72,7 +70,6 @@ function formatCurrency(amount: number): string {
 }
 
 export default function RequerimientoCompraPage() {
-  const router = useRouter();
   const { data: session, status } = useSession();
 
   // Estados de carga e inicialización
@@ -196,7 +193,7 @@ export default function RequerimientoCompraPage() {
     }
 
     loadFormData();
-  }, [status, session?.user?.email]);
+  }, [status, session?.user?.email, session?.user?.name]);
 
   // Proyecto seleccionado actualmente
   const selectedProject = useMemo(() => {
@@ -232,7 +229,7 @@ export default function RequerimientoCompraPage() {
         setApproverUserId(allApprovers[0].id);
       }
     }
-  }, [selectedProjectId, projectUsers, allApprovers]);
+  }, [selectedProjectId, projectUsers, allApprovers, approverName]);
 
   // Manejo de ítems en la tabla
   const handleAddItem = () => {

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -13,21 +12,12 @@ import {
   Search,
   Filter,
   AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Calendar,
-  Layers,
   ShieldAlert,
   ShieldCheck,
-  Wrench,
   User,
   FolderGit2,
-  ArrowRight,
-  ExternalLink,
-  PlusCircle,
   Box,
   FileSpreadsheet,
-  Info
 } from 'lucide-react';
 import type { EquipmentCategory, EquipmentStatus } from '@/types';
 
@@ -158,14 +148,14 @@ export default function WarehouseInventoryToolPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  const { data, isLoading, error } = useQuery({
+  const { data } = useQuery({
     queryKey: ['warehouse-tool-data'],
     queryFn: fetchWarehouseToolData,
   });
 
-  const equipmentList = data?.equipment ?? [];
-  const checkouts = data?.checkouts ?? [];
-  const consumables = data?.consumables ?? [];
+  const equipmentList = useMemo(() => data?.equipment ?? [], [data?.equipment]);
+  const checkouts = useMemo(() => data?.checkouts ?? [], [data?.checkouts]);
+  const consumables = useMemo(() => data?.consumables ?? [], [data?.consumables]);
   const stats = data?.stats ?? {
     totalEquipment: 0,
     availableCount: 0,

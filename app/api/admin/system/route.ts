@@ -331,7 +331,6 @@ export async function POST(req: NextRequest) {
 
       // Probar modelos gratuitos en orden
       const freeModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'];
-      let succeeded = false;
       let lastError = '';
       let usedModel = '';
 
@@ -356,7 +355,6 @@ export async function POST(req: NextRequest) {
             const data = await res.json();
             const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'CONECTADO';
             const latencyMs = Date.now() - start;
-            succeeded = true;
             return NextResponse.json({
               ok: true,
               message: `Conexión exitosa con modelo gratuito (${model}) en ${latencyMs} ms. Respuesta: "${reply}"`,
@@ -373,12 +371,13 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const latencyMs = Date.now() - start;
-      return NextResponse.json({
-        ok: true,
-        message: `API Key autenticada en el sistema. Modelo gratuito configurado (${usedModel}) con respuesta en ${latencyMs} ms.`,
-        latencyMs,
-      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `No se pudo conectar con los modelos de Gemini (${usedModel || 'ninguno'}). Detalle: ${lastError || 'Tiempo de espera agotado o credencial inválida'}`,
+        },
+        { status: 502 }
+      );
     }
 
     // Acción 2: Test de Envío de Correo SMTP

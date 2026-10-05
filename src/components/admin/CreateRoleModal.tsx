@@ -281,7 +281,7 @@ export function CreateRoleModal({ isOpen, onClose, onCreated }: CreateRoleModalP
                   <FileText className="w-4 h-4 text-primary" strokeWidth={1.75} />
                   <h3 className="font-bold text-text-primary text-sm">Asignar Formularios ({selectedForms.size})</h3>
                 </div>
-                <p className="text-xs text-text-muted mb-3">Formatos de captura de datos disponibles en "Mis Formularios":</p>
+                <p className="text-xs text-text-muted mb-3">Formatos de captura de datos disponibles en &quot;Mis Formularios&quot;:</p>
 
                 <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-3 max-h-48 overflow-y-auto">
                   {forms.length === 0 ? (

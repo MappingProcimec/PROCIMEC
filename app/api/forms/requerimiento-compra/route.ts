@@ -124,7 +124,7 @@ export async function GET() {
   }
 
   // 3. Consultar usuarios asignados por proyecto para el desplegable de aprobadores
-  let projectUsers: Record<string, Array<{ id: string; full_name: string; email: string; role: string }>> = {};
+  const projectUsers: Record<string, Array<{ id: string; full_name: string; email: string; role: string }>> = {};
   let allApprovers: Array<{ id: string; full_name: string; email: string; role: string }> = [];
 
   try {

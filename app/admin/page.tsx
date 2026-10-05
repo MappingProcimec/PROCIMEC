@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import {
   Activity,
   Database,
@@ -14,10 +13,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
-  Clock,
   Sparkles,
   Mail,
-  HardDrive,
   Lock,
   ChevronRight,
   Terminal,
@@ -28,7 +25,6 @@ import {
   Smartphone,
   Laptop,
   Check,
-  TrendingUp,
 } from 'lucide-react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';

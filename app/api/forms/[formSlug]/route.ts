@@ -295,7 +295,7 @@ export async function POST(
       if (error) throw error;
       result = data;
     } else if (formSlug === 'legalizacion-gastos') {
-      const { project_id, beneficiary_name, advancement_amount, total_spent, balance, receipts_summary, notes } = body;
+      const { project_id, advancement_amount, total_spent, balance, receipts_summary, notes } = body;
       if (!project_id) return NextResponse.json({ error: 'Debes seleccionar el proyecto' }, { status: 400 });
 
       const adv = Number(advancement_amount) || 0;

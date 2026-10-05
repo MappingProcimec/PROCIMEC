@@ -7,18 +7,11 @@ import { BackButton } from '@/components/BackButton';
 import {
   Wallet,
   Clock,
-  CheckCircle2,
-  AlertTriangle,
   Search,
   Filter,
   DollarSign,
   Receipt,
   CreditCard,
-  Calendar,
-  Building2,
-  User,
-  ArrowRight,
-  ExternalLink,
   MapPin,
   X,
 } from 'lucide-react';
@@ -105,7 +98,6 @@ export default function FinanceExpensesBoardPage() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedPerDiem, setSelectedPerDiem] = useState<PerDiemRequest | null>(null);
-  const [selectedLegalization, setSelectedLegalization] = useState<ExpenseLegalization | null>(null);
 
   const { data, isLoading } = useQuery<{ data: FinanceData }>({
     queryKey: ['finance-expenses-board'],

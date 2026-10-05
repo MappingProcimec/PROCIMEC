@@ -1,9 +1,5 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import ElaboracionCartasForm from '@/components/forms/ElaboracionCartasForm';
-
-export const dynamic = 'force-dynamic';
-
-export default function ToolElaboracionCartasPage() {
-  return <ElaboracionCartasForm />;
+export default function ToolElaboracionCartasRedirectPage() {
+  redirect('/forms/elaboracion-cartas');
 }

@@ -15,8 +15,6 @@ import {
   X,
   Copy,
   Check,
-  Calendar,
-  User,
   RefreshCw,
   PlusCircle,
   ExternalLink,
@@ -25,7 +23,6 @@ import {
   AlertTriangle,
   RotateCcw,
   UserCheck,
-  Send,
 } from 'lucide-react';
 
 interface FilterState {
@@ -75,7 +72,7 @@ export function HrLettersAuditPanel() {
     },
   });
 
-  const letters = auditResponse?.data ?? [];
+  const letters = useMemo(() => auditResponse?.data ?? [], [auditResponse?.data]);
   const migrationNeeded = auditResponse?.migrationNeeded ?? false;
 
   // Cargar detalle completo (con base64) para auditar

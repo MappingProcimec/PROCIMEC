@@ -162,7 +162,7 @@ export async function generateHrLetterDocx(
   const r = buildReplacementMap(letterType, data);
   const paragraphsText: string[] = [];
 
-  const children: any[] = [];
+  const children: (Paragraph | Table)[] = [];
 
   // 1. Membrete Corporativo Superior
   children.push(

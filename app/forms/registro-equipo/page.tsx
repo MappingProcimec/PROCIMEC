@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
@@ -19,18 +18,10 @@ import {
   FolderGit2,
   User,
   ShieldCheck,
-  CheckSquare,
-  Sparkles,
-  ArrowRight,
-  BatteryCharging,
   Layers,
-  Wrench,
-  Tag,
   Barcode,
-  Search,
   Check,
   Clock,
-  ExternalLink
 } from 'lucide-react';
 import type { EquipmentCategory, EquipmentStatus } from '@/types';
 
@@ -107,10 +98,8 @@ async function fetchWarehouseFormOptions(): Promise<FormOptionsData> {
 }
 
 function WarehouseOperationsContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const { data: session } = useSession();
 
   // Mode Selection (Alta, Consumibles, Despacho, Retorno)
   const initialMode = (searchParams.get('mode') as WarehouseOperationMode) || 'alta';
@@ -124,7 +113,7 @@ function WarehouseOperationsContent() {
     }
   }, [searchParams]);
 
-  const { data, isLoading, error: fetchError } = useQuery({
+  const { data } = useQuery({
     queryKey: ['warehouse-form-options'],
     queryFn: fetchWarehouseFormOptions,
   });
@@ -179,7 +168,7 @@ function WarehouseOperationsContent() {
   const [altaBrand, setAltaBrand] = useState('');
   const [altaModel, setAltaModel] = useState('');
   const [altaSerial, setAltaSerial] = useState('');
-  const [altaInitialStatus, setAltaInitialStatus] = useState<EquipmentStatus>('available');
+  const altaInitialStatus: EquipmentStatus = 'available';
   const [altaRequiresCalibration, setAltaRequiresCalibration] = useState(true);
   const [altaCalibDate, setAltaCalibDate] = useState('');
   const [altaCalibExpiry, setAltaCalibExpiry] = useState('');

@@ -83,7 +83,7 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, trigger }) {
       const email = user?.email || (token?.email as string | undefined);
 
       if (email) {

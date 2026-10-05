@@ -68,15 +68,15 @@ export async function POST(req: NextRequest) {
 
     const currentRawViews = Array.isArray(requestRow.viewed_by)
       ? [...requestRow.viewed_by]
-      : requestRow.items && typeof requestRow.items === 'object' && !Array.isArray(requestRow.items) && Array.isArray((requestRow.items as Record<string, any>)._metadata?.viewed_by)
-      ? [...(requestRow.items as Record<string, any>)._metadata.viewed_by]
+      : requestRow.items && typeof requestRow.items === 'object' && !Array.isArray(requestRow.items) && Array.isArray(((requestRow.items as Record<string, unknown>)._metadata as { viewed_by?: unknown[] } | undefined)?.viewed_by)
+      ? [...((requestRow.items as Record<string, unknown>)._metadata as { viewed_by: Record<string, unknown>[] }).viewed_by]
       : [];
 
     const isDesignatedApprover =
       (requestRow.approver_name && dbUser.full_name && requestRow.approver_name.trim().toLowerCase() === dbUser.full_name.trim().toLowerCase()) ||
       (requestRow.approver_user_id && requestRow.approver_user_id === dbUser.id);
 
-    const sigs = (requestRow.signatures || {}) as Record<string, any>;
+    const sigs = (requestRow.signatures || {}) as Record<string, { name?: string } | undefined>;
     const hasDirectorSig = Boolean(sigs.director?.name);
     const hasPurchasingSig = Boolean(sigs.purchasing?.name);
 
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
       typeof requestRow.items === 'object' &&
       !Array.isArray(requestRow.items)
     ) {
-      const metaObj = (requestRow.items as Record<string, any>)._metadata;
+      const metaObj = (requestRow.items as Record<string, unknown>)._metadata as { viewed_by?: typeof currentViews } | undefined;
       if (metaObj && Array.isArray(metaObj.viewed_by)) {
         currentViews = [...metaObj.viewed_by];
       }

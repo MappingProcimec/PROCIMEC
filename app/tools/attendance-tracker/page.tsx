@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { generateAttendancePDF } from '@/lib/attendancePdfGenerator';

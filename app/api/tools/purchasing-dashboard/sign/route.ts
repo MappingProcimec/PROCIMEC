@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       typeof requestRow.items === 'object' &&
       !Array.isArray(requestRow.items)
     ) {
-      const metaObj = (requestRow.items as Record<string, any>)._metadata;
+      const metaObj = (requestRow.items as Record<string, unknown>)._metadata as { signatures?: Record<string, unknown> } | undefined;
       if (metaObj && metaObj.signatures) {
         signatures = { ...metaObj.signatures };
       }
@@ -130,9 +130,14 @@ export async function POST(req: NextRequest) {
         roleLabel = 'Área de Compras y Suministros';
         // Si compras actualizó precios de ítems
         if (Array.isArray(updatedItemsInput) && updatedItemsInput.length > 0) {
-          const priceMap = new Map(updatedItemsInput.map((it: any) => [it.item_no, it]));
+          const priceMap = new Map(
+            updatedItemsInput.map((it: { item_no?: number | string; [key: string]: unknown }) => [
+              Number(it.item_no),
+              it as Record<string, unknown>,
+            ])
+          );
           currentItems = currentItems.map((it) => {
-            const update: any = priceMap.get(Number(it.item_no));
+            const update = priceMap.get(Number(it.item_no));
             if (update) {
               const qty = Number(it.quantity) || 1;
               const unitPrice = update.unit_price !== undefined ? Number(update.unit_price) : Number(it.unit_price) || 0;
@@ -183,7 +188,7 @@ export async function POST(req: NextRequest) {
       typeof requestRow.items === 'object' &&
       !Array.isArray(requestRow.items)
     ) {
-      const metaObj = (requestRow.items as Record<string, any>)._metadata;
+      const metaObj = (requestRow.items as Record<string, unknown>)._metadata as { viewed_by?: typeof currentViews } | undefined;
       if (metaObj && Array.isArray(metaObj.viewed_by)) {
         currentViews = [...metaObj.viewed_by];
       }

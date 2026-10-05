@@ -1,5 +1,4 @@
 import https from 'https';
-import type { jsPDF } from 'jspdf';
 import { CORPORATE_LOGO_BASE64 } from './gpr/logoBase64';
 
 export const SIG_CHANGE_TEMPLATE_DRIVE_ID =

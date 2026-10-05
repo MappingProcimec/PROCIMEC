@@ -43,7 +43,7 @@ export interface FormAuditRecord {
   summary: string;
   files: FormAuditFile[];
   signatures: FormAuditSignature[];
-  raw_data: Record<string, any>;
+  raw_data: Record<string, unknown>;
 }
 
 const STATUS_MAP: Record<string, string> = {
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
       if (!ufError && userFormsData && userFormsData.length > 0) {
         for (const uf of userFormsData) {
           if (uf.form_id) formIds.push(uf.form_id);
-          const formObj = (uf as any)?.forms;
+          const formObj = (uf as unknown as { forms?: { slug?: string } })?.forms;
           if (formObj?.slug) {
             allowedFormSlugs.add(formObj.slug);
           }
@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
             .select('forms(slug)')
             .eq('role_id', dbUser.role_id);
           for (const rf of roleFormsData ?? []) {
-            const slug = (rf as any)?.forms?.slug;
+            const slug = (rf as unknown as { forms?: { slug?: string } })?.forms?.slug;
             if (slug) allowedFormSlugs.add(slug);
           }
         }
@@ -712,7 +712,7 @@ export async function GET(req: NextRequest) {
 
               const files: FormAuditFile[] = [];
               if (Array.isArray(r.expense_receipts)) {
-                r.expense_receipts.forEach((rc: any, idx: number) => {
+                r.expense_receipts.forEach((rc: { url?: string; name?: string }, idx: number) => {
                   if (rc.url) {
                     files.push({
                       id: `receipt-${r.id}-${idx}`,
@@ -759,8 +759,21 @@ export async function GET(req: NextRequest) {
       tasks.push(
         (async () => {
           try {
-            // Soporta tanto invoice_filings (tabla canónica corporativa) como invoices_payable
-            let data: any[] | null = null;
+            interface InvoiceRow {
+              id: string;
+              user_id: string;
+              project_id: string;
+              invoice_number?: string;
+              supplier_name?: string;
+              created_at: string;
+              due_date?: string;
+              issue_date?: string;
+              status?: string;
+              total_amount?: number;
+              amount?: number;
+              [key: string]: unknown;
+            }
+            let data: InvoiceRow[] | null = null;
             const resFilings = await supabase
               .from('invoice_filings')
               .select('*')
@@ -798,7 +811,7 @@ export async function GET(req: NextRequest) {
                 created_at: r.created_at,
                 submission_date: r.due_date || r.issue_date || r.created_at.split('T')[0],
                 status: r.status || 'pending',
-                status_label: STATUS_MAP[r.status] || r.status,
+                status_label: (r.status && STATUS_MAP[r.status]) || r.status || 'Pendiente',
                 summary: `Proveedor: ${r.supplier_name || 'N/A'} - Factura N°: ${r.invoice_number || 'N/A'} - Monto: $${Number(amount).toLocaleString('es-CO')} COP`,
                 files: [],
                 signatures: [],

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
@@ -11,7 +10,6 @@ import { HR_LETTER_TYPES } from '@/lib/letters/docxTemplateEngine';
 import {
   FileText,
   Download,
-  Mail,
   CheckCircle2,
   ChevronRight,
   ArrowLeft,
@@ -22,7 +20,6 @@ import {
   Briefcase,
   FileCheck2,
   ShieldAlert,
-  HelpCircle,
   Eye,
   Check,
   Send,
@@ -47,14 +44,12 @@ const DEFAULT_ITEMS_STATE = 'PAZ Y SALVO';
 
 export default function ElaboracionCartasForm() {
   const { data: session } = useSession();
-  const router = useRouter();
 
   // Estados del flujo
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedType, setSelectedType] = useState<HrLetterType>('01_certificacion_laboral');
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [collaborators, setCollaborators] = useState<UserOption[]>([]);
-  const [isLoadingCatalogs, setIsLoadingCatalogs] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -164,7 +159,6 @@ export default function ElaboracionCartasForm() {
 
   // Cargar proyectos y colaboradores para autocompletado canónico
   useEffect(() => {
-    setIsLoadingCatalogs(true);
     Promise.allSettled([
       fetch('/api/projects').then((r) => r.json()),
       fetch('/api/admin/users').then((r) => r.json()),
@@ -176,8 +170,7 @@ export default function ElaboracionCartasForm() {
         if (userRes.status === 'fulfilled' && userRes.value?.data) {
           setCollaborators(userRes.value.data);
         }
-      })
-      .finally(() => setIsLoadingCatalogs(false));
+      });
   }, []);
 
   const handleChange = (field: keyof HrLetterData, value: string) => {
