@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Shield, Check, FileText, AlertCircle, AlertTriangle } from 'lucide-react';
 
 interface Division { id: string; name: string }
 interface Tool { id: string; slug: string; name: string; category: string }
@@ -174,10 +175,11 @@ export default function EditRolePage({ params }: { params: { roleId: string } })
     return (
       <div className="min-h-screen bg-surface">
         <Navbar />
-        <div className="page-hero"><div className="max-w-3xl mx-auto"><BackButton href="/admin/roles" label="Roles" /></div></div>
+        <div className="page-hero"><div className="max-w-3xl mx-auto"><BackButton href="/admin/roles" label="Volver a Roles" /></div></div>
         <div className="max-w-3xl mx-auto px-4 -mt-6">
-          <div className="card p-10 text-center text-error">
-            ⚠️ {(roleError as Error)?.message ?? 'Rol no encontrado.'}
+          <div className="card p-10 text-center text-error flex items-center justify-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-amber-500" />
+            <span>{(roleError as Error)?.message ?? 'Rol no encontrado.'}</span>
           </div>
         </div>
       </div>
@@ -190,9 +192,12 @@ export default function EditRolePage({ params }: { params: { roleId: string } })
 
       <div className="page-hero">
         <div className="max-w-3xl mx-auto">
-          <BackButton href="/admin/roles" label="Roles" />
+          <BackButton href="/admin/roles" label="Volver a Roles" />
           <div className="flex items-center gap-3 mt-3">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white">{role.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
+              <Shield className="w-7 h-7 text-accent" strokeWidth={1.75} />
+              <span>{role.name}</span>
+            </h1>
             {role.is_system_role && (
               <span className="badge badge-accent text-xs">Sistema</span>
             )}
@@ -209,7 +214,7 @@ export default function EditRolePage({ params }: { params: { roleId: string } })
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                 step === s ? 'bg-primary text-white' : s < step ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'
               }`}>
-                {s < step ? '✓' : s}
+                {s < step ? <Check className="w-4 h-4" /> : s}
               </div>
               <span className={`text-sm font-medium ${step === s ? 'text-text-primary' : 'text-text-muted'}`}>
                 {s === 1 ? 'Información' : 'Herramientas y Formularios'}
@@ -243,7 +248,7 @@ export default function EditRolePage({ params }: { params: { roleId: string } })
                   onChange={(e) => setDivisionId(e.target.value)}
                   className="input"
                 >
-                  <option value="">🌐 Sin división (Global — aplicable a todas las divisiones)</option>
+                  <option value="">Sin división (Global — aplicable a todas las divisiones)</option>
                   {divisions.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -253,7 +258,12 @@ export default function EditRolePage({ params }: { params: { roleId: string } })
                 </p>
               </div>
 
-              {submitError && <p className="error-msg">⚠️ {submitError}</p>}
+              {submitError && (
+                <p className="error-msg flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                  <span>{submitError}</span>
+                </p>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <button
@@ -320,8 +330,9 @@ export default function EditRolePage({ params }: { params: { roleId: string } })
                             onChange={() => toggleForm(f.id)}
                             className="w-4 h-4 rounded accent-primary"
                           />
-                          <span className="text-sm text-text-primary group-hover:text-primary transition-colors">
-                            📋 {f.name}
+                          <span className="text-sm text-text-primary group-hover:text-primary transition-colors inline-flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-accent" />
+                            <span>{f.name}</span>
                           </span>
                         </label>
                       ))}
@@ -333,7 +344,12 @@ export default function EditRolePage({ params }: { params: { roleId: string } })
                 </p>
               </div>
 
-              {submitError && <p className="error-msg">⚠️ {submitError}</p>}
+              {submitError && (
+                <p className="error-msg flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                  <span>{submitError}</span>
+                </p>
+              )}
 
               <div className="flex gap-3 pt-2 border-t border-border">
                 <button

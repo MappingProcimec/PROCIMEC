@@ -18,7 +18,8 @@ import {
   Calendar,
   ExternalLink,
   Layers,
-  ArrowRight
+  ArrowRight,
+  X,
 } from 'lucide-react';
 
 interface InvoiceFiling {
@@ -435,9 +436,10 @@ export default function AccountingInvoicesBoardPage() {
               <button
                 type="button"
                 onClick={() => setSelectedInvoice(null)}
-                className="text-text-muted hover:text-text-primary text-xl font-bold px-2"
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                title="Cerrar"
               >
-                ✕
+                <X className="w-5 h-5" strokeWidth={2} />
               </button>
             </div>
 
@@ -524,9 +526,10 @@ export default function AccountingInvoicesBoardPage() {
               <button
                 type="button"
                 onClick={() => setSelectedActa(null)}
-                className="text-text-muted hover:text-text-primary text-xl font-bold px-2"
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                title="Cerrar"
               >
-                ✕
+                <X className="w-5 h-5" strokeWidth={2} />
               </button>
             </div>
 

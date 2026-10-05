@@ -5,8 +5,29 @@ import { useSession } from 'next-auth/react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
+import { BackButton } from '@/components/BackButton';
 import { generateAttendancePDF } from '@/lib/attendancePdfGenerator';
 import type { AttendanceRecord, FieldTrip } from '@/types';
+import {
+  Clock,
+  User,
+  Users,
+  Building2,
+  MapPin,
+  AlertTriangle,
+  RotateCcw,
+  CheckCircle2,
+  Sun,
+  LogIn,
+  LogOut,
+  HardHat,
+  FileText,
+  Calendar,
+  CalendarDays,
+  Sliders,
+  Loader2,
+  X,
+} from 'lucide-react';
 
 // Coordenadas de referencia Oficina Mapping Ingeniería / PROCIMEC (Barranquilla, Colombia)
 const OFFICE_COORDS = {
@@ -483,20 +504,18 @@ function AttendanceTrackerContent() {
 
   if (unauthorized) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-[100dvh] bg-[#F8FAFC]">
         <Navbar />
         <div className="max-w-md mx-auto px-4 py-20 text-center">
           <div className="bg-white border border-border rounded-2xl p-8 shadow-card">
-            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              ⏱️
+            <div className="w-16 h-16 bg-accent/15 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Clock className="w-8 h-8 text-accent" strokeWidth={1.75} />
             </div>
             <h2 className="text-xl font-bold text-text-primary mb-2">Herramienta no asignada</h2>
             <p className="text-sm text-text-muted mb-6 leading-relaxed">
-              No tienes acceso asignado al <strong>Control de Asistencia y Jornada</strong>. Para poder utilizarlo, un administrador debe marcar y habilitar esta herramienta en tu usuario desde la Gestión de Usuarios.
+              No tienes acceso asignado al <strong>Control de Asistencia y Jornada</strong>. Para poder utilizarlo, un administrador debe habilitar esta herramienta en tu usuario desde la Gestión de Usuarios.
             </p>
-            <Link href="/dashboard" className="btn-primary px-5 py-2.5 text-sm font-semibold rounded-xl inline-flex items-center gap-2">
-              ← Volver al Dashboard
-            </Link>
+            <BackButton href="/dashboard" label="Volver a Mi Panel" />
           </div>
         </div>
       </div>
@@ -504,42 +523,27 @@ function AttendanceTrackerContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-[100dvh] bg-[#F8FAFC]">
       <Navbar />
 
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white pt-8 pb-12 shadow-md">
-        <div className="max-w-6xl mx-auto px-4">
+      {/* Hero Header */}
+      <div className="page-hero bg-[#1E2229] border-b-2 border-accent">
+        <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Link
-                  href="/admin/forms"
-                  className="text-xs font-semibold text-blue-300 hover:text-white transition-colors"
-                >
-                  ← Herramientas y Formularios
-                </Link>
-                <span className="text-slate-500">•</span>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30">
-                  Control de Jornada Laboral
-                </span>
-                {isAdmin && (
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-400/30">
-                    Vista Administrador
-                  </span>
-                )}
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2.5">
-                <span>⏱️</span> Registro y Auditoría de Asistencia
+              <BackButton href="/dashboard" label="Volver a Mi Panel" />
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+                <Clock className="w-7 h-7 text-accent" strokeWidth={1.75} />
+                <span>Registro y Auditoría de Asistencia</span>
               </h1>
-              <p className="text-slate-300 text-sm mt-1 capitalize">{currentDateTitle}</p>
+              <p className="text-white/70 text-sm mt-1 capitalize">{currentDateTitle}</p>
             </div>
 
             {/* Reloj Digital y Switch de Vista si es Admin */}
             <div className="flex flex-col sm:items-end gap-3">
               {/* Reloj */}
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-inner">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
                 <span className="font-mono text-2xl font-bold tracking-wider text-white drop-shadow">
                   {currentTime || '--:--:--'}
                 </span>
@@ -547,28 +551,30 @@ function AttendanceTrackerContent() {
 
               {/* Selector de modo para Administrador */}
               {isAdmin && (
-                <div className="flex bg-white/15 p-1 rounded-2xl border border-white/20 backdrop-blur-md shadow-sm">
+                <div className="flex bg-white/10 p-1 rounded-xl border border-white/15">
                   <button
                     type="button"
                     onClick={() => setAdminViewMode('personal')}
-                    className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
+                    className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
                       adminViewMode === 'personal'
-                        ? 'bg-white text-slate-900 shadow-md'
+                        ? 'bg-accent text-primary-900 font-bold shadow-sm'
                         : 'text-white/80 hover:text-white hover:bg-white/10'
                     }`}
                   >
-                    <span>👤</span> Mi Asistencia
+                    <User className="w-3.5 h-3.5" strokeWidth={1.75} />
+                    <span>Mi Asistencia</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setAdminViewMode('team')}
-                    className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${
+                    className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
                       adminViewMode === 'team'
-                        ? 'bg-white text-slate-900 shadow-md'
+                        ? 'bg-accent text-primary-900 font-bold shadow-sm'
                         : 'text-white/80 hover:text-white hover:bg-white/10'
                     }`}
                   >
-                    <span>👥</span> Panel de Equipo (Admin)
+                    <Users className="w-3.5 h-3.5" strokeWidth={1.75} />
+                    <span>Panel de Equipo (Admin)</span>
                   </button>
                 </div>
               )}
@@ -576,20 +582,20 @@ function AttendanceTrackerContent() {
               {/* Pill de Estado GPS */}
               <div className="flex items-center gap-1.5 text-xs">
                 {geoLocating ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/30">
-                    <span className="animate-spin text-xs">⚙️</span> Obteniendo GPS...
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/20 text-accent border border-accent/40 font-medium">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Obteniendo GPS...
                   </span>
                 ) : isOfficeDetected ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 font-semibold">
-                    <span>🏢</span> Oficina Principal ({distanceToOffice}m)
+                    <Building2 className="w-3.5 h-3.5 text-emerald-400" /> Oficina Principal ({distanceToOffice}m)
                   </span>
                 ) : coords ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/20 text-sky-200 border border-sky-400/30">
-                    <span>📍</span> En Campo / Exterior (±{Math.round(coords.accuracy)}m)
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent/20 text-accent border border-accent/40 font-medium">
+                    <MapPin className="w-3.5 h-3.5 text-accent" /> En Campo / Exterior (±{Math.round(coords.accuracy)}m)
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 text-red-200 border border-red-400/30">
-                    <span>⚠️</span> GPS no disponible
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 text-rose-200 border border-rose-400/30">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> GPS no disponible
                   </span>
                 )}
                 <button
@@ -597,7 +603,7 @@ function AttendanceTrackerContent() {
                   title="Actualizar posición GPS"
                   className="p-1 rounded-full hover:bg-white/20 text-white/80 transition-colors"
                 >
-                  🔄
+                  <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -617,7 +623,11 @@ function AttendanceTrackerContent() {
             }`}
           >
             <div className="flex items-center gap-2 text-sm font-medium">
-              <span>{notification.type === 'success' ? '✅' : '⚠️'}</span>
+              {notification.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+              )}
               <span>{notification.message}</span>
             </div>
             <button
@@ -635,7 +645,8 @@ function AttendanceTrackerContent() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <span>👥</span> Monitoreo en Vivo de Asistencia de Hoy
+                  <Users className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                  <span>Monitoreo en Vivo de Asistencia de Hoy</span>
                 </h2>
                 <p className="text-xs text-slate-500">
                   Estado en tiempo real de todo el personal: colaboradores en sede principal, en campo, en salidas a obra y pendientes.
@@ -648,7 +659,8 @@ function AttendanceTrackerContent() {
                 onClick={() => setAdminViewMode('personal')}
                 className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition-colors flex items-center gap-1.5"
               >
-                <span>☀️</span> Marcar mi entrada / salida
+                <Sun className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+                <span>Marcar mi entrada / salida</span>
               </button>
             </div>
 
@@ -657,7 +669,9 @@ function AttendanceTrackerContent() {
               {/* En Oficina */}
               <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200/90 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">🏢 En Oficina</span>
+                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-emerald-600" /> En Oficina
+                  </span>
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 </div>
                 <p className="text-2xl font-extrabold text-emerald-950 mt-1">
@@ -679,7 +693,9 @@ function AttendanceTrackerContent() {
               {/* En Campo */}
               <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200/90 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-sky-800 uppercase tracking-wider">📍 En Campo</span>
+                  <span className="text-[11px] font-bold text-sky-800 uppercase tracking-wider flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-sky-600" /> En Campo
+                  </span>
                   <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
                 </div>
                 <p className="text-2xl font-extrabold text-sky-950 mt-1">
@@ -701,7 +717,9 @@ function AttendanceTrackerContent() {
               {/* En Obra / Comisión */}
               <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/90 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">🚧 En Obra / Visita</span>
+                  <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1">
+                    <HardHat className="w-3.5 h-3.5 text-amber-600" /> En Obra / Visita
+                  </span>
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
                 </div>
                 <p className="text-2xl font-extrabold text-amber-950 mt-1">
@@ -726,7 +744,9 @@ function AttendanceTrackerContent() {
               {/* Sin Registrar */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">⏳ Sin Registrar</span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" /> Sin Registrar
+                  </span>
                   <span className="w-2.5 h-2.5 rounded-full bg-slate-300" />
                 </div>
                 <p className="text-2xl font-extrabold text-slate-700 mt-1">
@@ -769,7 +789,8 @@ function AttendanceTrackerContent() {
                   </span>
                 ) : todayRecord.check_out_time ? (
                   <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 flex items-center gap-1">
-                    <span>✅</span> Jornada Completa
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Jornada Completa</span>
                   </span>
                 ) : (
                   <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 flex items-center gap-1.5 animate-pulse">
@@ -781,7 +802,8 @@ function AttendanceTrackerContent() {
 
               {loadingToday ? (
                 <div className="h-40 flex items-center justify-center text-slate-400">
-                  <span className="animate-spin mr-2">⚙️</span> Verificando estado de asistencia...
+                  <Loader2 className="w-4 h-4 animate-spin mr-2 inline text-accent" />
+                  <span>Verificando estado de asistencia...</span>
                 </div>
               ) : (
                 <div>
@@ -789,8 +811,8 @@ function AttendanceTrackerContent() {
                   {!todayRecord && (
                     <div className="space-y-6">
                       <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-6 sm:p-8 text-center flex flex-col items-center">
-                        <div className="w-16 h-16 rounded-full bg-emerald-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-emerald-600/30 mb-4">
-                          ☀️
+                        <div className="w-16 h-16 rounded-full bg-accent text-primary-900 flex items-center justify-center shadow-lg shadow-accent/20 mb-4">
+                          <Sun className="w-8 h-8 text-primary-900" strokeWidth={2} />
                         </div>
                         <h3 className="text-xl font-bold text-slate-900">¡Buen día! Comienza tu turno laboral</h3>
                         <p className="text-sm text-slate-600 max-w-md mt-1 mb-6">
@@ -806,7 +828,7 @@ function AttendanceTrackerContent() {
                             value={checkInNote}
                             onChange={(e) => setCheckInNote(e.target.value)}
                             placeholder="Ej: Inicio de actividades, revisión de planos en sede..."
-                            className="w-full text-sm px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                            className="w-full text-sm px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-accent bg-white"
                           />
                         </div>
 
@@ -817,11 +839,11 @@ function AttendanceTrackerContent() {
                         >
                           {actionLoading ? (
                             <>
-                              <span className="animate-spin">⚙️</span> Guardando registro...
+                              <Loader2 className="w-5 h-5 animate-spin" /> Guardando registro...
                             </>
                           ) : (
                             <>
-                              <span>🟢</span> REGISTRAR ENTRADA
+                              <LogIn className="w-5 h-5" /> REGISTRAR ENTRADA
                             </>
                           )}
                         </button>
@@ -830,12 +852,14 @@ function AttendanceTrackerContent() {
                         <p className="text-xs text-slate-500 mt-4 flex items-center gap-1.5">
                           {isOfficeDetected ? (
                             <>
-                              <span className="text-emerald-600 font-semibold">🏢 Detectado en Oficina Principal</span>
+                              <Building2 className="w-3.5 h-3.5 text-emerald-600 inline" />
+                              <span className="text-emerald-600 font-semibold">Detectado en Oficina Principal</span>
                               <span>(a {distanceToOffice}m de la sede)</span>
                             </>
                           ) : coords ? (
                             <>
-                              <span className="text-sky-600 font-semibold">📍 Detectado en Campo / Fuera de Oficina</span>
+                              <MapPin className="w-3.5 h-3.5 text-accent inline" />
+                              <span className="text-sky-600 font-semibold">Detectado en Campo / Fuera de Oficina</span>
                             </>
                           ) : (
                             <span className="text-amber-600">{geoError || 'Buscando GPS...'}</span>
@@ -853,11 +877,19 @@ function AttendanceTrackerContent() {
                           <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider block">
                             Hora de Entrada
                           </span>
-                          <p className="text-xl font-bold text-slate-900 mt-1">
+                          <p className="text-xl font-bold text-slate-900 mt-1 font-mono">
                             {formatTimeOnly(todayRecord.check_in_time)}
                           </p>
-                          <p className="text-xs text-slate-500 mt-0.5 truncate">
-                            {todayRecord.check_in_is_office ? '🏢 Oficina Principal' : '📍 En Campo / Fuera'}
+                          <p className="text-xs text-slate-500 mt-0.5 truncate flex items-center gap-1">
+                            {todayRecord.check_in_is_office ? (
+                              <>
+                                <Building2 className="w-3.5 h-3.5 text-emerald-600 inline" /> Oficina Principal
+                              </>
+                            ) : (
+                              <>
+                                <MapPin className="w-3.5 h-3.5 text-accent inline" /> En Campo / Fuera
+                              </>
+                            )}
                           </p>
                         </div>
 
@@ -865,7 +897,7 @@ function AttendanceTrackerContent() {
                           <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider block">
                             Tiempo Transcurrido
                           </span>
-                          <p className="text-xl font-bold text-indigo-950 mt-1">
+                          <p className="text-xl font-bold text-indigo-950 mt-1 font-mono">
                             {elapsedWorkTime || 'Calculando...'}
                           </p>
                           <p className="text-xs text-indigo-600 mt-0.5">Jornada en desarrollo continuo</p>
@@ -875,7 +907,7 @@ function AttendanceTrackerContent() {
                           <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider block">
                             Salidas a Campo Hoy
                           </span>
-                          <p className="text-xl font-bold text-amber-950 mt-1">
+                          <p className="text-xl font-bold text-amber-950 mt-1 font-mono">
                             {todayRecord.field_trips?.length || 0} registrada(s)
                           </p>
                           <p className="text-xs text-amber-600 mt-0.5">Desplazamientos u obras</p>
@@ -888,9 +920,9 @@ function AttendanceTrackerContent() {
                         <button
                           onClick={() => setFieldModalOpen(true)}
                           disabled={actionLoading}
-                          className="py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-primary-950 font-bold text-base shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2.5"
+                          className="py-4 px-6 rounded-2xl bg-accent hover:bg-accent-400 active:scale-[0.99] text-primary-900 font-bold text-base shadow-sm hover:shadow-glow-accent transition-all flex items-center justify-center gap-2.5"
                         >
-                          <span className="text-xl">🚧</span>
+                          <HardHat className="w-5 h-5 text-primary-900" strokeWidth={2} />
                           <span>SALIDA A CAMPO / OBRA</span>
                         </button>
 
@@ -902,11 +934,12 @@ function AttendanceTrackerContent() {
                         >
                           {actionLoading ? (
                             <>
-                              <span className="animate-spin">⚙️</span> Cerrando jornada...
+                              <Loader2 className="w-5 h-5 animate-spin mr-1" />
+                              <span>Cerrando jornada...</span>
                             </>
                           ) : (
                             <>
-                              <span className="text-xl">🔴</span>
+                              <LogOut className="w-5 h-5" />
                               <span>REGISTRAR SALIDA</span>
                             </>
                           )}
@@ -917,7 +950,8 @@ function AttendanceTrackerContent() {
                       {todayRecord.field_trips && todayRecord.field_trips.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-slate-100">
                           <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                            <span>📍</span> Historial de desplazamientos de hoy:
+                            <MapPin className="w-3.5 h-3.5 text-accent inline" />
+                            <span>Historial de desplazamientos de hoy:</span>
                           </h4>
                           <div className="space-y-2">
                             {todayRecord.field_trips.map((trip: FieldTrip) => (
@@ -943,8 +977,8 @@ function AttendanceTrackerContent() {
                   {/* CASO C: Jornada finalizada con éxito */}
                   {todayRecord && todayRecord.check_out_time && (
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center">
-                      <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 text-2xl mx-auto flex items-center justify-center mb-3">
-                        ✓
+                      <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center mb-3">
+                        <CheckCircle2 className="w-8 h-8 text-emerald-600" />
                       </div>
                       <h3 className="text-lg font-bold text-slate-900">¡Jornada de hoy completada!</h3>
                       <p className="text-xs text-slate-500 mt-0.5 mb-4">
@@ -957,8 +991,16 @@ function AttendanceTrackerContent() {
                           <span className="text-sm font-bold text-slate-900 font-mono">
                             {formatTimeOnly(todayRecord.check_in_time)}
                           </span>
-                          <p className="text-[11px] text-slate-500 truncate">
-                            {todayRecord.check_in_is_office ? '🏢 Oficina' : '📍 Campo'}
+                          <p className="text-[11px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                            {todayRecord.check_in_is_office ? (
+                              <>
+                                <Building2 className="w-3 h-3 text-emerald-600" /> Oficina
+                              </>
+                            ) : (
+                              <>
+                                <MapPin className="w-3 h-3 text-accent" /> Campo
+                              </>
+                            )}
                           </p>
                         </div>
 
@@ -967,15 +1009,23 @@ function AttendanceTrackerContent() {
                           <span className="text-sm font-bold text-slate-900 font-mono">
                             {formatTimeOnly(todayRecord.check_out_time)}
                           </span>
-                          <p className="text-[11px] text-slate-500 truncate">
-                            {todayRecord.check_out_is_office ? '🏢 Oficina' : '📍 Campo'}
+                          <p className="text-[11px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                            {todayRecord.check_out_is_office ? (
+                              <>
+                                <Building2 className="w-3 h-3 text-emerald-600" /> Oficina
+                              </>
+                            ) : (
+                              <>
+                                <MapPin className="w-3 h-3 text-accent" /> Campo
+                              </>
+                            )}
                           </p>
                         </div>
 
                         <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200">
                           <span className="text-[11px] font-semibold text-emerald-700 block">Total Horas</span>
                           <span className="text-sm font-bold text-emerald-900 font-mono">
-                            {todayRecord.total_hours?.toFixed(1) ?? '--'} hrs
+                            {todayRecord.total_hours !== null ? `${todayRecord.total_hours.toFixed(1)} h` : '--'}
                           </span>
                           <p className="text-[11px] text-emerald-600">Registrado</p>
                         </div>
@@ -994,8 +1044,8 @@ function AttendanceTrackerContent() {
             <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-lg font-bold">
-                    🚧
+                  <div className="w-8 h-8 rounded-xl bg-accent/20 text-primary-900 flex items-center justify-center font-bold">
+                    <HardHat className="w-5 h-5 text-primary-900" strokeWidth={1.75} />
                   </div>
                   <h3 className="font-bold text-slate-900 text-base">Salida a Campo / Obra</h3>
                 </div>
@@ -1003,7 +1053,7 @@ function AttendanceTrackerContent() {
                   onClick={() => setFieldModalOpen(false)}
                   className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
@@ -1022,7 +1072,7 @@ function AttendanceTrackerContent() {
                     value={fieldDestination}
                     onChange={(e) => setFieldDestination(e.target.value)}
                     placeholder="Ej: Obra Calle 100, Proyecto GPR Autopista, Inspección..."
-                    className="w-full text-sm px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full text-sm px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-accent bg-white"
                   />
                 </div>
 
@@ -1035,7 +1085,7 @@ function AttendanceTrackerContent() {
                     value={fieldNotes}
                     onChange={(e) => setFieldNotes(e.target.value)}
                     placeholder="Ej: Toma de radargramas de tuberías, verificación topográfica..."
-                    className="w-full text-sm px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    className="w-full text-sm px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-accent bg-white"
                   />
                 </div>
 
@@ -1057,7 +1107,7 @@ function AttendanceTrackerContent() {
                   <button
                     type="submit"
                     disabled={actionLoading}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-primary-950 font-bold text-sm shadow-md shadow-amber-500/20 disabled:opacity-50"
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-accent hover:bg-accent-400 text-primary-900 font-bold text-sm shadow-sm hover:shadow-glow-accent disabled:opacity-50"
                   >
                     {actionLoading ? 'Guardando...' : 'Confirmar Salida'}
                   </button>
@@ -1071,10 +1121,13 @@ function AttendanceTrackerContent() {
         <section className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6 sm:p-8 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                {isAdmin && adminViewMode === 'team'
-                  ? 'Historial y Auditoría de Novedades del Equipo'
-                  : 'Mi Historial de Asistencia y Novedades'}
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                <span>
+                  {isAdmin && adminViewMode === 'team'
+                    ? 'Historial y Auditoría de Novedades del Equipo'
+                    : 'Mi Historial de Asistencia y Novedades'}
+                </span>
               </h2>
               <p className="text-xs text-slate-500">
                 {isAdmin && adminViewMode === 'team'
@@ -1087,9 +1140,9 @@ function AttendanceTrackerContent() {
             <button
               onClick={handleDownloadPDF}
               disabled={loadingHistory || historyRecords.length === 0}
-              className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-indigo-600/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center gap-2 py-2.5 px-5 rounded-2xl bg-accent hover:bg-accent-400 active:scale-[0.99] text-primary-900 font-bold text-sm shadow-sm hover:shadow-glow-accent transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <span>📄</span>
+              <FileText className="w-4 h-4 text-primary-900" />
               <span>
                 {isAdmin && adminViewMode === 'team' && selectedEmployeeId === 'all'
                   ? 'Descargar Reporte Consolidado (PDF)'
@@ -1104,15 +1157,15 @@ function AttendanceTrackerContent() {
               {/* Selector de colaborador (solo modo admin) */}
               {isAdmin && adminViewMode === 'team' && (
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-bold text-slate-700 whitespace-nowrap">
-                    👤 Colaborador:
+                  <label className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-slate-500" /> Colaborador:
                   </label>
                   <select
                     value={selectedEmployeeId}
                     onChange={(e) => setSelectedEmployeeId(e.target.value)}
                     className="select text-xs py-1.5 px-3 rounded-xl border border-slate-300 bg-white font-medium"
                   >
-                    <option value="all">👥 Todo el Equipo (Consolidado)</option>
+                    <option value="all">Todo el Equipo (Consolidado)</option>
                     {activeUsersList.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.full_name} ({u.role || 'Usuario'})
@@ -1126,33 +1179,33 @@ function AttendanceTrackerContent() {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   onClick={() => handleFilterChange('quincena')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
                     filterMode === 'quincena'
-                      ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                      ? 'bg-accent text-primary-900 font-bold shadow-sm'
                       : 'text-slate-600 hover:bg-white/50'
                   }`}
                 >
-                  📅 Última Quincena
+                  <Calendar className="w-3.5 h-3.5" /> Última Quincena
                 </button>
                 <button
                   onClick={() => handleFilterChange('mes')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
                     filterMode === 'mes'
-                      ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                      ? 'bg-accent text-primary-900 font-bold shadow-sm'
                       : 'text-slate-600 hover:bg-white/50'
                   }`}
                 >
-                  📆 Mes en Curso
+                  <CalendarDays className="w-3.5 h-3.5" /> Mes en Curso
                 </button>
                 <button
                   onClick={() => handleFilterChange('custom')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
                     filterMode === 'custom'
-                      ? 'bg-white text-indigo-700 shadow-sm border border-slate-200'
+                      ? 'bg-accent text-primary-900 font-bold shadow-sm'
                       : 'text-slate-600 hover:bg-white/50'
                   }`}
                 >
-                  ⚙️ Personalizado
+                  <Sliders className="w-3.5 h-3.5" /> Personalizado
                 </button>
               </div>
 
@@ -1163,14 +1216,14 @@ function AttendanceTrackerContent() {
                   type="date"
                   value={filterFrom}
                   onChange={(e) => setFilterFrom(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono text-xs focus:ring-1 focus:ring-indigo-500"
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono text-xs focus:ring-1 focus:ring-accent"
                 />
                 <label className="text-slate-500 font-medium">Hasta:</label>
                 <input
                   type="date"
                   value={filterTo}
                   onChange={(e) => setFilterTo(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono text-xs focus:ring-1 focus:ring-indigo-500"
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono text-xs focus:ring-1 focus:ring-accent"
                 />
               </div>
             </div>
@@ -1180,22 +1233,22 @@ function AttendanceTrackerContent() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
               <span className="text-[11px] font-semibold text-slate-400 block uppercase">Días / Registros</span>
-              <span className="text-xl font-bold text-slate-900">{historyStats.totalDays}</span>
+              <span className="text-xl font-bold text-slate-900 font-mono">{historyStats.totalDays}</span>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200">
-              <span className="text-[11px] font-semibold text-indigo-600 block uppercase">Horas Laboradas</span>
-              <span className="text-xl font-bold text-indigo-900">{historyStats.totalHours} h</span>
+            <div className="p-3.5 rounded-2xl bg-accent/10 border border-accent/20">
+              <span className="text-[11px] font-semibold text-primary-900 block uppercase">Horas Laboradas</span>
+              <span className="text-xl font-bold text-primary-950 font-mono">{historyStats.totalHours} h</span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200">
-              <span className="text-[11px] font-semibold text-emerald-600 block uppercase">En Oficina</span>
-              <span className="text-xl font-bold text-emerald-900">{historyStats.officeDays} días</span>
+              <span className="text-[11px] font-semibold text-emerald-700 block uppercase">En Oficina</span>
+              <span className="text-xl font-bold text-emerald-900 font-mono">{historyStats.officeDays} días</span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
-              <span className="text-[11px] font-semibold text-amber-700 block uppercase">En Campo / Obras</span>
-              <span className="text-xl font-bold text-amber-900">{historyStats.fieldDays} días</span>
+              <span className="text-[11px] font-semibold text-amber-800 block uppercase">En Campo / Obras</span>
+              <span className="text-xl font-bold text-amber-900 font-mono">{historyStats.fieldDays} días</span>
             </div>
           </div>
 
@@ -1219,7 +1272,8 @@ function AttendanceTrackerContent() {
                 {loadingHistory ? (
                   <tr>
                     <td colSpan={isAdmin && adminViewMode === 'team' ? 7 : 6} className="py-8 text-center text-slate-400">
-                      <span className="animate-spin mr-2">⚙️</span> Cargando historial...
+                      <Loader2 className="w-4 h-4 animate-spin inline mr-2 text-accent" />
+                      <span>Cargando historial...</span>
                     </td>
                   </tr>
                 ) : historyRecords.length === 0 ? (
@@ -1257,12 +1311,12 @@ function AttendanceTrackerContent() {
                           </div>
                           <div className="text-[11px] text-slate-500 mt-0.5">
                             {rec.check_in_is_office ? (
-                              <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold">
-                                🏢 Oficina
+                              <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold inline-flex items-center gap-1">
+                                <Building2 className="w-3 h-3 text-emerald-600" /> Oficina
                               </span>
                             ) : (
-                              <span className="text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
-                                📍 Campo
+                              <span className="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 inline-flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-accent" /> Campo
                               </span>
                             )}
                           </div>
@@ -1277,12 +1331,12 @@ function AttendanceTrackerContent() {
                               </div>
                               <div className="text-[11px] text-slate-500 mt-0.5">
                                 {rec.check_out_is_office ? (
-                                  <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold">
-                                    🏢 Oficina
+                                  <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-semibold inline-flex items-center gap-1">
+                                    <Building2 className="w-3 h-3 text-emerald-600" /> Oficina
                                   </span>
                                 ) : (
-                                  <span className="text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
-                                    📍 Campo
+                                  <span className="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 inline-flex items-center gap-1">
+                                    <MapPin className="w-3 h-3 text-accent" /> Campo
                                   </span>
                                 )}
                               </div>
@@ -1298,7 +1352,8 @@ function AttendanceTrackerContent() {
                             <div className="space-y-1">
                               {rec.field_trips.map((ft: FieldTrip) => (
                                 <div key={ft.id} className="text-[11px] text-slate-600 flex items-center gap-1">
-                                  <span className="font-semibold text-amber-700">🚧 {ft.destination}</span>
+                                  <HardHat className="w-3 h-3 text-accent flex-shrink-0" />
+                                  <span className="font-semibold text-slate-800">{ft.destination}</span>
                                   <span className="text-slate-400 font-mono">({formatTimeOnly(ft.time)})</span>
                                 </div>
                               ))}
@@ -1320,7 +1375,7 @@ function AttendanceTrackerContent() {
                               Completo
                             </span>
                           ) : (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-accent/20 text-primary-900 border border-accent/30 font-medium">
                               En Curso
                             </span>
                           )}

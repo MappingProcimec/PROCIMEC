@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
-import { CheckCircle2, AlertTriangle, PenTool, Check, X, ArrowRight } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, PenTool, Check, X, ArrowRight, AlertCircle, Info } from 'lucide-react';
 
 // ─── Tipo de Proyecto ─────────────────────────────────────────────────────────
 interface Project {
@@ -268,12 +268,14 @@ export default function CadRegisterFormPage() {
                   {projectsLoading ? (
                     <div className="select animate-pulse bg-gray-100 text-text-muted">Cargando proyectos...</div>
                   ) : projectsError ? (
-                    <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
-                      ⚠️ {projectsError}
+                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0" strokeWidth={1.75} />
+                      <span>{projectsError}</span>
                     </div>
                   ) : projects.length === 0 ? (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-800 text-sm">
-                      ℹ️ No tienes proyectos asignados. Contacta al administrador para que te vincule a un proyecto.
+                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-800 text-sm">
+                      <Info className="w-4 h-4 text-amber-600 shrink-0" strokeWidth={1.75} />
+                      <span>No tienes proyectos asignados. Contacta al administrador para que te vincule a un proyecto.</span>
                     </div>
                   ) : (
                     <select
@@ -289,7 +291,10 @@ export default function CadRegisterFormPage() {
                     </select>
                   )}
                   {errors.project_name && (
-                    <p className="error-msg">⚠️ {errors.project_name.message}</p>
+                    <p className="error-msg flex items-center gap-1.5 mt-1 text-xs text-rose-600">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                      <span>{errors.project_name.message}</span>
+                    </p>
                   )}
                 </div>
 
@@ -302,7 +307,10 @@ export default function CadRegisterFormPage() {
                     className={`input ${errors.activity_date ? 'input-error' : ''}`}
                   />
                   {errors.activity_date && (
-                    <p className="error-msg">⚠️ {errors.activity_date.message}</p>
+                    <p className="error-msg flex items-center gap-1.5 mt-1 text-xs text-rose-600">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                      <span>{errors.activity_date.message}</span>
+                    </p>
                   )}
                 </div>
               </div>
@@ -351,7 +359,10 @@ export default function CadRegisterFormPage() {
                   })}
                 </div>
                 {errors.software && (
-                  <p className="error-msg">⚠️ {errors.software.message}</p>
+                  <p className="error-msg flex items-center gap-1.5 mt-1 text-xs text-rose-600">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                    <span>{errors.software.message}</span>
+                  </p>
                 )}
               </div>
 
@@ -428,7 +439,7 @@ export default function CadRegisterFormPage() {
                         : 'border-border bg-white text-text-secondary hover:border-gray-300'
                     }`}
                   >
-                    <span className="text-base">✓</span>
+                    <Check className="w-4 h-4 text-emerald-700" strokeWidth={2} />
                     <span className="text-sm font-semibold">No (Trabajo regular)</span>
                   </button>
 
@@ -441,7 +452,7 @@ export default function CadRegisterFormPage() {
                         : 'border-border bg-white text-text-secondary hover:border-gray-300'
                     }`}
                   >
-                    <span className="text-base">⚠️</span>
+                    <AlertTriangle className="w-4 h-4 text-red-600" strokeWidth={2} />
                     <span className="text-sm font-semibold">Sí (Es reproceso)</span>
                   </button>
                 </div>

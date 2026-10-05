@@ -1,9 +1,9 @@
 'use client';
 
 const STEPS = [
-  { number: 1, label: 'Operativo y Volumetría', icon: '📋' },
-  { number: 2, label: 'Técnico y Hallazgos', icon: '⚙️' },
-  { number: 3, label: 'Archivos y Fotos', icon: '📁' },
+  { number: 1, label: 'Operativo y Volumetría' },
+  { number: 2, label: 'Técnico y Hallazgos' },
+  { number: 3, label: 'Archivos y Fotos' },
 ];
 
 interface StepperProps {

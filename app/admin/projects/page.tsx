@@ -15,6 +15,18 @@ import {
   ArrowLeftRight,
   Ban,
   Check,
+  X,
+  Settings,
+  PenTool,
+  Folder,
+  Radio,
+  Satellite,
+  CheckCircle2,
+  AlertTriangle,
+  TrendingUp,
+  ChevronDown,
+  MapPin,
+  Info,
 } from 'lucide-react';
 
 interface DivisionOption { id: string; name: string }
@@ -483,7 +495,8 @@ export default function AdminProjectsPage() {
                 onClick={clearFilters}
                 className="font-medium text-primary hover:underline flex items-center gap-1"
               >
-                ✕ Limpiar filtros
+                <X className="w-3.5 h-3.5" />
+                <span>Limpiar filtros</span>
               </button>
             </div>
           )}
@@ -670,7 +683,7 @@ export default function AdminProjectsPage() {
                             <div>
                               <p className="font-semibold text-sm text-text-primary hover:text-primary transition-colors flex items-center gap-1.5">
                                 {p.name}
-                                <span className="text-xs text-primary font-normal opacity-0 group-hover:opacity-100">🔍</span>
+                                <Search className="w-3.5 h-3.5 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                               </p>
                               <div className="flex items-center gap-2 text-xs text-text-muted mt-0.5">
                                 <span>{format(new Date(p.created_at), 'dd/MM/yyyy', { locale: es })}</span>
@@ -782,10 +795,11 @@ export default function AdminProjectsPage() {
                             <div className="relative inline-block text-left">
                               <button
                                 onClick={() => setOpenMenuId(openMenuId === p.id ? null : p.id)}
-                                className="btn-sm btn-outline text-xs px-2.5 py-1 flex items-center gap-1 hover:bg-gray-100 rounded-lg shadow-2xs font-medium text-text-primary"
+                                className="btn-sm btn-outline text-xs px-2.5 py-1 flex items-center gap-1.5 hover:bg-gray-100 rounded-lg shadow-2xs font-medium text-text-primary"
                               >
-                                <span>⚙️ Acciones</span>
-                                <span className="text-[9px] text-text-muted">▼</span>
+                                <Settings className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} />
+                                <span>Acciones</span>
+                                <ChevronDown className="w-3 h-3 text-text-muted" strokeWidth={1.75} />
                               </button>
 
                               {openMenuId === p.id && (
@@ -802,7 +816,7 @@ export default function AdminProjectsPage() {
                                       }}
                                       className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
                                     >
-                                      <span>✏️</span> Editar proyecto y metas
+                                      <PenTool className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} /> Editar proyecto y metas
                                     </button>
 
                                     {p.drive_folder_url && (
@@ -813,7 +827,7 @@ export default function AdminProjectsPage() {
                                         onClick={() => setOpenMenuId(null)}
                                         className="w-full text-left px-3.5 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium transition-colors"
                                       >
-                                        <span>📁</span> Abrir carpeta en Drive
+                                        <Folder className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} /> Abrir carpeta en Drive
                                       </a>
                                     )}
 
@@ -885,13 +899,14 @@ export default function AdminProjectsPage() {
                   onClick={() => openEdit(currentSelected)}
                   className="btn-sm bg-white/15 hover:bg-white/25 text-white text-xs px-3 py-1.5 rounded-lg border border-white/20 flex items-center gap-1.5 transition-all"
                 >
-                  <span>✏️</span> Editar Proyecto y Metas
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>Editar Proyecto y Metas</span>
                 </button>
                 <button
                   onClick={() => setSelectedProject(null)}
                   className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-lg font-bold"
                 >
-                  ×
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -904,7 +919,10 @@ export default function AdminProjectsPage() {
                   <>
                     {currentSelected.description && (
                       <div className="mb-4 bg-white p-3 rounded-xl border border-gray-200 text-xs text-text-secondary leading-relaxed">
-                        <span className="font-bold text-text-primary block mb-0.5">📌 Objeto / Descripción del Proyecto:</span>
+                        <span className="font-bold text-text-primary flex items-center gap-1.5 mb-1">
+                          <FolderKanban className="w-4 h-4 text-accent" />
+                          <span>Objeto / Descripción del Proyecto:</span>
+                        </span>
                         {currentSelected.description}
                       </div>
                     )}
@@ -921,7 +939,7 @@ export default function AdminProjectsPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-base">📡</span>
+                              <Radio className="w-4 h-4 text-accent" strokeWidth={1.75} />
                               <h4 className="font-bold text-sm text-text-primary truncate">Localización Subterránea / Mapeo</h4>
                             </div>
                             
@@ -969,18 +987,26 @@ export default function AdminProjectsPage() {
                         {currentSelected.requires_mapping !== false && (
                           <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px]">
                             <span className="text-text-muted">Estado de cobertura:</span>
-                            <span className={`font-semibold ${
+                            <span className={`font-semibold flex items-center gap-1 ${
                               (currentSelected.mapping_progress_pct ?? 0) >= 100
                                 ? 'text-emerald-700'
                                 : (currentSelected.mapping_progress_pct ?? 0) > 0
                                 ? 'text-blue-700'
                                 : 'text-amber-700'
                             }`}>
-                              {(currentSelected.mapping_progress_pct ?? 0) >= 100
-                                ? '✅ 100% Completado'
-                                : (currentSelected.mapping_progress_pct ?? 0) > 0
-                                ? `⏳ ${(currentSelected.mapping_progress_pct ?? 0).toFixed(1)}% ejecutado`
-                                : '⚠️ Pendiente por iniciar'}
+                              {(currentSelected.mapping_progress_pct ?? 0) >= 100 ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>100% Completado</span>
+                                </>
+                              ) : (currentSelected.mapping_progress_pct ?? 0) > 0 ? (
+                                <span>{(currentSelected.mapping_progress_pct ?? 0).toFixed(1)}% ejecutado</span>
+                              ) : (
+                                <>
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                  <span>Pendiente por iniciar</span>
+                                </>
+                              )}
                             </span>
                           </div>
                         )}
@@ -995,7 +1021,7 @@ export default function AdminProjectsPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-base">🛰️</span>
+                              <Satellite className="w-4 h-4 text-accent" strokeWidth={1.75} />
                               <h4 className="font-bold text-sm text-text-primary truncate">Geolocalización / Posicionamiento</h4>
                             </div>
 
@@ -1043,18 +1069,26 @@ export default function AdminProjectsPage() {
                         {currentSelected.requires_positioning !== false && (
                           <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px]">
                             <span className="text-text-muted">Estado de cobertura:</span>
-                            <span className={`font-semibold ${
+                            <span className={`font-semibold flex items-center gap-1 ${
                               (currentSelected.positioning_progress_pct ?? 0) >= 100
                                 ? 'text-emerald-700'
                                 : (currentSelected.positioning_progress_pct ?? 0) > 0
                                 ? 'text-indigo-700'
                                 : 'text-amber-700'
                             }`}>
-                              {(currentSelected.positioning_progress_pct ?? 0) >= 100
-                                ? '✅ 100% Completado'
-                                : (currentSelected.positioning_progress_pct ?? 0) > 0
-                                ? `⏳ ${(currentSelected.positioning_progress_pct ?? 0).toFixed(1)}% ejecutado`
-                                : '⚠️ Pendiente por iniciar'}
+                              {(currentSelected.positioning_progress_pct ?? 0) >= 100 ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>100% Completado</span>
+                                </>
+                              ) : (currentSelected.positioning_progress_pct ?? 0) > 0 ? (
+                                <span>{(currentSelected.positioning_progress_pct ?? 0).toFixed(1)}% ejecutado</span>
+                              ) : (
+                                <>
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                  <span>Pendiente por iniciar</span>
+                                </>
+                              )}
                             </span>
                           </div>
                         )}
@@ -1069,8 +1103,9 @@ export default function AdminProjectsPage() {
               <div className="mt-4 bg-white p-3 rounded-xl border border-gray-200">
                 <div className="flex items-center justify-between text-xs mb-1.5">
                   <div className="flex items-center gap-1.5 font-bold text-text-primary">
-                    <span>🏁 Progreso General del Proyecto:</span>
-                    <span className="text-primary font-extrabold text-sm">{(currentSelected.overall_progress_pct ?? 0).toFixed(1)}%</span>
+                    <TrendingUp className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                    <span>Progreso General del Proyecto:</span>
+                    <span className="text-primary font-extrabold text-sm font-mono">{(currentSelected.overall_progress_pct ?? 0).toFixed(1)}%</span>
                   </div>
                   <span className="text-[11px] text-text-muted">
                     {currentSelected.requires_mapping && currentSelected.requires_positioning
@@ -1158,7 +1193,7 @@ export default function AdminProjectsPage() {
                     date: r.report_date || '',
                     responsible: r.localizador_name || r.operator_name || '—',
                     detail: `${ml.toFixed(1)} ml${m2 > 0 ? ` · ${m2.toFixed(1)} m²` : ''}`,
-                    equipmentInfo: `${isLoc ? '📡 Mapeo' : ''}${isLoc && isPos ? ' + ' : ''}${isPos ? '🛰️ Geo' : ''}`,
+                    equipmentInfo: `${isLoc ? 'Mapeo' : ''}${isLoc && isPos ? ' + ' : ''}${isPos ? 'Geo' : ''}` || '—',
                     statusOrType: r.status === 'submitted' ? 'Enviado' : r.status === 'reviewed' ? 'Revisado' : 'Borrador',
                     docxUrl: r.docx_drive_url,
                     driveUrl: r.drive_session_folder_url,
@@ -1208,8 +1243,18 @@ export default function AdminProjectsPage() {
                               {item.date ? format(new Date(item.date.includes('T') ? item.date : item.date + 'T00:00:00'), 'dd/MM/yyyy') : '—'}
                             </td>
                             <td>
-                              <span className={`badge text-xs ${item.area === 'campo' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
-                                {item.area === 'campo' ? '📍 Campo' : '✏️ Dibujo'}
+                              <span className={`badge text-xs inline-flex items-center gap-1 ${item.area === 'campo' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+                                {item.area === 'campo' ? (
+                                  <>
+                                    <MapPin className="w-3 h-3" />
+                                    <span>Campo</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <PenTool className="w-3 h-3" />
+                                    <span>Dibujo</span>
+                                  </>
+                                )}
                               </span>
                             </td>
                             <td className="text-sm font-medium text-text-primary">{item.responsible}</td>
@@ -1654,8 +1699,9 @@ export default function AdminProjectsPage() {
               )}
 
               {createMutation.isError && (
-                <p className="error-msg text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">
-                  ⚠️ {createMutation.error instanceof Error ? createMutation.error.message : 'Error al crear proyecto'}
+                <p className="error-msg text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded-lg border border-red-200 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                  <span>{createMutation.error instanceof Error ? createMutation.error.message : 'Error al crear proyecto'}</span>
                 </p>
               )}
 
@@ -1674,8 +1720,8 @@ export default function AdminProjectsPage() {
       {confirmDeactivateProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
           <div className="card w-full max-w-md p-6 bg-white rounded-2xl shadow-2xl space-y-4 border border-border animate-slide-up">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl font-bold">
-              ⚠️
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
             <div className="text-center space-y-1.5">
               <h3 className="text-lg font-bold text-text-primary">¿Desactivar este proyecto?</h3>
@@ -1684,8 +1730,9 @@ export default function AdminProjectsPage() {
                 <span className="font-bold text-text-primary">{confirmDeactivateProject.name}</span>{' '}
                 ({confirmDeactivateProject.cost_center || confirmDeactivateProject.code || 'Sin C.C.'}).
               </p>
-              <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 text-left leading-relaxed">
-                ℹ️ <strong>Nota:</strong> El proyecto pasará a estado inactivo y no aparecerá disponible para que los localizadores creen nuevos reportes de campo ni registros de dibujo hasta que sea reactivado.
+              <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 mt-2 text-left leading-relaxed flex items-start gap-1.5">
+                <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                <div><strong>Nota:</strong> El proyecto pasará a estado inactivo y no aparecerá disponible para que los localizadores creen nuevos reportes de campo ni registros de dibujo hasta que sea reactivado.</div>
               </div>
             </div>
             <div className="flex gap-3 pt-2">

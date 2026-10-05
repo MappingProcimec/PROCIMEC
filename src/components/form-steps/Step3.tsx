@@ -4,6 +4,7 @@ import { useFormStore } from '@/hooks/useFormStore';
 import { useCallback, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { UploadedFile } from '@/types';
+import { Camera, Radio, MapPin } from 'lucide-react';
 
 const RAW_GPR_ACCEPT = '.gsf,.rd3,.dzt,.pair,.rad,.gpr,.pptx,.ppt';
 const GPS_ACCEPT = '.dwg,.txt,.csv,.kml,.gpx,.shp,.xlsx,.pdf';
@@ -205,13 +206,10 @@ function FileUploadSection({
           type="button"
           disabled={isProcessing}
           onClick={() => cameraInputRef.current?.click()}
-          className="btn-outline w-full text-xs py-2 justify-center disabled:opacity-50"
+          className="btn-outline w-full text-xs py-2 justify-center flex items-center gap-2 disabled:opacity-50"
         >
-          <svg className="w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
-          </svg>
-          📷 O bien tomar foto directamente con la cámara
+          <Camera className="w-4 h-4 text-text-muted" strokeWidth={1.75} />
+          <span>Tomar foto directamente con la cámara</span>
         </button>
       )}
 
@@ -294,7 +292,7 @@ export function Step3({ onBack, onSubmit, isSubmitting }: Step3Props) {
       <FileUploadSection
         title="Archivos de Datos GPR / PPR y Presentaciones"
         subtitle="Crudosa (.gsf, .rd3, .dzt, .rad, .gpr), procesadas o PPTX marcadas"
-        icon="📡"
+        icon={<Radio className="w-5 h-5 text-primary" strokeWidth={1.75} />}
         accept={RAW_GPR_ACCEPT}
         files={section3.rawGprFiles}
         onAdd={files => files.forEach(f => addRawGprFile({ ...f, fileType: 'raw_gpr' }))}
@@ -305,7 +303,7 @@ export function Step3({ onBack, onSubmit, isSubmitting }: Step3Props) {
       <FileUploadSection
         title="Archivos de Posicionamiento (GPS / Estación Total / Planos)"
         subtitle=".dwg, .txt, .csv, .kml, .gpx, .shp, .xlsx, .pdf"
-        icon="📍"
+        icon={<MapPin className="w-5 h-5 text-primary" strokeWidth={1.75} />}
         accept={GPS_ACCEPT}
         files={section3.gpsFiles}
         onAdd={files => files.forEach(f => addGpsFile({ ...f, fileType: 'gps' }))}
@@ -316,7 +314,7 @@ export function Step3({ onBack, onSubmit, isSubmitting }: Step3Props) {
       <FileUploadSection
         title="Registro Fotográfico de Campo"
         subtitle="Fotografías del sitio, terreno o hallazgos (optimizadas automáticamente)"
-        icon="📷"
+        icon={<Camera className="w-5 h-5 text-primary" strokeWidth={1.75} />}
         accept={PHOTO_ACCEPT}
         files={section3.photoFiles}
         onAdd={files => files.forEach(f => addPhotoFile({ ...f, fileType: 'photo' }))}

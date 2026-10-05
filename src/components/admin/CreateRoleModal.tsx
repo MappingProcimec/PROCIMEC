@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Check, ArrowRight, ArrowLeft, Shield, Wrench, FileText, Globe } from 'lucide-react';
+import { X, Check, ArrowRight, ArrowLeft, Shield, Wrench, FileText, Globe, AlertCircle } from 'lucide-react';
 
 interface Division { id: string; name: string }
 interface Tool { id: string; slug: string; name: string; category: string }
@@ -217,7 +217,7 @@ export function CreateRoleModal({ isOpen, onClose, onCreated }: CreateRoleModalP
                     onChange={(e) => setDivisionId(e.target.value)}
                     className="input text-sm pl-9"
                   >
-                    <option value="">🌐 Sin división (Global — aplicable a todas las áreas)</option>
+                    <option value="">Sin división (Global — aplicable a todas las áreas)</option>
                     {divisions.map((d) => (
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
@@ -229,7 +229,12 @@ export function CreateRoleModal({ isOpen, onClose, onCreated }: CreateRoleModalP
                 </p>
               </div>
 
-              {error && <p className="text-xs text-error font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">⚠️ {error}</p>}
+              {error && (
+                <p className="text-xs text-error font-medium bg-red-50 p-2.5 rounded-lg border border-red-200 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-error flex-shrink-0" strokeWidth={1.75} />
+                  <span>{error}</span>
+                </p>
+              )}
             </form>
           ) : (
             <div className="space-y-6">
@@ -291,8 +296,9 @@ export function CreateRoleModal({ isOpen, onClose, onCreated }: CreateRoleModalP
                             onChange={() => toggleForm(f.id)}
                             className="w-3.5 h-3.5 rounded accent-primary cursor-pointer"
                           />
-                          <span className="group-hover:text-primary transition-colors font-medium">
-                            📋 {f.name}
+                          <span className="group-hover:text-primary transition-colors font-medium flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} />
+                            <span>{f.name}</span>
                           </span>
                         </label>
                       ))}
@@ -301,7 +307,12 @@ export function CreateRoleModal({ isOpen, onClose, onCreated }: CreateRoleModalP
                 </div>
               </div>
 
-              {error && <p className="text-xs text-error font-medium bg-red-50 p-2.5 rounded-lg border border-red-200">⚠️ {error}</p>}
+              {error && (
+                <p className="text-xs text-error font-medium bg-red-50 p-2.5 rounded-lg border border-red-200 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-error flex-shrink-0" strokeWidth={1.75} />
+                  <span>{error}</span>
+                </p>
+              )}
             </div>
           )}
         </div>

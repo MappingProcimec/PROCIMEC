@@ -4,6 +4,7 @@ import { useFormStore } from '@/hooks/useFormStore';
 import { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { DetectedUtility } from '@/types';
+import { Radio, Zap, Search, AlertCircle, Flame, Clock, CheckCircle2 } from 'lucide-react';
 
 const UTILITY_TYPES = [
   'Tubería Agua', 'Gas', 'Electricidad BT', 'Electricidad AT',
@@ -13,9 +14,9 @@ const UTILITY_TYPES = [
 const CONFIDENCE_LEVELS = ['Alta', 'Media', 'Baja'] as const;
 
 const PRIORITIES = [
-  { value: 'Alta', color: 'error', desc: 'Urgente para entrega', icon: '🔴' },
-  { value: 'Media', color: 'warning', desc: 'Prioridad normal', icon: '🟡' },
-  { value: 'Baja', color: 'success', desc: 'Sin urgencia especial', icon: '🟢' },
+  { value: 'Alta', color: 'error', desc: 'Urgente para entrega', iconKey: 'high' },
+  { value: 'Media', color: 'warning', desc: 'Prioridad normal', iconKey: 'medium' },
+  { value: 'Baja', color: 'success', desc: 'Sin urgencia especial', iconKey: 'low' },
 ] as const;
 
 interface Step2Props {
@@ -110,7 +111,8 @@ export function Step2({ onNext, onBack }: Step2Props) {
       {hasGprOrPpr && (
         <div className="card p-5 space-y-4 bg-primary-50/40 border-primary-200">
           <h3 className="font-bold text-primary text-sm flex items-center gap-2">
-            📡 Configuración Técnica GPR / PPR
+            <Radio className="w-4 h-4 text-primary" strokeWidth={1.75} />
+            Configuración Técnica GPR / PPR
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -146,7 +148,8 @@ export function Step2({ onNext, onBack }: Step2Props) {
       {hasRd && (
         <div className="card p-5 space-y-3 bg-amber-50/50 border-amber-200">
           <h3 className="font-bold text-amber-800 text-sm flex items-center gap-2">
-            ⚡ Datos y Configuración RD (Detector Electromagnético)
+            <Zap className="w-4 h-4 text-amber-700" strokeWidth={1.75} />
+            Datos y Configuración RD (Detector Electromagnético)
           </h3>
           <div className="form-group">
             <label className="label">Modos y frecuencias RD utilizadas</label>
@@ -160,7 +163,8 @@ export function Step2({ onNext, onBack }: Step2Props) {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-text-primary text-sm flex items-center gap-2">
-            🔍 Servicios e Interferencias Detectadas
+            <Search className="w-4 h-4 text-text-primary" strokeWidth={1.75} />
+            Servicios e Interferencias Detectadas
           </h3>
           <span className="badge badge-primary">{utilities.length} detectados</span>
         </div>
@@ -270,7 +274,7 @@ export function Step2({ onNext, onBack }: Step2Props) {
       <div className="form-group pt-2 border-t border-border">
         <label className="label label-required">Prioridad de digitalización para Oficina / CAD</label>
         <div className="grid grid-cols-3 gap-3">
-          {PRIORITIES.map(({ value, color, desc, icon }) => (
+          {PRIORITIES.map(({ value, color, desc, iconKey }) => (
             <button key={value} type="button"
               onClick={() => { setCadPriority(value); setPriorityError(''); }}
               className={`card p-3 text-center transition-all duration-200 border-2 ${
@@ -280,7 +284,11 @@ export function Step2({ onNext, onBack }: Step2Props) {
                     : 'border-success bg-emerald-50 shadow-sm'
                   : 'border-border hover:border-primary-200'
               }`}>
-              <div className="text-xl mb-1">{icon}</div>
+              <div className="flex justify-center mb-1.5">
+                {iconKey === 'high' && <Flame className="w-5 h-5 text-rose-500" strokeWidth={1.75} />}
+                {iconKey === 'medium' && <Clock className="w-5 h-5 text-amber-500" strokeWidth={1.75} />}
+                {iconKey === 'low' && <CheckCircle2 className="w-5 h-5 text-emerald-500" strokeWidth={1.75} />}
+              </div>
               <div className={`font-bold text-xs ${
                 cadPriority === value
                   ? color === 'error' ? 'text-error' : color === 'warning' ? 'text-amber-600' : 'text-success'
@@ -290,7 +298,12 @@ export function Step2({ onNext, onBack }: Step2Props) {
             </button>
           ))}
         </div>
-        {priorityError && <p className="error-msg">⚠ {priorityError}</p>}
+        {priorityError && (
+          <p className="error-msg flex items-center gap-1 mt-1 text-xs text-rose-600">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+            <span>{priorityError}</span>
+          </p>
+        )}
       </div>
 
       {/* Additional CAD Notes */}

@@ -966,9 +966,10 @@ export default function PurchasingDashboardPage() {
               <button
                 type="button"
                 onClick={() => setSelectedRequest(null)}
-                className="text-text-muted hover:text-text-primary text-xl font-bold px-2"
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                title="Cerrar"
               >
-                ✕
+                <X className="w-5 h-5" strokeWidth={2} />
               </button>
             </div>
 
@@ -1215,7 +1216,7 @@ export default function PurchasingDashboardPage() {
                         <span className="truncate flex items-center gap-1 font-mono text-[9px]">
                           {dirView ? (
                             <>
-                              <span className="text-emerald-700 font-semibold font-sans">✓ Visto</span>
+                              <span className="text-emerald-700 font-semibold font-sans flex items-center gap-0.5"><Check className="w-3 h-3 text-emerald-600 inline" strokeWidth={2.5} /> Visto</span>
                               <span className="text-text-secondary">{formatViewTime(dirView.viewed_at)}</span>
                             </>
                           ) : (
@@ -1262,7 +1263,7 @@ export default function PurchasingDashboardPage() {
                         <span className="truncate flex items-center gap-1 font-mono text-[9px]">
                           {purView ? (
                             <>
-                              <span className="text-blue-700 font-semibold font-sans">✓ Visto</span>
+                              <span className="text-blue-700 font-semibold font-sans flex items-center gap-0.5"><Check className="w-3 h-3 text-blue-600 inline" strokeWidth={2.5} /> Visto</span>
                               <span className="text-text-secondary">{formatViewTime(purView.viewed_at)}</span>
                             </>
                           ) : (
@@ -1309,7 +1310,7 @@ export default function PurchasingDashboardPage() {
                         <span className="truncate flex items-center gap-1 font-mono text-[9px]">
                           {manView ? (
                             <>
-                              <span className="text-purple-700 font-semibold font-sans">✓ Visto</span>
+                              <span className="text-purple-700 font-semibold font-sans flex items-center gap-0.5"><Check className="w-3 h-3 text-purple-600 inline" strokeWidth={2.5} /> Visto</span>
                               <span className="text-text-secondary">{formatViewTime(manView.viewed_at)}</span>
                             </>
                           ) : (
@@ -1348,8 +1349,9 @@ export default function PurchasingDashboardPage() {
                           <div>
                             <span className="font-semibold text-text-primary">2. VB Técnico: {sigDirector?.name || selectedRequest.approver_name || 'Pendiente'}</span>
                             {dirView && (
-                              <span className="block text-[10px] text-text-secondary">
-                                👁️ Visto por: {dirView.user_name} (<span className="font-mono">{dirView.viewed_at}</span>)
+                              <span className="flex items-center gap-1 text-[10px] text-text-secondary mt-0.5">
+                                <Eye className="w-3 h-3 text-emerald-600 shrink-0" strokeWidth={1.75} />
+                                <span>Visto por: {dirView.user_name} (<span className="font-mono">{dirView.viewed_at}</span>)</span>
                               </span>
                             )}
                           </div>
@@ -1361,8 +1363,9 @@ export default function PurchasingDashboardPage() {
                           <div>
                             <span className="font-semibold text-text-primary">3. Cotización: {sigPurchasing?.name || 'Área de Compras'}</span>
                             {purView && (
-                              <span className="block text-[10px] text-text-secondary">
-                                👁️ Visto por: {purView.user_name} (<span className="font-mono">{purView.viewed_at}</span>)
+                              <span className="flex items-center gap-1 text-[10px] text-text-secondary mt-0.5">
+                                <Eye className="w-3 h-3 text-blue-600 shrink-0" strokeWidth={1.75} />
+                                <span>Visto por: {purView.user_name} (<span className="font-mono">{purView.viewed_at}</span>)</span>
                               </span>
                             )}
                           </div>
@@ -1374,8 +1377,9 @@ export default function PurchasingDashboardPage() {
                           <div>
                             <span className="font-semibold text-text-primary">4. Gerencia General: {sigManagement?.name || 'Gerencia General'}</span>
                             {manView && (
-                              <span className="block text-[10px] text-text-secondary">
-                                👁️ Visto por: {manView.user_name} (<span className="font-mono">{manView.viewed_at}</span>)
+                              <span className="flex items-center gap-1 text-[10px] text-text-secondary mt-0.5">
+                                <Eye className="w-3 h-3 text-purple-600 shrink-0" strokeWidth={1.75} />
+                                <span>Visto por: {manView.user_name} (<span className="font-mono">{manView.viewed_at}</span>)</span>
                               </span>
                             )}
                           </div>
@@ -1412,9 +1416,10 @@ export default function PurchasingDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setSigningStep(null)}
-                    className="text-text-muted hover:text-text-primary text-xs"
+                    className="text-text-muted hover:text-text-primary text-xs flex items-center gap-1"
                   >
-                    ✕ Cancelar
+                    <X className="w-3 h-3" />
+                    <span>Cancelar</span>
                   </button>
                 </div>
 
@@ -1596,9 +1601,10 @@ export default function PurchasingDashboardPage() {
               <button
                 type="button"
                 onClick={() => setSelectedOrder(null)}
-                className="text-text-muted hover:text-text-primary text-xl font-bold px-2"
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                title="Cerrar"
               >
-                ✕
+                <X className="w-5 h-5" strokeWidth={2} />
               </button>
             </div>
 

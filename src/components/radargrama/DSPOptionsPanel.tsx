@@ -1587,8 +1587,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 className="w-full p-3 flex items-center justify-between hover:bg-gray-100/80 transition cursor-pointer select-none text-left"
               >
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
-                  <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-[11px] shadow-2xs">
-                    ⚡
+                  <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shadow-2xs">
+                    <Zap className="w-3 h-3 text-amber-600" strokeWidth={2} />
                   </div>
                   <span>Tuberías y Servicios</span>
                 </div>
@@ -1621,9 +1621,9 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <div className="grid grid-cols-2 gap-1.5 text-[11px]">
                       {([
                         { id: 'all', label: 'Todos' },
-                        { id: 'metallic', label: '⚡ Metálicas' },
-                        { id: 'plastic', label: '🔸 PVC / PEAD' },
-                        { id: 'concrete', label: '🟢 Hormigón' },
+                        { id: 'metallic', label: 'Metálicas' },
+                        { id: 'plastic', label: 'PVC / PEAD' },
+                        { id: 'concrete', label: 'Hormigón' },
                       ] as const).map((m) => (
                         <button
                           key={m.id}

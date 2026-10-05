@@ -572,8 +572,8 @@ export default function HseqReportPage() {
         {/* Pantalla de Éxito al Generar PDF */}
         {submissionSuccess && generatedPdfResult ? (
           <div className="card p-6 border-emerald-300 space-y-4">
-            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl mx-auto font-bold">
-              ✓
+            <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+              <Check className="w-6 h-6 text-emerald-700" strokeWidth={2.5} />
             </div>
             <div className="text-center space-y-1">
               <h2 className="text-lg font-bold text-text-primary">

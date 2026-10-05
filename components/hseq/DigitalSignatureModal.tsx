@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, RotateCcw, Check, PenTool, UserCheck } from 'lucide-react';
+import { X, RotateCcw, Check, PenTool, UserCheck, Lock, AlertTriangle } from 'lucide-react';
 
 interface DigitalSignatureModalProps {
   isOpen: boolean;
@@ -259,12 +259,14 @@ export function DigitalSignatureModal({
             />
             <p className="text-[11px] text-slate-500">
               {isNameValid ? (
-                <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                  ✓ Identidad registrada. El recuadro de trazo táctil está desbloqueado.
+                <span className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={2} />
+                  <span>Identidad registrada. El recuadro de trazo táctil está desbloqueado.</span>
                 </span>
               ) : (
-                <span className="text-amber-700">
-                  ⚠️ Ingresa tu nombre completo arriba para habilitar el lienzo de firma.
+                <span className="text-amber-700 font-medium flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" strokeWidth={1.75} />
+                  <span>Ingresa tu nombre completo arriba para habilitar el lienzo de firma.</span>
                 </span>
               )}
             </p>
@@ -308,15 +310,17 @@ export function DigitalSignatureModal({
 
               {!isNameValid && (
                 <div className="absolute inset-0 flex items-center justify-center p-4 bg-slate-100/80 backdrop-blur-[1px] text-center pointer-events-none">
-                  <p className="text-xs font-semibold text-slate-600">
-                    🔒 Escribe tu nombre completo para habilitar la pantalla de firma
+                  <p className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" strokeWidth={1.75} />
+                    <span>Escribe tu nombre completo para habilitar la pantalla de firma</span>
                   </p>
                 </div>
               )}
 
               {isNameValid && !hasDrawn && (
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-slate-400 text-xs font-medium">
-                  ✍️ Dibuja tu firma aquí con el dedo o mouse
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center gap-1.5 text-slate-400 text-xs font-medium">
+                  <PenTool className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
+                  <span>Dibuja tu firma aquí con el dedo o mouse</span>
                 </div>
               )}
             </div>
@@ -324,7 +328,8 @@ export function DigitalSignatureModal({
 
           {errorMsg && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
-              <span>⚠️</span> {errorMsg}
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" strokeWidth={1.75} />
+              <span>{errorMsg}</span>
             </div>
           )}
         </div>

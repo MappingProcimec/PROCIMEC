@@ -19,6 +19,23 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import {
+  Layers,
+  Users,
+  UserCheck,
+  Building2,
+  Ruler,
+  Clock,
+  MapPin,
+  PenTool,
+  ScrollText,
+  FileText,
+  BarChart3,
+  PieChart as PieChartIcon,
+  Target,
+  CheckCircle2,
+  MinusCircle,
+} from 'lucide-react';
 
 interface Role {
   id: string; name: string; is_system_role: boolean;
@@ -67,12 +84,12 @@ async function fetchDivision(id: string): Promise<DivisionDetail> {
   return json.data;
 }
 
-function StatCard({ icon, value, label, sub }: { icon: string; value: string | number; label: string; sub?: string }) {
+function StatCard({ icon, value, label, sub }: { icon: React.ReactNode; value: string | number; label: string; sub?: string }) {
   return (
     <div className="bg-white rounded-2xl border border-border shadow-card p-4 flex items-center gap-3">
-      <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center text-xl flex-shrink-0">{icon}</div>
+      <div className="w-10 h-10 bg-accent/15 rounded-xl flex items-center justify-center flex-shrink-0">{icon}</div>
       <div>
-        <div className="text-xl font-bold text-text-primary leading-tight">{value}</div>
+        <div className="text-xl font-bold text-text-primary leading-tight font-mono">{value}</div>
         <div className="text-xs text-text-muted">{label}</div>
         {sub && <div className="text-xs text-text-secondary">{sub}</div>}
       </div>
@@ -192,8 +209,9 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
         <div className="max-w-5xl mx-auto">
           <BackButton href="/admin/divisions" label="Volver a Divisiones" />
           <div className="mt-3">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white">
-              {isLoading ? '...' : division?.name}
+            <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
+              <Layers className="w-7 h-7 text-accent" strokeWidth={1.75} />
+              <span>{isLoading ? '...' : division?.name}</span>
             </h1>
             {division?.description && (
               <p className="text-white/70 text-sm mt-1">{division.description}</p>
@@ -212,20 +230,20 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
           <>
             {/* KPI row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard icon="👥" value={stats?.role_count ?? 0} label="Roles" />
-              <StatCard icon="🧑‍💼" value={stats?.user_count ?? 0} label="Usuarios" />
+              <StatCard icon={<Users className="w-5 h-5 text-accent" strokeWidth={1.75} />} value={stats?.role_count ?? 0} label="Roles" />
+              <StatCard icon={<UserCheck className="w-5 h-5 text-accent" strokeWidth={1.75} />} value={stats?.user_count ?? 0} label="Usuarios" />
               <StatCard
-                icon="🏗️"
+                icon={<Building2 className="w-5 h-5 text-accent" strokeWidth={1.75} />}
                 value={stats?.project_active ?? 0}
                 label="Proyectos activos"
                 sub={`de ${stats?.project_total ?? 0} totales`}
               />
-              <StatCard icon="📏" value={`${(stats?.total_ml ?? 0).toFixed(0)} ml`} label="ML ejecutados" />
+              <StatCard icon={<Ruler className="w-5 h-5 text-accent" strokeWidth={1.75} />} value={`${(stats?.total_ml ?? 0).toFixed(0)} ml`} label="ML ejecutados" />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <StatCard icon="✏️" value={`${(stats?.total_drawing_hours ?? 0).toFixed(1)} h`} label="Horas CAD" />
-              <StatCard icon="📍" value={stats?.total_field_reports ?? 0} label="Reportes de campo" />
-              <StatCard icon="🖊️" value={stats?.total_drawing_records ?? 0} label="Registros de dibujo" />
+              <StatCard icon={<Clock className="w-5 h-5 text-accent" strokeWidth={1.75} />} value={`${(stats?.total_drawing_hours ?? 0).toFixed(1)} h`} label="Horas CAD" />
+              <StatCard icon={<MapPin className="w-5 h-5 text-accent" strokeWidth={1.75} />} value={stats?.total_field_reports ?? 0} label="Reportes de campo" />
+              <StatCard icon={<PenTool className="w-5 h-5 text-accent" strokeWidth={1.75} />} value={stats?.total_drawing_records ?? 0} label="Registros de dibujo" />
             </div>
 
             {/* Proyectos */}
@@ -278,10 +296,14 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                           <td className="px-4 py-3 text-right">
                             <div className="flex flex-col items-end gap-0.5">
                               {p.field_report_count > 0 && (
-                                <span className="badge bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5">📍 {p.field_report_count}</span>
+                                <span className="badge bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5 inline-flex items-center gap-1">
+                                  <MapPin className="w-2.5 h-2.5" /> {p.field_report_count}
+                                </span>
                               )}
                               {p.drawing_count > 0 && (
-                                <span className="badge bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5">✏️ {p.drawing_count}</span>
+                                <span className="badge bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 inline-flex items-center gap-1">
+                                  <PenTool className="w-2.5 h-2.5" /> {p.drawing_count}
+                                </span>
                               )}
                               {p.report_count === 0 && (
                                 <span className="text-xs text-text-muted">—</span>
@@ -392,7 +414,8 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
               <div className="px-5 py-4 border-b border-border bg-gray-50 flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h2 className="font-bold text-text-primary flex items-center gap-2">
-                    <span>📜</span> Logs de la División (Historial de Formularios)
+                    <ScrollText className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                    <span>Logs de la División (Historial de Formularios)</span>
                   </h2>
                   <p className="text-xs text-text-muted mt-0.5">
                     Registros y envíos ordenados de más reciente a más antiguo (10 por página)
@@ -430,7 +453,12 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                               <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
                                 log.type === 'Campo GPR' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
                               }`}>
-                                {log.type === 'Campo GPR' ? '📍' : '✏️'} {log.form_name}
+                                {log.type === 'Campo GPR' ? (
+                                  <MapPin className="w-3 h-3 text-blue-700" />
+                                ) : (
+                                  <PenTool className="w-3 h-3 text-amber-700" />
+                                )}
+                                <span>{log.form_name}</span>
                               </span>
                             </td>
                             <td className="px-4 py-3">
@@ -458,7 +486,8 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-semibold"
                                 >
-                                  📄 Ver doc
+                                  <FileText className="w-3.5 h-3.5" />
+                                  <span>Ver doc</span>
                                 </a>
                               ) : (
                                 <span className="text-xs text-text-muted">—</span>
@@ -534,7 +563,8 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
                   <div>
                     <h3 className="font-bold text-text-primary text-base flex items-center gap-2">
-                      <span>📊</span> Formularios Llenados por Proyecto
+                      <BarChart3 className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                      <span>Formularios Llenados por Proyecto</span>
                     </h3>
                     <p className="text-xs text-text-muted mt-0.5">
                       Comparativa de formularios por proyecto con línea roja que señala el promedio general ({avgForms} formularios/proyecto)
@@ -609,17 +639,27 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                                 <div className="bg-white p-3 border border-border rounded-xl shadow-xl text-xs space-y-1">
                                   <p className="font-bold text-text-primary text-sm">{d.name}</p>
                                   {d.code && <p className="text-text-muted font-mono">{d.code}</p>}
-                                  <p className="text-primary font-semibold">
-                                    📋 Formularios llenados: <span className="font-bold text-sm">{d.formularios}</span>
+                                  <p className="text-primary font-semibold flex items-center gap-1">
+                                    <FileText className="w-3.5 h-3.5 text-accent" />
+                                    <span>Formularios llenados: <span className="font-bold text-sm font-mono">{d.formularios}</span></span>
                                   </p>
                                   {d.horas > 0 && (
-                                    <p className="text-accent font-semibold">
-                                      ⏱️ Horas CAD: <span className="font-bold">{d.horas.toFixed(1)} h</span>
+                                    <p className="text-primary-900 font-semibold flex items-center gap-1">
+                                      <Clock className="w-3.5 h-3.5 text-accent" />
+                                      <span>Horas CAD: <span className="font-bold font-mono">{d.horas.toFixed(1)} h</span></span>
                                     </p>
                                   )}
-                                  <p className="text-text-muted text-[10px] mt-1 pt-1 border-t border-border">
-                                    {d.isActive ? '🟢 Proyecto Activo' : '⚪ Proyecto Inactivo'}
-                                  </p>
+                                  <div className="text-text-muted text-[10px] mt-1 pt-1 border-t border-border flex items-center gap-1">
+                                    {d.isActive ? (
+                                      <span className="text-emerald-700 font-semibold inline-flex items-center gap-1">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Proyecto Activo
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-500 inline-flex items-center gap-1">
+                                        <MinusCircle className="w-3 h-3 text-slate-400" /> Proyecto Inactivo
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               );
                             }
@@ -657,7 +697,8 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                 <div className="card shadow-xl border border-border p-5 space-y-4">
                   <div className="border-b border-border pb-3">
                     <h3 className="font-bold text-text-primary text-base flex items-center gap-2">
-                      <span>🥧</span> Tipos de Formularios Llenados
+                      <PieChartIcon className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                      <span>Tipos de Formularios Llenados</span>
                     </h3>
                     <p className="text-xs text-text-muted mt-0.5">
                       Distribución según formato diligenciado (Dibujo CAD/BIM vs Campo GPR)
@@ -711,7 +752,8 @@ export default function DivisionDetailPage({ params }: { params: { divisionId: s
                 <div className="card shadow-xl border border-border p-5 space-y-4">
                   <div className="border-b border-border pb-3">
                     <h3 className="font-bold text-text-primary text-base flex items-center gap-2">
-                      <span>🎯</span> Proyectos Activos vs Inactivos
+                      <Target className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                      <span>Proyectos Activos vs Inactivos</span>
                     </h3>
                     <p className="text-xs text-text-muted mt-0.5">
                       Estado de los proyectos en la división ({stats?.project_active ?? 0} activos de {stats?.project_total ?? 0})

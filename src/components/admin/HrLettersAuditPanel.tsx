@@ -458,8 +458,8 @@ export function HrLettersAuditPanel() {
               className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-[#EAA023]"
             >
               <option value="all">Estado Correo: Todos</option>
-              <option value="sent">✓ Enviados con Éxito</option>
-              <option value="pending">⚠ Solo Descarga / Sin Envío</option>
+              <option value="sent">Enviados con Éxito</option>
+              <option value="pending">Solo Descarga / Sin Envío</option>
             </select>
 
             {/* Filtro: Fecha Desde */}

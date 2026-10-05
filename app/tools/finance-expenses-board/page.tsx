@@ -19,7 +19,8 @@ import {
   User,
   ArrowRight,
   ExternalLink,
-  MapPin
+  MapPin,
+  X,
 } from 'lucide-react';
 
 interface PerDiemRequest {
@@ -525,9 +526,10 @@ export default function FinanceExpensesBoardPage() {
               <button
                 type="button"
                 onClick={() => setSelectedPerDiem(null)}
-                className="text-text-muted hover:text-text-primary text-xl font-bold px-2"
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                title="Cerrar"
               >
-                ✕
+                <X className="w-5 h-5" strokeWidth={2} />
               </button>
             </div>
 

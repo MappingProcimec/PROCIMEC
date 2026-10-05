@@ -17,6 +17,10 @@ import {
   Settings,
   LogOut,
   Pencil,
+  Building2,
+  Shield,
+  FileText,
+  Layers,
 } from 'lucide-react';
 import type { Tool, Form } from '@/types';
 
@@ -70,39 +74,7 @@ export function isRoleTool(tool: { category?: string; is_universal?: boolean }):
   return !isGeneralTool(tool);
 }
 
-const TOOL_SPECIFIC_ICON: Record<string, string> = {
-  'attendance-tracker': '⏱️',
-  'internal-chat': '💬',
-  'meeting-transcriber': '🎙️',
-  'org-chart-ai': '🏢',
-  'dynamic-dashboard': '🌐',
-  'cad-productivity-board': '📊',
-  'txt-dwg-viewer': '📐',
-  'docx-generator': '📄',
-  'backup-script-gen': '💾',
-  'gis-viewer': '🗺️',
-  'gsf-processor': '📡',
-  'cartas-audit': '📑',
-  'elaboracion-cartas': '📄',
-};
 
-const TOOL_CATEGORY_ICON: Record<string, string> = {
-  gpr: '📡',
-  cad: '✏️',
-  admin: '⚙️',
-  universal: '🌐',
-  rrhh: '📑',
-};
-
-function getToolIcon(tool: { slug?: string; category?: string }): string {
-  if (tool.slug && TOOL_SPECIFIC_ICON[tool.slug]) {
-    return TOOL_SPECIFIC_ICON[tool.slug];
-  }
-  if (tool.category && TOOL_CATEGORY_ICON[tool.category]) {
-    return TOOL_CATEGORY_ICON[tool.category];
-  }
-  return '🔧';
-}
 
 function getToolHref(tool: { slug: string }): string {
   if (tool.slug === 'dynamic-dashboard') return '/dashboard';
@@ -503,25 +475,25 @@ export function Navbar() {
       {isAdmin && (
         <div className="md:hidden border-t border-border bg-gray-50/95 px-3 py-2 overflow-x-auto flex items-center gap-1.5 whitespace-nowrap text-xs shadow-inner">
           {[
-            { href: '/admin/divisions', label: 'Divisiones', icon: '🏢' },
-            { href: '/admin/projects',  label: 'Proyectos',  icon: '🏗️' },
-            { href: '/admin/roles',     label: 'Roles',      icon: '🔑' },
-            { href: '/admin/users',     label: 'Usuarios',   icon: '👥' },
-            { href: '/admin/forms',     label: 'Formularios', icon: '📋' },
-            { href: '/admin/tools',     label: 'Herramientas', icon: '🛠️' },
-          ].map(({ href, label, icon }) => {
+            { href: '/admin/divisions', label: 'Divisiones', icon: Layers },
+            { href: '/admin/projects',  label: 'Proyectos',  icon: Building2 },
+            { href: '/admin/roles',     label: 'Roles',      icon: Shield },
+            { href: '/admin/users',     label: 'Usuarios',   icon: Users },
+            { href: '/admin/forms',     label: 'Formularios', icon: FileText },
+            { href: '/admin/tools',     label: 'Herramientas', icon: Wrench },
+          ].map(({ href, label, icon: IconComponent }) => {
             const isActive = pathname.startsWith(href);
             return (
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-1.2 px-3 py-1.5 rounded-full font-medium transition-all ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium transition-all ${
                   isActive
                     ? 'bg-primary text-white shadow-xs font-semibold'
                     : 'bg-white text-text-secondary border border-border hover:bg-gray-100'
                 }`}
               >
-                <span>{icon}</span>
+                <IconComponent className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
                 <span>{label}</span>
               </Link>
             );

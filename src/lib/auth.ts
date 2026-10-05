@@ -77,7 +77,7 @@ export const authOptions: NextAuthOptions = {
           .update({ drive_refresh_token: account.refresh_token })
           .eq('email', user.email);
 
-        console.log('✅ Admin Drive refresh_token guardado en Supabase');
+        console.log('[Auth] Admin Drive refresh_token guardado en Supabase');
       }
 
       return true;

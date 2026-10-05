@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { OperationalRow } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
+import { User, AlertCircle, AlertTriangle } from 'lucide-react';
 
 const EQUIPMENT_OPTIONS = [
   { id: 'GPR', label: 'GPR' },
@@ -183,7 +184,10 @@ export function Step1({ onNext }: Step1Props) {
           ))}
         </select>
         {!storeProjectId && (
-          <p className="text-xs text-amber-600 mt-1 font-medium">⚠ Por favor selecciona el proyecto correspondiente a este reporte.</p>
+          <p className="text-xs text-amber-600 mt-1 font-medium flex items-center gap-1">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+            <span>Por favor selecciona el proyecto correspondiente a este reporte.</span>
+          </p>
         )}
       </div>
 
@@ -191,7 +195,12 @@ export function Step1({ onNext }: Step1Props) {
       <div className="form-group max-w-sm">
         <label className="label label-required">Fecha del levantamiento</label>
         <input type="date" className={`input ${errors.report_date ? 'input-error' : ''}`} {...register('report_date')} />
-        {errors.report_date && <p className="error-msg">⚠ {errors.report_date.message}</p>}
+        {errors.report_date && (
+          <p className="error-msg flex items-center gap-1 mt-1 text-xs text-rose-600">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+            <span>{errors.report_date.message}</span>
+          </p>
+        )}
       </div>
 
       {/* Locator */}
@@ -199,7 +208,7 @@ export function Step1({ onNext }: Step1Props) {
         <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
           <label className="label label-required mb-0">Localizador responsable</label>
           <span className="text-[11px] text-primary font-medium bg-primary-50 px-2 py-0.5 rounded-md border border-primary/20 flex items-center gap-1">
-            <span>👤</span> Autocompletado con el usuario en sesión
+            <User className="w-3.5 h-3.5 text-primary" strokeWidth={1.75} /> Autocompletado con el usuario en sesión
           </span>
         </div>
         <input
@@ -208,7 +217,12 @@ export function Step1({ onNext }: Step1Props) {
           placeholder="Nombre del localizador"
           {...register('localizador_name')}
         />
-        {errors.localizador_name && <p className="error-msg">⚠ {errors.localizador_name.message}</p>}
+        {errors.localizador_name && (
+          <p className="error-msg flex items-center gap-1 mt-1 text-xs text-rose-600">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+            <span>{errors.localizador_name.message}</span>
+          </p>
+        )}
       </div>
 
       {/* Equipo de Localización (Multi-select) */}
@@ -244,7 +258,12 @@ export function Step1({ onNext }: Step1Props) {
             );
           })}
         </div>
-        {errors.equipments_used && <p className="error-msg">⚠ {errors.equipments_used.message}</p>}
+        {errors.equipments_used && (
+          <p className="error-msg flex items-center gap-1 mt-1 text-xs text-rose-600">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+            <span>{errors.equipments_used.message}</span>
+          </p>
+        )}
       </div>
 
       {/* Equipo de Posicionamiento */}
@@ -257,7 +276,12 @@ export function Step1({ onNext }: Step1Props) {
           <option value="">Seleccionar equipo de posicionamiento...</option>
           {POSITIONING_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
-        {errors.positioning_equipment && <p className="error-msg">⚠ {errors.positioning_equipment.message}</p>}
+        {errors.positioning_equipment && (
+          <p className="error-msg flex items-center gap-1 mt-1 text-xs text-rose-600">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+            <span>{errors.positioning_equipment.message}</span>
+          </p>
+        )}
       </div>
 
       {/* Field Conditions */}
@@ -268,7 +292,12 @@ export function Step1({ onNext }: Step1Props) {
             <option value="">Seleccionar terreno...</option>
             {TERRAIN_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-          {errors.terrain_conditions && <p className="error-msg">⚠ {errors.terrain_conditions.message}</p>}
+          {errors.terrain_conditions && (
+            <p className="error-msg flex items-center gap-1 mt-1 text-xs text-rose-600">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+              <span>{errors.terrain_conditions.message}</span>
+            </p>
+          )}
         </div>
 
         <div className="form-group">
@@ -285,7 +314,12 @@ export function Step1({ onNext }: Step1Props) {
             <option value="">Seleccionar método...</option>
             {CAPTURE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
-          {errors.capture_method && <p className="error-msg">⚠ {errors.capture_method.message}</p>}
+          {errors.capture_method && (
+            <p className="error-msg flex items-center gap-1 mt-1 text-xs text-rose-600">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+              <span>{errors.capture_method.message}</span>
+            </p>
+          )}
         </div>
       </div>
 
