@@ -1,11 +1,21 @@
 'use client';
 
 import { Navbar } from '@/components/layout/Navbar';
+import { BackButton } from '@/components/BackButton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Target, AlertCircle } from 'lucide-react';
+import {
+  Target,
+  AlertCircle,
+  FolderKanban,
+  Plus,
+  Search,
+  ArrowLeftRight,
+  Ban,
+  Check,
+} from 'lucide-react';
 
 interface DivisionOption { id: string; name: string }
 
@@ -430,32 +440,43 @@ export default function AdminProjectsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-[100dvh] bg-surface flex flex-col">
       <Navbar />
 
+      {/* Hero Canónico según AGENTS.md */}
       <div className="page-hero">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white mb-1">Gestión de Proyectos</h1>
-            <p className="text-white/70 text-sm">{projects.filter((p) => p.is_active).length} activos de {projects.length} totales</p>
+        <div className="max-w-6xl mx-auto space-y-2">
+          <BackButton href="/dashboard" label="Volver a Mi Panel" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-3">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
+                <FolderKanban className="w-7 h-7 text-accent" strokeWidth={1.75} /> Gestión de Proyectos
+              </h1>
+              <p className="text-white/70 text-sm mt-1">
+                {projects.filter((p) => p.is_active).length} activos de {projects.length} registrados
+              </p>
+            </div>
+            <button
+              onClick={() => setShowModal(true)}
+              className="btn-accent px-4 py-2 text-sm font-bold rounded-xl flex items-center gap-2 shadow-md active:scale-[0.98] self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" strokeWidth={2} />
+              Nuevo Proyecto
+            </button>
           </div>
-          <button onClick={() => setShowModal(true)} className="btn-accent shadow-md">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Nuevo Proyecto
-          </button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 -mt-10 pb-20">
+      <div className="max-w-6xl mx-auto px-4 -mt-8 pb-20 w-full flex-1">
         <div className="card overflow-hidden shadow-lg border border-border">
           
           {/* Header Bar con Estado de Filtros */}
           {hasActiveFilters && (
             <div className="bg-primary-50 px-5 py-2.5 border-b border-primary-100 flex items-center justify-between text-xs text-primary-800">
               <div className="flex items-center gap-2">
-                <span className="font-semibold">🔍 Filtros activos:</span>
+                <span className="font-semibold flex items-center gap-1.5">
+                  <Search className="w-3.5 h-3.5 text-primary" strokeWidth={1.75} /> Filtros activos:
+                </span>
                 <span>Mostrando {filteredAndSortedProjects.length} de {projects.length} proyectos</span>
               </div>
               <button
@@ -476,7 +497,9 @@ export default function AdminProjectsPage() {
           ) : (
             <div className="w-full overflow-x-auto">
               <div className="text-xs text-text-muted px-4 py-1.5 bg-gray-50/50 border-b border-border sm:hidden flex items-center justify-between">
-                <span>👈 Desliza horizontalmente para ver todas las columnas y acciones 👉</span>
+                <span className="flex items-center gap-1.5">
+                  <ArrowLeftRight className="w-3.5 h-3.5" strokeWidth={1.75} /> Desliza horizontalmente para ver todas las columnas
+                </span>
               </div>
               <table className="table-base w-full min-w-[1020px]">
                 <thead>
@@ -802,9 +825,9 @@ export default function AdminProjectsPage() {
                                           setOpenMenuId(null);
                                           setConfirmDeactivateProject(p);
                                         }}
-                                        className="w-full text-left px-3.5 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 font-semibold transition-colors"
+                                        className="w-full text-left px-3.5 py-2 text-xs text-amber-700 hover:bg-amber-50 flex items-center gap-2 font-semibold transition-colors"
                                       >
-                                        <span>🚫</span> Desactivar proyecto
+                                        <Ban className="w-3.5 h-3.5 text-amber-700" strokeWidth={1.75} /> Desactivar proyecto
                                       </button>
                                     ) : (
                                       <button
@@ -812,9 +835,9 @@ export default function AdminProjectsPage() {
                                           setOpenMenuId(null);
                                           toggleMutation.mutate({ id: p.id, is_active: true });
                                         }}
-                                        className="w-full text-left px-3.5 py-2 text-xs text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 font-semibold transition-colors"
+                                        className="w-full text-left px-3.5 py-2 text-xs text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 font-semibold transition-colors"
                                       >
-                                        <span>✅</span> Activar proyecto
+                                        <Check className="w-3.5 h-3.5 text-emerald-700" strokeWidth={1.75} /> Activar proyecto
                                       </button>
                                     )}
                                   </div>
