@@ -54,6 +54,7 @@ export const FORMAT_FILES_REGISTRY: Record<string, FormatFileDef> = {
     name: 'Inspección Pre-operacional de Drone',
     process: 'HSEQ & SIG',
     editableType: 'xlsx',
+    localFilePath: 'public/templates/FOR-HSEQ-024_Inspeccion_preoperacional_Drone.xlsx',
     formSlug: 'hseq-report',
   },
   'FOR-HSEQ-025': {
@@ -61,6 +62,7 @@ export const FORMAT_FILES_REGISTRY: Record<string, FormatFileDef> = {
     name: 'Inspección Pre-operacional de Estación Total',
     process: 'HSEQ & SIG',
     editableType: 'xlsx',
+    localFilePath: 'public/templates/FOR-HSEQ-025_Inspeccion_preoperacional_Estacion_Total.xlsx',
     formSlug: 'hseq-report',
   },
   'FOR-HSEQ-026': {
@@ -68,6 +70,7 @@ export const FORMAT_FILES_REGISTRY: Record<string, FormatFileDef> = {
     name: 'Inspección Pre-operacional de GPS Diferencial (GNSS)',
     process: 'HSEQ & SIG',
     editableType: 'xlsx',
+    localFilePath: 'public/templates/FOR-HSEQ-026_Inspeccion_preoperacional_GPS.xlsx',
     formSlug: 'hseq-report',
   },
   'FOR-HSEQ-027': {
@@ -75,6 +78,7 @@ export const FORMAT_FILES_REGISTRY: Record<string, FormatFileDef> = {
     name: 'Inspección Pre-operacional de Georadar (GPR)',
     process: 'HSEQ & SIG',
     editableType: 'xlsx',
+    localFilePath: 'public/templates/FOR-HSEQ-027_Inspeccion_preoperacional_GPR.xlsx',
     formSlug: 'hseq-report',
   },
   'FOR-HSEQ-028': {
@@ -82,6 +86,7 @@ export const FORMAT_FILES_REGISTRY: Record<string, FormatFileDef> = {
     name: 'Inspección Pre-operacional de Localizador Electromagnético',
     process: 'HSEQ & SIG',
     editableType: 'xlsx',
+    localFilePath: 'public/templates/FOR-HSEQ-028_Inspeccion_preoperacional_Localizador_EM.xlsx',
     formSlug: 'hseq-report',
   },
   'FOR-HSEQ-029': {
@@ -89,6 +94,7 @@ export const FORMAT_FILES_REGISTRY: Record<string, FormatFileDef> = {
     name: 'Inspección Pre-operacional de Vehículo (PESV)',
     process: 'HSEQ & SIG',
     editableType: 'xlsx',
+    localFilePath: 'public/templates/FOR-HSEQ-029_Inspeccion_preoperacional_Vehiculo.xlsx',
     formSlug: 'hseq-report',
   },
   'FOR-HSEQ-001': {
@@ -1653,6 +1659,33 @@ export async function GET(req: NextRequest) {
         } catch (fetchErr) {
           console.warn('Error al obtener archivo remoto de storage:', fetchErr);
         }
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // CASO 1.5: ARCHIVO FÍSICO LOCAL OFICIAL VIGENTE (.xlsx o .docx)
+    // ──────────────────────────────────────────────────────────────────────────
+    if (meta.localFilePath) {
+      const fullPath = path.join(process.cwd(), meta.localFilePath);
+      if (fs.existsSync(fullPath)) {
+        const fileBuf = fs.readFileSync(fullPath);
+        const ext = path.extname(fullPath).toLowerCase();
+        const contentType =
+          ext === '.xlsx'
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : ext === '.docx'
+            ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            : ext === '.pptx'
+            ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            : 'application/octet-stream';
+
+        return new NextResponse(new Uint8Array(fileBuf), {
+          status: 200,
+          headers: {
+            'Content-Type': contentType,
+            'Content-Disposition': `attachment; filename="${code}_v${activeVersion}_Plantilla_Oficial${ext}"`,
+          },
+        });
       }
     }
 
