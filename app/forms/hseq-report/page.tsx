@@ -15,6 +15,7 @@ import {
 import { PenTool, AlertCircle, Check, FileSpreadsheet, ExternalLink, ClipboardList, Sparkles, Loader2, ShieldCheck } from 'lucide-react';
 import { getActiveProjectId, setActiveProjectId } from '@/hooks/useActiveProject';
 import { useFormDraft, DraftRecoveryAlert } from '@/hooks/useFormDraft';
+import { useFormatVersion } from '@/hooks/useFormatVersion';
 
 interface HseqTemplateOption {
   id: string;
@@ -287,6 +288,9 @@ export default function HseqReportPage() {
     return templates.find((t) => t.id === selectedTemplateId) || null;
   }, [templates, selectedTemplateId]);
 
+  // Consulta de versión oficial activa desde PostgreSQL (document_format_versions)
+  const { data: activeDbVersion } = useFormatVersion(activeTemplate?.code);
+
   // Consulta reactiva del esquema dinámico del formato seleccionado
   const { data: dynamicSchema, isLoading: isLoadingSchema } = useQuery({
     queryKey: ['hseq-dynamic-schema', selectedTemplateId],
@@ -303,12 +307,21 @@ export default function HseqReportPage() {
   // Configuración del formato seleccionado (dinámico de Drive o nativo)
   const formatConfig: HseqFormatConfig | null = useMemo(() => {
     if (!activeTemplate) return null;
+    let base: HseqFormatConfig | null = null;
     if (dynamicSchema) {
-      return dynamicSchema;
+      base = { ...dynamicSchema };
+    } else {
+      const identifier = `${activeTemplate.id} ${activeTemplate.code} ${activeTemplate.title}`;
+      base = { ...getHseqFormatConfig(identifier) };
     }
-    const identifier = `${activeTemplate.id} ${activeTemplate.code} ${activeTemplate.title}`;
-    return getHseqFormatConfig(identifier);
-  }, [activeTemplate, dynamicSchema]);
+    if (base && activeDbVersion?.current_version) {
+      base.version = activeDbVersion.current_version;
+      if (activeDbVersion.effective_date) {
+        base.templateDate = activeDbVersion.effective_date;
+      }
+    }
+    return base;
+  }, [activeTemplate, dynamicSchema, activeDbVersion]);
 
   // Detectar si el formato seleccionado corresponde a Georadar (GPR)
   const isGprFormat = useMemo(() => {
@@ -783,6 +796,7 @@ export default function HseqReportPage() {
                   <span className="font-semibold">{formatConfig.pdfTitle}</span>
                   <span className="badge badge-primary font-mono text-[10px]">
                     {formatConfig.code} | Versión {formatConfig.version}
+                    {formatConfig.templateDate ? ` (${formatConfig.templateDate})` : ''}
                   </span>
                 </div>
               )}

@@ -26,6 +26,7 @@ import {
   SigChangeActivity,
 } from '@/lib/sig-templates';
 import { SignaturePad } from '@/components/forms/SignaturePad';
+import { useFormatVersion } from '@/hooks/useFormatVersion';
 
 // Orígenes oficiales del cambio según plantilla FOR-SIG-001
 const CHANGE_ORIGINS = [
@@ -59,6 +60,8 @@ export const REQUIRED_CHANGE_ELEMENTS = [
 ];
 
 export default function SigManagementChangeFormPage() {
+  const { data: formatMeta } = useFormatVersion('FOR-SIG-001');
+
   // Notificaciones por correo (Pruebas vs Producción)
   const [sendEmailNotification, setSendEmailNotification] = useState<boolean>(false);
   const [sendToSubmitter, setSendToSubmitter] = useState<boolean>(true);
@@ -204,6 +207,9 @@ export default function SigManagementChangeFormPage() {
     try {
       const payload = {
         project_id: null,
+        official_code: formatMeta?.code || 'FOR-SIG-001',
+        version: formatMeta?.current_version || '1',
+        effective_date: formatMeta?.effective_date || '2026-10-01',
         send_email_notification: sendEmailNotification,
         send_email_to_submitter: sendEmailNotification ? sendToSubmitter : false,
         send_email_to_hseq: sendEmailNotification ? sendToHseq : false,
@@ -296,8 +302,19 @@ export default function SigManagementChangeFormPage() {
             <span>Análisis y Planificación de Cambios SIG</span>
           </h1>
           <p className="text-white/70 text-sm mt-1">
-            Registro formal de análisis, riesgos, plan de actividades y efectividad para cambios que afecten al SIG (FOR-SIG-001).
+            Registro formal de análisis, riesgos, plan de actividades y efectividad para cambios que afecten al SIG ({formatMeta?.code || 'FOR-SIG-001'}).
           </p>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <span className="font-mono text-xs font-bold bg-accent text-primary-900 px-2.5 py-0.5 rounded shadow-xs">
+              {formatMeta?.code || 'FOR-SIG-001'}
+            </span>
+            <span className="font-mono text-xs font-bold bg-white/10 text-white px-2.5 py-0.5 rounded border border-white/20">
+              Versión {formatMeta?.current_version || '1'}
+            </span>
+            <span className="text-xs text-white/80 font-mono">
+              Fecha Vigencia: {formatMeta?.effective_date || '2026-10-01'}
+            </span>
+          </div>
         </div>
       </div>
 

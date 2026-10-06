@@ -8,6 +8,12 @@ export const HSEQ_TEMPLATES_FOLDER_ID =
 export const HSEQ_EVIDENCE_FOLDER_ID =
   process.env.GOOGLE_DRIVE_HSEQ_EVIDENCE_FOLDER_ID || '18kLylRhxxQG7hfMgie9ByHCE6AfdDhrv';
 
+export const RRHH_LETTERS_FOLDER_ID =
+  process.env.GOOGLE_DRIVE_RRHH_LETTERS_FOLDER_ID || '1sIjHxPb1Qz2vyLLpuSMIL6o1qD_ejyqn';
+
+export const WEB_EXTERNAL_FOLDER_ID =
+  process.env.GOOGLE_DRIVE_WEB_EXTERNAL_FOLDER_ID || '1isEW_n6BzBjypUlJjGmtjrPHVi3a-TIy';
+
 export interface HseqTemplateItem {
   id: string;
   name: string;

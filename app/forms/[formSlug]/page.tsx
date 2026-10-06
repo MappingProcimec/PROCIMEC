@@ -22,6 +22,7 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useFormatVersion } from '@/hooks/useFormatVersion';
 import TwoStepForm, { FormConfig, Project } from '@/components/forms/TwoStepForm';
 import CadRegisterFormPage from '@/app/forms/cad-register-form/page';
 import NewReportPage from '@/app/projects/[projectId]/new-report/page';
@@ -469,6 +470,8 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
     ],
   };
 
+  const { data: formatMeta } = useFormatVersion(formSlug);
+
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
     queryFn: fetchProjects,
@@ -519,6 +522,19 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
           </h1>
           {config.description && (
             <p className="text-white/70 text-sm mt-1">{config.description}</p>
+          )}
+          {formatMeta && (
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <span className="font-mono text-xs font-bold bg-accent text-primary-900 px-2.5 py-0.5 rounded shadow-xs">
+                {formatMeta.code}
+              </span>
+              <span className="font-mono text-xs font-bold bg-white/10 text-white px-2.5 py-0.5 rounded border border-white/20">
+                Versión {formatMeta.current_version}
+              </span>
+              <span className="text-xs text-white/80 font-mono">
+                Fecha Vigencia: {formatMeta.effective_date}
+              </span>
+            </div>
           )}
         </div>
       </div>

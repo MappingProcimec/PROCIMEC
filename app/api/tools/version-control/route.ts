@@ -1062,6 +1062,8 @@ export async function GET(req: NextRequest) {
       data: filtered,
       processes,
       stats,
+      table_exists: tableExists,
+      db_count: tableExists ? formats.length : 0,
     });
   } catch (error: unknown) {
     console.error('Error en GET /api/tools/version-control:', error);
@@ -1210,6 +1212,153 @@ export async function POST(req: NextRequest) {
         success: true,
         message: `Formato ${newFmt.code} incorporado al listado maestro con versión ${newFmt.current_version}.`,
         data: newFmt,
+      });
+    }
+
+    if (action === 'edit_format') {
+      const {
+        id,
+        code,
+        name,
+        process,
+        form_slug,
+        roles_access,
+        is_universal,
+        current_version,
+        effective_date,
+        status = 'active',
+        description,
+        change_reason,
+      } = body;
+
+      if (!id || !code || !name || !process || !current_version || !effective_date) {
+        return NextResponse.json({ error: 'Faltan campos mandatorios para modificar el formato.' }, { status: 400 });
+      }
+
+      // 1. Obtener formato existente para comparar versión
+      const { data: currentFmt } = await supabase
+        .from('document_format_versions')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      const versionChanged = currentFmt && currentFmt.current_version !== current_version.trim();
+
+      // 2. Actualizar datos en PostgreSQL
+      const { data: updatedFmt, error: updateError } = await supabase
+        .from('document_format_versions')
+        .update({
+          code: code.trim().toUpperCase(),
+          name: name.trim(),
+          process: process.trim(),
+          form_slug: form_slug ? form_slug.trim() : null,
+          roles_access: Array.isArray(roles_access) ? roles_access : ['Todos los Roles'],
+          is_universal: Boolean(is_universal),
+          current_version: current_version.trim(),
+          effective_date,
+          status,
+          description: description || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      // 3. Si la versión cambió o hay motivo de cambio explícito, registrar en historial
+      if (versionChanged || change_reason) {
+        await supabase.from('format_version_history').insert({
+          format_id: id,
+          version: current_version.trim(),
+          change_date: effective_date,
+          change_reason: change_reason || `Actualización del formato a versión ${current_version.trim()}.`,
+          responsible_name: dbUser?.full_name || 'Responsable HSEQ',
+          file_format: 'pdf',
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Formato ${updatedFmt.code} modificado correctamente a versión ${updatedFmt.current_version}.`,
+        data: updatedFmt,
+      });
+    }
+
+    if (action === 'seed_master_formats') {
+      let insertedCount = 0;
+      for (const item of MASTER_FORMATS_SEED) {
+        const { data: fmt, error: fErr } = await supabase
+          .from('document_format_versions')
+          .upsert(
+            {
+              code: item.code,
+              name: item.name,
+              process: item.process,
+              form_slug: item.form_slug || null,
+              roles_access: item.roles_access,
+              is_universal: item.is_universal,
+              current_version: item.current_version,
+              effective_date: item.effective_date,
+              status: item.status,
+              category: item.category,
+              description: item.description || null,
+              download_template_url: item.download_template_url || null,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'code' }
+          )
+          .select('id')
+          .single();
+
+        if (!fErr && fmt?.id) {
+          insertedCount++;
+          for (const h of item.history) {
+            const { data: existingH } = await supabase
+              .from('format_version_history')
+              .select('id')
+              .eq('format_id', fmt.id)
+              .eq('version', h.version)
+              .maybeSingle();
+
+            if (!existingH) {
+              await supabase.from('format_version_history').insert({
+                format_id: fmt.id,
+                version: h.version,
+                change_date: h.change_date,
+                change_reason: h.change_reason,
+                responsible_name: h.responsible_name,
+                file_format: h.file_format || 'xlsx',
+              });
+            }
+          }
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Se sincronizaron exitosamente ${insertedCount} formatos oficiales en PostgreSQL.`,
+      });
+    }
+
+    if (action === 'delete_format') {
+      const { id } = body;
+      if (!id) return NextResponse.json({ error: 'Falta ID del formato' }, { status: 400 });
+
+      const { error: delError } = await supabase
+        .from('document_format_versions')
+        .delete()
+        .eq('id', id);
+
+      if (delError) {
+        return NextResponse.json({ error: delError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Formato eliminado del listado maestro.',
       });
     }
 

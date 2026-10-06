@@ -57,11 +57,23 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient();
 
+    // Consultar dinámicamente la versión vigente oficial desde PostgreSQL (document_format_versions)
+    const { data: dbVersion } = await supabase
+      .from('document_format_versions')
+      .select('code, current_version, effective_date')
+      .or('code.eq.FOR-SIG-001,form_slug.eq.analisis-planificacion-cambios-sig')
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle();
+
+    const officialCode = dbVersion?.code || body.official_code || 'FOR-SIG-001';
+    const activeVersion = dbVersion?.current_version || body.version || '1';
+
     const insertPayload = {
       user_id: session.user.id,
       project_id: project_id || null,
-      official_code: 'FOR-SIG-001',
-      version: '1',
+      official_code: officialCode,
+      version: activeVersion,
       cloud_drive_file_id: '1wTRLk90fdyMPoDywI0hLYC3O4-ekDlyq',
       status: 'submitted',
       identifier_name: String(identifier_name).trim(),

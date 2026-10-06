@@ -27,6 +27,7 @@ export interface SigChangeData {
   id?: string;
   official_code?: string;
   version?: string;
+  effective_date?: string;
   identifier_name: string;
   identifier_position: string;
   identifier_process: string;
@@ -479,7 +480,7 @@ export async function generateSigChangePdf(data: SigChangeData): Promise<Buffer>
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.text(`Versión: ${data.version || '1'}`, margin + logoWidth + titleWidth + 3, currentY + 9.5);
-  doc.text('Fecha: 24-sep-2026', margin + logoWidth + titleWidth + 3, currentY + 14);
+  doc.text(`Fecha: ${data.effective_date || '2026-10-01'}`, margin + logoWidth + titleWidth + 3, currentY + 14);
 
   currentY += headerHeight + 4;
 

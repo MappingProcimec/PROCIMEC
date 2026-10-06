@@ -24,8 +24,34 @@ import {
   Users,
   AlertCircle,
   FolderTree,
+  Edit3,
+  Database,
+  Sparkles,
 } from 'lucide-react';
 import type { DocumentFormatItem, FormatVersionHistoryItem } from '@/app/api/tools/version-control/route';
+
+export const COMMON_SYSTEM_FORMS = [
+  { slug: '', label: '-- Ninguno / Documento Físico o Descargable --' },
+  { slug: 'analisis-planificacion-cambios-sig', label: 'FOR-SIG-001 — Análisis y Planificación de Cambios SIG' },
+  { slug: 'hseq-report', label: 'FOR-HSEQ-... — Reportes Preoperacionales HSEQ (Drone, GPR, GPS, etc.)' },
+  { slug: 'requerimiento-compra', label: 'FOR-COM-001 — Requerimiento de Compras y Suministros' },
+  { slug: 'orden-compra', label: 'FOR-COM-002 — Orden de Compra Oficial' },
+  { slug: 'evaluacion-proveedor', label: 'FOR-COM-003 — Evaluación y Reevaluación de Proveedores' },
+  { slug: 'despacho-equipo', label: 'FOR-ALM-001 — Control de Salida / Despacho de Equipos' },
+  { slug: 'retorno-equipo', label: 'FOR-ALM-002 — Control de Retorno / Ingreso de Equipos' },
+  { slug: 'registro-equipo', label: 'FOR-ALM-003 — Registro e Inventario de Equipos' },
+  { slug: 'gpr-field-form', label: 'FOR-GPR-001 — Reporte Diario de Campo GPR' },
+  { slug: 'cad-register-form', label: 'FOR-CAD-001 — Bitácora de Producción CAD / BIM' },
+  { slug: 'elaboracion-cartas', label: 'FOR-TH-... — Elaboración de Cartas y Certificaciones Laborales' },
+  { slug: 'solicitud-viaticos', label: 'FOR-FIN-001 — Solicitud de Anticipo de Viáticos' },
+  { slug: 'legalizacion-gastos', label: 'FOR-FIN-002 — Legalización de Gastos de Viaje' },
+  { slug: 'registro-pago', label: 'FOR-FIN-003 — Registro de Pago y Egreso Bancario' },
+  { slug: 'radicacion-factura', label: 'FOR-CNT-001 — Radicación de Facturas Recibidas' },
+  { slug: 'soporte-cobro', label: 'FOR-CNT-002 — Cuentas de Cobro y Facturación Emitida' },
+  { slug: 'registro-oportunidad', label: 'FOR-CMR-001 — Registro de Oportunidad Comercial' },
+  { slug: 'cotizacion-comercial', label: 'FOR-CMR-002 — Cotización y Oferta Económica' },
+  { slug: 'cierre-comercial', label: 'FOR-CMR-003 — Acta de Cierre y Adjudicación Comercial' },
+];
 
 export function VersionControlPanel() {
   const queryClient = useQueryClient();
@@ -40,6 +66,24 @@ export function VersionControlPanel() {
   const [isBumpModalOpen, setIsBumpModalOpen] = useState(false);
   const [selectedFormatToBump, setSelectedFormatToBump] = useState<DocumentFormatItem | null>(null);
   const [isNewFormatModalOpen, setIsNewFormatModalOpen] = useState(false);
+
+  // Estado Modal de Edición de Formato
+  const [selectedFormatToEdit, setSelectedFormatToEdit] = useState<DocumentFormatItem | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    id: '',
+    code: '',
+    name: '',
+    process: 'HSEQ & SIG',
+    form_slug: '',
+    roles_access_raw: 'Todos los Roles',
+    is_universal: true,
+    current_version: '1',
+    effective_date: new Date().toISOString().slice(0, 10),
+    status: 'active' as 'active' | 'obsolete' | 'draft',
+    description: '',
+    change_reason: '',
+  });
 
   // Formularios de Modal
   const [bumpForm, setBumpForm] = useState({
@@ -193,6 +237,93 @@ export function VersionControlPanel() {
     },
   });
 
+  // Mutación para editar formato
+  const editFormatMutation = useMutation({
+    mutationFn: async (payload: typeof editForm) => {
+      const rolesArray = payload.is_universal
+        ? ['Todos los Roles']
+        : payload.roles_access_raw.split(',').map((r) => r.trim()).filter(Boolean);
+
+      const res = await fetch('/api/tools/version-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'edit_format',
+          id: payload.id,
+          code: payload.code,
+          name: payload.name,
+          process: payload.process,
+          form_slug: payload.form_slug || null,
+          roles_access: rolesArray,
+          is_universal: payload.is_universal,
+          current_version: payload.current_version,
+          effective_date: payload.effective_date,
+          status: payload.status,
+          description: payload.description,
+          change_reason: payload.change_reason,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al modificar formato');
+      return data;
+    },
+    onSuccess: (data) => {
+      setActionFeedback({ type: 'success', message: data.message || 'Formato modificado correctamente.' });
+      queryClient.invalidateQueries({ queryKey: ['version-control-data'] });
+      queryClient.invalidateQueries({ queryKey: ['active-format-version'] });
+      setIsEditModalOpen(false);
+      setSelectedFormatToEdit(null);
+      setTimeout(() => setActionFeedback(null), 4000);
+    },
+    onError: (err: Error) => {
+      setActionFeedback({ type: 'error', message: err.message });
+      setTimeout(() => setActionFeedback(null), 5000);
+    },
+  });
+
+  // Mutación para sincronizar catálogo maestro a PostgreSQL
+  const seedMasterMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/tools/version-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seed_master_formats' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al sincronizar catálogo maestro');
+      return data;
+    },
+    onSuccess: (data) => {
+      setActionFeedback({ type: 'success', message: data.message || 'Catálogo maestro sincronizado exitosamente.' });
+      queryClient.invalidateQueries({ queryKey: ['version-control-data'] });
+      queryClient.invalidateQueries({ queryKey: ['active-format-version'] });
+      setTimeout(() => setActionFeedback(null), 4000);
+    },
+    onError: (err: Error) => {
+      setActionFeedback({ type: 'error', message: err.message });
+      setTimeout(() => setActionFeedback(null), 5000);
+    },
+  });
+
+  const handleOpenEditModal = (fmt: DocumentFormatItem) => {
+    setSelectedFormatToEdit(fmt);
+    setEditForm({
+      id: fmt.id,
+      code: fmt.code,
+      name: fmt.name,
+      process: fmt.process,
+      form_slug: fmt.form_slug || '',
+      roles_access_raw: fmt.is_universal ? 'Todos los Roles' : fmt.roles_access.join(', '),
+      is_universal: fmt.is_universal,
+      current_version: fmt.current_version,
+      effective_date: fmt.effective_date,
+      status: fmt.status,
+      description: fmt.description || '',
+      change_reason: '',
+    });
+    setIsEditModalOpen(true);
+  };
+
   const handleOpenBumpModal = (fmt: DocumentFormatItem) => {
     setSelectedFormatToBump(fmt);
     const currentNum = parseInt(fmt.current_version, 10);
@@ -315,6 +446,15 @@ export function VersionControlPanel() {
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
+          <button
+            onClick={() => seedMasterMutation.mutate()}
+            disabled={seedMasterMutation.isPending}
+            className="btn btn-secondary text-xs font-semibold py-1.5 px-3 flex items-center gap-1.5 hover:border-accent transition-colors"
+            title="Sincronizar el catálogo maestro oficial completo en PostgreSQL"
+          >
+            <Database className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+            <span>{seedMasterMutation.isPending ? 'Sincronizando...' : 'Sincronizar a BD'}</span>
+          </button>
           <button
             onClick={() => setIsNewFormatModalOpen(true)}
             className="btn btn-accent text-xs font-bold py-1.5 px-3.5 flex items-center gap-1.5 shadow-xs"
@@ -581,6 +721,16 @@ export function VersionControlPanel() {
                         >
                           <PlusCircle className="w-3.5 h-3.5 text-primary-700" />
                           <span>Nueva Versión</span>
+                        </button>
+
+                        {/* Editar Formato */}
+                        <button
+                          onClick={() => handleOpenEditModal(fmt)}
+                          className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 text-text-primary hover:border-accent hover:text-amber-900 transition-colors"
+                          title="Modificar datos, código, versión o formulario relacionado"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+                          <span>Editar</span>
                         </button>
                       </div>
                     </td>
@@ -997,6 +1147,27 @@ export function VersionControlPanel() {
                 </div>
               </div>
 
+              {/* Formulario Relacionado */}
+              <div>
+                <label className="block text-text-primary font-semibold mb-1">
+                  Formulario Relacionado en PCM CLOUD (Opcional)
+                </label>
+                <select
+                  value={newFormatForm.form_slug}
+                  onChange={(e) => setNewFormatForm({ ...newFormatForm, form_slug: e.target.value })}
+                  className="w-full p-2 bg-white border border-border rounded text-text-primary focus:ring-1 focus:ring-accent"
+                >
+                  {COMMON_SYSTEM_FORMS.map((f) => (
+                    <option key={f.slug} value={f.slug}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-text-muted mt-1">
+                  Permite que el formulario web opere bajo esta versión automáticamente.
+                </p>
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-text-primary font-semibold">
@@ -1056,6 +1227,233 @@ export function VersionControlPanel() {
                   className="btn btn-accent py-1.5 px-4 text-xs font-bold text-primary-900"
                 >
                   {createFormatMutation.isPending ? 'Registrando...' : 'Registrar Formato'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── 8. MODAL PARA EDITAR FORMATO EXISTENTE ─── */}
+      {isEditModalOpen && selectedFormatToEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="card bg-white border border-border w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between bg-surface/50">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                <div>
+                  <h3 className="text-base font-bold text-text-primary">
+                    Modificar Formato ({editForm.code})
+                  </h3>
+                  <p className="text-xs text-text-muted">
+                    Actualizar metadatos, versión vigente o formulario enlazado
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1.5 text-text-muted hover:text-text-primary rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                editFormatMutation.mutate(editForm);
+              }}
+              className="p-4 sm:p-5 space-y-3.5 text-xs overflow-y-auto"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-text-primary font-semibold mb-1">
+                    Código Oficial del Formato *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.code}
+                    onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })}
+                    placeholder="Ej: FOR-HSEQ-024"
+                    className="w-full p-2 bg-white border border-border rounded text-text-primary font-mono focus:ring-1 focus:ring-accent uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-text-primary font-semibold mb-1">
+                    Versión Vigente *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.current_version}
+                    onChange={(e) => setEditForm({ ...editForm, current_version: e.target.value })}
+                    placeholder="Ej: 2"
+                    className="w-full p-2 bg-white border border-border rounded text-text-primary font-mono focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-text-primary font-semibold mb-1">
+                  Nombre Completo del Formato *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="Nombre técnico del formato"
+                  className="w-full p-2 bg-white border border-border rounded text-text-primary focus:ring-1 focus:ring-accent"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-text-primary font-semibold mb-1">
+                    Proceso / Área del SIG *
+                  </label>
+                  <select
+                    value={editForm.process}
+                    onChange={(e) => setEditForm({ ...editForm, process: e.target.value })}
+                    className="w-full p-2 bg-white border border-border rounded text-text-primary focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="HSEQ & SIG">HSEQ & SIG</option>
+                    <option value="Operaciones GPR / Geofísica">Operaciones GPR / Geofísica</option>
+                    <option value="Ingeniería y Dibujo CAD/BIM">Ingeniería y Dibujo CAD/BIM</option>
+                    <option value="Almacén y Logística">Almacén y Logística</option>
+                    <option value="Compras y Adquisiciones">Compras y Adquisiciones</option>
+                    <option value="Gestión Comercial">Gestión Comercial</option>
+                    <option value="Finanzas y Tesorería">Finanzas y Tesorería</option>
+                    <option value="Contabilidad">Contabilidad</option>
+                    <option value="Gestión del Talento Humano">Gestión del Talento Humano</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-text-primary font-semibold mb-1">
+                    Fecha de Entrada en Vigencia *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editForm.effective_date}
+                    onChange={(e) => setEditForm({ ...editForm, effective_date: e.target.value })}
+                    className="w-full p-2 bg-white border border-border rounded text-text-primary font-mono focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+              </div>
+
+              {/* Formulario Relacionado en PCM CLOUD */}
+              <div>
+                <label className="block text-text-primary font-semibold mb-1">
+                  Formulario Relacionado en la Plataforma
+                </label>
+                <select
+                  value={editForm.form_slug}
+                  onChange={(e) => setEditForm({ ...editForm, form_slug: e.target.value })}
+                  className="w-full p-2 bg-white border border-border rounded text-text-primary focus:ring-1 focus:ring-accent"
+                >
+                  {COMMON_SYSTEM_FORMS.map((f) => (
+                    <option key={f.slug} value={f.slug}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-text-muted mt-1">
+                  Vincula este formato con su vista web para que opere bajo esta versión automáticamente.
+                </p>
+              </div>
+
+              {/* Estado y Roles */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-text-primary font-semibold mb-1">
+                    Estado del Documento
+                  </label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value as 'active' | 'obsolete' | 'draft' })}
+                    className="w-full p-2 bg-white border border-border rounded text-text-primary focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="active">Activo / Vigente</option>
+                    <option value="draft">Borrador</option>
+                    <option value="obsolete">Obsoleto</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-text-primary font-semibold">
+                      Roles con Acceso
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer text-text-muted">
+                      <input
+                        type="checkbox"
+                        checked={editForm.is_universal}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            is_universal: e.target.checked,
+                            roles_access_raw: e.target.checked ? 'Todos los Roles' : 'HSEQ, Admin',
+                          })
+                        }
+                        className="rounded text-accent focus:ring-accent"
+                      />
+                      <span>Universal</span>
+                    </label>
+                  </div>
+                  {!editForm.is_universal && (
+                    <input
+                      type="text"
+                      value={editForm.roles_access_raw}
+                      onChange={(e) => setEditForm({ ...editForm, roles_access_raw: e.target.value })}
+                      placeholder="HSEQ, Localizador, Admin"
+                      className="w-full p-2 bg-white border border-border rounded text-text-primary focus:ring-1 focus:ring-accent"
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-text-primary font-semibold mb-1">
+                  Descripción y Alcance
+                </label>
+                <textarea
+                  rows={2}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  placeholder="Propósito del formato..."
+                  className="w-full p-2 bg-white border border-border rounded text-text-primary focus:ring-1 focus:ring-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-text-primary font-semibold mb-1">
+                  Justificación Técnica / Control de Cambios
+                </label>
+                <textarea
+                  rows={2}
+                  value={editForm.change_reason}
+                  onChange={(e) => setEditForm({ ...editForm, change_reason: e.target.value })}
+                  placeholder="Si modificaste la versión o campos, indica qué cambió para el historial..."
+                  className="w-full p-2 bg-white border border-border rounded text-text-primary focus:ring-1 focus:ring-accent"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="btn btn-secondary py-1.5 px-3 text-xs"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={editFormatMutation.isPending}
+                  className="btn btn-accent py-1.5 px-4 text-xs font-bold text-primary-900"
+                >
+                  {editFormatMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
             </form>
