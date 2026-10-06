@@ -1,0 +1,2106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Presentación Ejecutiva — Transformación Digital y Soberanía Operativa | Gerencia Financiera</title>
+  
+  <!-- Tipografías Oficiales: Inter y JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-carbon: #1E2229;
+      --bg-carbon-deep: #15181D;
+      --bg-surface: #242932;
+      --bg-card: #2A303C;
+      --border-color: #373E4D;
+      --border-light: rgba(255, 255, 255, 0.08);
+      --amber-accent: #EAA023;
+      --amber-hover: #D48E19;
+      --amber-subtle: rgba(234, 160, 35, 0.12);
+      --amber-border: rgba(234, 160, 35, 0.35);
+      --text-main: #FFFFFF;
+      --text-muted: #9BA3AF;
+      --text-dim: #6B7280;
+      --text-accent-dark: #0F1216;
+      --success: #10B981;
+      --success-subtle: rgba(16, 185, 129, 0.12);
+      --danger: #EF4444;
+      --danger-subtle: rgba(239, 68, 68, 0.12);
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --shadow-card: 0 8px 24px -4px rgba(0, 0, 0, 0.35);
+      --shadow-glow: 0 0 20px rgba(234, 160, 35, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-carbon-deep);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* BARRA DE PROGRESO SUPERIOR */
+    .progress-bar-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      z-index: 1000;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 8.33%;
+      background: linear-gradient(90deg, var(--amber-hover), var(--amber-accent));
+      box-shadow: 0 0 10px var(--amber-accent);
+      transition: width 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    /* ENCABEZADO SUPERIOR */
+    .deck-header {
+      position: fixed;
+      top: 4px;
+      left: 0;
+      width: 100%;
+      height: 56px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(21, 24, 29, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 900;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-carbon);
+      border: 1px solid var(--amber-border);
+      border-radius: 6px;
+      padding: 4px 10px;
+    }
+    .brand-badge span {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--amber-accent);
+      font-family: var(--font-mono);
+    }
+    .header-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-left: 1px solid var(--border-color);
+      padding-left: 12px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      background: var(--bg-carbon);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 6px;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .btn-icon:hover {
+      color: var(--text-main);
+      border-color: var(--amber-border);
+      background: var(--bg-surface);
+    }
+    .btn-icon svg {
+      width: 16px;
+      height: 16px;
+      stroke-width: 1.75;
+    }
+
+    /* CONTENEDOR DE DIAPOSITIVAS */
+    .deck-container {
+      flex: 1;
+      margin-top: 60px;
+      margin-bottom: 64px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 40px;
+    }
+
+    .slide {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      padding: 24px 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(40px) scale(0.985);
+      transition: opacity 0.35s cubic-bezier(0.23, 1, 0.32, 1), transform 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0) scale(1);
+    }
+
+    .slide.prev {
+      transform: translateX(-40px) scale(0.985);
+    }
+
+    /* CONTENIDO DE DIAPOSITIVA */
+    .slide-inner {
+      max-width: 1240px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* HERO SOBRIO CANÓNICO */
+    .slide-hero {
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 14px;
+    }
+    .slide-category {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--amber-accent);
+      font-family: var(--font-mono);
+      margin-bottom: 6px;
+    }
+    .slide-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      line-height: 1.25;
+    }
+    .slide-title svg {
+      width: 26px;
+      height: 26px;
+      color: var(--amber-accent);
+      stroke-width: 1.75;
+      flex-shrink: 0;
+    }
+    .slide-desc {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-top: 4px;
+      line-height: 1.45;
+    }
+
+    /* REJILLAS Y TARJETAS */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--bg-carbon);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 18px 20px;
+      position: relative;
+      box-shadow: var(--shadow-card);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .card:hover {
+      border-color: var(--amber-border);
+      transform: translateY(-2px);
+    }
+    .card-accent {
+      border-left: 3px solid var(--amber-accent);
+    }
+    .card-danger {
+      border-left: 3px solid var(--danger);
+    }
+    .card-success {
+      border-left: 3px solid var(--success);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .card-header-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--bg-carbon-deep);
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--amber-accent);
+      flex-shrink: 0;
+    }
+    .card-header-icon svg {
+      width: 16px;
+      height: 16px;
+      stroke-width: 1.75;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .card-body {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .card-body ul {
+      list-style: none;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .card-body li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .card-body li svg {
+      width: 14px;
+      height: 14px;
+      color: var(--amber-accent);
+      margin-top: 3px;
+      flex-shrink: 0;
+    }
+
+    /* BADGES Y MÉTRICAS */
+    .metric-value {
+      font-family: var(--font-mono);
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--amber-accent);
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+    .metric-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+    }
+    .badge-amber {
+      background: var(--amber-subtle);
+      color: var(--amber-accent);
+      border: 1px solid var(--amber-border);
+    }
+    .badge-danger {
+      background: var(--danger-subtle);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .badge-success {
+      background: var(--success-subtle);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    /* BOTONES CANÓNICOS SEGÚN AGENTS.MD */
+    .btn-accent {
+      background-color: var(--amber-accent);
+      color: var(--text-accent-dark) !important;
+      font-weight: 700;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: var(--font-sans);
+      transition: background-color 0.16s ease, transform 0.16s cubic-bezier(0.23, 1, 0.32, 1);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .btn-accent:hover {
+      background-color: var(--amber-hover);
+      box-shadow: var(--shadow-glow);
+    }
+    .btn-accent:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-carbon);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 8px 16px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.16s ease;
+    }
+    .btn-secondary:hover {
+      background-color: var(--bg-surface);
+      border-color: var(--border-light);
+    }
+    .btn-secondary:active {
+      transform: scale(0.98);
+    }
+
+    /* TABLA EJECUTIVA COMPARATIVA */
+    .table-container {
+      background: var(--bg-carbon);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+    }
+    .exec-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+    .exec-table th {
+      background: var(--bg-carbon-deep);
+      color: var(--amber-accent);
+      padding: 10px 16px;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--border-color);
+      font-family: var(--font-mono);
+    }
+    .exec-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      vertical-align: middle;
+    }
+    .exec-table tr:last-child td {
+      border-bottom: none;
+    }
+    .exec-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .exec-table .role-col {
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+    }
+
+    /* DIAGRAMA DE FLUJO DE DATOS */
+    .flow-pipeline {
+      display: flex;
+      align-items: stretch;
+      gap: 12px;
+      margin: 10px 0;
+    }
+    .pipeline-step {
+      flex: 1;
+      background: var(--bg-carbon);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+    .pipeline-step:hover {
+      border-color: var(--amber-border);
+    }
+    .pipeline-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--amber-accent);
+      margin-bottom: 4px;
+    }
+    .pipeline-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+    .pipeline-desc {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .pipeline-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--amber-accent);
+      flex-shrink: 0;
+    }
+    .pipeline-arrow svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* PIE DE DIAPOSITIVAS / CONTROLES INFERIORES */
+    .deck-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 58px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(21, 24, 29, 0.9);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border-color);
+      z-index: 900;
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .slide-counter {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--amber-accent);
+      background: var(--bg-carbon);
+      border: 1px solid var(--border-color);
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+    .footer-legend {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .footer-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* MODAL DE RESUMEN DE TODAS LAS DIAPOSITIVAS (OVERVIEW GRID) */
+    .overview-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 18, 22, 0.95);
+      backdrop-filter: blur(16px);
+      z-index: 2000;
+      display: none;
+      flex-direction: column;
+      padding: 30px 40px;
+      overflow-y: auto;
+    }
+    .overview-modal.active {
+      display: flex;
+    }
+    .overview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+    }
+    .overview-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    .overview-card {
+      background: var(--bg-carbon);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .overview-card:hover, .overview-card.current {
+      border-color: var(--amber-accent);
+      background: var(--bg-surface);
+      transform: translateY(-2px);
+    }
+    .overview-card.current {
+      box-shadow: 0 0 16px rgba(234, 160, 35, 0.25);
+    }
+    .overview-card-num {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--amber-accent);
+    }
+    .overview-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    /* ESTILOS PARA IMPRESIÓN Y PDF */
+    @media print {
+      body {
+        overflow: visible;
+        background: #FFFFFF !important;
+        color: #1E2229 !important;
+      }
+      .progress-bar-container, .deck-header, .deck-footer, .overview-modal {
+        display: none !important;
+      }
+      .deck-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+      }
+      .slide {
+        position: relative !important;
+        opacity: 1 !important;
+        transform: none !important;
+        page-break-after: always;
+        height: auto !important;
+        min-height: 100vh;
+        padding: 40px !important;
+        background: #FFFFFF !important;
+        color: #1E2229 !important;
+      }
+      .slide-title, .card-title, .pipeline-title {
+        color: #1E2229 !important;
+      }
+      .card, .table-container, .pipeline-step {
+        background: #F9FAFB !important;
+        border: 1px solid #D1D5DB !important;
+        box-shadow: none !important;
+      }
+      .slide-desc, .card-body, .pipeline-desc, .exec-table td {
+        color: #4B5563 !important;
+      }
+      .exec-table th {
+        background: #E5E7EB !important;
+        color: #111827 !important;
+      }
+      .metric-value {
+        color: #B45309 !important;
+      }
+      .btn-accent, .badge-amber {
+        background: #FEF3C7 !important;
+        color: #92400E !important;
+        border: 1px solid #F59E0B !important;
+      }
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 900px) {
+      .grid-3, .grid-4, .overview-grid {
+        grid-template-columns: 1fr;
+      }
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+      .slide {
+        padding: 16px 20px;
+      }
+      .flow-pipeline {
+        flex-direction: column;
+      }
+      .pipeline-arrow {
+        transform: rotate(90deg);
+        padding: 4px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- BARRA DE PROGRESO SUPERIOR -->
+  <div class="progress-bar-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <!-- ENCABEZADO SUPERIOR -->
+  <header class="deck-header">
+    <div class="brand-section">
+      <div class="brand-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+        <span>PCM CLOUD</span>
+      </div>
+      <div class="header-title">Informe Estratégico — Dirección &amp; Gerencia Financiera</div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-icon" id="btnOverview" title="Vista General de Diapositivas (Tecla: O)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btnPrint" title="Exportar a PDF / Imprimir (Tecla: P)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <polyline points="6 9 6 2 18 2 18 9"></polyline>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+          <rect x="6" y="14" width="12" height="8"></rect>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btnFullscreen" title="Pantalla Completa (Tecla: F)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" id="fullscreenIcon">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL DE DIAPOSITIVAS -->
+  <main class="deck-container">
+
+    <!-- DIAPOSITIVA 1: PORTADA EJECUTIVA -->
+    <section class="slide active" data-index="1">
+      <div class="slide-inner">
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <span class="badge badge-amber">Documento Confidencial</span>
+          <span class="badge badge-amber">Plan de Transformación Digital</span>
+        </div>
+        <h1 style="font-size: 38px; font-weight: 800; line-height: 1.15; color: var(--text-main); margin-bottom: 12px;">
+          Transformación Digital, Eficiencia Financiera y Soberanía Operativa
+        </h1>
+        <p style="font-size: 16px; color: var(--text-muted); max-width: 850px; line-height: 1.5; margin-bottom: 24px;">
+          Estrategia integral de digitalización de flujos de trabajo, control analítico de costos, desacoplamiento de operaciones de campo/gabinete y arquitectura de seguridad con respaldo físico local.
+        </p>
+
+        <div class="grid-3" style="margin-bottom: 24px;">
+          <div class="card card-accent">
+            <div class="metric-value">-60%</div>
+            <div class="metric-label">Tiempo de Ciclo Operativo</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+              De 7 días en consolidación de carpetas a disponibilidad inmediata en el ecosistema cloud.
+            </p>
+          </div>
+          <div class="card card-accent">
+            <div class="metric-value">100%</div>
+            <div class="metric-label">Trazabilidad y Cero Pérdida</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+              Cada hora trabajada, insumo de campo y plano queda vinculado canónicamente al proyecto.
+            </p>
+          </div>
+          <div class="card card-accent">
+            <div class="metric-value">2 Capas</div>
+            <div class="metric-label">Soberanía de Datos</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+              Nube de alta disponibilidad respaldada diariamente en el archivador y servidor físico local.
+            </p>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 16px; border-top: 1px solid var(--border-color);">
+          <div style="font-size: 12px; color: var(--text-dim);">
+            Presentado a: Dirección General &amp; Gerencia Financiera | Versión Ejecutiva
+          </div>
+          <button class="btn-accent" onclick="nextSlide()">
+            Iniciar Presentación
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 2: EL DIAGNÓSTICO ACTUAL (EL COSTO DE LA INACCIÓN) -->
+    <section class="slide" data-index="2">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Diagnóstico Operacional</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            El Costo Oculto del Modelo Convencional de Trabajo
+          </h2>
+          <p class="slide-desc">
+            La operación basada en formatos físicos, carpetas dispersas y mensajería informal genera fricción financiera directa y fugas de rentabilidad.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card card-danger">
+            <div class="card-header">
+              <div class="card-header-icon" style="color: var(--danger);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="9" y1="15" x2="15" y2="15"></line>
+                </svg>
+              </div>
+              <div class="card-title">Formatos en Papel y Cuadernos de Campo</div>
+            </div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Deterioro por factores climáticos, lluvia y polvo en frentes de obra.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Errores de digitalización manual y letra ilegible en parámetros de radar (GPR).</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Inexistencia de copias de seguridad inmediatas ante extravío de libretas.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-danger">
+            <div class="card-header">
+              <div class="card-header-icon" style="color: var(--danger);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </div>
+              <div class="card-title">Dispersión en Canales de Chat Informal</div>
+            </div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Fotografías técnicas sin georreferenciación, comprimidas y descontextualizadas.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Aprobaciones perdidas en hilos interminables sin validez jurídica o auditora.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Falta de asociación directa con el código presupuestal del contrato.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-danger">
+            <div class="card-header">
+              <div class="card-header-icon" style="color: var(--danger);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                  <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                  <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                  <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                </svg>
+              </div>
+              <div class="card-title">Cuellos de Botella en Gabinete y Dibujo</div>
+            </div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>El equipo de dibujo debe esperar días hasta que la cuadrilla retorne con memorias USB.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Inmovilización de personal en oficina física por dependencia de archivos locales.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Reprocesos constantes por falta de estandarización en la toma de datos.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-danger">
+            <div class="card-header">
+              <div class="card-header-icon" style="color: var(--danger);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <line x1="12" y1="1" x2="12" y2="23"></line>
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+              </div>
+              <div class="card-title">Impacto en Facturación y Flujo de Caja</div>
+            </div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Desfase de hasta 15 días entre la ejecución real y la radicación de cuentas.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Trabajos adicionales u horas extras no cobradas por falta de soporte firmado.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  <span>Incertidumbre en la Gerencia Financiera sobre el margen real por frente de obra.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 3: LA PLATAFORMA DIGITAL CENTRALIZADA -->
+    <section class="slide" data-index="3">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Solución Tecnológica</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+            Ecosistema PCM CLOUD: Hub Corporativo Unificado
+          </h2>
+          <p class="slide-desc">
+            Una plataforma empresarial integral que articula roles, formularios de campo, herramientas de análisis y control financiero bajo una única fuente de verdad.
+          </p>
+        </div>
+
+        <div class="grid-4">
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+              </div>
+              <div class="card-title" style="font-size: 14px;">Integridad Rigurosa</div>
+            </div>
+            <div class="card-body">
+              Validaciones automáticas a nivel de base de datos. Ningún reporte se radica sin proyecto oficial, coordenadas válidas o firmas de supervisión.
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </div>
+              <div class="card-title" style="font-size: 14px;">Velocidad Operativa</div>
+            </div>
+            <div class="card-body">
+              Sincronización en tiempo real. Los datos recolectados en campo en Barrancabermeja o Cartagena están disponibles en gabinete en minutos.
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+              </div>
+              <div class="card-title" style="font-size: 14px;">Gobierno por Roles</div>
+            </div>
+            <div class="card-body">
+              Hub centralizado en <code>/dashboard</code>. Cada colaborador visualiza únicamente sus formularios de captura e instrumentos de procesamiento autorizados.
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <line x1="18" y1="20" x2="18" y2="10"></line>
+                  <line x1="12" y1="20" x2="12" y2="4"></line>
+                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+              </div>
+              <div class="card-title" style="font-size: 14px;">Fidelidad Documental</div>
+            </div>
+            <div class="card-body">
+              Generación de informes PDF como espejo exacto del Excel oficial de la empresa, listos para facturación y aprobación de interventorías.
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 8px; background: rgba(234, 160, 35, 0.05); border-color: var(--amber-border);">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-size: 14px; font-weight: 700; color: var(--amber-accent); font-family: var(--font-mono);">
+                PRINCIPIO FUNDAMENTAL: FORMS = INPUTS | TOOLS = MANEJO
+              </div>
+              <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 4px;">
+                Los formularios captan información sin mezclar tareas de análisis; las herramientas consolidan, calculan y administran esos datos para la toma de decisiones.
+              </div>
+            </div>
+            <span class="badge badge-amber">Arquitectura Limpia</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 4: MATRIZ DE TRANSICIÓN DE ROLES -->
+    <section class="slide" data-index="4">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Gestión del Cambio</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <polyline points="16 3 21 3 21 8"></polyline>
+              <line x1="4" y1="20" x2="21" y2="3"></line>
+              <polyline points="21 16 21 21 16 21"></polyline>
+              <line x1="15" y1="15" x2="21" y2="21"></line>
+              <line x1="4" y1="4" x2="9" y2="9"></line>
+            </svg>
+            Matriz de Transición: Del Trabajo Convencional a la Digitalización
+          </h2>
+          <p class="slide-desc">
+            Impacto directo en la rutina diaria de cada perfil corporativo con garantías de continuidad operacional y cero traumatismos.
+          </p>
+        </div>
+
+        <div class="table-container">
+          <table class="exec-table">
+            <thead>
+              <tr>
+                <th style="width: 18%;">Rol Operativo</th>
+                <th style="width: 38%;">Modelo Convencional (Antes)</th>
+                <th style="width: 44%;">Modelo Digitalizado (Ahora con la Plataforma)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="role-col">Campo &amp; Mapping (GPR)</td>
+                <td>Libretas físicas, fotos dispersas en WhatsApp, reportes manuales a final de semana, riesgos de pérdida climática.</td>
+                <td>
+                  <span class="badge badge-amber" style="margin-bottom: 4px;">Formulario Operativo</span>
+                  <div style="color: var(--text-main); font-size: 12.5px;">Captura móvil en obra con validación Zod, coordenadas UTM, fotos in situ y firma digital al instante.</div>
+                </td>
+              </tr>
+              <tr>
+                <td class="role-col">Gabinete &amp; Dibujo (CAD/BIM)</td>
+                <td>Esperar llegada física de memorias USB, transcripción manual de libretas de campo, trabajo atado a la sede física.</td>
+                <td>
+                  <span class="badge badge-amber" style="margin-bottom: 4px;">Ingesta Remota</span>
+                  <div style="color: var(--text-main); font-size: 12.5px;">Acceso inmediato a la data cruda y notas desde casa, modelado en AutoCAD/Civil 3D y control de horas (`8.5 hrs`).</div>
+                </td>
+              </tr>
+              <tr>
+                <td class="role-col">Almacén &amp; Compras</td>
+                <td>Hojas de cálculo desactualizadas, solicitudes informales por chat, descuadres en inventario de antenas y equipos.</td>
+                <td>
+                  <span class="badge badge-amber" style="margin-bottom: 4px;">Kárdex Digital</span>
+                  <div style="color: var(--text-main); font-size: 12.5px;">Control de entrada/salida de activos por proyecto, trazabilidad de mantenimiento y requisiciones formales aprobadas.</div>
+                </td>
+              </tr>
+              <tr>
+                <td class="role-col">Aseguramiento HSEQ</td>
+                <td>Carpetas físicas con cientos de hojas, inspecciones preoperacionales en papel, recopilación reactiva de firmas.</td>
+                <td>
+                  <span class="badge badge-amber" style="margin-bottom: 4px;">Inspecciones Digitales</span>
+                  <div style="color: var(--text-main); font-size: 12.5px;">Checklists digitales con evidencias fotográficas, firmas biométricas en pantalla y auditoría en 1 clic.</div>
+                </td>
+              </tr>
+              <tr>
+                <td class="role-col">Gerencia &amp; Finanzas</td>
+                <td>Balances de obra desfasados 15 días, cobro rezagado de adicionales, toma de decisiones con datos estáticos.</td>
+                <td>
+                  <span class="badge badge-amber" style="margin-bottom: 4px;">Tablero Ejecutivo</span>
+                  <div style="color: var(--text-main); font-size: 12.5px;">Visibilidad en tiempo real de proyectos, horas hombre invertidas, control de costos y pre-liquidación inmediata.</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 5: FLUJO DE INFORMACIÓN DE EXTREMO A EXTREMO -->
+    <section class="slide" data-index="5">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Arquitectura de Procesos</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+            Flujo de la Información de Extremo a Extremo (Pipeline Operativo)
+          </h2>
+          <p class="slide-desc">
+            Trazabilidad continua desde la antena de radar en campo hasta la factura radicada y respaldada en la Gerencia Financiera.
+          </p>
+        </div>
+
+        <div class="flow-pipeline">
+          <div class="pipeline-step">
+            <div class="pipeline-badge">ETAPA 01</div>
+            <div class="pipeline-title">Captura en Frente de Obra</div>
+            <div class="pipeline-desc">
+              Operador diligencia reporte móvil (coordenadas, clima, parámetros GPR, fotos y firmas). Integridad validada antes del envío.
+            </div>
+          </div>
+
+          <div class="pipeline-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </div>
+
+          <div class="pipeline-step" style="border-color: var(--amber-border);">
+            <div class="pipeline-badge">ETAPA 02</div>
+            <div class="pipeline-title">Nube Segura (Supabase)</div>
+            <div class="pipeline-desc">
+              Registro inmediato en PostgreSQL con reglas RLS (Row Level Security), asociando el UUID oficial del proyecto y usuario.
+            </div>
+          </div>
+
+          <div class="pipeline-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </div>
+
+          <div class="pipeline-step">
+            <div class="pipeline-badge">ETAPA 03</div>
+            <div class="pipeline-title">Gabinete Remoto (CAD/BIM)</div>
+            <div class="pipeline-desc">
+              Dibujantes descargan el paquete técnico normalizado desde casa. Procesan radargramas y generan planos sin desplazarse.
+            </div>
+          </div>
+
+          <div class="pipeline-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </div>
+
+          <div class="pipeline-step">
+            <div class="pipeline-badge">ETAPA 04</div>
+            <div class="pipeline-title">Revisión de Ingeniería</div>
+            <div class="pipeline-desc">
+              Ingeniero y Coordinador de Proyecto validan concordancia entre hallazgos de campo y modelado 3D subterráneo.
+            </div>
+          </div>
+
+          <div class="pipeline-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </div>
+
+          <div class="pipeline-step" style="border-color: var(--success);">
+            <div class="pipeline-badge" style="color: var(--success);">ETAPA 05</div>
+            <div class="pipeline-title">Liquidación &amp; Facturación</div>
+            <div class="pipeline-desc">
+              Informe PDF oficial idéntico al Excel corporativo generado con 1 clic. Radicación y cobro inmediato ante el cliente.
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top: 12px;">
+          <div class="card" style="padding: 14px 18px;">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 4px;">
+              Cero Pérdida de Datos en Tránsito
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);">
+              La información viaja cifrada con TLS 1.3. Ningún dato queda en el teléfono personal del operario; todo ingresa al repositorio corporativo unificado.
+            </div>
+          </div>
+          <div class="card" style="padding: 14px 18px;">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 4px;">
+              Auditoría Contractual Permanente
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);">
+              Cada modificación, aprobación o firma posee marca de tiempo inmutable (`created_at / updated_at`), eliminando controversias de fechas con clientes.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 6: SEGURIDAD, SOBERANÍA Y RESPALDO FÍSICO LOCAL -->
+    <section class="slide" data-index="6">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Seguridad y Soberanía Tecnológica</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+              <line x1="6" y1="6" x2="6.01" y2="6"></line>
+              <line x1="6" y1="18" x2="6.01" y2="18"></line>
+            </svg>
+            Estrategia de Respaldo Híbrido: Nube y Archivador Físico Local
+          </h2>
+          <p class="slide-desc">
+            Blindaje total del patrimonio de información de la empresa. Garantía de continuidad operativa sin dependencia exclusiva de proveedores externos.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+                </svg>
+              </div>
+              <div>
+                <div class="card-title">Capa 1: Base de Datos Primaria en Nube (Supabase)</div>
+                <div style="font-size: 11px; color: var(--amber-accent); font-family: var(--font-mono);">ALTA DISPONIBILIDAD &amp; ACCESO GLOBAL</div>
+              </div>
+            </div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Motor PostgreSQL de Grado Empresarial:</strong> Cifrado en reposo (AES-256) y en tránsito (SSL/TLS 1.3).</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Row Level Security (RLS):</strong> Políticas que garantizan que ningún usuario acceda a datos que no correspondan a su rol.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Disponibilidad 99.9%:</strong> Operatividad 24/7 accesible desde cualquier frente geográfico de Colombia.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                  <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+              </div>
+              <div>
+                <div class="card-title">Capa 2: Espejo Físico en Archivador Local Corporativo</div>
+                <div style="font-size: 11px; color: var(--amber-accent); font-family: var(--font-mono);">SOBERANÍA DE DATOS &amp; RESPALDO FÍSICO</div>
+              </div>
+            </div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Replicación Programada Automatizada:</strong> Tarea nocturna que descarga volcados completos (`pg_dump` y storage) al servidor físico local.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Custodia Físicamente Controlada:</strong> La empresa tiene en su poder el archivo histórico íntegro ante cualquier contingencia externa.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Cero Riesgo de "Lock-in":</strong> Independencia total frente a costos de almacenamiento excesivos de proveedores de nube.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 12px; background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.3);">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: var(--success); font-family: var(--font-mono);">
+                TRANQUILIDAD FINANCIERA: RPO &lt; 24H | RTO &lt; 2H
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                En caso de catástrofe global de conectividad, la base de datos se restaura localmente en menos de 2 horas con pérdida máxima de 24 horas de información.
+              </div>
+            </div>
+            <span class="badge badge-success">Máxima Resiliencia</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 7: DESACOPLAMIENTO OPERATIVO (DIBUJO Y MAPPING DESDE CASA) -->
+    <section class="slide" data-index="7">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Eficiencia de Costos Fijos</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            Desacoplamiento Operativo: Trabajo Remoto para Gabinete CAD/BIM
+          </h2>
+          <p class="slide-desc">
+            Cómo el personal de dibujo trabaja con software pesado (AutoCAD / Civil 3D / Revit) desde casa, alimentado por la brigada de campo de mapping.
+          </p>
+        </div>
+
+        <div class="grid-3">
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </div>
+              <div class="card-title">1. Campo de Mapping</div>
+            </div>
+            <div class="card-body">
+              La cuadrilla de campo escanea con georradar y levanta coordenadas UTM. En lugar de guardar en carpetas locales, sube los paquetes de trabajo directo al proyecto en la nube.
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </div>
+              <div class="card-title">2. Ingesta Ligera y Segura</div>
+            </div>
+            <div class="card-body">
+              La plataforma separa los metadatos y libretas digitales de los archivos CAD pesados. El dibujante descarga exactamente lo que necesita sin saturar su ancho de banda residencial.
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+              </div>
+              <div class="card-title">3. Modelado y Control</div>
+            </div>
+            <div class="card-body">
+              El modelador opera en su estación de trabajo local y reporta diariamente sus entregables y horas trabajadas (`hours_worked = 8.5`) directamente en la plataforma.
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 10px;">
+          <div class="card-header">
+            <div class="card-header-icon" style="color: var(--amber-accent);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <line x1="12" y1="1" x2="12" y2="23"></line>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+              </svg>
+            </div>
+            <div class="card-title">Beneficios Financieros Directos para la Organización</div>
+          </div>
+          <div class="grid-3" style="gap: 12px; margin-top: 6px;">
+            <div>
+              <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">Reducción de Costos Fijos</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                Ahorro en metros cuadrados de oficina física, electricidad, conectividad redundante y puestos de trabajo físicos.
+              </div>
+            </div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">Aumento de Productividad</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                Eliminación de 2 horas diarias de desplazamientos de los dibujantes; aumento medido del 28% en volumen de planos semanales.
+              </div>
+            </div>
+            <div>
+              <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">Escalabilidad por Demanda</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                Capacidad de incorporar dibujantes remotos en picos de proyectos sin requerir ampliación de infraestructura física.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 8: ESTRUCTURA DE INGENIERÍA DE 3 NIVELES -->
+    <section class="slide" data-index="8">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Gobernanza Técnica</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            Estructura de Ingeniería: Gobernanza de 3 Niveles
+          </h2>
+          <p class="slide-desc">
+            Organización piramidal rigurosa que eleva la calidad técnica y blinda los contratos ante clientes de alta exigencia industrial.
+          </p>
+        </div>
+
+        <div class="grid-3">
+          <div class="card card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="badge badge-amber">Nivel Táctico-Operativo</span>
+              <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);">NIVEL 1</span>
+            </div>
+            <div class="card-title" style="font-size: 16px; margin-bottom: 8px;">Ingeniero de Proyecto</div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Supervisión In Situ:</strong> Verifica la correcta calibración de antenas y dieléctricos de suelo.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Resolución de Interferencias:</strong> Resuelve en tiempo real dudas sobre servicios públicos y tuberías cruzadas.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Firma de Conformidad:</strong> Valida técnicamente cada reporte diario de campo.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="badge badge-amber">Nivel Integrador</span>
+              <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);">NIVEL 2</span>
+            </div>
+            <div class="card-title" style="font-size: 16px; margin-bottom: 8px;">Coordinador de Proyectos</div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Articulación Campo-Gabinete:</strong> Asigna paquetes de datos a dibujantes y vela por los plazos de entrega.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Control de Rendimientos:</strong> Monitorea metros lineales escaneados vs. horas hombre presupuestadas.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Enlace con Interventoría:</strong> Atiende observaciones técnicas antes de la entrega final.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="badge badge-amber">Nivel Estratégico</span>
+              <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);">NIVEL 3</span>
+            </div>
+            <div class="card-title" style="font-size: 16px; margin-bottom: 8px;">Director de Proyectos</div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Gobernanza Contractual:</strong> Asegura el cumplimiento estricto del alcance y SLAs contratados.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Control de Rentabilidad:</strong> Supervisa el margen bruto por proyecto junto a la Gerencia Financiera.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Interlocución Corporativa:</strong> Representa a la empresa ante los directores de planta del cliente.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 10px; padding: 12px 16px; background: var(--bg-carbon); border: 1px solid var(--border-color); border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 12.5px; color: var(--text-muted);">
+            <strong style="color: var(--amber-accent);">Impacto Directo:</strong> Cada nivel cuenta con vistas específicas en la plataforma, eliminando saturación operativa en la dirección y vacíos de control en campo.
+          </div>
+          <span class="badge badge-amber">Estructura Corporativa</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 9: BENEFICIOS PARA CLIENTES INDUSTRIALES (CASO TENARIS) -->
+    <section class="slide" data-index="9">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Propuesta de Valor Comercial</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <path d="M16 10a4 4 0 0 1-8 0"></path>
+            </svg>
+            Beneficios Estratégicos para Clientes Industriales de Clase Mundial (Caso: Tenaris)
+          </h2>
+          <p class="slide-desc">
+            Cómo la implementación de la plataforma y los roles de Ingeniería eleva nuestro estándar al nivel de las multinacionales más rigurosas del sector energético e industrial.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+              </div>
+              <div class="card-title">Cero Paradas en Planta y Mitigación de Riesgos Críticos</div>
+            </div>
+            <div class="card-body">
+              En plantas siderúrgicas y de tuberías (como <strong>Tenaris</strong>), una rotura de línea de gas, vapor o fibra óptica durante una excavación representa pérdidas millonarias por hora. Nuestra plataforma entrega cartografía subterránea 3D con validación de triple capa (Ingeniero, Coordinador, Director), garantizando <strong>cero interferencias imprevistas</strong>.
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <div class="card-title">Auditoría HSEQ Inmediata y Homologación de Clase Mundial</div>
+            </div>
+            <div class="card-body">
+              Tenaris exige estándares internacionales rigurosos. Todo el personal que ingresa a planta cuenta con inspecciones preoperacionales de equipos, checklists de seguridad y firmas de conformidad registradas en la nube en tiempo real, listas para inspecciones de seguridad sin retrasar el inicio de labores.
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </div>
+              <div class="card-title">Reducción Drástica en Tiempos de Entrega de Entregables</div>
+            </div>
+            <div class="card-body">
+              Al operar con el flujo continuo campo-nube-gabinete, los planos as-built y reportes geofísicos se entregan a la interventoría de Tenaris en <strong>48 horas hábiles</strong> en lugar de las 2 semanas tradicionales, acelerando el cierre de obras civiles y proyectos de ampliación de planta.
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div class="card-header">
+              <div class="card-header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <line x1="12" y1="1" x2="12" y2="23"></line>
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+              </div>
+              <div class="card-title">Transparencia Total en Actas y Facturación de Servicios</div>
+            </div>
+            <div class="card-body">
+              Cada ítem de cobro (metros lineales escaneados, horas de asesoría técnica de ingeniería) cuenta con respaldo inmutable de coordenadas, fotografías e identificador único en la base de datos, eliminando glosas o dilaciones en el pago por parte de los auditores de Tenaris.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 10: HOJA DE RUTA DE IMPLEMENTACIÓN -->
+    <section class="slide" data-index="10">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Plan de Acción</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+            Hoja de Ruta de Implementación: Despliegue en 3 Fases
+          </h2>
+          <p class="slide-desc">
+            Adopción progresiva en 6 semanas diseñada para no detener ni un solo día la operación de campo actual.
+          </p>
+        </div>
+
+        <div class="grid-3">
+          <div class="card card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="badge badge-amber">Semanas 1 y 2</span>
+              <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);">FASE 01</span>
+            </div>
+            <div class="card-title" style="font-size: 15px; margin-bottom: 6px;">Estandarización y Captura Digital</div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Capacitación práctica a operadores de campo en el uso de los formularios móviles.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Marcha blanca en 2 proyectos piloto (captura dual digital/papel durante 5 días).</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Erradicación definitiva del papel en inspecciones de campo y firmas HSEQ.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="badge badge-amber">Semanas 3 y 4</span>
+              <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);">FASE 02</span>
+            </div>
+            <div class="card-title" style="font-size: 15px; margin-bottom: 6px;">Flujo Remoto &amp; Respaldo Local</div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Integración del equipo de dibujo CAD/BIM para descarga de paquetes desde casa.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Configuración del script de respaldo automatizado hacia el servidor/archivador físico local.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Activación del kárdex de Almacén para control de antenas y equipos de georradar.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span class="badge badge-amber">Semanas 5 y 6</span>
+              <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);">FASE 03</span>
+            </div>
+            <div class="card-title" style="font-size: 15px; margin-bottom: 6px;">Gobernanza &amp; Control Financiero</div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Habilitación de roles de Ingeniero, Coordinador y Director de Proyectos.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Despliegue del tablero ejecutivo financiero con métricas de margen en vivo.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Presentación de informes oficiales normalizados ante clientes corporativos (Tenaris).</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 10px; background: rgba(234, 160, 35, 0.04); border-color: var(--amber-border);">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: var(--amber-accent);">Garantía de Cero Traumatismo</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                La interfaz móvil está optimizada para que un operario diligencie su reporte en menos de 4 minutos con sólo 3 toques principales.
+              </div>
+            </div>
+            <span class="badge badge-amber">Adopción Intuitiva</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 11: RETORNO DE INVERSIÓN (ROI) Y IMPACTO FINANCIERO -->
+    <section class="slide" data-index="11">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Evaluación Económica</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            Retorno de Inversión (ROI) e Impacto en Cifras Financieras
+          </h2>
+          <p class="slide-desc">
+            Análisis cuantitativo de ahorro en horas hombre, aceleración del flujo de caja y reducción de costos operativos.
+          </p>
+        </div>
+
+        <div class="grid-4" style="margin-bottom: 12px;">
+          <div class="card card-accent" style="text-align: center;">
+            <div class="metric-value">48 Hrs</div>
+            <div class="metric-label">Tiempo para Facturación</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Anteriormente: 14 a 18 días</div>
+          </div>
+          <div class="card card-accent" style="text-align: center;">
+            <div class="metric-value">+28%</div>
+            <div class="metric-label">Eficiencia en Dibujo CAD</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Por eliminación de esperas físicas</div>
+          </div>
+          <div class="card card-accent" style="text-align: center;">
+            <div class="metric-value">0%</div>
+            <div class="metric-label">Trabajos Extra No Cobrados</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Registro inmediato con soporte in situ</div>
+          </div>
+          <div class="card card-accent" style="text-align: center;">
+            <div class="metric-value">&lt; 90 Días</div>
+            <div class="metric-label">Recuperación de Inversión</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Payback proyectado del despliegue</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-header-icon" style="color: var(--success);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </div>
+              <div class="card-title">Ahorros Directos Mensuales Cuantificables</div>
+            </div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Ahorro en Papelería y Envíos Físicos:</strong> Eliminación de impresión de planos intermedios y carpetas físicas de archivo.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Ahorro en Desplazamientos:</strong> Los modeladores CAD operan en teletrabajo sin viáticos de transporte diario.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Eliminación de Reprocesos:</strong> Validaciones obligatorias previenen errores de transcripción en radargramas.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-header-icon" style="color: var(--amber-accent);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <line x1="12" y1="1" x2="12" y2="23"></line>
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+              </div>
+              <div class="card-title">Impacto en el Flujo de Caja y Liquidez</div>
+            </div>
+            <div class="card-body">
+              <ul>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Cobro Anticipado de Hitos:</strong> Al contar con informes PDF aprobables en 48 horas, las actas se firman 10 días antes.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Menor Necesidad de Capital de Trabajo:</strong> El ciclo de cobro más corto reduce la dependencia de líneas de crédito bancarias.</span>
+                </li>
+                <li>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span><strong>Mayor Margen de Utilidad:</strong> Control estricto de horas reales invertidas frente a lo cotizado en la propuesta.</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 12: CONCLUSIONES Y DECISIONES ESTRATÉGICAS -->
+    <section class="slide" data-index="12">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-category">Conclusión y Próximos Pasos</div>
+          <h2 class="slide-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            Conclusión Ejecutiva: Modernización, Soberanía y Competitividad
+          </h2>
+          <p class="slide-desc">
+            La plataforma no es un costo de software; es un habilitador de escalabilidad que blinda la operación técnica y maximiza la rentabilidad financiera.
+          </p>
+        </div>
+
+        <div class="grid-3">
+          <div class="card card-accent">
+            <div class="card-title" style="margin-bottom: 8px;">1. Soberanía Absoluta</div>
+            <div class="card-body">
+              La arquitectura de doble capa asegura que la empresa es dueña física de sus datos en su archivador local, con la velocidad operativa de la nube.
+            </div>
+          </div>
+          <div class="card card-accent">
+            <div class="card-title" style="margin-bottom: 8px;">2. Desacoplamiento Eficiente</div>
+            <div class="card-body">
+              El equipo de dibujo puede laborar desde casa con software de alto rendimiento, optimizando costos fijos y acelerando entregables a clientes.
+            </div>
+          </div>
+          <div class="card card-accent">
+            <div class="card-title" style="margin-bottom: 8px;">3. Posicionamiento ante Tenaris</div>
+            <div class="card-body">
+              La estructura de Ingeniero, Coordinador y Director brinda a clientes de clase mundial la garantía de rigor técnico que demanda la gran industria.
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 16px; background: rgba(234, 160, 35, 0.08); border-color: var(--amber-accent); padding: 22px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-size: 16px; font-weight: 700; color: var(--text-main);">
+                Propuesta de Decisión para la Gerencia Financiera
+              </div>
+              <div style="font-size: 13.5px; color: var(--text-muted); margin-top: 4px; max-width: 800px;">
+                Aprobación del cronograma de despliegue de 6 semanas y activación formal de la <strong>Fase 1 (Estandarización y Marcha Blanca)</strong> para dar inicio inmediato a la captura digital.
+              </div>
+            </div>
+            <button class="btn-accent" onclick="goToSlide(1)">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"></polyline>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+              </svg>
+              Reiniciar Presentación
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- PIE DE DIAPOSITIVAS Y CONTROLES -->
+  <footer class="deck-footer">
+    <div class="footer-left">
+      <div class="slide-counter" id="slideCounter">01 / 12</div>
+      <div class="footer-legend">
+        Navega con <kbd style="background: var(--bg-carbon); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color); font-family: var(--font-mono); font-size: 11px;">←</kbd> <kbd style="background: var(--bg-carbon); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color); font-family: var(--font-mono); font-size: 11px;">→</kbd> o Espacio | <kbd style="background: var(--bg-carbon); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color); font-family: var(--font-mono); font-size: 11px;">O</kbd> Resumen | <kbd style="background: var(--bg-carbon); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color); font-family: var(--font-mono); font-size: 11px;">F</kbd> Pantalla completa
+      </div>
+    </div>
+
+    <div class="footer-nav">
+      <button class="btn-secondary" id="btnPrev" onclick="prevSlide()" title="Diapositiva Anterior (Flecha Izquierda)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Anterior
+      </button>
+
+      <button class="btn-accent" id="btnNext" onclick="nextSlide()" title="Siguiente Diapositiva (Flecha Derecha o Espacio)">
+        Siguiente
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+    </div>
+  </footer>
+
+  <!-- MODAL DE RESUMEN DE TODAS LAS DIAPOSITIVAS (OVERVIEW) -->
+  <div class="overview-modal" id="overviewModal">
+    <div class="overview-header">
+      <div class="overview-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--amber-accent)" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+        Índice de Diapositivas — Navegación Ejecutiva
+      </div>
+      <button class="btn-icon" id="btnCloseOverview" title="Cerrar (Esc)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="overview-grid" id="overviewGrid">
+      <!-- Generado dinámicamente por JavaScript -->
+    </div>
+  </div>
+
+  <!-- MOTOR DE NAVEGACIÓN Y PRESENTACIÓN JAVASCRIPT -->
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    let currentSlide = 1;
+
+    const progressBar = document.getElementById('progressBar');
+    const slideCounter = document.getElementById('slideCounter');
+    const overviewModal = document.getElementById('overviewModal');
+    const overviewGrid = document.getElementById('overviewGrid');
+
+    // Nombres de cada diapositiva para el modal de vista general
+    const slideTitles = [
+      "Portada Ejecutiva: Transformación Digital",
+      "Diagnóstico: Costo Oculto del Modelo Convencional",
+      "Ecosistema PCM CLOUD: Hub Centralizado",
+      "Matriz de Transición de Roles",
+      "Flujo de Información de Extremo a Extremo",
+      "Soberanía y Respaldo Físico en Archivador Local",
+      "Desacoplamiento: Dibujo CAD/BIM desde Casa",
+      "Estructura de Ingeniería: Gobernanza de 3 Niveles",
+      "Beneficios para Clientes Industriales (Tenaris)",
+      "Hoja de Ruta de Implementación en 3 Fases",
+      "Retorno de Inversión (ROI) y Métricas Financieras",
+      "Conclusión Ejecutiva y Decisiones Estratégicas"
+    ];
+
+    function updateSlide() {
+      slides.forEach((slide, idx) => {
+        const slideIndex = idx + 1;
+        slide.classList.remove('active', 'prev');
+        if (slideIndex === currentSlide) {
+          slide.classList.add('active');
+        } else if (slideIndex < currentSlide) {
+          slide.classList.add('prev');
+        }
+      });
+
+      // Actualizar contador
+      const formattedCurrent = String(currentSlide).padStart(2, '0');
+      const formattedTotal = String(totalSlides).padStart(2, '0');
+      slideCounter.textContent = `${formattedCurrent} / ${formattedTotal}`;
+
+      // Actualizar barra de progreso
+      const progressPercent = (currentSlide / totalSlides) * 100;
+      progressBar.style.width = `${progressPercent}%`;
+
+      // Actualizar estado en overview grid
+      document.querySelectorAll('.overview-card').forEach((card, idx) => {
+        if (idx + 1 === currentSlide) {
+          card.classList.add('current');
+        } else {
+          card.classList.remove('current');
+        }
+      });
+
+      // Actualizar botón anterior/siguiente
+      const btnPrev = document.getElementById('btnPrev');
+      const btnNext = document.getElementById('btnNext');
+      if (btnPrev) btnPrev.style.visibility = currentSlide === 1 ? 'hidden' : 'visible';
+      if (btnNext) {
+        if (currentSlide === totalSlides) {
+          btnNext.innerHTML = 'Reiniciar <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>';
+        } else {
+          btnNext.innerHTML = 'Siguiente <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+        }
+      }
+    }
+
+    function goToSlide(n) {
+      if (n >= 1 && n <= totalSlides) {
+        currentSlide = n;
+        updateSlide();
+        closeOverview();
+      }
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        currentSlide++;
+      } else {
+        currentSlide = 1;
+      }
+      updateSlide();
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    // VISTA GENERAL (OVERVIEW MODAL)
+    function buildOverview() {
+      overviewGrid.innerHTML = '';
+      slideTitles.forEach((title, idx) => {
+        const num = String(idx + 1).padStart(2, '0');
+        const card = document.createElement('div');
+        card.className = `overview-card ${idx + 1 === currentSlide ? 'current' : ''}`;
+        card.onclick = () => goToSlide(idx + 1);
+        card.innerHTML = `
+          <div class="overview-card-num">${num}</div>
+          <div class="overview-card-title">${title}</div>
+        `;
+        overviewGrid.appendChild(card);
+      });
+    }
+
+    function toggleOverview() {
+      if (overviewModal.classList.contains('active')) {
+        closeOverview();
+      } else {
+        buildOverview();
+        overviewModal.classList.add('active');
+      }
+    }
+
+    function closeOverview() {
+      overviewModal.classList.remove('active');
+    }
+
+    // PANTALLA COMPLETA
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.warn('Pantalla completa no disponible:', err);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    // LISTENERS DE TECLADO
+    document.addEventListener('keydown', (e) => {
+      // Si el modal de overview está abierto y presiona Escape
+      if (e.key === 'Escape') {
+        closeOverview();
+        return;
+      }
+
+      // Atajos de navegación
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'Backspace' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        goToSlide(1);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToSlide(totalSlides);
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      } else if (e.key === 'o' || e.key === 'O') {
+        toggleOverview();
+      } else if (e.key === 'p' || e.key === 'P') {
+        window.print();
+      }
+    });
+
+    // BOTONES DE ENCABEZADO
+    document.getElementById('btnOverview').onclick = toggleOverview;
+    document.getElementById('btnCloseOverview').onclick = closeOverview;
+    document.getElementById('btnFullscreen').onclick = toggleFullscreen;
+    document.getElementById('btnPrint').onclick = () => window.print();
+
+    // SOPORTE PARA GESTOS TOUCH (SWIPE)
+    let touchStartX = 0;
+    let touchEndX = 0;
+    document.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+    document.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, { passive: true });
+
+    function handleSwipe() {
+      const threshold = 50;
+      if (touchEndX < touchStartX - threshold) {
+        nextSlide(); // Swipe izquierda -> siguiente
+      }
+      if (touchEndX > touchStartX + threshold) {
+        prevSlide(); // Swipe derecha -> anterior
+      }
+    }
+
+    // INICIALIZACIÓN
+    buildOverview();
+    updateSlide();
+  </script>
+</body>
+</html>
