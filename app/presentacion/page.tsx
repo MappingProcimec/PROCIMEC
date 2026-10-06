@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function PresentacionPage() {
   return (
-    <main className="w-full h-[100dvh] bg-[#15181D] overflow-hidden m-0 p-0 flex flex-col">
+    <main className="w-full h-[100dvh] bg-[#F8FAFC] overflow-hidden m-0 p-0 flex flex-col">
       <iframe
         src="/presentacion/index.html"
         title="Presentación Ejecutiva - Gerencia Financiera"
