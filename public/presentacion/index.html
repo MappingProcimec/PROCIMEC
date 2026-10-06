@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Presentación Estratégica — Flujo Integral de Información y Eficiencia de Desarrollo | Gerencia Financiera</title>
+  <title>Presentación Estratégica — Flujo Integral, Auditoría, Costos y Transición Digital | Gerencia Financiera</title>
   
   <!-- Tipografías Oficiales: Inter y JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -66,7 +66,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* BARRA DE PROGRESO SUPERIOR */
+    /* BARRA DE PROGRESO SUPERIOR (5 DIAPOSITIVAS = 20% CADA UNA) */
     .progress-bar-container {
       position: fixed;
       top: 0;
@@ -78,7 +78,7 @@
     }
     .progress-bar {
       height: 100%;
-      width: 25%;
+      width: 20%;
       background: linear-gradient(90deg, #D97706, #EAA023);
       box-shadow: 0 0 10px rgba(234, 160, 35, 0.35);
       transition: width 0.3s cubic-bezier(0.23, 1, 0.32, 1);
@@ -173,7 +173,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 16px 36px;
+      padding: 14px 34px;
     }
 
     .slide {
@@ -182,7 +182,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      padding: 24px 44px;
+      padding: 20px 40px;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -209,13 +209,13 @@
       margin: 0 auto;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
 
     /* ENCABEZADOS DE DIAPOSITIVA */
     .slide-hero {
       border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: 10px;
+      padding-bottom: 8px;
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
@@ -236,26 +236,26 @@
       margin-bottom: 2px;
     }
     .slide-title {
-      font-size: 24px;
+      font-size: 23px;
       font-weight: 800;
       color: var(--text-title);
       display: flex;
       align-items: center;
       gap: 10px;
-      line-height: 1.25;
+      line-height: 1.2;
     }
     .slide-title svg {
-      width: 24px;
-      height: 24px;
+      width: 23px;
+      height: 23px;
       color: var(--amber-accent);
       stroke-width: 2;
       flex-shrink: 0;
     }
     .slide-desc {
-      font-size: 13.5px;
+      font-size: 13px;
       color: var(--text-muted);
       margin-top: 2px;
-      line-height: 1.4;
+      line-height: 1.35;
     }
 
     /* REJILLAS Y TARJETAS LIMPIAS */
@@ -267,7 +267,7 @@
     .grid-3 {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
+      gap: 12px;
     }
     .grid-4 {
       display: grid;
@@ -279,7 +279,7 @@
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
       border-radius: 8px;
-      padding: 16px 18px;
+      padding: 14px 16px;
       position: relative;
       box-shadow: var(--shadow-sm);
       transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
@@ -306,14 +306,14 @@
 
     .metric-value {
       font-family: var(--font-mono);
-      font-size: 26px;
+      font-size: 24px;
       font-weight: 800;
       color: var(--amber-dark);
       line-height: 1.1;
       margin-bottom: 2px;
     }
     .metric-label {
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 700;
       color: var(--text-muted);
       text-transform: uppercase;
@@ -324,9 +324,9 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 3px 8px;
+      padding: 2px 7px;
       border-radius: 4px;
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 600;
       font-family: var(--font-mono);
       text-transform: uppercase;
@@ -376,13 +376,13 @@
       background-color: #FFFFFF;
       color: var(--text-title);
       border: 1px solid var(--border-medium);
-      padding: 8px 14px;
+      padding: 7px 12px;
       border-radius: 6px;
       display: inline-flex;
       align-items: center;
       gap: 6px;
       cursor: pointer;
-      font-size: 12.5px;
+      font-size: 12px;
       font-weight: 600;
       transition: all 0.16s ease;
       box-shadow: var(--shadow-sm);
@@ -404,7 +404,7 @@
       width: 100%;
       border-collapse: collapse;
       text-align: left;
-      font-size: 12.5px;
+      font-size: 12px;
     }
     .exec-table th {
       background: var(--bg-muted);
@@ -418,7 +418,7 @@
       font-family: var(--font-mono);
     }
     .exec-table td {
-      padding: 8px 12px;
+      padding: 7px 12px;
       border-bottom: 1px solid var(--border-subtle);
       color: var(--text-body);
       vertical-align: middle;
@@ -440,36 +440,36 @@
     }
     .image-preview-card img {
       width: 100%;
-      height: 165px;
+      height: 155px;
       object-fit: cover;
       display: block;
     }
     .image-caption {
-      padding: 8px 12px;
+      padding: 6px 12px;
       background: #FFFFFF;
       border-top: 1px solid var(--border-subtle);
-      font-size: 11.5px;
+      font-size: 11px;
       color: var(--text-muted);
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
 
-    /* ENGRANAJES DEL RELOJ OPERATIVO (DIVISIÓN 2) */
+    /* ENGRANAJES DEL RELOJ OPERATIVO */
     .gear-flow {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
+      gap: 10px;
     }
     .gear-card {
       background: #FFFFFF;
       border: 1px solid var(--border-subtle);
       border-radius: 8px;
-      padding: 14px;
+      padding: 12px;
       position: relative;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
       box-shadow: var(--shadow-sm);
       transition: all 0.2s ease;
     }
@@ -479,35 +479,44 @@
     }
     .gear-step-num {
       font-family: var(--font-mono);
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 800;
       color: var(--amber-dark);
     }
     .gear-title {
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 700;
       color: var(--text-title);
     }
     .gear-body {
-      font-size: 12px;
+      font-size: 11.5px;
       color: var(--text-body);
-      line-height: 1.4;
+      line-height: 1.35;
     }
 
-    /* MAPA DE DISTRIBUCIÓN DE INFORMACIÓN (DIVISIÓN 3) */
-    .map-grid {
+    /* GRID DE ROLES INTERCONECTADOS (ENGRANAJE 3) */
+    .roles-grid-compact {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 6px;
     }
-    .map-box {
-      background: #FFFFFF;
+    .role-pill {
+      background: var(--bg-muted);
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 11px;
+      line-height: 1.25;
+    }
+    .role-pill strong {
+      color: var(--text-title);
+      display: block;
+      margin-bottom: 1px;
+    }
+    .role-pill.new-role {
+      border-left: 3px solid var(--amber-accent);
+      background: #FFFBEB;
     }
 
     /* PIE DE DIAPOSITIVAS */
@@ -576,7 +585,7 @@
       background: #FFFFFF;
       border-radius: 10px;
       padding: 24px;
-      max-width: 900px;
+      max-width: 950px;
       width: 100%;
       margin: auto;
       box-shadow: var(--shadow-lg);
@@ -584,19 +593,19 @@
     }
     .overview-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 14px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
       margin-top: 14px;
     }
     .overview-card {
       background: var(--bg-muted);
       border: 1px solid var(--border-subtle);
       border-radius: 8px;
-      padding: 16px;
+      padding: 14px;
       cursor: pointer;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
       transition: all 0.16s ease;
     }
     .overview-card:hover, .overview-card.current {
@@ -632,7 +641,7 @@
     }
 
     @media (max-width: 900px) {
-      .grid-3, .grid-4, .gear-flow, .map-grid, .overview-grid {
+      .grid-3, .grid-4, .gear-flow, .roles-grid-compact, .overview-grid {
         grid-template-columns: 1fr;
       }
       .grid-2 {
@@ -699,10 +708,10 @@
     </div>
   </header>
 
-  <!-- CONTENEDOR PRINCIPAL: EXACTAMENTE 4 DIAPOSITIVAS -->
+  <!-- CONTENEDOR PRINCIPAL: EXACTAMENTE 5 DIAPOSITIVAS -->
   <main class="deck-container">
 
-    <!-- DIAPOSITIVA 1: PORTADA EJECUTIVA Y SELECTOR DIRECTO DE LAS 3 DIVISIONES -->
+    <!-- DIAPOSITIVA 1: PORTADA Y MENÚ DE LAS 4 DIVISIONES ESTRATÉGICAS -->
     <section class="slide active" data-index="1">
       <div class="slide-inner">
         <div style="display: flex; gap: 8px;">
@@ -710,81 +719,101 @@
           <span class="badge badge-success">Auditoría Financiera y Operativa</span>
         </div>
         
-        <h1 style="font-size: 32px; font-weight: 800; line-height: 1.15; color: var(--text-title);">
-          Flujo Digital de la Información, Auditoría de Horas y Soberanía Operativa
+        <h1 style="font-size: 30px; font-weight: 800; line-height: 1.15; color: var(--text-title);">
+          Flujo Digital de la Información, Eficiencia Financiera y Transición Operativa
         </h1>
         
-        <p style="font-size: 14.5px; color: var(--text-body); max-width: 900px; line-height: 1.45;">
-          Presentación para la <strong>Gerencia Financiera</strong>: auditoría de horas reales invertidas, el mecanismo de engranaje de la información como un reloj entre todos los roles y el mapa de distribución de datos con respaldo en archivador local.
+        <p style="font-size: 14px; color: var(--text-body); max-width: 950px; line-height: 1.4;">
+          Presentación para la <strong>Gerencia Financiera</strong>: horas reales invertidas, engranaje de todos los roles de la empresa como un reloj, arquitectura con reducción de costos presencial vs. digital, y hoja de ruta para la transición al entorno virtual.
         </p>
 
-        <!-- LAS 3 DIVISIONES ESTRATÉGICAS CLICKEABLES -->
-        <div class="grid-3" style="margin-top: 4px;">
+        <!-- LAS 4 DIVISIONES ESTRATÉGICAS CLICKEABLES -->
+        <div class="grid-4" style="margin-top: 2px;">
           
           <!-- DIVISIÓN 1 -->
           <div class="card card-interactive card-accent" onclick="goToSlide(2)">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px;">
               <span class="badge badge-amber">DIVISIÓN 1</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polyline points="12 6 12 12 16 14"></polyline>
               </svg>
             </div>
             <div class="metric-value">115.4 h / 155.1 h</div>
-            <div class="metric-label">Auditoría Real vs. 1.000 h</div>
-            <p style="font-size: 12px; color: var(--text-body); margin-top: 6px; line-height: 1.4;">
-              <strong>115.4 h netas</strong> (155.1 h jornada total). Aceleración con IA frente a las <strong>1.000 h tradicionales</strong>. Horas faltantes para operar al 100%.
+            <div class="metric-label">Auditoría vs. 1.000 h</div>
+            <p style="font-size: 11.5px; color: var(--text-body); margin-top: 4px; line-height: 1.35;">
+              <strong>115.4 h netas</strong> (155.1 h jornada). Ahorro &gt;84% frente a 1.000 h tradicionales y horas faltantes al 100%.
             </p>
-            <div style="margin-top: 10px; font-size: 12px; font-weight: 700; color: var(--amber-dark);">
-              Ver Auditoría de Horas y Proyección →
+            <div style="margin-top: 8px; font-size: 11.5px; font-weight: 700; color: var(--amber-dark);">
+              Ver Auditoría de Horas →
             </div>
           </div>
 
           <!-- DIVISIÓN 2 -->
           <div class="card card-interactive card-accent" onclick="goToSlide(3)">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px;">
               <span class="badge badge-amber">DIVISIÓN 2</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2">
                 <circle cx="12" cy="12" r="3"></circle>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
               </svg>
             </div>
-            <div class="metric-value">Relojería Digital</div>
-            <div class="metric-label">Del Hecho Real a los Roles</div>
-            <p style="font-size: 12px; color: var(--text-body); margin-top: 6px; line-height: 1.4;">
-              Un hecho real se captura y <strong>desencadena procesos automáticos</strong> sincronizados entre Campo, Dibujo, Almacén, HSEQ, Compras y Finanzas.
+            <div class="metric-value">Reloj Operativo</div>
+            <div class="metric-label">Todos los Roles Sincronizados</div>
+            <p style="font-size: 11.5px; color: var(--text-body); margin-top: 4px; line-height: 1.35;">
+              Mecanismo engranado desde un hecho real. Incluye <strong>Ingeniero, Coordinador y Director</strong>.
             </p>
-            <div style="margin-top: 10px; font-size: 12px; font-weight: 700; color: var(--amber-dark);">
-              Ver Mecanismo de Engranajes de Roles →
+            <div style="margin-top: 8px; font-size: 11.5px; font-weight: 700; color: var(--amber-dark);">
+              Ver Sincronización de Roles →
             </div>
           </div>
 
           <!-- DIVISIÓN 3 -->
           <div class="card card-interactive card-accent" onclick="goToSlide(4)">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px;">
               <span class="badge badge-amber">DIVISIÓN 3</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2">
-                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-                <line x1="6" y1="6" x2="6.01" y2="6"></line>
-                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2">
+                <line x1="12" y1="1" x2="12" y2="23"></line>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
               </svg>
             </div>
-            <div class="metric-value">Mapa de Datos</div>
-            <div class="metric-label">Cloud + Archivador Local</div>
-            <p style="font-size: 12px; color: var(--text-body); margin-top: 6px; line-height: 1.4;">
-              Esquema de distribución de datos: captura en terreno, motor cloud y replicación física al <strong>archivador local</strong> de la empresa. Retorno al inicio.
+            <div class="metric-value">-40% Costos</div>
+            <div class="metric-label">Presencial vs. Digital</div>
+            <p style="font-size: 11.5px; color: var(--text-body); margin-top: 4px; line-height: 1.35;">
+              Disminución de costos fijos de oficina. Mapa de datos en nube y <strong>archivador físico local</strong>.
             </p>
-            <div style="margin-top: 10px; font-size: 12px; font-weight: 700; color: var(--amber-dark);">
-              Ver Mapa de Distribución y Respaldo →
+            <div style="margin-top: 8px; font-size: 11.5px; font-weight: 700; color: var(--amber-dark);">
+              Ver Costos y Archivador Local →
+            </div>
+          </div>
+
+          <!-- DIVISIÓN 4 -->
+          <div class="card card-interactive card-accent" onclick="goToSlide(5)">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px;">
+              <span class="badge badge-amber">DIVISIÓN 4</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2">
+                <polyline points="16 3 21 3 21 8"></polyline>
+                <line x1="4" y1="20" x2="21" y2="3"></line>
+                <polyline points="21 16 21 21 16 21"></polyline>
+                <line x1="15" y1="15" x2="21" y2="21"></line>
+                <line x1="4" y1="4" x2="9" y2="9"></line>
+              </svg>
+            </div>
+            <div class="metric-value">Plan Transición</div>
+            <div class="metric-label">De lo Físico a lo Virtual</div>
+            <p style="font-size: 11.5px; color: var(--text-body); margin-top: 4px; line-height: 1.35;">
+              Metodología en 4 fases de marcha blanca y migración gradual para <strong>cero traumatismos</strong>.
+            </p>
+            <div style="margin-top: 8px; font-size: 11.5px; font-weight: 700; color: var(--amber-dark);">
+              Ver Ruta de Transición →
             </div>
           </div>
 
         </div>
 
-        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--border-subtle);">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid var(--border-subtle);">
           <div style="font-size: 12px; color: var(--text-muted);">
-            Presentación ágil de 3 divisiones secuenciales que regresa automáticamente a la portada.
+            Presentación interactiva en 4 divisiones secuenciales que regresa a esta portada al finalizar.
           </div>
           <button class="btn-accent" onclick="goToSlide(2)">
             Comenzar Recorrido (División 1)
@@ -818,12 +847,11 @@
           </button>
         </div>
 
-        <!-- 4 TARJETAS CONCRETAS PARA HABLAR DIRECTO -->
         <div class="grid-4">
           <div class="card card-accent">
             <div class="metric-label">Horas Netas de Desarrollo</div>
             <div class="metric-value">115.4 h</div>
-            <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
               Ingeniería directa de software en módulos y arquitectura.
             </p>
           </div>
@@ -831,7 +859,7 @@
           <div class="card card-accent">
             <div class="metric-label">Jornada Total Dedicada</div>
             <div class="metric-value">155.1 h</div>
-            <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
               Tiempo completo: diseño, pruebas, datos y despliegue.
             </p>
           </div>
@@ -839,7 +867,7 @@
           <div class="card" style="background: var(--bg-muted);">
             <div class="metric-label">Propuesta Inicial (Sin IA)</div>
             <div class="metric-value" style="color: var(--text-title);">1.000 h</div>
-            <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
               Presupuesto tradicional de desarrollo (6 a 8 meses).
             </p>
           </div>
@@ -847,13 +875,12 @@
           <div class="card card-success">
             <div class="metric-label">Ahorro para la Empresa</div>
             <div class="metric-value" style="color: var(--success-text);">-84.5%</div>
-            <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+            <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
               Reducción directa de costos gracias a Antigravity IDE.
             </p>
           </div>
         </div>
 
-        <!-- TABLA CONCISA DE HORAS FALTANTES POR ROL -->
         <div class="table-container">
           <table class="exec-table">
             <thead>
@@ -869,48 +896,48 @@
                 <td class="role-col"><strong>Dibujo CAD/BIM &amp; Localización</strong></td>
                 <td><span class="badge badge-amber">En Desarrollo Activo</span></td>
                 <td style="font-family: var(--font-mono); font-weight: 700;">~30.5 h</td>
-                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~20 h <span style="font-weight: normal; font-size: 11px; color: var(--text-muted);">(Paquetes remotos y control de horas)</span></td>
+                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~20 h <span style="font-weight: normal; font-size: 10.5px; color: var(--text-muted);">(Paquetes remotos y control de horas)</span></td>
               </tr>
               <tr>
                 <td class="role-col"><strong>Operadores de Campo / Mapping</strong></td>
                 <td><span class="badge badge-info">Piloto Inicial</span></td>
                 <td style="font-family: var(--font-mono); font-weight: 700;">~20.0 h</td>
-                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~25 h <span style="font-weight: normal; font-size: 11px; color: var(--text-muted);">(Sincronización offline y compresión)</span></td>
+                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~25 h <span style="font-weight: normal; font-size: 10.5px; color: var(--text-muted);">(Sincronización offline y compresión)</span></td>
               </tr>
               <tr>
                 <td class="role-col"><strong>Almacén &amp; Compras (Kárdex y 4 Firmas)</strong></td>
                 <td><span class="badge badge-success">85% Funcional</span></td>
                 <td style="font-family: var(--font-mono); font-weight: 700;">~35.0 h</td>
-                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~20 h <span style="font-weight: normal; font-size: 11px; color: var(--text-muted);">(Stock crítico y órdenes consolidadas)</span></td>
+                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~20 h <span style="font-weight: normal; font-size: 10.5px; color: var(--text-muted);">(Stock crítico y órdenes consolidadas)</span></td>
               </tr>
               <tr>
                 <td class="role-col"><strong>Aseguramiento HSEQ</strong></td>
                 <td><span class="badge badge-success">80% Funcional</span></td>
                 <td style="font-family: var(--font-mono); font-weight: 700;">~20.0 h</td>
-                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~15 h <span style="font-weight: normal; font-size: 11px; color: var(--text-muted);">(Alertas preventivas de vencimiento)</span></td>
+                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~15 h <span style="font-weight: normal; font-size: 10.5px; color: var(--text-muted);">(Alertas preventivas de vencimiento)</span></td>
               </tr>
               <tr>
-                <td class="role-col"><strong>Ingeniería, Coordinación &amp; Finanzas</strong></td>
+                <td class="role-col"><strong>Ingeniería (Ingeniero, Coordinador, Director) &amp; Finanzas</strong></td>
                 <td><span class="badge badge-info">Fase de Integración</span></td>
                 <td style="font-family: var(--font-mono); font-weight: 700;">~9.9 h</td>
-                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~40 h <span style="font-weight: normal; font-size: 11px; color: var(--text-muted);">(Rendimientos, márgenes y actas de obra)</span></td>
+                <td style="font-family: var(--font-mono); font-weight: 700; color: var(--amber-dark);">~40 h <span style="font-weight: normal; font-size: 10.5px; color: var(--text-muted);">(Rendimientos, márgenes y actas de obra)</span></td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--amber-light); border: 1px solid var(--amber-border); border-radius: 6px;">
-          <div style="font-size: 12.5px; color: var(--amber-dark);">
-            <strong>Proyección para 100% Operativo:</strong> Faltan aproximadamente <strong>~120 horas</strong> de desarrollo. La plataforma completa operará al 100% en un total de <strong>~275 h de jornada</strong>, frente a las <strong>1.000 h iniciales</strong> (ahorro de más de 720 h de inversión).
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--amber-light); border: 1px solid var(--amber-border); border-radius: 6px;">
+          <div style="font-size: 12px; color: var(--amber-dark);">
+            <strong>Proyección para 100% Operativo:</strong> Faltan aprox. <strong>~120 horas</strong>. La plataforma completa operará al 100% en un total de <strong>~275 h de jornada</strong>, frente a las <strong>1.000 h iniciales</strong> (ahorro de más de 720 h de inversión).
           </div>
           <button class="btn-accent" onclick="goToSlide(3)">
-            Avanzar a División 2: El Flujo de Información →
+            Avanzar a División 2: El Reloj Operativo →
           </button>
         </div>
       </div>
     </section>
 
-    <!-- DIAPOSITIVA 3: DIVISIÓN 2 — EL FLUJO DE INFORMACIÓN COMO MECANISMO DE RELOJERÍA -->
+    <!-- DIAPOSITIVA 3: DIVISIÓN 2 — EL FLUJO DE INFORMACIÓN COMO MECANISMO DE RELOJERÍA (TODOS LOS ROLES) -->
     <section class="slide" data-index="3">
       <div class="slide-inner">
         <div class="slide-hero">
@@ -921,10 +948,10 @@
                 <circle cx="12" cy="12" r="3"></circle>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
               </svg>
-              El Flujo de Información: De un Hecho Real a la Trazabilidad como un Reloj
+              El Flujo de Información: De un Hecho Real a la Reacción en Cadena de Todos los Roles
             </h2>
             <p class="slide-desc">
-              La plataforma no es una herramienta aislada: convierte cada hecho real de la empresa en una reacción en cadena perfectamente sincronizada entre roles.
+              Un hecho real se captura digitalmente y desencadena procesos automáticos sincronizados en todos los roles como un reloj.
             </p>
           </div>
           <div style="display: flex; gap: 8px;">
@@ -937,7 +964,7 @@
           </div>
         </div>
 
-        <!-- LOS 4 ENGRANAJES SECUENCIALES -->
+        <!-- LOS 4 ENGRANAJES DEL MECANISMO -->
         <div class="gear-flow">
           
           <div class="gear-card" style="border-top: 3px solid var(--amber-accent);">
@@ -945,10 +972,10 @@
             <div class="gear-title">1. El Hecho Real</div>
             <div class="gear-body">
               Ocurre un evento físico u operativo:
-              <ul style="margin-top: 4px; padding-left: 14px; font-size: 11.5px; color: var(--text-muted);">
-                <li>Un hallazgo o necesidad en terreno.</li>
-                <li>Una solicitud de material o activo.</li>
-                <li>Una inspección o requerimiento.</li>
+              <ul style="margin-top: 3px; padding-left: 12px; font-size: 11px; color: var(--text-muted);">
+                <li>Hallazgo o necesidad en terreno.</li>
+                <li>Consumo o requerimiento de activo.</li>
+                <li>Inspección preoperacional.</li>
               </ul>
             </div>
           </div>
@@ -958,83 +985,96 @@
             <div class="gear-title">2. Ingesta Digital Inmutable</div>
             <div class="gear-body">
               Se captura al instante con rigor:
-              <ul style="margin-top: 4px; padding-left: 14px; font-size: 11.5px; color: var(--text-muted);">
-                <li>Quién lo registró (usuario autenticado).</li>
-                <li>Cuándo ocurrió (marca de tiempo legal).</li>
-                <li>Georreferenciación y fotos con soporte.</li>
+              <ul style="margin-top: 3px; padding-left: 12px; font-size: 11px; color: var(--text-muted);">
+                <li>Usuario autenticado y cédula.</li>
+                <li>Marca de tiempo legal (created_at).</li>
+                <li>Georreferenciación y fotos in situ.</li>
               </ul>
             </div>
           </div>
 
-          <div class="gear-card" style="border-top: 3px solid #0284C7;">
-            <div class="gear-step-num">ENGRANAJE 03</div>
-            <div class="gear-title">3. Reacción en Cadena</div>
+          <div class="gear-card" style="border-top: 3px solid #0284C7; grid-column: span 2;">
+            <div class="gear-step-num">ENGRANAJE 03 (NÚCLEO OPERATIVO)</div>
+            <div class="gear-title">3. Reacción en Cadena — Todos los Roles Interconectados</div>
             <div class="gear-body">
-              Los roles se activan automáticamente:
-              <ul style="margin-top: 4px; padding-left: 14px; font-size: 11.5px; color: var(--text-muted);">
-                <li><strong>Dibujo:</strong> Recibe el paquete para modelar.</li>
-                <li><strong>Almacén:</strong> Ajusta kárdex y despacha.</li>
-                <li><strong>HSEQ &amp; Compras:</strong> Validan y cotizan.</li>
-              </ul>
+              El hecho activa a cada responsable según su especialidad:
             </div>
-          </div>
-
-          <div class="gear-card" style="border-top: 3px solid #10B981;">
-            <div class="gear-step-num">ENGRANAJE 04</div>
-            <div class="gear-title">4. Trazabilidad en el Tiempo</div>
-            <div class="gear-body">
-              El hecho perdura sin perderse:
-              <ul style="margin-top: 4px; padding-left: 14px; font-size: 11.5px; color: var(--text-muted);">
-                <li>Auditoría perpetua ante el cliente.</li>
-                <li>Facturación respaldada en 48 horas.</li>
-                <li>Cero reprocesos ni información perdida.</li>
-              </ul>
+            
+            <!-- TODOS LOS ROLES DETALLADOS, INCLUYENDO LOS NUEVOS PROYECTADOS -->
+            <div class="roles-grid-compact">
+              <div class="role-pill">
+                <strong>Campo &amp; Mapping</strong>
+                Captura el dato primario en obra.
+              </div>
+              <div class="role-pill">
+                <strong>Dibujo (CAD/BIM)</strong>
+                Recibe y modela desde casa.
+              </div>
+              <div class="role-pill">
+                <strong>Almacén</strong>
+                Ajusta kárdex y despacha insumos.
+              </div>
+              <div class="role-pill">
+                <strong>Compras</strong>
+                Cotiza con flujo de 4 firmas digitales.
+              </div>
+              <div class="role-pill">
+                <strong>Aseguramiento HSEQ</strong>
+                Fiscaliza seguridad y alertas.
+              </div>
+              <div class="role-pill new-role">
+                <strong>Ingeniero de Proyecto (Nuevo)</strong>
+                Supervisa calidad in situ y da visto bueno.
+              </div>
+              <div class="role-pill new-role">
+                <strong>Coordinador de Proyectos (Nuevo)</strong>
+                Articula frentes y cronogramas.
+              </div>
+              <div class="role-pill new-role">
+                <strong>Director de Proyectos (Nuevo)</strong>
+                Gobernanza contractual y SLAs.
+              </div>
+              <div class="role-pill">
+                <strong>Gerencia Financiera</strong>
+                Monitorea costos y autoriza facturación.
+              </div>
             </div>
           </div>
 
         </div>
 
-        <!-- IMAGEN ILUSTRATIVA DE TELETRABAJO Y REACCIÓN OPERATIVA -->
-        <div class="grid-2" style="align-items: center; margin-top: 4px;">
-          <div class="image-preview-card">
-            <img src="/presentacion/assets/cad_remote.jpg" alt="Dibujante CAD trabajando desde casa con datos de campo">
-            <div class="image-caption">
-              <span><strong>Desacoplamiento Operativo:</strong> Dibujo CAD/BIM desde casa con datos de terreno</span>
-              <span class="badge badge-success">Sincronización Inmediata</span>
+        <!-- ENGRANAJE 4 Y CONCLUSIÓN -->
+        <div class="card card-success" style="padding: 10px 14px; margin-top: 2px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <div style="font-size: 12.5px; font-weight: 700; color: var(--success-text);">
+                ENGRANAJE 04: Trazabilidad Perpetua y Cero Reprocesos
+              </div>
+              <div style="font-size: 11.5px; color: var(--text-body); margin-top: 2px;">
+                Cada acción queda encadenada formalmente en la base de datos a lo largo del tiempo. Nadie depende de cadenas de WhatsApp ni carpetas en papel; la empresa factura en 48 horas con soporte técnico incuestionable.
+              </div>
             </div>
-          </div>
-
-          <div class="card card-accent" style="padding: 14px 16px;">
-            <div style="font-size: 13.5px; font-weight: 700; color: var(--text-title); margin-bottom: 4px;">
-              Sinergia entre Roles: Cero Aislamiento
-            </div>
-            <div style="font-size: 12px; color: var(--text-body); line-height: 1.45;">
-              Antes, el personal de dibujo esperaba días a que la cuadrilla regresara con memorias USB. Ahora, el hecho registrado en la plataforma activa la tarea del dibujante en su casa en minutos, el almacén descuenta consumibles y la gerencia observa las horas hombre devengadas en tiempo real.
-            </div>
-            <div style="margin-top: 10px; font-size: 11.5px; font-weight: 700; color: var(--amber-dark);">
-              Principio Corporativo: Ningún dato queda en el aire ni disperso en chats informales.
-            </div>
+            <span class="badge badge-success">Mecanismo Activo</span>
           </div>
         </div>
 
-        <!-- BOTÓN QUE LLEVA DIRECTAMENTE A LA DIVISIÓN 3 -->
         <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 4px;">
           <div style="font-size: 12px; color: var(--text-muted);">
-            Paso 2 de 3 completado. Continúa al mapa de distribución y respaldo local.
+            Paso 2 de 4. Continúa a la arquitectura y comparación de costos presencial vs. digital.
           </div>
           <button class="btn-accent" onclick="goToSlide(4)">
-            Avanzar a División 3: Mapa de Distribución y Respaldo →
+            Avanzar a División 3: Arquitectura y Costos Presencial vs. Digital →
           </button>
         </div>
       </div>
     </section>
 
-    <!-- DIAPOSITIVA 4: DIVISIÓN 3 — MAPA DE DISTRIBUCIÓN DE INFORMACIÓN, ARCHIVADOR LOCAL Y RETORNO -->
+    <!-- DIAPOSITIVA 4: DIVISIÓN 3 — ARQUITECTURA, SOBERANÍA Y COSTOS (PRESENCIAL VS. DIGITAL) -->
     <section class="slide" data-index="4">
       <div class="slide-inner">
         <div class="slide-hero">
           <div class="slide-hero-text">
-            <div class="slide-category">División 3 — Arquitectura y Soberanía</div>
+            <div class="slide-category">División 3 — Arquitectura, Soberanía y Costos</div>
             <h2 class="slide-title">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
@@ -1042,10 +1082,10 @@
                 <line x1="6" y1="6" x2="6.01" y2="6"></line>
                 <line x1="6" y1="18" x2="6.01" y2="18"></line>
               </svg>
-              Mapa de Distribución de la Información: Nube y Archivador Físico Local
+              Mapa de Distribución y Disminución de Costos: Presencial vs. Digital
             </h2>
             <p class="slide-desc">
-              Cómo se mueve la información en la plataforma y cómo se asegura el respaldo físico en el archivador corporativo de la empresa.
+              Cómo se resguarda la información con custodia física en el archivador corporativo y el ahorro económico derivado de la digitalización.
             </p>
           </div>
           <div style="display: flex; gap: 8px;">
@@ -1058,33 +1098,63 @@
           </div>
         </div>
 
-        <!-- MAPA / ESQUEMA DE DISTRIBUCIÓN -->
-        <div class="grid-2" style="align-items: center;">
+        <!-- COMPARACIÓN DE COSTOS DE OPERACIÓN: PRESENCIAL VS. DIGITAL -->
+        <div class="grid-2">
           
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <div class="card" style="padding: 12px 14px;">
+          <div class="card" style="border-left: 4px solid #EF4444; background: #FFF5F5;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <div style="font-size: 13px; font-weight: 800; color: #991B1B;">MODELO CONVENCIONAL PRESENCIAL / FÍSICO</div>
+              <span class="badge" style="background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5;">Alto Costo Fijo</span>
+            </div>
+            <ul style="list-style: none; font-size: 11.5px; color: #7F1D1D; line-height: 1.45; display: flex; flex-direction: column; gap: 4px;">
+              <li>• <strong>Costos Fijos Elevados:</strong> Arriendo de oficinas sobredimensionadas, mobiliario, electricidad y puestos de trabajo físicos redundantes.</li>
+              <li>• <strong>Gastos en Papelería y Envíos:</strong> Impresión masiva de planos as-built para revisión interna, carpetas físicas HSEQ y mensajería.</li>
+              <li>• <strong>Tiempos Muertos de Traslado:</strong> Dibujantes y coordinadores pierden 2 a 3 horas diarias en desplazamientos urbanos.</li>
+              <li>• <strong>Riesgo de Deterioro:</strong> Carpetas físicas expuestas a extravío, lluvia en obra o daño en archivadores físicos.</li>
+            </ul>
+          </div>
+
+          <div class="card card-success" style="background: #F0FDF4;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <div style="font-size: 13px; font-weight: 800; color: #166534;">MODELO DIGITAL Y VIRTUALIZADO (PLATAFORMA)</div>
+              <span class="badge badge-success">Ahorro Cuantificable</span>
+            </div>
+            <ul style="list-style: none; font-size: 11.5px; color: #14532D; line-height: 1.45; display: flex; flex-direction: column; gap: 4px;">
+              <li>• <strong>Reducción de hasta un 40% en Costos Fijos:</strong> Gabinete de dibujo operando desde casa con estaciones de modelado propias.</li>
+              <li>• <strong>Cero Papelería:</strong> Formatos oficiales espejo de Excel generados en PDF digital con firmas electrónicas vinculantes.</li>
+              <li>• <strong>Aumento de Productividad (+28%):</strong> Horas netas de modelado técnico enfocadas en producción sin desgaste de transporte.</li>
+              <li>• <strong>Escalabilidad Inmediata:</strong> Capacidad de sumar dibujantes o ingenieros sin requerir metros cuadrados adicionales.</li>
+            </ul>
+          </div>
+
+        </div>
+
+        <!-- ARQUITECTURA DE INFORMACIÓN Y ARCHIVADOR LOCAL -->
+        <div class="grid-2" style="align-items: center; margin-top: 2px;">
+          
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div class="card" style="padding: 10px 12px;">
               <div style="font-size: 11px; font-weight: 700; color: var(--amber-dark); font-family: var(--font-mono);">CAPA 1: PUNTOS DE CAPTURA &amp; CONSUMO</div>
-              <div style="font-size: 12px; color: var(--text-body); margin-top: 2px;">
+              <div style="font-size: 11.5px; color: var(--text-body); margin-top: 1px;">
                 Móviles en campo, estaciones de teletrabajo de dibujo (AutoCAD/Civil 3D), puestos de almacén y tableros gerenciales.
               </div>
             </div>
 
-            <div class="card card-accent" style="padding: 12px 14px;">
+            <div class="card card-accent" style="padding: 10px 12px;">
               <div style="font-size: 11px; font-weight: 700; color: var(--amber-dark); font-family: var(--font-mono);">CAPA 2: NUBE CORPORATIVA (SUPABASE POSTGRESQL)</div>
-              <div style="font-size: 12px; color: var(--text-body); margin-top: 2px;">
+              <div style="font-size: 11.5px; color: var(--text-body); margin-top: 1px;">
                 Base de datos central con cifrado AES-256, políticas RLS por rol y reglas de integridad dura asociadas al proyecto (`cost_center`).
               </div>
             </div>
 
-            <div class="card card-success" style="padding: 12px 14px;">
+            <div class="card card-success" style="padding: 10px 12px;">
               <div style="font-size: 11px; font-weight: 700; color: var(--success-text); font-family: var(--font-mono);">CAPA 3: ESPEJO DIARIO EN ARCHIVADOR LOCAL CORPORATIVO</div>
-              <div style="font-size: 12px; color: var(--text-body); margin-top: 2px;">
+              <div style="font-size: 11.5px; color: var(--text-body); margin-top: 1px;">
                 Replicación automatizada hacia los discos del servidor físico local. La empresa mantiene la <strong>soberanía física de sus datos históricos</strong>.
               </div>
             </div>
           </div>
 
-          <!-- IMAGEN REAL DEL SERVIDOR Y ARCHIVADOR LOCAL -->
           <div class="image-preview-card">
             <img src="/presentacion/assets/server_backup.jpg" alt="Servidor y Archivador Físico Local Corporativo">
             <div class="image-caption">
@@ -1095,19 +1165,117 @@
 
         </div>
 
-        <!-- CIERRE Y RETORNO A LA PORTADA PRINCIPAL -->
-        <div class="card" style="background: #FFFFFF; border: 1.5px solid var(--amber-accent); padding: 14px 18px; box-shadow: var(--shadow-sm); margin-top: 2px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 4px;">
+          <div style="font-size: 12px; color: var(--text-muted);">
+            Paso 3 de 4. Continúa al plan de transición de lo presencial a lo virtual.
+          </div>
+          <button class="btn-accent" onclick="goToSlide(5)">
+            Avanzar a División 4: Plan de Transición Digital →
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- DIAPOSITIVA 5: DIVISIÓN 4 — PLAN DE TRANSICIÓN DE LO FÍSICO/PRESENCIAL A LO DIGITAL/VIRTUAL -->
+    <section class="slide" data-index="5">
+      <div class="slide-inner">
+        <div class="slide-hero">
+          <div class="slide-hero-text">
+            <div class="slide-category">División 4 — Gestión del Cambio y Despliegue</div>
+            <h2 class="slide-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <polyline points="16 3 21 3 21 8"></polyline>
+                <line x1="4" y1="20" x2="21" y2="3"></line>
+                <polyline points="21 16 21 21 16 21"></polyline>
+                <line x1="15" y1="15" x2="21" y2="21"></line>
+                <line x1="4" y1="4" x2="9" y2="9"></line>
+              </svg>
+              Hoja de Ruta de Transición: Del Modelo Físico/Presencial al Digital/Virtual
+            </h2>
+            <p class="slide-desc">
+              Estrategia escalonada en 4 fases para trasladar las operaciones convencionales a la plataforma sin detener el trabajo diario de la empresa.
+            </p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-secondary" onclick="goToSlide(4)">
+              ← División 3
+            </button>
+            <button class="btn-secondary" onclick="goToSlide(1)">
+              ⮌ Portada
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 FASES DE LA TRANSICIÓN -->
+        <div class="grid-4">
+          
+          <div class="card card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+              <span class="badge badge-amber">FASE 1</span>
+              <span style="font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted);">Semanas 1 y 2</span>
+            </div>
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--text-title); margin-bottom: 4px;">
+              Marcha Blanca y Doble Captura
+            </div>
+            <p style="font-size: 11.5px; color: var(--text-body); line-height: 1.35;">
+              Capacitación in situ a cuadrillas. Captura dual en paralelo (papel y móvil) durante 5 días para validar la concordancia y generar confianza en el personal de campo.
+            </p>
+          </div>
+
+          <div class="card card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+              <span class="badge badge-amber">FASE 2</span>
+              <span style="font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted);">Semanas 3 y 4</span>
+            </div>
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--text-title); margin-bottom: 4px;">
+              Virtualización de Almacén y Compras
+            </div>
+            <p style="font-size: 11.5px; color: var(--text-body); line-height: 1.35;">
+              Entrada y salida de activos 100% en kárdex digital. Eliminación de formatos de compra en papel y activación del flujo de 4 firmas digitales con visto bueno.
+            </p>
+          </div>
+
+          <div class="card card-accent">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+              <span class="badge badge-amber">FASE 3</span>
+              <span style="font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted);">Semana 5</span>
+            </div>
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--text-title); margin-bottom: 4px;">
+              Teletrabajo CAD y Roles de Ingeniería
+            </div>
+            <p style="font-size: 11.5px; color: var(--text-body); line-height: 1.35;">
+              El equipo de dibujo pasa a gabinete remoto desde casa. Activación de los roles de <strong>Ingeniero, Coordinador y Director</strong> para supervisión y firmas técnicas.
+            </p>
+          </div>
+
+          <div class="card card-success">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+              <span class="badge badge-success">FASE 4</span>
+              <span style="font-family: var(--font-mono); font-size: 10.5px; color: var(--text-muted);">Semana 6</span>
+            </div>
+            <div style="font-size: 13.5px; font-weight: 700; color: var(--text-title); margin-bottom: 4px;">
+              Operación 100% Digital y Soberana
+            </div>
+            <p style="font-size: 11.5px; color: var(--text-body); line-height: 1.35;">
+              Apagado definitivo del papel. Activación del espejo diario al archivador físico local y tablero de rentabilidad financiera en tiempo real para gerencia.
+            </p>
+          </div>
+
+        </div>
+
+        <!-- RECUADRO DE CIERRE Y REGRESO A PORTADA PRINCIPAL -->
+        <div class="card" style="background: #FFFFFF; border: 1.5px solid var(--amber-accent); padding: 12px 18px; box-shadow: var(--shadow-sm); margin-top: 4px;">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
             <div>
               <div style="font-size: 14px; font-weight: 800; color: var(--text-title);">
-                Conclusión para Gerencia Financiera: Control, Eficiencia y Cero Pérdida
+                Conclusión para Gerencia Financiera: Plan Seguro, Viable y Rentable
               </div>
-              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
-                Desarrollo acelerado en 115.4 h netas (ahorro &gt;84% vs 1.000 h), flujo engranado como un reloj entre roles y datos físicamente custodiados en casa.
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                Con 115.4 h netas ya invertidas, un mecanismo engranado para todos los roles y un plan de transición sin traumatismos, la empresa está lista para consolidar su modernización.
               </div>
             </div>
 
-            <!-- BOTÓN QUE REGRESA A LA PORTADA PRINCIPAL (PÁGINA 1) -->
+            <!-- REGRESO A LA PORTADA PRINCIPAL (PÁGINA 1) -->
             <button class="btn-accent" onclick="goToSlide(1)" style="padding: 8px 16px; font-size: 12.5px; white-space: nowrap;">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="1 4 1 10 7 10"></polyline>
@@ -1118,6 +1286,10 @@
           </div>
         </div>
 
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--text-muted); padding-top: 2px;">
+          <div>Ciclo de 4 Divisiones finalizado. Regreso automático a Portada disponible.</div>
+          <div style="font-family: var(--font-mono); font-weight: 600;">PCM CLOUD — Informe para Gerencia Financiera</div>
+        </div>
       </div>
     </section>
 
@@ -1126,7 +1298,7 @@
   <!-- PIE DE DIAPOSITIVAS Y CONTROLES -->
   <footer class="deck-footer">
     <div class="footer-left">
-      <div class="slide-counter" id="slideCounter">01 / 04</div>
+      <div class="slide-counter" id="slideCounter">01 / 05</div>
       <div class="footer-legend">
         Navega con <kbd style="background: var(--bg-muted); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-medium); font-family: var(--font-mono); font-size: 11px;">←</kbd> <kbd style="background: var(--bg-muted); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-medium); font-family: var(--font-mono); font-size: 11px;">→</kbd> o Espacio | <kbd style="background: var(--bg-muted); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-medium); font-family: var(--font-mono); font-size: 11px;">O</kbd> Índice | <kbd style="background: var(--bg-muted); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-medium); font-family: var(--font-mono); font-size: 11px;">F</kbd> Pantalla completa
       </div>
@@ -1149,18 +1321,18 @@
     </div>
   </footer>
 
-  <!-- MODAL DE RESUMEN (OVERVIEW DE LAS 4 DIAPOSITIVAS) -->
+  <!-- MODAL DE RESUMEN (OVERVIEW DE LAS 5 DIAPOSITIVAS) -->
   <div class="overview-modal" id="overviewModal">
     <div class="overview-content">
       <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
-        <div style="font-size: 17px; font-weight: 800; color: var(--text-title); display: flex; align-items: center; gap: 8px;">
+        <div style="font-size: 16px; font-weight: 800; color: var(--text-title); display: flex; align-items: center; gap: 8px;">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber-dark)" stroke-width="2">
             <rect x="3" y="3" width="7" height="7"></rect>
             <rect x="14" y="3" width="7" height="7"></rect>
             <rect x="14" y="14" width="7" height="7"></rect>
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
-          Estructura de la Presentación (4 Diapositivas)
+          Índice de la Presentación (5 Diapositivas)
         </div>
         <button class="btn-icon" id="btnCloseOverview" title="Cerrar (Esc)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -1176,10 +1348,10 @@
     </div>
   </div>
 
-  <!-- MOTOR DE NAVEGACIÓN JAVASCRIPT CORREGIDO Y PRECISO -->
+  <!-- MOTOR DE NAVEGACIÓN JAVASCRIPT CON 5 DIAPOSITIVAS -->
   <script>
     const slides = document.querySelectorAll('.slide');
-    const totalSlides = slides.length; // EXACTAMENTE 4
+    const totalSlides = slides.length; // EXACTAMENTE 5
     let currentSlide = 1;
 
     const progressBar = document.getElementById('progressBar');
@@ -1188,10 +1360,11 @@
     const overviewGrid = document.getElementById('overviewGrid');
 
     const slideTitles = [
-      "Página 1: Portada y Menú de las 3 Divisiones Estratégicas",
-      "División 1: Auditoría de Horas (115.4 h / 155.1 h vs. 1.000 h Iniciales)",
-      "División 2: El Flujo de Información como un Reloj (Del Hecho Real a los Roles)",
-      "División 3: Mapa de Distribución de Datos (Cloud + Archivador Local) y Cierre"
+      "Página 1: Portada y Menú de las 4 Divisiones Estratégicas",
+      "División 1: Auditoría de Horas (115.4 h / 155.1 h vs. 1.000 h)",
+      "División 2: El Reloj Operativo (Todos los Roles + Ingeniero, Coordinador, Director)",
+      "División 3: Arquitectura, Archivador Local y Costos: Presencial vs. Digital",
+      "División 4: Plan de Transición: Del Modelo Físico al Digital/Virtual"
     ];
 
     function updateSlide() {
@@ -1210,7 +1383,7 @@
       const formattedTotal = String(totalSlides).padStart(2, '0');
       slideCounter.textContent = `${formattedCurrent} / ${formattedTotal}`;
 
-      // Actualizar barra de progreso (25%, 50%, 75%, 100%)
+      // Actualizar barra de progreso (20%, 40%, 60%, 80%, 100%)
       const progressPercent = (currentSlide / totalSlides) * 100;
       progressBar.style.width = `${progressPercent}%`;
 
@@ -1248,7 +1421,7 @@
       if (currentSlide < totalSlides) {
         currentSlide++;
       } else {
-        currentSlide = 1; // Al terminar la división 3 regresa a la portada principal (Página 1)
+        currentSlide = 1; // Al terminar la división 4 regresa a la portada principal (Página 1)
       }
       updateSlide();
     }
@@ -1268,8 +1441,8 @@
         card.className = `overview-card ${idx + 1 === currentSlide ? 'current' : ''}`;
         card.onclick = () => goToSlide(idx + 1);
         card.innerHTML = `
-          <div style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--amber-dark);">DIAPOSITIVA ${num}</div>
-          <div style="font-size: 13px; font-weight: 700; color: var(--text-title);">${title}</div>
+          <div style="font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--amber-dark);">DIAPOSITIVA ${num}</div>
+          <div style="font-size: 12.5px; font-weight: 700; color: var(--text-title);">${title}</div>
         `;
         overviewGrid.appendChild(card);
       });
