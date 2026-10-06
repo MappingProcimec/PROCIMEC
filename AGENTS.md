@@ -2,7 +2,7 @@
 
 Este repositorio contiene la plataforma empresarial **PROCIMEC** (Next.js 14, Supabase PostgreSQL, WhatsApp Bot con Baileys y Google Gemini AI).
 
-Todo agente de Inteligencia Artificial y desarrollador que opere en este workspace debe acatar estrictamente las **15 Leyes Fundamentales de Desarrollo de Software, Arquitectura y Operación**. Estas leyes regulan con rigor **CÓMO se programa, modela, diseña, prueba y despliega** el código del sistema:
+Todo agente de Inteligencia Artificial y desarrollador que opere en este workspace debe acatar estrictamente las **16 Leyes Fundamentales de Desarrollo de Software, Arquitectura y Operación**. Estas leyes regulan con rigor **CÓMO se programa, modela, diseña, prueba y despliega** el código del sistema:
 
 ---
 
@@ -169,6 +169,21 @@ Toda interfaz, formulario, herramienta y componente del ecosistema está regulad
 - **Prohibición de Código y Rutas Huérfanas:** Al consolidar, renombrar o deprecar rutas (ej. eliminación de subpaneles obsoletos), deben removerse todas las referencias residuales en enlaces de navegación, botones y componentes. Prohibido dejar rutas muertas o enlaces rotos.
 - **Compilación Limpia Pre-Push:** Antes de realizar el commit y push automático a `main`, el código debe compilar limpiamente sin variables sin usar (`no-unused-vars`), sin tipos `any` inseguros y sin advertencias que incrementen tiempos de compilación en Vercel.
 - **Optimización de Paquetes:** Importar exclusivamente submódulos específicos de librerías para evitar sobrecargar los bundles de cliente.
+
+---
+
+## 📜 LEY 16: Eficiencia de Cómputo Serverless y Gobernanza de Cuotas Cloud (Vercel & Supabase Free Tier)
+Todo desarrollo, refactorización y adición de módulos debe ser fotométricamente eficiente en cómputo para operar sin costos ni riesgos de corte en los planes gratuitos de Vercel (Hobby: 4h Fluid Active CPU) y Supabase (Free: 500MB DB / 1GB Storage / 5GB Egress):
+- **Cero Agregación Masiva en Serverless Functions:** Queda estrictamente prohibido realizar bucles iterativos (`while`, `for`, `.reduce()`) en Node.js sobre colecciones masivas de base de datos para calcular totales, horas o métricas. Toda agregación estadística debe resolverse dentro del motor PostgreSQL mediante funciones RPC (`SECURITY DEFINER`) o consultas agregadas directas (`SUM()`, `COUNT()`).
+- **Disciplina Estricta en React Query / SWR:**
+  - **Prohibido `staleTime: 0` indiscriminado:** Toda consulta reactiva debe tener un `staleTime` mínimo de 60 segundos (`staleTime: 60 * 1000`) a menos que sea un flujo transaccional crítico.
+  - **Desactivación de `refetchOnWindowFocus`:** Salvo justificación explícita de seguridad, `refetchOnWindowFocus` debe estar en `false` para erradicar llamadas fantasma cada vez que el usuario cambia de ventana o pestaña.
+  - **Prohibido Polling Ciego en Segundo Plano:** Prohibido implementar `refetchInterval` menores a 60 segundos sin `refetchIntervalInBackground: false`. Si una vista cuenta con suscripción vía Supabase Realtime (WebSockets), el polling por intervalo queda totalmente prohibido.
+- **Prefetching Quirúrgico en Enlaces (`next/link`):**
+  - En dashboards, modales y cuadrículas con alta densidad de enlaces, es obligatorio usar `<Link prefetch={false}>` para evitar que Next.js dispare decenas de peticiones de pre-renderizado y ejecuciones innecesarias del Middleware.
+- **Blindaje de Almacenamiento y Egress en Supabase:**
+  - **Prohibido Guardar Archivos o Imágenes en Base64 en Columnas de Texto:** La base de datos es exclusivamente para datos estructurados. Toda imagen o archivo debe subirse a Supabase Storage o Google Drive y persistirse únicamente como URL string.
+  - **Compresión Pre-Subida en Cliente:** Todo módulo de captura de fotografías (evidencias HSEQ, almacén, firmas) debe comprimir las imágenes en el cliente (formato WebP o JPEG con compresión) antes de subirlas al bucket.
 
 ---
 

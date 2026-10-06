@@ -21,9 +21,9 @@ function DashboardContent() {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['dashboard', roleId],
     queryFn: () => fetchDashboard(roleId),
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-    refetchOnMount: 'always',
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
   return (

@@ -125,7 +125,9 @@ export default function AdminMonitoringPage() {
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['admin-system-telemetry'],
     queryFn: fetchSystemData,
-    refetchInterval: 30000, // Refresco automático cada 30 segundos
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60 * 1000,
   });
 
   const diagnosticMutation = useMutation({

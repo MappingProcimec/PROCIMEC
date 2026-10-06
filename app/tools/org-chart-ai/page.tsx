@@ -41,8 +41,9 @@ export default function OrgChartAiPage() {
   const { data: diagramData, isFetching, refetch } = useQuery<DiagramPayload>({
     queryKey: ['org-chart-data', viewMode],
     queryFn: () => fetchDiagramData(viewMode),
-    refetchInterval: 15000, // Automatic live update every 15 seconds
-    staleTime: 5000,
+    refetchInterval: false, // Sincronizado reactivamente por Supabase Realtime
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Supabase Realtime live sync

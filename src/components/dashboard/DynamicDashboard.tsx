@@ -553,6 +553,7 @@ export function DynamicDashboard({
             </div>
             <Link
               href="/admin"
+              prefetch={false}
               className="text-xs font-semibold text-primary-900 hover:text-accent flex items-center gap-1.5 transition-colors bg-white border border-border hover:border-accent/40 px-2.5 py-1.5 rounded-lg shadow-2xs group"
               title="Centro de configuración y administración global de la plataforma"
             >
@@ -564,7 +565,7 @@ export function DynamicDashboard({
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* 1. Proyectos Activos */}
-            <Link href="/admin/projects" className="group">
+            <Link href="/admin/projects" prefetch={false} className="group">
               <div className="rounded-2xl p-4 sm:p-5 bg-primary-900 text-white border border-primary-800 shadow-card hover:shadow-glow-accent transition-all group-active:scale-[0.98] h-full flex flex-col justify-between">
                 <div className="mb-2.5 flex items-center justify-between">
                   <div className="p-2 rounded-xl bg-black/20 text-accent">
@@ -618,7 +619,7 @@ export function DynamicDashboard({
             </div>
 
             {/* 4. Aprobación Pendiente */}
-            <Link href="/admin/users" className="group">
+            <Link href="/admin/users" prefetch={false} className="group">
               <div
                 className={`rounded-2xl p-4 sm:p-5 border shadow-card transition-all group-active:scale-[0.98] h-full flex flex-col justify-between ${
                   adminStats.pendingUsersCount > 0
@@ -1017,6 +1018,7 @@ export function DynamicDashboard({
                 <Link
                   key={f.id}
                   href={`/forms/${f.slug}`}
+                  prefetch={false}
                   onClick={() => setActiveFormGroup(null)}
                   className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
                 >
@@ -1097,6 +1099,7 @@ export function DynamicDashboard({
                 <Link
                   key={t.id}
                   href={`/tools/${t.slug}`}
+                  prefetch={false}
                   onClick={() => setActiveToolGroup(null)}
                   className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
                 >

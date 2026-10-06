@@ -130,32 +130,33 @@ export async function GET(req: NextRequest) {
         allFormsRes,
         allProjectsRes,
         pendingUsersRes,
-        reportsRes,
+        rpcMetricsRes,
       ] = await Promise.all([
         supabase.from('tools').select('id, slug, name, category').not('slug', 'in', '("forms-area","projects-area")'),
         supabase.from('forms').select('id, slug, name'),
         supabase.from('projects').select('id, cost_center, name, client').eq('is_active', true),
         supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'pending'),
-        supabase.from('field_reports').select('operational_summary'),
+        supabase.rpc('get_dashboard_metrics').maybeSingle(),
       ]);
 
       let totalDrawingHours = 0;
-      let drawingFrom = 0;
-      while (true) {
-        const { data: dChunk } = await supabase
-          .from('drawing_activities')
-          .select('hours_worked')
-          .range(drawingFrom, drawingFrom + 999);
-        if (!dChunk || dChunk.length === 0) break;
-        totalDrawingHours += dChunk.reduce((s, a) => s + (Number(a.hours_worked) || 0), 0);
-        if (dChunk.length < 1000) break;
-        drawingFrom += 1000;
-      }
+      let totalML = 0;
 
-      const totalML = (reportsRes.data ?? []).reduce((sum, r: { operational_summary?: { ml?: number }[] }) => {
-        const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
-        return sum + rows.reduce((s, row) => s + (Number(row.ml) || 0), 0);
-      }, 0);
+      if (!rpcMetricsRes.error && rpcMetricsRes.data) {
+        totalDrawingHours = Number((rpcMetricsRes.data as { total_drawing_hours?: number }).total_drawing_hours) || 0;
+        totalML = Number((rpcMetricsRes.data as { total_ml?: number }).total_ml) || 0;
+      } else {
+        // Fallback resiliente acotado (sin bucles infinitos en Node.js)
+        const [dRes, rRes] = await Promise.all([
+          supabase.from('drawing_activities').select('hours_worked').limit(1000),
+          supabase.from('field_reports').select('operational_summary').limit(200),
+        ]);
+        totalDrawingHours = (dRes.data ?? []).reduce((s, a) => s + (Number(a.hours_worked) || 0), 0);
+        totalML = (rRes.data ?? []).reduce((sum, r: { operational_summary?: { ml?: number }[] }) => {
+          const rows = Array.isArray(r.operational_summary) ? r.operational_summary : [];
+          return sum + rows.reduce((s, row) => s + (Number(row.ml) || 0), 0);
+        }, 0);
+      }
 
       adminStats = {
         activeProjectsCount: (allProjectsRes.data ?? []).length,
@@ -289,7 +290,7 @@ export async function GET(req: NextRequest) {
     isAdmin: dbUser.role === 'admin' && !roleIdParam,
     userId: dbUser.id,
     userEmail: dbUser.email,
-    limit: 100,
+    limit: 25,
   });
 
   const isRolePreview = Boolean(dbUser.role === 'admin' && roleIdParam);
