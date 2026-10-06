@@ -50,8 +50,8 @@ export async function GET() {
     supabase.from('users').select('id, role, is_active, created_at, full_name, email'),
     supabase.from('projects').select('id, name, is_active, cost_center'),
     supabase.from('roles').select('id, name'),
-    supabase.from('forms').select('id, name, is_active'),
-    supabase.from('tools').select('id, name, is_active'),
+    supabase.from('forms').select('id, name'),
+    supabase.from('tools').select('id, name'),
     supabase.from('divisions').select('id, name'),
     supabase.from('field_reports').select('id, created_at, report_date, operational_summary'),
     supabase
