@@ -1001,8 +1001,8 @@ export async function GET(req: NextRequest) {
             status: f.status,
             category: f.category,
             description: f.description,
-            download_template_url: `/api/tools/version-control/download-template?code=${f.code}&format=editable`,
-            editable_type: editableType,
+            download_template_url: f.download_template_url || `/api/tools/version-control/download-template?code=${f.code}&format=editable`,
+            editable_type: (f.editable_type as 'xlsx' | 'docx' | 'pptx') || editableType,
             has_pptx: hasPptx,
             has_xlsx: hasXlsx,
             versions_count: Math.max(1, hist.length),
@@ -1110,21 +1110,38 @@ export async function POST(req: NextRequest) {
         change_date,
         change_reason,
         responsible_name,
-        file_format = 'pdf',
+        file_format = 'xlsx',
+        file_url,
       } = body;
 
       if (!format_id || !new_version || !change_date || !change_reason) {
         return NextResponse.json({ error: 'Faltan campos requeridos para incrementar versión.' }, { status: 400 });
       }
 
-      // 1. Actualizar formato principal
+      // 1. Determinar tipo editable si se adjuntó archivo
+      let normalizedEditable: 'xlsx' | 'docx' | 'pptx' | undefined;
+      if (file_format) {
+        if (file_format.includes('doc')) normalizedEditable = 'docx';
+        else if (file_format.includes('ppt')) normalizedEditable = 'pptx';
+        else normalizedEditable = 'xlsx';
+      }
+
+      const updateFields: Record<string, any> = {
+        current_version: new_version,
+        effective_date: change_date,
+        updated_at: new Date().toISOString(),
+      };
+      if (file_url) {
+        updateFields.download_template_url = file_url;
+      }
+      if (normalizedEditable) {
+        updateFields.editable_type = normalizedEditable;
+      }
+
+      // 2. Actualizar formato principal
       const { data: updatedFormat, error: updateError } = await supabase
         .from('document_format_versions')
-        .update({
-          current_version: new_version,
-          effective_date: change_date,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateFields)
         .eq('id', format_id)
         .select()
         .single();
@@ -1133,7 +1150,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: updateError.message }, { status: 500 });
       }
 
-      // 2. Insertar historial de versión
+      // 3. Insertar historial de versión con archivo adjunto
       const { data: historyItem, error: histError } = await supabase
         .from('format_version_history')
         .insert({
@@ -1142,7 +1159,8 @@ export async function POST(req: NextRequest) {
           change_date,
           change_reason,
           responsible_name: responsible_name || dbUser?.full_name || 'Responsable HSEQ',
-          file_format,
+          file_format: file_format || 'xlsx',
+          file_url: file_url || null,
         })
         .select()
         .single();
@@ -1153,7 +1171,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: `Versión ${new_version} registrada correctamente.`,
+        message: `Versión ${new_version} registrada correctamente con su formato editable.`,
         data: { format: updatedFormat, history: historyItem },
       });
     }
@@ -1170,11 +1188,17 @@ export async function POST(req: NextRequest) {
         effective_date,
         description,
         change_reason,
+        file_url,
+        file_format = 'xlsx',
       } = body;
 
       if (!code || !name || !process || !current_version || !effective_date) {
         return NextResponse.json({ error: 'Faltan campos mandatorios para registrar el nuevo formato.' }, { status: 400 });
       }
+
+      let normalizedEditable: 'xlsx' | 'docx' | 'pptx' = 'xlsx';
+      if (file_format.includes('doc')) normalizedEditable = 'docx';
+      else if (file_format.includes('ppt')) normalizedEditable = 'pptx';
 
       // 1. Insertar nuevo formato
       const { data: newFmt, error: insertError } = await supabase
@@ -1190,6 +1214,8 @@ export async function POST(req: NextRequest) {
           effective_date,
           status: 'active',
           description: description || null,
+          download_template_url: file_url || null,
+          editable_type: normalizedEditable,
         })
         .select()
         .single();
@@ -1205,7 +1231,8 @@ export async function POST(req: NextRequest) {
         change_date: effective_date,
         change_reason: change_reason || 'Creación y registro formal del nuevo documento en el listado maestro.',
         responsible_name: dbUser?.full_name || 'Responsable HSEQ',
-        file_format: 'pdf',
+        file_format: file_format || 'xlsx',
+        file_url: file_url || null,
       });
 
       return NextResponse.json({
@@ -1229,6 +1256,8 @@ export async function POST(req: NextRequest) {
         status = 'active',
         description,
         change_reason,
+        file_url,
+        file_format,
       } = body;
 
       if (!id || !code || !name || !process || !current_version || !effective_date) {
@@ -1244,22 +1273,31 @@ export async function POST(req: NextRequest) {
 
       const versionChanged = currentFmt && currentFmt.current_version !== current_version.trim();
 
+      const updateFields: Record<string, any> = {
+        code: code.trim().toUpperCase(),
+        name: name.trim(),
+        process: process.trim(),
+        form_slug: form_slug ? form_slug.trim() : null,
+        roles_access: Array.isArray(roles_access) ? roles_access : ['Todos los Roles'],
+        is_universal: Boolean(is_universal),
+        current_version: current_version.trim(),
+        effective_date,
+        status,
+        description: description || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (file_url) {
+        updateFields.download_template_url = file_url;
+        if (file_format) {
+          updateFields.editable_type = file_format.includes('doc') ? 'docx' : file_format.includes('ppt') ? 'pptx' : 'xlsx';
+        }
+      }
+
       // 2. Actualizar datos en PostgreSQL
       const { data: updatedFmt, error: updateError } = await supabase
         .from('document_format_versions')
-        .update({
-          code: code.trim().toUpperCase(),
-          name: name.trim(),
-          process: process.trim(),
-          form_slug: form_slug ? form_slug.trim() : null,
-          roles_access: Array.isArray(roles_access) ? roles_access : ['Todos los Roles'],
-          is_universal: Boolean(is_universal),
-          current_version: current_version.trim(),
-          effective_date,
-          status,
-          description: description || null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateFields)
         .eq('id', id)
         .select()
         .single();
@@ -1268,15 +1306,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: updateError.message }, { status: 500 });
       }
 
-      // 3. Si la versión cambió o hay motivo de cambio explícito, registrar en historial
-      if (versionChanged || change_reason) {
+      // 3. Si la versión cambió o hay motivo de cambio explícito o se subió archivo, registrar en historial
+      if (versionChanged || change_reason || file_url) {
         await supabase.from('format_version_history').insert({
           format_id: id,
           version: current_version.trim(),
           change_date: effective_date,
           change_reason: change_reason || `Actualización del formato a versión ${current_version.trim()}.`,
           responsible_name: dbUser?.full_name || 'Responsable HSEQ',
-          file_format: 'pdf',
+          file_format: file_format || 'xlsx',
+          file_url: file_url || null,
         });
       }
 

@@ -31,6 +31,9 @@ export interface PurchaseRequestPdfSignatures {
 
 export interface PurchaseRequestPdfData {
   requestCode: string;
+  code?: string;
+  version?: string;
+  effectiveDate?: string;
   consecutive?: number;
   createdDate?: string;
   submissionDateTime?: string;
@@ -106,11 +109,15 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
   doc.setFontSize(7.5);
   doc.text('FORMATO OFICIAL: SOLICITUD DE REQUERIMIENTO', marginX + 44, curY + 11);
 
-  // Recuadro del Consecutivo Oficial a la derecha
+  // Recuadro de Control Documental SIG a la derecha
   const badgeWidth = 48;
   const badgeHeight = 15;
   const badgeX = pageWidth - marginX - badgeWidth;
   const badgeY = curY - 2;
+
+  const docCode = data.code || 'FOR-COM-001';
+  const docVer = data.version || '2';
+  const docEffDate = data.effectiveDate || '2026-10-02';
 
   doc.setFillColor(...COLOR_CHARCOAL);
   doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 2, 2, 'F');
@@ -121,18 +128,17 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
   doc.setTextColor(...COLOR_AMBER);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
-  doc.text('CONSECUTIVO OFICIAL', badgeX + badgeWidth / 2, badgeY + 4, { align: 'center' });
+  doc.text(`CÓDIGO: ${docCode}`, badgeX + badgeWidth / 2, badgeY + 4, { align: 'center' });
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('courier', 'bold');
-  doc.setFontSize(11.5);
-  doc.text(data.requestCode || 'REQ-0001', badgeX + badgeWidth / 2, badgeY + 9.5, { align: 'center' });
+  doc.setFontSize(10.5);
+  doc.text(`VERSIÓN: ${docVer}`, badgeX + badgeWidth / 2, badgeY + 9.5, { align: 'center' });
 
-  const displayDate = data.createdDate || new Date().toISOString().split('T')[0];
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(226, 232, 240);
-  doc.text(`FECHA: ${displayDate}`, badgeX + badgeWidth / 2, badgeY + 13, { align: 'center' });
+  doc.text(`FECHA VIGENCIA: ${docEffDate}`, badgeX + badgeWidth / 2, badgeY + 13, { align: 'center' });
 
   curY += 17;
 
@@ -154,7 +160,9 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
 
   curY += 5.5;
 
-  // Tabla de datos de Imputación
+  const displayDate = data.createdDate || new Date().toISOString().split('T')[0];
+
+  // Tabla de datos de Imputación (incluye consecutivo oficial y tipo requerimiento)
   autoTable(doc, {
     startY: curY,
     margin: { left: marginX, right: marginX },
@@ -184,6 +192,12 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
         data.clientName || 'Cliente Corporativo',
         'FECHA DE REGISTRO:',
         displayDate,
+      ],
+      [
+        'CONSECUTIVO OFICIAL:',
+        data.requestCode || 'REQ-2026-_____',
+        'TIPO REQUERIMIENTO:',
+        'COMPRAS Y SERVICIOS',
       ],
     ],
   });

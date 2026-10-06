@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { createAdminClient } from '@/lib/supabase';
 import fs from 'fs';
 import path from 'path';
 import ExcelJS from 'exceljs';
@@ -337,31 +338,188 @@ async function generateExcelTemplate(code: string, name: string, processName: st
   ws.getCell('F3').fill = lightGrayFill;
   ws.getRow(3).height = 18;
 
-  // ─── 1. FOR-COM-001: SOLICITUD DE REQUERIMIENTO DE COMPRAS ──────────────────
+  // ─── 1. FOR-COM-001: SOLICITUD DE REQUERIMIENTO DE COMPRAS Y SERVICIOS ───────
   if (code === 'FOR-COM-001') {
+    // Fila 1: Encabezado corporativo institucional
+    ws.mergeCells('A1:I1');
+    ws.getCell('A1').value = 'PROCIMEC INGENIERÍA S.A.S. — PCM CLOUD';
+    ws.getCell('A1').font = headerFont;
+    ws.getCell('A1').fill = charcoalFill;
+    ws.getCell('A1').alignment = { vertical: 'middle', horizontal: 'center' };
+    ws.getRow(1).height = 26;
+
+    // Fila 2: Título y Control Documental
+    ws.mergeCells('A2:G2');
+    ws.getCell('A2').value = 'FORMATO OFICIAL: SOLICITUD DE REQUERIMIENTO DE COMPRAS Y SERVICIOS';
+    ws.getCell('A2').font = subHeaderFont;
+    ws.getCell('A2').fill = amberFill;
+    ws.getCell('A2').alignment = { vertical: 'middle', horizontal: 'center' };
+
+    ws.mergeCells('H2:I2');
+    ws.getCell('H2').value = 'CÓDIGO: FOR-COM-001 | VERSIÓN: 2';
+    ws.getCell('H2').font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFFFF' } };
+    ws.getCell('H2').fill = charcoalFill;
+    ws.getCell('H2').alignment = { vertical: 'middle', horizontal: 'center' };
+    ws.getRow(2).height = 22;
+
+    // Fila 3: Proceso y Vigencia
+    ws.mergeCells('A3:G3');
+    ws.getCell('A3').value = 'PROCESO: COMPRAS Y ADQUISICIONES | FECHA VIGENCIA: 2026-10-02';
+    ws.getCell('A3').font = cellBoldFont;
+    ws.getCell('A3').fill = lightGrayFill;
+    ws.getCell('A3').alignment = { vertical: 'middle', horizontal: 'left' };
+
+    ws.mergeCells('H3:I3');
+    ws.getCell('H3').value = 'ESTADO: ACTIVO / VIGENTE';
+    ws.getCell('H3').font = { name: 'Arial', size: 8.5, bold: true, color: { argb: 'FF065F46' } };
+    ws.getCell('H3').fill = lightGrayFill;
+    ws.getCell('H3').alignment = { vertical: 'middle', horizontal: 'center' };
+    ws.getRow(3).height = 18;
+
+    // Fila 4: Título Sección 1
     ws.addRow([]);
-    const r5 = ws.addRow(['Proyecto / Obra Destino:', '', 'Centro de Costos:', '', 'Fecha Solicitud:', 'Día: __ Mes: __ Año: 2026', '']);
-    const r6 = ws.addRow(['Solicitante Responsable:', '', 'Cédula de Ciudadanía:', '', 'Prioridad:', '[  ] Baja  [  ] Media  [  ] Alta  [  ] Urgente', '']);
-    const r7 = ws.addRow(['Lugar / Frente de Entrega:', '', 'Teléfono de Contacto:', '', 'Fecha Límite Requerida:', '____ / ____ / 2026', '']);
+    const rSec1 = ws.addRow(['1. IMPUTACIÓN DE PROYECTO Y CENTRO DE COSTOS', '', '', '', '', '', '', '', '']);
+    rSec1.height = 20;
+    ws.mergeCells(`A${rSec1.number}:I${rSec1.number}`);
+    rSec1.getCell(1).font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFFFF' } };
+    rSec1.getCell(1).fill = charcoalFill;
+    rSec1.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
+
+    // Fila 5: Proyecto y Centro de Costo
+    const r5 = ws.addRow(['PROYECTO DESTINO:', '', '', 'CENTRO DE COSTO:', '', '', '', '', '']);
+    ws.mergeCells(`A${r5.number}:B${r5.number}`);
+    ws.mergeCells(`C${r5.number}:E${r5.number}`);
+    ws.mergeCells(`F${r5.number}:G${r5.number}`);
+    ws.mergeCells(`H${r5.number}:I${r5.number}`);
+    r5.getCell(1).value = 'PROYECTO DESTINO:';
+    r5.getCell(3).value = 'Operación General / Proyecto Asignado';
+    r5.getCell(6).value = 'CENTRO DE COSTO:';
+    r5.getCell(8).value = '—';
+
+    // Fila 6: Cliente y Fecha Registro
+    const r6 = ws.addRow(['CLIENTE PROYECTO:', '', '', 'FECHA DE REGISTRO:', '', '', '', '', '']);
+    ws.mergeCells(`A${r6.number}:B${r6.number}`);
+    ws.mergeCells(`C${r6.number}:E${r6.number}`);
+    ws.mergeCells(`F${r6.number}:G${r6.number}`);
+    ws.mergeCells(`H${r6.number}:I${r6.number}`);
+    r6.getCell(1).value = 'CLIENTE PROYECTO:';
+    r6.getCell(3).value = 'Cliente Corporativo';
+    r6.getCell(6).value = 'FECHA DE REGISTRO:';
+    r6.getCell(8).value = '2026-10-02';
+
+    // Fila 7: Consecutivo Oficial y Tipo Requerimiento
+    const r7 = ws.addRow(['CONSECUTIVO OFICIAL:', '', '', 'TIPO REQUERIMIENTO:', '', '', '', '', '']);
+    ws.mergeCells(`A${r7.number}:B${r7.number}`);
+    ws.mergeCells(`C${r7.number}:E${r7.number}`);
+    ws.mergeCells(`F${r7.number}:G${r7.number}`);
+    ws.mergeCells(`H${r7.number}:I${r7.number}`);
+    r7.getCell(1).value = 'CONSECUTIVO OFICIAL:';
+    r7.getCell(3).value = 'REQ-2026-_____';
+    r7.getCell(3).font = { name: 'Courier New', size: 9, bold: true, color: { argb: 'FFB45309' } };
+    r7.getCell(6).value = 'TIPO REQUERIMIENTO:';
+    r7.getCell(8).value = 'COMPRAS Y SERVICIOS';
+
     [r5, r6, r7].forEach((r) => {
       r.height = 19;
       r.getCell(1).font = cellBoldFont;
-      r.getCell(3).font = cellBoldFont;
-      r.getCell(5).font = cellBoldFont;
+      r.getCell(1).fill = lightGrayFill;
+      r.getCell(6).font = cellBoldFont;
+      r.getCell(6).fill = lightGrayFill;
+      for (let c = 1; c <= 9; c++) {
+        r.getCell(c).border = {
+          top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        };
+      }
     });
 
+    // Fila 8: Título Sección 2
     ws.addRow([]);
-    const rJustTitle = ws.addRow(['JUSTIFICACIÓN OPERATIVA DE LA NECESIDAD:']);
-    rJustTitle.getCell(1).font = cellBoldFont;
-    ws.mergeCells(`A${ws.lastRow!.number}:G${ws.lastRow!.number}`);
+    const rSec2 = ws.addRow(['2. RESPONSABLES Y DATOS DE ENTREGA EN SITIO', '', '', '', '', '', '', '', '']);
+    rSec2.height = 20;
+    ws.mergeCells(`A${rSec2.number}:I${rSec2.number}`);
+    rSec2.getCell(1).font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFFFF' } };
+    rSec2.getCell(1).fill = charcoalFill;
 
-    const rJustBox = ws.addRow(['(Escriba aquí la justificación técnica, frente donde se utilizará y motivo de adquisición...)']);
-    rJustBox.height = 30;
-    rJustBox.getCell(1).font = { name: 'Arial', size: 8, italic: true, color: { argb: 'FF6B7280' } };
-    ws.mergeCells(`A${ws.lastRow!.number}:G${ws.lastRow!.number}`);
+    // Fila 9: Solicitante y Quien Aprueba
+    const r9 = ws.addRow(['SOLICITANTE RESPONSABLE:', '', '', 'QUIEN APRUEBA:', '', '', '', '', '']);
+    ws.mergeCells(`A${r9.number}:B${r9.number}`);
+    ws.mergeCells(`C${r9.number}:E${r9.number}`);
+    ws.mergeCells(`F${r9.number}:G${r9.number}`);
+    ws.mergeCells(`H${r9.number}:I${r9.number}`);
 
+    // Fila 10: Fecha Requerida Entrega y Teléfono
+    const r10 = ws.addRow(['FECHA ENTREGA REQUERIDA:', '', '', 'TELÉFONO DE CONTACTO:', '', '', '', '', '']);
+    ws.mergeCells(`A${r10.number}:B${r10.number}`);
+    ws.mergeCells(`C${r10.number}:E${r10.number}`);
+    ws.mergeCells(`F${r10.number}:G${r10.number}`);
+    ws.mergeCells(`H${r10.number}:I${r10.number}`);
+    r10.getCell(3).value = '____ / ____ / 2026';
+
+    // Fila 11: Sitio de Entrega y Prioridad
+    const r11 = ws.addRow(['SITIO FÍSICO DE ENTREGA:', '', '', 'PRIORIDAD REQUERIMIENTO:', '', '', '', '', '']);
+    ws.mergeCells(`A${r11.number}:B${r11.number}`);
+    ws.mergeCells(`C${r11.number}:E${r11.number}`);
+    ws.mergeCells(`F${r11.number}:G${r11.number}`);
+    ws.mergeCells(`H${r11.number}:I${r11.number}`);
+    r11.getCell(3).value = 'Bodega Central / Frente Operativo';
+    r11.getCell(8).value = '[  ] Normal     [  ] Urgente';
+
+    [r9, r10, r11].forEach((r) => {
+      r.height = 19;
+      r.getCell(1).font = cellBoldFont;
+      r.getCell(1).fill = lightGrayFill;
+      r.getCell(6).font = cellBoldFont;
+      r.getCell(6).fill = lightGrayFill;
+      for (let c = 1; c <= 9; c++) {
+        r.getCell(c).border = {
+          top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        };
+      }
+    });
+
+    // Fila 12: Justificación Operativa
+    const rJust = ws.addRow(['JUSTIFICACIÓN OPERATIVA:', '', '(Escriba aquí la justificación técnica, frente donde se utilizará y motivo de adquisición...)', '', '', '', '', '', '']);
+    rJust.height = 28;
+    ws.mergeCells(`A${rJust.number}:B${rJust.number}`);
+    ws.mergeCells(`C${rJust.number}:I${rJust.number}`);
+    rJust.getCell(1).font = cellBoldFont;
+    rJust.getCell(1).fill = lightGrayFill;
+    rJust.getCell(3).font = { name: 'Arial', size: 8, italic: true, color: { argb: 'FF6B7280' } };
+    for (let c = 1; c <= 9; c++) {
+      rJust.getCell(c).border = {
+        top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+      };
+    }
+
+    // Fila 13: Título Sección 3
     ws.addRow([]);
-    const th = ws.addRow(['Ítem', 'Cant.', 'Unidad', 'Descripción Detallada del Producto o Servicio', 'Marca / Modelo', 'Proveedor Sugerido', 'Valor Unit. Est. ($ COP)']);
+    const rSec3 = ws.addRow(['3. DETALLE DE BIENES, HERRAMIENTAS O SERVICIOS REQUERIDOS', '', '', '', '', '', '', '', '']);
+    rSec3.height = 20;
+    ws.mergeCells(`A${rSec3.number}:I${rSec3.number}`);
+    rSec3.getCell(1).font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFFFF' } };
+    rSec3.getCell(1).fill = charcoalFill;
+
+    // Fila 14: Encabezados de tabla de 9 columnas
+    const th = ws.addRow([
+      '#',
+      'CANT.',
+      'UND',
+      'DESCRIPCIÓN DEL BIEN O SERVICIO',
+      'NO. COTIZACIÓN',
+      'MARCA',
+      'PROVEEDOR SUG.',
+      'VR. UNIT.',
+      'TOTAL (COP)',
+    ]);
     th.height = 22;
     th.eachCell((c) => {
       c.font = { name: 'Arial', size: 8.5, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -369,31 +527,90 @@ async function generateExcelTemplate(code: string, name: string, processName: st
       c.alignment = { vertical: 'middle', horizontal: 'center' };
     });
 
-    for (let i = 1; i <= 10; i++) {
-      const row = ws.addRow([i, '', '', '', '', '', '']);
+    const startItemRow = th.number + 1;
+    for (let i = 1; i <= 8; i++) {
+      const row = ws.addRow([i, '', '', '', '', '', '', '', '']);
       row.height = 19;
-      row.eachCell((c, col) => {
+      const rowNum = row.number;
+      row.getCell(9).value = { formula: `IF(AND(B${rowNum}<>"",H${rowNum}<>""),B${rowNum}*H${rowNum},"")` };
+      row.eachCell({ includeEmpty: true }, (c, col) => {
         c.font = cellFont;
-        c.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
-        if (col === 1 || col === 2 || col === 3) c.alignment = { vertical: 'middle', horizontal: 'center' };
-        if (col === 7) c.numFmt = '$#,##0';
+        c.border = {
+          top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+        };
+        if (col === 1 || col === 2 || col === 3 || col === 5) {
+          c.alignment = { vertical: 'middle', horizontal: 'center' };
+        }
+        if (col === 8 || col === 9) {
+          c.numFmt = '$#,##0';
+          c.alignment = { vertical: 'middle', horizontal: 'right' };
+        }
       });
     }
+    const endItemRow = startItemRow + 7;
 
+    // Fila Total
+    const rTot = ws.addRow(['TOTAL GENERAL DEL REQUERIMIENTO (COP):', '', '', '', '', '', '', '', '']);
+    rTot.height = 22;
+    ws.mergeCells(`A${rTot.number}:H${rTot.number}`);
+    rTot.getCell(1).font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FF78350F' } };
+    rTot.getCell(1).fill = amberFill;
+    rTot.getCell(1).alignment = { vertical: 'middle', horizontal: 'right' };
+    rTot.getCell(9).value = { formula: `SUM(I${startItemRow}:I${endItemRow})` };
+    rTot.getCell(9).font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FF1E2229' } };
+    rTot.getCell(9).fill = amberFill;
+    rTot.getCell(9).numFmt = '$#,##0';
+    rTot.getCell(9).alignment = { vertical: 'middle', horizontal: 'right' };
+
+    // Fila 4. Firmas y Aprobaciones (4 Instancias)
     ws.addRow([]);
-    const sH = ws.addRow(['SOLICITANTE', '', 'COORDINADOR / DIRECTOR', '', 'COMPRAS', '', 'GERENCIA GENERAL']);
-    sH.height = 18;
-    sH.eachCell((c) => { c.font = cellBoldFont; c.fill = charcoalFill; c.font = { name: 'Arial', size: 8, bold: true, color: { argb: 'FFFFFFFF' } }; c.alignment = { horizontal: 'center' }; });
-    const sB = ws.addRow(['Firma:\nNombre:\nC.C.:', '', 'Firma:\nNombre:\nCargo:', '', 'Firma:\nNombre:\nVo.Bo.', '', 'Firma:\nAprobado:\nFecha:']);
-    sB.height = 45;
+    const rSec4 = ws.addRow(['4. CONTROL DE FIRMAS, VALIDACIÓN TÉCNICA Y APROBACIONES (4 INSTANCIAS)', '', '', '', '', '', '', '', '']);
+    rSec4.height = 20;
+    ws.mergeCells(`A${rSec4.number}:I${rSec4.number}`);
+    rSec4.getCell(1).font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFFFFF' } };
+    rSec4.getCell(1).fill = charcoalFill;
 
-    ws.getColumn(1).width = 6;
+    const sH = ws.addRow(['1. SOLICITADO POR', '', '2. APROBADO POR', '', '3. GESTIÓN COMPRAS', '', '', '4. APROBADO GERENCIA', '']);
+    sH.height = 18;
+    ws.mergeCells(`A${sH.number}:B${sH.number}`);
+    ws.mergeCells(`C${sH.number}:D${sH.number}`);
+    ws.mergeCells(`E${sH.number}:G${sH.number}`);
+    ws.mergeCells(`H${sH.number}:I${sH.number}`);
+    [sH.getCell(1), sH.getCell(3), sH.getCell(5), sH.getCell(8)].forEach((c) => {
+      c.font = { name: 'Arial', size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
+      c.fill = graphiteFill;
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+
+    const sB = ws.addRow(['Firma:\nNombre:\nC.C.:\nFecha:', '', 'Firma:\nNombre:\nCargo:\nFecha:', '', 'Firma:\nCotizaciones:\nProveedor:\nVo.Bo.:', '', '', 'Firma:\nAprobado Gerencia:\nMonto:\nFecha:']);
+    sB.height = 50;
+    ws.mergeCells(`A${sB.number}:B${sB.number}`);
+    ws.mergeCells(`C${sB.number}:D${sB.number}`);
+    ws.mergeCells(`E${sB.number}:G${sB.number}`);
+    ws.mergeCells(`H${sB.number}:I${sB.number}`);
+    [sB.getCell(1), sB.getCell(3), sB.getCell(5), sB.getCell(8)].forEach((c) => {
+      c.font = { name: 'Arial', size: 7.5 };
+      c.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+      c.border = {
+        top: { style: 'thin' },
+        bottom: { style: 'thin' },
+        left: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    });
+
+    ws.getColumn(1).width = 5;
     ws.getColumn(2).width = 8;
-    ws.getColumn(3).width = 12;
-    ws.getColumn(4).width = 40;
-    ws.getColumn(5).width = 18;
-    ws.getColumn(6).width = 22;
-    ws.getColumn(7).width = 24;
+    ws.getColumn(3).width = 8;
+    ws.getColumn(4).width = 38;
+    ws.getColumn(5).width = 15;
+    ws.getColumn(6).width = 14;
+    ws.getColumn(7).width = 20;
+    ws.getColumn(8).width = 14;
+    ws.getColumn(9).width = 16;
     return Buffer.from(await wb.xlsx.writeBuffer());
   }
 
@@ -994,183 +1211,81 @@ export async function GET(req: NextRequest) {
       editableType: 'xlsx' as const,
     };
 
+    const versionParam = searchParams.get('version');
+
     // ──────────────────────────────────────────────────────────────────────────
-    // CASO 1: DESCARGA DE FORMATO OFICIAL PDF (.pdf)
+    // CASO 1: VERIFICAR SI EXISTE UN ARCHIVO EDITABLE ADJUNTO EN BASE DE DATOS
     // ──────────────────────────────────────────────────────────────────────────
-    if (reqFormat === 'pdf') {
-      // 1.1 Si es FOR-SIG-001, usar el generador oficial SIG de la plataforma
-      if (code === 'FOR-SIG-001') {
-        const sigPdfBuf = await generateSigChangePdf({
-          official_code: 'FOR-SIG-001',
-          version: '1',
-          identifier_name: '____________________',
-          identifier_position: '____________________',
-          identifier_process: 'HSEQ & SIG',
-          identification_date: '____/____/2026',
-          change_description: '__________________________________________________________________',
-          justification: '__________________________________________________________________',
-          affected_processes: 'Todos los procesos aplicables',
-          origins: [],
-          work_team: [{ nombre: '', cargo: '', proceso: '' }],
-          risks: [],
-          activities: [],
-        });
-        return new NextResponse(new Uint8Array(sigPdfBuf), {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${meta.code}_Formato_Oficial.pdf"`,
-          },
-        });
+    try {
+      const supabase = createAdminClient();
+      let targetFileUrl: string | null = null;
+
+      if (versionParam) {
+        const { data: fmtRecord } = await supabase
+          .from('document_format_versions')
+          .select('id')
+          .eq('code', code)
+          .maybeSingle();
+
+        if (fmtRecord?.id) {
+          const { data: histRecord } = await supabase
+            .from('format_version_history')
+            .select('file_url')
+            .eq('format_id', fmtRecord.id)
+            .eq('version', versionParam)
+            .maybeSingle();
+
+          if (histRecord?.file_url) {
+            targetFileUrl = histRecord.file_url;
+          }
+        }
       }
 
-      // 1.2 Si es FOR-COM-001, usar el generador oficial de Requerimiento de Compra
-      if (code === 'FOR-COM-001') {
-        const reqDoc = createPurchaseRequestPdf({
-          requestCode: 'REQ-2026-_____',
-          projectName: '__________________________________',
-          applicantName: '__________________________________',
-          approverName: '__________________________________',
-          deliveryDate: '____/____/2026',
-          deliverySite: '__________________________________',
-          contactPhone: '__________________________________',
-          items: Array.from({ length: 8 }, (_, i) => ({
-            item_no: i + 1,
-            quantity: '',
-            unit: '',
-            description: '',
-            unit_price: '',
-          })),
-        });
-        const reqPdfBuf = Buffer.from(reqDoc.output('arraybuffer'));
-        return new NextResponse(new Uint8Array(reqPdfBuf), {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${meta.code}_Formato_Oficial.pdf"`,
-          },
-        });
+      if (!targetFileUrl) {
+        const { data: fmtRecord } = await supabase
+          .from('document_format_versions')
+          .select('download_template_url')
+          .eq('code', code)
+          .maybeSingle();
+
+        if (fmtRecord?.download_template_url && !fmtRecord.download_template_url.includes('download-template?')) {
+          targetFileUrl = fmtRecord.download_template_url;
+        }
       }
 
-      // 1.3 Generador Oficial Estructurado de PDF con Membrete Corporativo
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      if (targetFileUrl) {
+        // Si es una ruta local en public/templates/uploads/
+        if (targetFileUrl.startsWith('/templates/uploads/')) {
+          const localFilePath = path.join(process.cwd(), 'public', targetFileUrl);
+          if (fs.existsSync(localFilePath)) {
+            const fileBuf = fs.readFileSync(localFilePath);
+            const ext = path.extname(localFilePath).toLowerCase();
+            const contentType =
+              ext === '.xlsx'
+                ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                : ext === '.docx'
+                ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                : ext === '.pptx'
+                ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                : 'application/octet-stream';
 
-      // Membrete Institucional
-      doc.setDrawColor(21, 24, 29);
-      doc.setLineWidth(0.4);
-      doc.rect(14, 12, 182, 24);
-      doc.line(54, 12, 54, 36);
-      doc.line(148, 12, 148, 36);
+            return new NextResponse(new Uint8Array(fileBuf), {
+              status: 200,
+              headers: {
+                'Content-Type': contentType,
+                'Content-Disposition': `attachment; filename="${code}_v${versionParam || 'vigente'}${ext}"`,
+              },
+            });
+          }
+        }
 
-      doc.setFont('Helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.setTextColor(30, 34, 41);
-      doc.text('PROCIMEC', 20, 21);
-      doc.setFontSize(7.5);
-      doc.setTextColor(234, 160, 35);
-      doc.text('PCM CLOUD • ENGINEERING', 17, 26);
-
-      doc.setFont('Helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(30, 34, 41);
-      const splitTitle = doc.splitTextToSize(meta.name.toUpperCase(), 88);
-      doc.text(splitTitle, 101, 19, { align: 'center' });
-      doc.setFont('Helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`PROCESO: ${meta.process.toUpperCase()}`, 101, 31, { align: 'center' });
-
-      doc.line(148, 20, 196, 20);
-      doc.line(148, 28, 196, 28);
-      doc.setFont('Helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 34, 41);
-      doc.text('CÓDIGO:', 150, 17);
-      doc.setFont('Courier', 'bold');
-      doc.setTextColor(180, 83, 9);
-      doc.text(meta.code, 168, 17);
-
-      doc.setFont('Helvetica', 'bold');
-      doc.setTextColor(30, 34, 41);
-      doc.text('ESTADO:', 150, 25);
-      doc.setFont('Courier', 'bold');
-      doc.text('VIGENTE', 168, 25);
-
-      doc.setFont('Helvetica', 'bold');
-      doc.text('VERSIÓN:', 150, 33);
-      doc.setFont('Courier', 'bold');
-      doc.text('01', 168, 33);
-
-      autoTable(doc, {
-        startY: 40,
-        head: [['DATOS DEL REGISTRO OPERACIONAL', '']],
-        body: [
-          ['Proyecto / Centro de Costos:', '___________________________________________________'],
-          ['Cliente / Frente de Obra:', '___________________________________________________'],
-          ['Fecha de Diligenciamiento:', 'Día: ____  Mes: ____  Año: 2026'],
-          ['Responsable Operativo:', '___________________________________________________'],
-        ],
-        theme: 'grid',
-        styles: { font: 'Helvetica', fontSize: 8, cellPadding: 2.5 },
-        headStyles: { fillColor: [30, 34, 41], textColor: [255, 255, 255] },
-        columnStyles: { 0: { cellWidth: 55, fontStyle: 'bold' }, 1: { cellWidth: 127 } },
-      });
-
-      // Tabla de ítems específicos según el tipo de formato
-      let customHead = [['#', 'Parámetro Operacional', 'CUMPLE', 'NO CUMPLE', 'N/A', 'Observaciones Técnicas']];
-      let customBody = [
-        ['1', 'Inspección de condiciones de seguridad y EPP de frente', '[   ]', '[   ]', '[   ]', ''],
-        ['2', 'Verificación física y encendido de instrumental', '[   ]', '[   ]', '[   ]', ''],
-        ['3', 'Calibración y verificación de parámetros de campo', '[   ]', '[   ]', '[   ]', ''],
-        ['4', 'Registro de mediciones y actividades ejecutadas', '[   ]', '[   ]', '[   ]', ''],
-        ['5', 'Conformidad de entrega y firmas operativas', '[   ]', '[   ]', '[   ]', ''],
-      ];
-
-      if (code === 'FOR-CAD-001') {
-        customHead = [['Fecha', 'Frente / Tramo', 'Software', 'Fase', 'Horas', 'ML Modelados', 'Reproceso (SI/NO)']];
-        customBody = [
-          ['', '', 'Civil 3D', 'Preliminar', '', '', 'NO'],
-          ['', '', 'Revit', 'Intermedio', '', '', 'NO'],
-          ['', '', 'AutoCAD', 'Final', '', '', 'NO'],
-          ['', '', 'Civil 3D', 'Revisión', '', '', 'NO'],
-        ];
-      } else if (code.startsWith('FOR-FIN')) {
-        customHead = [['Ítem', 'Rubro Presupuestal', 'Días / Cantidad', 'Valor Unitario ($ COP)', 'Total ($ COP)', 'Observaciones']];
-        customBody = [
-          ['1', 'Transporte y Pasajes Terrestres', '', '', '', ''],
-          ['2', 'Hospedaje y Alojamiento', '', '', '', ''],
-          ['3', 'Alimentación Cuadrilla', '', '', '', ''],
-          ['4', 'Combustible y Peajes', '', '', '', ''],
-          ['5', 'Imprevistos Menores de Campo', '', '', '', ''],
-        ];
+        // Si es una URL pública (Supabase Storage), redireccionar directamente a ella
+        if (targetFileUrl.startsWith('http://') || targetFileUrl.startsWith('https://')) {
+          return NextResponse.redirect(targetFileUrl);
+        }
       }
-
-      autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 6,
-        head: customHead,
-        body: customBody,
-        theme: 'grid',
-        styles: { font: 'Helvetica', fontSize: 7.5, cellPadding: 3 },
-        headStyles: { fillColor: [42, 48, 60], textColor: [255, 255, 255] },
-      });
-
-      autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 10,
-        head: [['ELABORÓ (RESPONSABLE)', 'REVISÓ (HSEQ)', 'APROBÓ (DIRECCIÓN)']],
-        body: [['\n\n___________________\nFirma:\nNombre:', '\n\n___________________\nFirma:\nNombre:', '\n\n___________________\nFirma:\nNombre:']],
-        theme: 'grid',
-        styles: { font: 'Helvetica', fontSize: 7.5, halign: 'center' },
-        headStyles: { fillColor: [30, 34, 41], textColor: [255, 255, 255] },
-      });
-
-      const pdfBuf = Buffer.from(doc.output('arraybuffer'));
-      return new NextResponse(new Uint8Array(pdfBuf), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${meta.code}_Formato_Oficial.pdf"`,
-        },
-      });
+    } catch (dbErr) {
+      console.warn('Error al verificar archivo adjunto en BD:', dbErr);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

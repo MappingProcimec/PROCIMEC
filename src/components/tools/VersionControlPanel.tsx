@@ -27,6 +27,7 @@ import {
   Edit3,
   Database,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import type { DocumentFormatItem, FormatVersionHistoryItem } from '@/app/api/tools/version-control/route';
 
@@ -91,7 +92,7 @@ export function VersionControlPanel() {
     change_date: new Date().toISOString().slice(0, 10),
     change_reason: '',
     responsible_name: '',
-    file_format: 'pdf',
+    file_format: 'xlsx',
   });
 
   const [newFormatForm, setNewFormatForm] = useState({
@@ -106,6 +107,30 @@ export function VersionControlPanel() {
     description: '',
     change_reason: 'Creación y registro formal del formato en el listado maestro del SIG.',
   });
+
+  // Estados de archivos adjuntos para plantillas
+  const [bumpFile, setBumpFile] = useState<File | null>(null);
+  const [newFormatFile, setNewFormatFile] = useState<File | null>(null);
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+
+  const uploadFileTemplate = async (file: File, code: string, version: string, formatId?: string) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('code', code);
+    fd.append('version', version);
+    if (formatId) fd.append('format_id', formatId);
+
+    const res = await fetch('/api/tools/version-control/upload-template', {
+      method: 'POST',
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Error al subir archivo de formato');
+    }
+    return data as { url: string; file_format: string; editable_type: string };
+  };
 
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -155,6 +180,7 @@ export function VersionControlPanel() {
       change_reason: string;
       responsible_name: string;
       file_format: string;
+      file_url?: string | null;
     }) => {
       const res = await fetch('/api/tools/version-control', {
         method: 'POST',
@@ -170,12 +196,13 @@ export function VersionControlPanel() {
       queryClient.invalidateQueries({ queryKey: ['version-control-data'] });
       setIsBumpModalOpen(false);
       setSelectedFormatToBump(null);
+      setBumpFile(null);
       setBumpForm({
         new_version: '',
         change_date: new Date().toISOString().slice(0, 10),
         change_reason: '',
         responsible_name: '',
-        file_format: 'pdf',
+        file_format: 'xlsx',
       });
       setTimeout(() => setActionFeedback(null), 4000);
     },
@@ -187,7 +214,7 @@ export function VersionControlPanel() {
 
   // Mutación para crear nuevo formato
   const createFormatMutation = useMutation({
-    mutationFn: async (payload: typeof newFormatForm) => {
+    mutationFn: async (payload: typeof newFormatForm & { file_url?: string | null; file_format?: string }) => {
       const rolesArray = payload.is_universal
         ? ['Todos los Roles']
         : payload.roles_access_raw.split(',').map((r) => r.trim()).filter(Boolean);
@@ -207,6 +234,8 @@ export function VersionControlPanel() {
           effective_date: payload.effective_date,
           description: payload.description,
           change_reason: payload.change_reason,
+          file_url: payload.file_url || null,
+          file_format: payload.file_format || 'xlsx',
         }),
       });
       const data = await res.json();
@@ -217,6 +246,7 @@ export function VersionControlPanel() {
       setActionFeedback({ type: 'success', message: data.message || 'Formato registrado en listado maestro.' });
       queryClient.invalidateQueries({ queryKey: ['version-control-data'] });
       setIsNewFormatModalOpen(false);
+      setNewFormatFile(null);
       setNewFormatForm({
         code: '',
         name: '',
@@ -239,7 +269,7 @@ export function VersionControlPanel() {
 
   // Mutación para editar formato
   const editFormatMutation = useMutation({
-    mutationFn: async (payload: typeof editForm) => {
+    mutationFn: async (payload: typeof editForm & { file_url?: string | null; file_format?: string }) => {
       const rolesArray = payload.is_universal
         ? ['Todos los Roles']
         : payload.roles_access_raw.split(',').map((r) => r.trim()).filter(Boolean);
@@ -261,6 +291,8 @@ export function VersionControlPanel() {
           status: payload.status,
           description: payload.description,
           change_reason: payload.change_reason,
+          file_url: payload.file_url,
+          file_format: payload.file_format,
         }),
       });
       const data = await res.json();
@@ -273,6 +305,7 @@ export function VersionControlPanel() {
       queryClient.invalidateQueries({ queryKey: ['active-format-version'] });
       setIsEditModalOpen(false);
       setSelectedFormatToEdit(null);
+      setEditFile(null);
       setTimeout(() => setActionFeedback(null), 4000);
     },
     onError: (err: Error) => {
@@ -280,6 +313,7 @@ export function VersionControlPanel() {
       setTimeout(() => setActionFeedback(null), 5000);
     },
   });
+
 
   // Mutación para sincronizar catálogo maestro a PostgreSQL
   const seedMasterMutation = useMutation({
@@ -321,11 +355,13 @@ export function VersionControlPanel() {
       description: fmt.description || '',
       change_reason: '',
     });
+    setEditFile(null);
     setIsEditModalOpen(true);
   };
 
   const handleOpenBumpModal = (fmt: DocumentFormatItem) => {
     setSelectedFormatToBump(fmt);
+    setBumpFile(null);
     const currentNum = parseInt(fmt.current_version, 10);
     const nextVer = isNaN(currentNum) ? `${fmt.current_version}.1` : String(currentNum + 1);
     setBumpForm({
@@ -333,7 +369,7 @@ export function VersionControlPanel() {
       change_date: new Date().toISOString().slice(0, 10),
       change_reason: '',
       responsible_name: '',
-      file_format: 'pdf',
+      file_format: fmt.editable_type || 'xlsx',
     });
     setIsBumpModalOpen(true);
   };
@@ -433,15 +469,6 @@ export function VersionControlPanel() {
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
             Descargar Excel (.xlsx)
-          </a>
-          <a
-            href="/api/tools/version-control/export?format=pdf"
-            download
-            className="btn btn-secondary text-xs font-semibold py-1.5 px-3 flex items-center gap-1.5 hover:border-accent hover:text-amber-800 transition-colors"
-            title="Descargar listado maestro en PDF oficial"
-          >
-            <FileText className="w-4 h-4 text-accent" strokeWidth={1.75} />
-            Descargar PDF (.pdf)
           </a>
         </div>
 
@@ -653,34 +680,31 @@ export function VersionControlPanel() {
                     {/* Acciones */}
                     <td className="py-3 px-4 align-top text-right whitespace-nowrap">
                       <div className="flex items-center justify-end flex-wrap gap-1.5">
-                        {/* Descargar Formato Editable Excel */}
-                        {(fmt.editable_type === 'xlsx' || fmt.has_xlsx) && (
-                          <a
-                            href={`/api/tools/version-control/download-template?code=${fmt.code}&format=xlsx&version=${fmt.current_version}`}
-                            download
-                            className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-emerald-500 hover:text-emerald-800 transition-colors"
-                            title="Descargar formato editable en Excel (.xlsx)"
-                          >
-                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Excel (.xlsx)</span>
-                          </a>
-                        )}
-
-                        {/* Descargar Formato Editable Word */}
-                        {fmt.editable_type === 'docx' && (
-                          <a
-                            href={`/api/tools/version-control/download-template?code=${fmt.code}&format=docx&version=${fmt.current_version}`}
-                            download
-                            className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-blue-500 hover:text-blue-800 transition-colors"
-                            title="Descargar formato editable en Word (.docx)"
-                          >
+                        {/* Descargar Formato Editable Principal */}
+                        <a
+                          href={fmt.download_template_url || `/api/tools/version-control/download-template?code=${fmt.code}&format=editable&version=${fmt.current_version}`}
+                          download
+                          className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-emerald-500 hover:text-emerald-800 transition-colors"
+                          title={`Descargar plantilla editable vigente (${fmt.editable_type ? fmt.editable_type.toUpperCase() : 'XLSX'})`}
+                        >
+                          {fmt.editable_type === 'docx' ? (
                             <FileText className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Word (.docx)</span>
-                          </a>
-                        )}
+                          ) : fmt.editable_type === 'pptx' ? (
+                            <Layers className="w-3.5 h-3.5 text-accent" />
+                          ) : (
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                          )}
+                          <span>
+                            {fmt.editable_type === 'docx'
+                              ? 'Word (.docx)'
+                              : fmt.editable_type === 'pptx'
+                              ? 'PowerPoint (.pptx)'
+                              : 'Excel (.xlsx)'}
+                          </span>
+                        </a>
 
-                        {/* Descargar Formato Editable PowerPoint */}
-                        {(fmt.has_pptx || fmt.editable_type === 'pptx') && (
+                        {/* Opción adicional PowerPoint si aplica */}
+                        {fmt.has_pptx && fmt.editable_type !== 'pptx' && (
                           <a
                             href={`/api/tools/version-control/download-template?code=${fmt.code}&format=pptx&version=${fmt.current_version}`}
                             download
@@ -692,16 +716,18 @@ export function VersionControlPanel() {
                           </a>
                         )}
 
-                        {/* Descargar Formato Oficial PDF */}
-                        <a
-                          href={`/api/tools/version-control/download-template?code=${fmt.code}&format=pdf&version=${fmt.current_version}`}
-                          download
-                          className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-accent hover:text-amber-900 transition-colors"
-                          title="Descargar formato oficial en PDF (.pdf)"
-                        >
-                          <Download className="w-3.5 h-3.5 text-accent" />
-                          <span>PDF (.pdf)</span>
-                        </a>
+                        {/* Opción adicional Excel si aplica */}
+                        {fmt.has_xlsx && fmt.editable_type !== 'xlsx' && (
+                          <a
+                            href={`/api/tools/version-control/download-template?code=${fmt.code}&format=xlsx&version=${fmt.current_version}`}
+                            download
+                            className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-emerald-500 hover:text-emerald-800 transition-colors"
+                            title="Descargar formato editable en Excel (.xlsx)"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Excel (.xlsx)</span>
+                          </a>
+                        )}
 
                         {/* Ver Historial de Versiones */}
                         <button
@@ -808,50 +834,63 @@ export function VersionControlPanel() {
                             )}
                           </div>
                           <div className="flex items-center gap-1.5">
-                            {/* Descarga editable para la versión histórica */}
-                            {(historyModalFormat.editable_type === 'xlsx' || historyModalFormat.has_xlsx) && (
+                            {/* Si la versión tiene un archivo adjunto subido */}
+                            {ver.file_url ? (
                               <a
-                                href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=xlsx&version=${ver.version}`}
+                                href={ver.file_url}
                                 download
-                                className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-emerald-500 hover:text-emerald-800"
-                                title={`Descargar formato editable en Excel versión ${ver.version}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-emerald-500 hover:text-emerald-800 font-semibold"
+                                title={`Descargar archivo editable adjunto versión ${ver.version}`}
                               >
-                                <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
-                                <span>Excel v{ver.version}</span>
+                                {ver.file_format === 'docx' || ver.file_format === 'doc' ? (
+                                  <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                ) : ver.file_format === 'pptx' || ver.file_format === 'ppt' ? (
+                                  <Layers className="w-3.5 h-3.5 text-accent" />
+                                ) : (
+                                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                                )}
+                                <span>Descargar {ver.file_format ? ver.file_format.toUpperCase() : 'Plantilla'} v{ver.version}</span>
                               </a>
+                            ) : (
+                              <>
+                                {/* Descarga editable para la versión histórica */}
+                                {(historyModalFormat.editable_type === 'xlsx' || historyModalFormat.has_xlsx) && (
+                                  <a
+                                    href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=xlsx&version=${ver.version}`}
+                                    download
+                                    className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-emerald-500 hover:text-emerald-800"
+                                    title={`Descargar formato editable en Excel versión ${ver.version}`}
+                                  >
+                                    <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                                    <span>Excel v{ver.version}</span>
+                                  </a>
+                                )}
+                                {historyModalFormat.editable_type === 'docx' && (
+                                  <a
+                                    href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=docx&version=${ver.version}`}
+                                    download
+                                    className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-blue-500 hover:text-blue-800"
+                                    title={`Descargar formato editable en Word versión ${ver.version}`}
+                                  >
+                                    <FileText className="w-3 h-3 text-blue-600" />
+                                    <span>Word v{ver.version}</span>
+                                  </a>
+                                )}
+                                {(historyModalFormat.has_pptx || historyModalFormat.editable_type === 'pptx') && (
+                                  <a
+                                    href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=pptx&version=${ver.version}`}
+                                    download
+                                    className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-amber-500 hover:text-amber-800"
+                                    title={`Descargar PowerPoint versión ${ver.version}`}
+                                  >
+                                    <Layers className="w-3 h-3 text-accent" />
+                                    <span>PPTX v{ver.version}</span>
+                                  </a>
+                                )}
+                              </>
                             )}
-                            {historyModalFormat.editable_type === 'docx' && (
-                              <a
-                                href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=docx&version=${ver.version}`}
-                                download
-                                className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-blue-500 hover:text-blue-800"
-                                title={`Descargar formato editable en Word versión ${ver.version}`}
-                              >
-                                <FileText className="w-3 h-3 text-blue-600" />
-                                <span>Word v{ver.version}</span>
-                              </a>
-                            )}
-                            {(historyModalFormat.has_pptx || historyModalFormat.editable_type === 'pptx') && (
-                              <a
-                                href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=pptx&version=${ver.version}`}
-                                download
-                                className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-amber-500 hover:text-amber-800"
-                                title={`Descargar PowerPoint versión ${ver.version}`}
-                              >
-                                <Layers className="w-3 h-3 text-accent" />
-                                <span>PPTX v{ver.version}</span>
-                              </a>
-                            )}
-                            {/* Descarga PDF para la versión histórica */}
-                            <a
-                              href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=pdf&version=${ver.version}`}
-                              download
-                              className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1 hover:border-accent hover:text-amber-800"
-                              title={`Descargar documento oficial PDF versión ${ver.version}`}
-                            >
-                              <Download className="w-3 h-3 text-accent" />
-                              <span>PDF v{ver.version}</span>
-                            </a>
                           </div>
                         </div>
 
@@ -926,16 +965,42 @@ export function VersionControlPanel() {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                bumpVersionMutation.mutate({
-                  format_id: selectedFormatToBump.id,
-                  new_version: bumpForm.new_version,
-                  change_date: bumpForm.change_date,
-                  change_reason: bumpForm.change_reason,
-                  responsible_name: bumpForm.responsible_name,
-                  file_format: bumpForm.file_format,
-                });
+                if (!selectedFormatToBump) return;
+                try {
+                  setIsUploadingFile(true);
+                  let fileUrl: string | null = null;
+                  let fileFormat = bumpForm.file_format || 'xlsx';
+
+                  if (bumpFile) {
+                    const upData = await uploadFileTemplate(
+                      bumpFile,
+                      selectedFormatToBump.code,
+                      bumpForm.new_version,
+                      selectedFormatToBump.id
+                    );
+                    fileUrl = upData.url;
+                    fileFormat = upData.file_format;
+                  }
+
+                  await bumpVersionMutation.mutateAsync({
+                    format_id: selectedFormatToBump.id,
+                    new_version: bumpForm.new_version,
+                    change_date: bumpForm.change_date,
+                    change_reason: bumpForm.change_reason,
+                    responsible_name: bumpForm.responsible_name,
+                    file_format: fileFormat,
+                    file_url: fileUrl,
+                  });
+                } catch (err: unknown) {
+                  setActionFeedback({
+                    type: 'error',
+                    message: err instanceof Error ? err.message : 'Error al registrar nueva versión',
+                  });
+                } finally {
+                  setIsUploadingFile(false);
+                }
               }}
               className="p-4 sm:p-5 space-y-4 text-xs"
             >
@@ -1008,6 +1073,68 @@ export function VersionControlPanel() {
                 />
               </div>
 
+              {/* Adjuntar Formato Editable con Campos Llenables */}
+              <div>
+                <label className="block text-text-primary font-semibold mb-1">
+                  Adjuntar Formato Editable Oficial (Campos Llenables)
+                </label>
+                <div className="border border-dashed border-border rounded-lg p-3 bg-surface/40 hover:border-accent transition-colors">
+                  <input
+                    type="file"
+                    id="bump-file-input"
+                    accept=".xlsx,.xls,.docx,.doc,.pptx,.ppt,.xlsm"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setBumpFile(e.target.files[0]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  {bumpFile ? (
+                    <div className="flex items-center justify-between p-2.5 bg-white rounded border border-border shadow-xs">
+                      <div className="flex items-center gap-2 overflow-hidden text-left">
+                        {bumpFile.name.endsWith('.docx') || bumpFile.name.endsWith('.doc') ? (
+                          <FileText className="w-5 h-5 text-blue-600 shrink-0" strokeWidth={1.75} />
+                        ) : bumpFile.name.endsWith('.pptx') || bumpFile.name.endsWith('.ppt') ? (
+                          <Layers className="w-5 h-5 text-accent shrink-0" strokeWidth={1.75} />
+                        ) : (
+                          <FileSpreadsheet className="w-5 h-5 text-emerald-600 shrink-0" strokeWidth={1.75} />
+                        )}
+                        <div className="truncate">
+                          <p className="font-semibold text-text-primary truncate">{bumpFile.name}</p>
+                          <p className="text-[10px] text-text-muted">
+                            {(bumpFile.size / 1024).toFixed(1)} KB • Archivo con campos llenables listo para importar
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setBumpFile(null)}
+                        className="text-text-muted hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors"
+                        title="Quitar archivo adjunto"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="bump-file-input"
+                      className="cursor-pointer flex flex-col items-center justify-center gap-1.5 py-3 text-text-muted hover:text-text-primary group"
+                    >
+                      <div className="p-2 bg-amber-50 rounded-full text-accent group-hover:scale-105 transition-transform">
+                        <Upload className="w-5 h-5" strokeWidth={1.75} />
+                      </div>
+                      <p className="text-xs font-semibold text-text-primary">
+                        Haz clic aquí para seleccionar o importar la plantilla con campos llenables
+                      </p>
+                      <p className="text-[10px] text-text-muted">
+                        Formatos editables admitidos: Excel (.xlsx), Word (.docx) o PowerPoint (.pptx)
+                      </p>
+                    </label>
+                  )}
+                </div>
+              </div>
+
               <div className="p-3 bg-amber-50 border border-amber-200 rounded text-amber-900 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-accent shrink-0 mt-0.5" />
                 <p className="text-[11px] leading-relaxed">
@@ -1027,10 +1154,14 @@ export function VersionControlPanel() {
                 </button>
                 <button
                   type="submit"
-                  disabled={bumpVersionMutation.isPending}
+                  disabled={bumpVersionMutation.isPending || isUploadingFile}
                   className="btn btn-accent py-1.5 px-4 text-xs font-bold text-primary-900"
                 >
-                  {bumpVersionMutation.isPending ? 'Guardando...' : 'Confirmar Nueva Versión'}
+                  {isUploadingFile
+                    ? 'Subiendo archivo...'
+                    : bumpVersionMutation.isPending
+                    ? 'Guardando...'
+                    : 'Confirmar Nueva Versión'}
                 </button>
               </div>
             </form>
@@ -1063,9 +1194,36 @@ export function VersionControlPanel() {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                createFormatMutation.mutate(newFormatForm);
+                try {
+                  setIsUploadingFile(true);
+                  let fileUrl: string | null = null;
+                  let fileFormat = 'xlsx';
+
+                  if (newFormatFile) {
+                    const upData = await uploadFileTemplate(
+                      newFormatFile,
+                      newFormatForm.code,
+                      newFormatForm.current_version
+                    );
+                    fileUrl = upData.url;
+                    fileFormat = upData.file_format;
+                  }
+
+                  await createFormatMutation.mutateAsync({
+                    ...newFormatForm,
+                    file_url: fileUrl,
+                    file_format: fileFormat,
+                  });
+                } catch (err: unknown) {
+                  setActionFeedback({
+                    type: 'error',
+                    message: err instanceof Error ? err.message : 'Error al registrar formato',
+                  });
+                } finally {
+                  setIsUploadingFile(false);
+                }
               }}
               className="p-4 sm:p-5 space-y-3.5 text-xs"
             >
@@ -1213,6 +1371,53 @@ export function VersionControlPanel() {
                 />
               </div>
 
+              {/* Adjuntar Formato Editable Oficial */}
+              <div>
+                <label className="block text-text-primary font-semibold mb-1">
+                  Plantilla / Formato Editable Oficial (Excel, Word, PowerPoint)
+                </label>
+                <div className="border-2 border-dashed border-border rounded-lg p-3 bg-surface/40 hover:bg-surface/80 transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-accent shrink-0" strokeWidth={1.75} />
+                      <div className="text-[11px]">
+                        <span className="font-semibold text-text-primary">
+                          {newFormatFile ? newFormatFile.name : 'Seleccionar archivo editable con campos llenables'}
+                        </span>
+                        <p className="text-text-muted text-[10px]">
+                          Formatos aceptados: .xlsx, .xlsm, .docx, .pptx (Máx. 50MB)
+                        </p>
+                      </div>
+                    </div>
+                    <label className="btn btn-secondary text-xs py-1 px-3 cursor-pointer inline-flex items-center gap-1.5 self-start sm:self-auto shrink-0">
+                      <span>{newFormatFile ? 'Cambiar Archivo' : 'Examinar'}</span>
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,.xlsm,.docx,.doc,.pptx,.ppt"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setNewFormatFile(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {newFormatFile && (
+                    <div className="mt-2 pt-2 border-t border-border flex items-center justify-between text-[11px] text-text-secondary">
+                      <span>Tamaño: {(newFormatFile.size / 1024).toFixed(1)} KB</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewFormatFile(null)}
+                        className="text-red-600 hover:underline"
+                      >
+                        Quitar archivo
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
                 <button
                   type="button"
@@ -1223,10 +1428,10 @@ export function VersionControlPanel() {
                 </button>
                 <button
                   type="submit"
-                  disabled={createFormatMutation.isPending}
+                  disabled={createFormatMutation.isPending || isUploadingFile}
                   className="btn btn-accent py-1.5 px-4 text-xs font-bold text-primary-900"
                 >
-                  {createFormatMutation.isPending ? 'Registrando...' : 'Registrar Formato'}
+                  {isUploadingFile ? 'Subiendo plantilla...' : createFormatMutation.isPending ? 'Registrando...' : 'Registrar Formato'}
                 </button>
               </div>
             </form>
@@ -1259,9 +1464,37 @@ export function VersionControlPanel() {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                editFormatMutation.mutate(editForm);
+                try {
+                  setIsUploadingFile(true);
+                  let fileUrl = selectedFormatToEdit?.download_template_url || null;
+                  let fileFormat: string = selectedFormatToEdit?.editable_type || 'xlsx';
+
+                  if (editFile) {
+                    const upData = await uploadFileTemplate(
+                      editFile,
+                      editForm.code,
+                      editForm.current_version,
+                      editForm.id
+                    );
+                    fileUrl = upData.url;
+                    fileFormat = upData.file_format;
+                  }
+
+                  await editFormatMutation.mutateAsync({
+                    ...editForm,
+                    file_url: fileUrl,
+                    file_format: fileFormat,
+                  });
+                } catch (err: unknown) {
+                  setActionFeedback({
+                    type: 'error',
+                    message: err instanceof Error ? err.message : 'Error al modificar formato',
+                  });
+                } finally {
+                  setIsUploadingFile(false);
+                }
               }}
               className="p-4 sm:p-5 space-y-3.5 text-xs overflow-y-auto"
             >
@@ -1440,6 +1673,57 @@ export function VersionControlPanel() {
                 />
               </div>
 
+              {/* Actualizar Plantilla / Formato Editable */}
+              <div>
+                <label className="block text-text-primary font-semibold mb-1">
+                  Plantilla / Formato Editable Oficial (Excel, Word, PowerPoint)
+                </label>
+                <div className="border-2 border-dashed border-border rounded-lg p-3 bg-surface/40 hover:bg-surface/80 transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-accent shrink-0" strokeWidth={1.75} />
+                      <div className="text-[11px]">
+                        <span className="font-semibold text-text-primary">
+                          {editFile
+                            ? editFile.name
+                            : selectedFormatToEdit?.download_template_url
+                            ? 'Plantilla personalizada actual registrada'
+                            : 'Seleccionar archivo editable con campos llenables'}
+                        </span>
+                        <p className="text-text-muted text-[10px]">
+                          Formatos aceptados: .xlsx, .xlsm, .docx, .pptx (Máx. 50MB)
+                        </p>
+                      </div>
+                    </div>
+                    <label className="btn btn-secondary text-xs py-1 px-3 cursor-pointer inline-flex items-center gap-1.5 self-start sm:self-auto shrink-0">
+                      <span>{editFile ? 'Cambiar Archivo' : 'Examinar'}</span>
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,.xlsm,.docx,.doc,.pptx,.ppt"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setEditFile(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {editFile && (
+                    <div className="mt-2 pt-2 border-t border-border flex items-center justify-between text-[11px] text-text-secondary">
+                      <span>Tamaño: {(editFile.size / 1024).toFixed(1)} KB</span>
+                      <button
+                        type="button"
+                        onClick={() => setEditFile(null)}
+                        className="text-red-600 hover:underline"
+                      >
+                        Quitar archivo
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-border">
                 <button
                   type="button"
@@ -1450,10 +1734,10 @@ export function VersionControlPanel() {
                 </button>
                 <button
                   type="submit"
-                  disabled={editFormatMutation.isPending}
+                  disabled={editFormatMutation.isPending || isUploadingFile}
                   className="btn btn-accent py-1.5 px-4 text-xs font-bold text-primary-900"
                 >
-                  {editFormatMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+                  {isUploadingFile ? 'Subiendo plantilla...' : editFormatMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
             </form>
