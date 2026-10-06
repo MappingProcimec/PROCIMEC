@@ -797,11 +797,11 @@ BEGIN
     VALUES (v_fmt_id, '1', '2026-09-24', 'Acta formal de entrega parcial o final para radicación de cuenta de cobro / factura al cliente.', 'Contabilidad / Gerencia', 'pdf')
     ON CONFLICT DO NOTHING;
 
-    -- 25. FOR-TH-001: Elaboración de Cartas y Certificaciones Laborales
+    -- 25. FOR-TH-001: Certificación Laboral
     INSERT INTO public.document_format_versions (code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description)
     VALUES (
         'FOR-TH-001',
-        'Elaboración de Cartas y Certificaciones Laborales',
+        'Certificación Laboral',
         'Gestión del Talento Humano',
         'elaboracion-cartas',
         ARRAY['RRHH', 'Admin'],
@@ -810,7 +810,35 @@ BEGIN
         '2026-09-24',
         'active',
         'rrhh',
-        'Generador oficial de cartas laborales, permisos, vinculaciones a proyecto y paz y salvo con firma de Gerencia.'
+        'Acreditación formal de vínculo laboral, cargo, salario devengado, antigüedad y tipo de contrato con firma autorizada.'
+    )
+    ON CONFLICT (code) DO UPDATE SET
+        name = EXCLUDED.name,
+        process = EXCLUDED.process,
+        roles_access = EXCLUDED.roles_access,
+        current_version = EXCLUDED.current_version,
+        effective_date = EXCLUDED.effective_date,
+        description = EXCLUDED.description
+    RETURNING id INTO v_fmt_id;
+
+    INSERT INTO public.format_version_history (format_id, version, change_date, change_reason, responsible_name, file_format)
+    VALUES (v_fmt_id, '1', '2026-09-24', 'Estandarización de modelo institucional de certificación laboral con validación de radicado.', 'Talento Humano', 'docx')
+    ON CONFLICT DO NOTHING;
+
+    -- 26. FOR-TH-002: Presentación de Personal en Obra
+    INSERT INTO public.document_format_versions (code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description)
+    VALUES (
+        'FOR-TH-002',
+        'Presentación de Personal en Obra',
+        'Gestión del Talento Humano',
+        'elaboracion-cartas',
+        ARRAY['RRHH', 'Admin'],
+        false,
+        '1',
+        '2026-09-24',
+        'active',
+        'rrhh',
+        'Presentación formal de colaboradores ante clientes o interventoría con afiliaciones de seguridad social y ARL de frente.'
     )
     ON CONFLICT (code) DO UPDATE SET
         name = EXCLUDED.name,
@@ -821,7 +849,143 @@ BEGIN
     RETURNING id INTO v_fmt_id;
 
     INSERT INTO public.format_version_history (format_id, version, change_date, change_reason, responsible_name, file_format)
-    VALUES (v_fmt_id, '1', '2026-09-24', 'Estandarización de modelos institucionales de certificación laboral y cartas de asignación a proyectos.', 'Talento Humano', 'docx')
+    VALUES (v_fmt_id, '1', '2026-09-24', 'Formato oficial de acreditación ante interventoría en frentes operativos.', 'Talento Humano', 'docx')
+    ON CONFLICT DO NOTHING;
+
+    -- 27. FOR-TH-003: Vinculación a Proyecto / Obra
+    INSERT INTO public.document_format_versions (code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description)
+    VALUES (
+        'FOR-TH-003',
+        'Vinculación a Proyecto / Obra',
+        'Gestión del Talento Humano',
+        'elaboracion-cartas',
+        ARRAY['RRHH', 'Admin'],
+        false,
+        '1',
+        '2026-09-24',
+        'active',
+        'rrhh',
+        'Asignación oficial a frente de trabajo, condiciones del contrato, jefe inmediato y entrega de dotación y EPP.'
+    )
+    ON CONFLICT (code) DO UPDATE SET
+        name = EXCLUDED.name,
+        process = EXCLUDED.process,
+        roles_access = EXCLUDED.roles_access,
+        current_version = EXCLUDED.current_version,
+        effective_date = EXCLUDED.effective_date
+    RETURNING id INTO v_fmt_id;
+
+    INSERT INTO public.format_version_history (format_id, version, change_date, change_reason, responsible_name, file_format)
+    VALUES (v_fmt_id, '1', '2026-09-24', 'Formato de asignación y traslado operativo de personal a contratos vigentes.', 'Talento Humano', 'docx')
+    ON CONFLICT DO NOTHING;
+
+    -- 28. FOR-TH-004: Terminación de Contrato de Trabajo
+    INSERT INTO public.document_format_versions (code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description)
+    VALUES (
+        'FOR-TH-004',
+        'Terminación de Contrato de Trabajo',
+        'Gestión del Talento Humano',
+        'elaboracion-cartas',
+        ARRAY['RRHH', 'Gerencia', 'Admin'],
+        false,
+        '1',
+        '2026-09-24',
+        'active',
+        'rrhh',
+        'Comunicación formal de finalización de relación laboral conforme a la legislación vigente y liquidación de prestaciones.'
+    )
+    ON CONFLICT (code) DO UPDATE SET
+        name = EXCLUDED.name,
+        process = EXCLUDED.process,
+        roles_access = EXCLUDED.roles_access,
+        current_version = EXCLUDED.current_version,
+        effective_date = EXCLUDED.effective_date
+    RETURNING id INTO v_fmt_id;
+
+    INSERT INTO public.format_version_history (format_id, version, change_date, change_reason, responsible_name, file_format)
+    VALUES (v_fmt_id, '1', '2026-09-24', 'Notificación formal de liquidación y desvinculación laboral conforme al Código Sustantivo del Trabajo.', 'Talento Humano', 'docx')
+    ON CONFLICT DO NOTHING;
+
+    -- 29. FOR-TH-005: Paz y Salvo Laboral
+    INSERT INTO public.document_format_versions (code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description)
+    VALUES (
+        'FOR-TH-005',
+        'Paz y Salvo Laboral',
+        'Gestión del Talento Humano',
+        'elaboracion-cartas',
+        ARRAY['RRHH', 'Admin'],
+        false,
+        '1',
+        '2026-09-24',
+        'active',
+        'rrhh',
+        'Constancia de entrega formal de dotación, equipos técnicos, reintegro de herramientas, celular corporativo y carnet.'
+    )
+    ON CONFLICT (code) DO UPDATE SET
+        name = EXCLUDED.name,
+        process = EXCLUDED.process,
+        roles_access = EXCLUDED.roles_access,
+        current_version = EXCLUDED.current_version,
+        effective_date = EXCLUDED.effective_date
+    RETURNING id INTO v_fmt_id;
+
+    INSERT INTO public.format_version_history (format_id, version, change_date, change_reason, responsible_name, file_format)
+    VALUES (v_fmt_id, '1', '2026-09-24', 'Validación de reintegro de activos de la empresa al terminar vínculo laboral.', 'Talento Humano', 'docx')
+    ON CONFLICT DO NOTHING;
+
+    -- 30. FOR-TH-006: Permiso Laboral y Licencias
+    INSERT INTO public.document_format_versions (code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description)
+    VALUES (
+        'FOR-TH-006',
+        'Permiso Laboral y Licencias',
+        'Gestión del Talento Humano',
+        'elaboracion-cartas',
+        ARRAY['RRHH', 'Admin'],
+        false,
+        '1',
+        '2026-09-24',
+        'active',
+        'rrhh',
+        'Autorización y constancia formal de ausencias laborales, citas médicas o licencias temporales aprobadas.'
+    )
+    ON CONFLICT (code) DO UPDATE SET
+        name = EXCLUDED.name,
+        process = EXCLUDED.process,
+        roles_access = EXCLUDED.roles_access,
+        current_version = EXCLUDED.current_version,
+        effective_date = EXCLUDED.effective_date
+    RETURNING id INTO v_fmt_id;
+
+    INSERT INTO public.format_version_history (format_id, version, change_date, change_reason, responsible_name, file_format)
+    VALUES (v_fmt_id, '1', '2026-09-24', 'Registro de permisos y justificaciones médicas de colaboradores.', 'Talento Humano', 'docx')
+    ON CONFLICT DO NOTHING;
+
+    -- 31. FOR-TH-007: Solicitud a Entidad Externa
+    INSERT INTO public.document_format_versions (code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description)
+    VALUES (
+        'FOR-TH-007',
+        'Solicitud a Entidad Externa',
+        'Gestión del Talento Humano',
+        'elaboracion-cartas',
+        ARRAY['RRHH', 'Gerencia', 'Admin'],
+        false,
+        '1',
+        '2026-09-24',
+        'active',
+        'rrhh',
+        'Oficio formal institucional dirigido a entidades públicas, bancos o clientes con representación legal de PROCIMEC.'
+    )
+    ON CONFLICT (code) DO UPDATE SET
+        name = EXCLUDED.name,
+        process = EXCLUDED.process,
+        roles_access = EXCLUDED.roles_access,
+        current_version = EXCLUDED.current_version,
+        effective_date = EXCLUDED.effective_date
+    RETURNING id INTO v_fmt_id;
+
+    INSERT INTO public.format_version_history (format_id, version, change_date, change_reason, responsible_name, file_format)
+    VALUES (v_fmt_id, '1', '2026-09-24', 'Comunicaciones corporativas formales con entidades externas.', 'Talento Humano', 'docx')
     ON CONFLICT DO NOTHING;
 
 END $$;
+

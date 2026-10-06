@@ -503,16 +503,55 @@ export function VersionControlPanel() {
 
                     {/* Acciones */}
                     <td className="py-3 px-4 align-top text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* Descargar Plantilla Oficial */}
+                      <div className="flex items-center justify-end flex-wrap gap-1.5">
+                        {/* Descargar Formato Editable Excel */}
+                        {(fmt.editable_type === 'xlsx' || fmt.has_xlsx) && (
+                          <a
+                            href={`/api/tools/version-control/download-template?code=${fmt.code}&format=xlsx&version=${fmt.current_version}`}
+                            download
+                            className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-emerald-500 hover:text-emerald-800 transition-colors"
+                            title="Descargar formato editable en Excel (.xlsx)"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Excel (.xlsx)</span>
+                          </a>
+                        )}
+
+                        {/* Descargar Formato Editable Word */}
+                        {fmt.editable_type === 'docx' && (
+                          <a
+                            href={`/api/tools/version-control/download-template?code=${fmt.code}&format=docx&version=${fmt.current_version}`}
+                            download
+                            className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-blue-500 hover:text-blue-800 transition-colors"
+                            title="Descargar formato editable en Word (.docx)"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Word (.docx)</span>
+                          </a>
+                        )}
+
+                        {/* Descargar Formato Editable PowerPoint */}
+                        {(fmt.has_pptx || fmt.editable_type === 'pptx') && (
+                          <a
+                            href={`/api/tools/version-control/download-template?code=${fmt.code}&format=pptx&version=${fmt.current_version}`}
+                            download
+                            className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-amber-500 hover:text-amber-800 transition-colors"
+                            title="Descargar láminas editables en PowerPoint (.pptx)"
+                          >
+                            <Layers className="w-3.5 h-3.5 text-accent" />
+                            <span>PowerPoint (.pptx)</span>
+                          </a>
+                        )}
+
+                        {/* Descargar Formato Oficial PDF */}
                         <a
-                          href={fmt.download_template_url || `/api/tools/version-control/download-template?code=${fmt.code}&version=${fmt.current_version}`}
+                          href={`/api/tools/version-control/download-template?code=${fmt.code}&format=pdf&version=${fmt.current_version}`}
                           download
-                          className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-accent hover:text-amber-800"
-                          title="Descargar plantilla / modelo oficial de esta versión"
+                          className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-accent hover:text-amber-900 transition-colors"
+                          title="Descargar formato oficial en PDF (.pdf)"
                         >
                           <Download className="w-3.5 h-3.5 text-accent" />
-                          <span>Descargar</span>
+                          <span>PDF (.pdf)</span>
                         </a>
 
                         {/* Ver Historial de Versiones */}
@@ -609,19 +648,50 @@ export function VersionControlPanel() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono text-text-muted flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {ver.change_date}
-                            </span>
+                          <div className="flex items-center gap-1.5">
+                            {/* Descarga editable para la versión histórica */}
+                            {(historyModalFormat.editable_type === 'xlsx' || historyModalFormat.has_xlsx) && (
+                              <a
+                                href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=xlsx&version=${ver.version}`}
+                                download
+                                className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-emerald-500 hover:text-emerald-800"
+                                title={`Descargar formato editable en Excel versión ${ver.version}`}
+                              >
+                                <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                                <span>Excel v{ver.version}</span>
+                              </a>
+                            )}
+                            {historyModalFormat.editable_type === 'docx' && (
+                              <a
+                                href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=docx&version=${ver.version}`}
+                                download
+                                className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-blue-500 hover:text-blue-800"
+                                title={`Descargar formato editable en Word versión ${ver.version}`}
+                              >
+                                <FileText className="w-3 h-3 text-blue-600" />
+                                <span>Word v{ver.version}</span>
+                              </a>
+                            )}
+                            {(historyModalFormat.has_pptx || historyModalFormat.editable_type === 'pptx') && (
+                              <a
+                                href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=pptx&version=${ver.version}`}
+                                download
+                                className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-amber-500 hover:text-amber-800"
+                                title={`Descargar PowerPoint versión ${ver.version}`}
+                              >
+                                <Layers className="w-3 h-3 text-accent" />
+                                <span>PPTX v{ver.version}</span>
+                              </a>
+                            )}
+                            {/* Descarga PDF para la versión histórica */}
                             <a
-                              href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&version=${ver.version}`}
+                              href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=pdf&version=${ver.version}`}
                               download
                               className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1 hover:border-accent hover:text-amber-800"
-                              title={`Descargar plantilla oficial versión ${ver.version}`}
+                              title={`Descargar documento oficial PDF versión ${ver.version}`}
                             >
                               <Download className="w-3 h-3 text-accent" />
-                              <span>Descargar v{ver.version}</span>
+                              <span>PDF v{ver.version}</span>
                             </a>
                           </div>
                         </div>
