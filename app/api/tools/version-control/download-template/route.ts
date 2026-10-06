@@ -200,6 +200,7 @@ export const FORMAT_FILES_REGISTRY: Record<string, FormatFileDef> = {
     name: 'Solicitud y Autorización de Viáticos y Anticipos',
     process: 'Finanzas y Tesorería',
     editableType: 'xlsx',
+    localFilePath: 'public/templates/FOR-FIN-001_Solicitud_Anticipo.xlsx',
     formSlug: 'solicitud-viaticos',
   },
   'FOR-FIN-002': {
@@ -207,6 +208,7 @@ export const FORMAT_FILES_REGISTRY: Record<string, FormatFileDef> = {
     name: 'Legalización y Rendición de Gastos de Comisión',
     process: 'Finanzas y Tesorería',
     editableType: 'xlsx',
+    localFilePath: 'public/templates/FOR-FIN-002_Legalizacion_Anticipo.xlsx',
     formSlug: 'legalizacion-gastos',
   },
   'FOR-FIN-003': {
@@ -214,6 +216,7 @@ export const FORMAT_FILES_REGISTRY: Record<string, FormatFileDef> = {
     name: 'Comprobante de Egreso y Pago Bancario',
     process: 'Finanzas y Tesorería',
     editableType: 'xlsx',
+    localFilePath: 'public/templates/FOR-FIN-003_Recibo_Caja.xlsx',
     formSlug: 'registro-pago',
   },
 
@@ -1546,6 +1549,7 @@ export async function GET(req: NextRequest) {
     const code = (searchParams.get('code') || 'FOR-SIG-001').toUpperCase().trim();
     const reqFormat = (searchParams.get('format') || 'editable').toLowerCase();
     const versionParam = searchParams.get('version')?.trim();
+    const fileUrlParam = searchParams.get('file_url')?.trim();
 
     const meta = FORMAT_FILES_REGISTRY[code] || {
       code,
@@ -1558,7 +1562,7 @@ export async function GET(req: NextRequest) {
     let activeEffectiveDate = '2026-10-02';
     let formatTitle = meta.name;
     let formatProcess = meta.process;
-    let targetFileUrl: string | null = null;
+    let targetFileUrl: string | null = fileUrlParam || null;
 
     // ──────────────────────────────────────────────────────────────────────────
     // CONSULTA DE METADATOS Y ARCHIVO EN SUPABASE POSTGRESQL
@@ -1578,8 +1582,8 @@ export async function GET(req: NextRequest) {
         if (fmtRecord.current_version) activeVersion = String(fmtRecord.current_version);
         if (fmtRecord.effective_date) activeEffectiveDate = String(fmtRecord.effective_date);
 
-        // Si hay una plantilla explícitamente subida a Supabase Storage
-        if (fmtRecord.download_template_url && !fmtRecord.download_template_url.includes('download-template?')) {
+        // Si hay una plantilla explícitamente subida a Supabase Storage y no venía file_url en el query
+        if (!targetFileUrl && fmtRecord.download_template_url && !fmtRecord.download_template_url.includes('/api/tools/version-control/download-template')) {
           targetFileUrl = fmtRecord.download_template_url;
         }
 
@@ -1627,7 +1631,7 @@ export async function GET(req: NextRequest) {
             status: 200,
             headers: {
               'Content-Type': contentType,
-              'Content-Disposition': `attachment; filename="${code}_v${activeVersion}${ext}"`,
+              'Content-Disposition': `attachment; filename="${code}_v${activeVersion}_Plantilla_Oficial${ext}"`,
             },
           });
         }
@@ -1652,7 +1656,7 @@ export async function GET(req: NextRequest) {
               status: 200,
               headers: {
                 'Content-Type': contentType,
-                'Content-Disposition': `attachment; filename="${code}_v${activeVersion}${ext}"`,
+                'Content-Disposition': `attachment; filename="${code}_v${activeVersion}_Plantilla_Oficial${ext}"`,
               },
             });
           }

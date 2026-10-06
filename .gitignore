@@ -40,3 +40,6 @@ bot-whatsapp/
 
 .vercel
 .env*
+
+# Scratch scripts
+scratch/

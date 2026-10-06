@@ -147,23 +147,15 @@ export function VersionControlPanel() {
     try {
       setDownloadingKey(key);
 
-      // Si es una URL personalizada directa que no sea de nuestra API (ej: supabase storage)
-      if (customUrl && !customUrl.includes('download-template?')) {
-        const a = document.createElement('a');
-        a.href = customUrl;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        return;
-      }
-
       const queryParams = new URLSearchParams({
         code,
         format,
         version,
       });
+
+      if (customUrl && !customUrl.includes('/api/tools/version-control/download-template')) {
+        queryParams.set('file_url', customUrl);
+      }
 
       const res = await fetch(`/api/tools/version-control/download-template?${queryParams.toString()}`);
 
@@ -179,7 +171,7 @@ export function VersionControlPanel() {
       }
 
       const blob = await res.blob();
-      let filename = `${code}_Plantilla_Oficial.${format}`;
+      let filename = `${code}_v${version}_Plantilla_Oficial.${format}`;
       const disposition = res.headers.get('content-disposition');
       if (disposition && disposition.includes('filename=')) {
         const match = disposition.match(/filename="?([^";]+)"?/);
