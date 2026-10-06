@@ -48,7 +48,7 @@ export async function GET() {
     drawingRes,
   ] = await Promise.allSettled([
     supabase.from('users').select('id, role, is_active, created_at, full_name, email'),
-    supabase.from('projects').select('id, name, is_active, code, cost_center'),
+    supabase.from('projects').select('id, name, is_active, cost_center'),
     supabase.from('roles').select('id, name'),
     supabase.from('forms').select('id, name, is_active'),
     supabase.from('tools').select('id, name, is_active'),
@@ -56,7 +56,7 @@ export async function GET() {
     supabase.from('field_reports').select('id, created_at, report_date, operational_summary'),
     supabase
       .from('field_reports')
-      .select('id, created_at, report_date, localizador_name, project_id, projects(name, code)')
+      .select('id, created_at, report_date, localizador_name, project_id, projects(name, cost_center)')
       .order('created_at', { ascending: false })
       .limit(6),
     supabase.from('drawing_activities').select('id, hours_worked, created_at'),

@@ -33,7 +33,7 @@ export async function getDashboardActivities({
   // 1. Cargar Usuarios y Proyectos para mapeo O(1)
   const [usersRes, projectsRes] = await Promise.all([
     supabase.from('users').select('id, full_name, nick_name, email'),
-    supabase.from('projects').select('id, name, cost_center, code'),
+    supabase.from('projects').select('id, name, cost_center'),
   ]);
 
   const userMap = new Map<string, { name: string; email: string }>();
@@ -46,7 +46,7 @@ export async function getDashboardActivities({
 
   const projectMap = new Map<string, { name: string; code: string }>();
   for (const p of projectsRes.data ?? []) {
-    const code = p.cost_center || p.code || 'CC-S/N';
+    const code = p.cost_center || 'CC-S/N';
     projectMap.set(p.id, {
       name: p.name || 'Sin Asignar',
       code,
