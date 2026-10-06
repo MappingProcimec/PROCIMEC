@@ -956,6 +956,8 @@ export async function GET(req: NextRequest) {
 
     let formats: DocumentFormatItem[] = [];
 
+    let tableExists = false;
+
     // 1. Intentar consultar base de datos Supabase
     try {
       const { data: dbFormats, error: fError } = await supabase
@@ -964,7 +966,8 @@ export async function GET(req: NextRequest) {
         .order('process', { ascending: true })
         .order('code', { ascending: true });
 
-      if (!fError && dbFormats && dbFormats.length > 0) {
+      if (!fError && dbFormats) {
+        tableExists = true;
         // Cargar historiales asociados concurrentemente
         const { data: dbHistories } = await supabase
           .from('format_version_history')
@@ -981,9 +984,9 @@ export async function GET(req: NextRequest) {
         formats = dbFormats.map((f) => {
           const hist = historyByFormat.get(f.id) || [];
           const seedMeta = MASTER_FORMATS_SEED.find((s) => s.code === f.code);
-          const editableType = seedMeta?.editable_type || 'xlsx';
-          const hasPptx = Boolean(seedMeta?.has_pptx);
-          const hasXlsx = Boolean(seedMeta?.has_xlsx);
+          const editableType = (f.category === 'commercial' && f.code !== 'FOR-CMR-002') || f.code.startsWith('FOR-TH') || f.code === 'FOR-ALM-002' || f.code === 'FOR-ALM-003' || f.code === 'FOR-GPR-001' ? 'docx' : (seedMeta?.editable_type || 'xlsx');
+          const hasPptx = f.code === 'FOR-GPR-001' || Boolean(seedMeta?.has_pptx);
+          const hasXlsx = f.code === 'FOR-CMR-002' || Boolean(seedMeta?.has_xlsx);
 
           return {
             id: f.id,
@@ -1008,11 +1011,11 @@ export async function GET(req: NextRequest) {
         });
       }
     } catch (dbErr) {
-      console.warn('Tabla document_format_versions aún no creada o con error. Usando catálogo oficial maestro:', dbErr);
+      console.warn('Tabla document_format_versions aún no creada o con error en Supabase:', dbErr);
     }
 
-    // Si la base de datos está vacía, usar el catálogo maestro oficial con las 31 definiciones reales
-    if (formats.length === 0) {
+    // Si la tabla aún no existe en Supabase (migración pendiente de ejecutar), usar catálogo en memoria
+    if (!tableExists) {
       formats = MASTER_FORMATS_SEED.map((s, idx) => ({
         ...s,
         id: `fmt-${idx + 1}`,

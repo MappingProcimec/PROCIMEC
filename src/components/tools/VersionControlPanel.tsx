@@ -405,10 +405,19 @@ export function VersionControlPanel() {
             <p className="text-sm text-text-muted font-medium">Cargando listado maestro de versiones...</p>
           </div>
         ) : formats.length === 0 ? (
-          <div className="p-12 text-center space-y-2">
-            <FileText className="w-8 h-8 text-text-muted mx-auto opacity-50" />
-            <p className="text-sm font-semibold text-text-primary">No se encontraron formatos coincidentes</p>
-            <p className="text-xs text-text-muted">Prueba ajustando los filtros de búsqueda o proceso.</p>
+          <div className="p-12 text-center space-y-3">
+            <FileText className="w-10 h-10 text-accent/60 mx-auto" />
+            <p className="text-sm font-bold text-text-primary">No hay formatos registrados en el listado maestro</p>
+            <p className="text-xs text-text-muted max-w-md mx-auto">
+              La base de datos está lista para gestionar tus formatos oficiales. Puedes registrar el primer formato haciendo clic en el botón a continuación.
+            </p>
+            <button
+              onClick={() => setIsNewFormatModalOpen(true)}
+              className="btn btn-accent text-xs font-bold py-2 px-4 inline-flex items-center gap-1.5 mx-auto"
+            >
+              <PlusCircle className="w-4 h-4 text-primary-900" />
+              <span>Registrar Nuevo Formato</span>
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
