@@ -11,6 +11,7 @@ import {
   X,
   AlertCircle,
 } from 'lucide-react';
+import { getActiveProjectId, setActiveProjectId } from '@/hooks/useActiveProject';
 
 // --- Field type system ---
 
@@ -179,6 +180,18 @@ export default function TwoStepForm({
     return () => clearTimeout(timer);
   }, [values, draftKey]);
 
+  // Preseleccionar proyecto activo si el campo está vacío
+  useEffect(() => {
+    if (!values.project_id && projects.length > 0) {
+      const active = getActiveProjectId();
+      if (active && projects.some((p) => p.id === active)) {
+        setValues((prev) => ({ ...prev, project_id: active }));
+      } else if (projects.length === 1) {
+        setValues((prev) => ({ ...prev, project_id: projects[0].id }));
+      }
+    }
+  }, [projects, values.project_id]);
+
   const clearDraft = useCallback(() => {
     try { localStorage.removeItem(draftKey); } catch { /* ignore */ }
     setHasDraft(false);
@@ -191,6 +204,9 @@ export default function TwoStepForm({
 
   const set = (key: string, val: unknown) => {
     setValues((prev) => ({ ...prev, [key]: val }));
+    if (key === 'project_id' && typeof val === 'string' && val) {
+      setActiveProjectId(val);
+    }
   };
 
   // Validation

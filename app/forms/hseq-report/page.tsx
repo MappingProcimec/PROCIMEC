@@ -13,6 +13,8 @@ import {
   HseqFormatConfig,
 } from '@/lib/hseq-definitions';
 import { PenTool, AlertCircle, Check, FileSpreadsheet, ExternalLink, ClipboardList, Sparkles, Loader2, ShieldCheck } from 'lucide-react';
+import { getActiveProjectId, setActiveProjectId } from '@/hooks/useActiveProject';
+import { useFormDraft, DraftRecoveryAlert } from '@/hooks/useFormDraft';
 
 interface HseqTemplateOption {
   id: string;
@@ -139,15 +141,62 @@ export default function HseqReportPage() {
 
   useEffect(() => {
     if (projects.length > 0 && !selectedProjectId) {
-      const first = projects[0];
-      setSelectedProjectId(first.id);
-      setProjectName(first.name);
+      const activeId = getActiveProjectId();
+      const match = activeId ? projects.find((p) => p.id === activeId) : null;
+      if (match) {
+        setSelectedProjectId(match.id);
+        setProjectName(match.name);
+      } else {
+        const first = projects[0];
+        setSelectedProjectId(first.id);
+        setProjectName(first.name);
+      }
     }
   }, [projects, selectedProjectId]);
 
   const selectedProject = useMemo(() => {
     return projects.find((p) => p.id === selectedProjectId) || null;
   }, [projects, selectedProjectId]);
+
+  // Hook de borrador local (Offline-Resilience)
+  const draftPayload = useMemo(() => ({
+    selectedProjectId,
+    selectedTemplateId,
+    inspectionDate,
+    equipmentName,
+    equipmentBrandModel,
+    equipmentSerial,
+    itemsResponses,
+    criticalPoint,
+    generalObservations,
+    conductorName,
+    conductorCedula,
+    vehicleKilometraje,
+  }), [selectedProjectId, selectedTemplateId, inspectionDate, equipmentName, equipmentBrandModel, equipmentSerial, itemsResponses, criticalPoint, generalObservations, conductorName, conductorCedula, vehicleKilometraje]);
+
+  const { hasDraft, draftTimestamp, restoreDraft, clearDraft } = useFormDraft({
+    formKey: 'hseq-report',
+    currentValues: draftPayload,
+    isDirty: Object.keys(itemsResponses).length > 0 || Boolean(generalObservations !== 'Ninguna' && generalObservations),
+    onRestore: (draft) => {
+      if (draft.selectedProjectId) {
+        setSelectedProjectId(draft.selectedProjectId);
+        const match = projects.find((p) => p.id === draft.selectedProjectId);
+        if (match) setProjectName(match.name);
+      }
+      if (draft.selectedTemplateId) setSelectedTemplateId(draft.selectedTemplateId);
+      if (draft.inspectionDate) setInspectionDate(draft.inspectionDate);
+      if (draft.equipmentName) setEquipmentName(draft.equipmentName);
+      if (draft.equipmentBrandModel) setEquipmentBrandModel(draft.equipmentBrandModel);
+      if (draft.equipmentSerial) setEquipmentSerial(draft.equipmentSerial);
+      if (draft.itemsResponses) setItemsResponses(draft.itemsResponses);
+      if (draft.criticalPoint) setCriticalPoint(draft.criticalPoint);
+      if (draft.generalObservations) setGeneralObservations(draft.generalObservations);
+      if (draft.conductorName) setConductorName(draft.conductorName);
+      if (draft.conductorCedula) setConductorCedula(draft.conductorCedula);
+      if (draft.vehicleKilometraje) setVehicleKilometraje(draft.vehicleKilometraje);
+    },
+  });
 
   // 3. Consulta de Plantillas de Google Drive
   const {
@@ -492,6 +541,7 @@ export default function HseqReportPage() {
         driveError: data.driveWarning || null,
       });
       setSubmissionSuccess(true);
+      clearDraft();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al procesar el formulario';
       setSubmitError(message);
@@ -679,6 +729,13 @@ export default function HseqReportPage() {
         ) : (
           /* Formulario Principal */
           <div className="space-y-6">
+            <DraftRecoveryAlert
+              hasDraft={hasDraft}
+              draftTimestamp={draftTimestamp}
+              onRestore={restoreDraft}
+              onClear={clearDraft}
+            />
+
             {/* 1. Selector de Formato Oficial */}
             <div className="card p-6 space-y-3">
               <div className="flex items-center justify-between">
@@ -760,6 +817,7 @@ export default function HseqReportPage() {
                             setSelectedProjectId(pId);
                             const p = projects.find((proj) => proj.id === pId);
                             if (p) setProjectName(p.name);
+                            if (pId) setActiveProjectId(pId);
                           }}
                           required
                           className="select w-full text-xs"

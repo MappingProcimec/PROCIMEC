@@ -20,6 +20,8 @@ import {
   Download,
 } from 'lucide-react';
 import { downloadPurchaseRequestPdf } from '@/lib/purchasing/purchaseRequestPdfGenerator';
+import { getActiveProjectId, setActiveProjectId } from '@/hooks/useActiveProject';
+import { useFormDraft, DraftRecoveryAlert } from '@/hooks/useFormDraft';
 
 interface ProjectOption {
   id: string;
@@ -180,8 +182,11 @@ export default function RequerimientoCompraPage() {
 
         setProjects(resolvedProjects);
 
-        // Si solo hay un proyecto asignado, pre-seleccionarlo
-        if (resolvedProjects.length === 1) {
+        // Preseleccionar proyecto activo sincronizado o predeterminado
+        const activeProjId = getActiveProjectId();
+        if (activeProjId && resolvedProjects.some((p) => p.id === activeProjId)) {
+          setSelectedProjectId(activeProjId);
+        } else if (resolvedProjects.length === 1) {
           setSelectedProjectId(resolvedProjects[0].id);
         }
       } catch (err) {
@@ -199,6 +204,34 @@ export default function RequerimientoCompraPage() {
   const selectedProject = useMemo(() => {
     return projects.find((p) => p.id === selectedProjectId) || null;
   }, [projects, selectedProjectId]);
+
+  // Hook de borrador local (Offline-Resilience)
+  const draftPayload = useMemo(() => ({
+    selectedProjectId,
+    applicantCedula,
+    approverUserId,
+    approverName,
+    deliveryDate,
+    deliverySite,
+    contactPhone,
+    items,
+  }), [selectedProjectId, applicantCedula, approverUserId, approverName, deliveryDate, deliverySite, contactPhone, items]);
+
+  const { hasDraft, draftTimestamp, restoreDraft, clearDraft } = useFormDraft({
+    formKey: 'requerimiento-compra',
+    currentValues: draftPayload,
+    isDirty: items.length > 1 || Boolean(items[0]?.description || deliverySite || contactPhone || applicantCedula),
+    onRestore: (draft) => {
+      if (draft.selectedProjectId) setSelectedProjectId(draft.selectedProjectId);
+      if (draft.applicantCedula) setApplicantCedula(draft.applicantCedula);
+      if (draft.approverUserId) setApproverUserId(draft.approverUserId);
+      if (draft.approverName) setApproverName(draft.approverName);
+      if (draft.deliveryDate) setDeliveryDate(draft.deliveryDate);
+      if (draft.deliverySite) setDeliverySite(draft.deliverySite);
+      if (draft.contactPhone) setContactPhone(draft.contactPhone);
+      if (Array.isArray(draft.items) && draft.items.length > 0) setItems(draft.items);
+    },
+  });
 
   // Aprobadores disponibles para el proyecto seleccionado
   const availableApprovers = useMemo(() => {
@@ -408,6 +441,7 @@ export default function RequerimientoCompraPage() {
         submissionDateTime: formattedDateTime,
       });
       setIsSuccess(true);
+      clearDraft();
     } catch (err) {
       console.error('Error enviando formulario:', err);
       setErrorMessage(err instanceof Error ? err.message : 'Error de comunicación con el servidor.');
@@ -606,36 +640,48 @@ export default function RequerimientoCompraPage() {
             <p className="text-text-muted text-sm font-medium">Cargando datos del requerimiento y proyectos autorizados...</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Tarjeta de Datos de Cabecera */}
-            <div className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-card space-y-5">
-              {/* Errores globales */}
-              {errorMessage && (
-                <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 text-sm flex items-start gap-2.5 animate-fadeIn">
-                  <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
+          <>
+            <DraftRecoveryAlert
+              hasDraft={hasDraft}
+              draftTimestamp={draftTimestamp}
+              onRestore={restoreDraft}
+              onClear={clearDraft}
+            />
 
-              {/* Bloque 1: Proyecto, Centro de Costos y Cliente */}
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary mb-3 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-accent" />
-                  Imputación de Proyecto y Centro de Costos
-                </h3>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Tarjeta de Datos de Cabecera */}
+              <div className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-card space-y-5">
+                {/* Errores globales */}
+                {errorMessage && (
+                  <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-600 text-sm flex items-start gap-2.5 animate-fadeIn">
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {/* Selector de Proyecto Habilitado */}
-                  <div className="sm:col-span-1">
-                    <label className="block text-xs font-semibold text-text-primary mb-1">
-                      Proyecto Destino <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={selectedProjectId}
-                      onChange={(e) => setSelectedProjectId(e.target.value)}
-                      required
-                      className="w-full text-sm rounded-lg border border-border bg-white px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
-                    >
+                {/* Bloque 1: Proyecto, Centro de Costos y Cliente */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary mb-3 flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-accent" />
+                    Imputación de Proyecto y Centro de Costos
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Selector de Proyecto Habilitado */}
+                    <div className="sm:col-span-1">
+                      <label className="block text-xs font-semibold text-text-primary mb-1">
+                        Proyecto Destino <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={selectedProjectId}
+                        onChange={(e) => {
+                          const newId = e.target.value;
+                          setSelectedProjectId(newId);
+                          if (newId) setActiveProjectId(newId);
+                        }}
+                        required
+                        className="w-full text-sm rounded-lg border border-border bg-white px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                      >
                       <option value="">-- Selecciona el proyecto --</option>
                       {projects.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -1063,6 +1109,7 @@ export default function RequerimientoCompraPage() {
               </div>
             </div>
           </form>
+        </>
         )}
       </main>
     </div>

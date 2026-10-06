@@ -10,6 +10,8 @@ import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { CheckCircle2, AlertTriangle, PenTool, Check, X, ArrowRight, AlertCircle, Info } from 'lucide-react';
+import { getActiveProjectId, setActiveProjectId } from '@/hooks/useActiveProject';
+import { useFormDraft, DraftRecoveryAlert } from '@/hooks/useFormDraft';
 
 // ─── Tipo de Proyecto ─────────────────────────────────────────────────────────
 interface Project {
@@ -80,23 +82,6 @@ export default function CadRegisterFormPage() {
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState<string | null>(null);
 
-  // ── Cargar proyectos asignados al usuario ──────────────────────────────────
-  useEffect(() => {
-    async function loadProjects() {
-      try {
-        const res = await fetch('/api/dibujo/proyectos');
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Error al cargar proyectos');
-        setProjects(data.projects || []);
-      } catch (e) {
-        setProjectsError(e instanceof Error ? e.message : 'Error al cargar proyectos');
-      } finally {
-        setProjectsLoading(false);
-      }
-    }
-    loadProjects();
-  }, []);
-
   // Fecha de hoy local en formato YYYY-MM-DD
   const getTodayLocalDate = () => {
     const now = new Date();
@@ -123,8 +108,48 @@ export default function CadRegisterFormPage() {
     },
   });
 
+  // ── Cargar proyectos asignados al usuario ──────────────────────────────────
+  useEffect(() => {
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/dibujo/proyectos');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al cargar proyectos');
+        const projs: Project[] = data.projects || [];
+        setProjects(projs);
+
+        // Preseleccionar proyecto activo si existe
+        const activeId = getActiveProjectId();
+        if (activeId) {
+          const match = projs.find((p) => p.id === activeId || p.code === activeId || p.name === activeId);
+          if (match) {
+            setValue('project_name', match.name);
+          }
+        } else if (projs.length === 1) {
+          setValue('project_name', projs[0].name);
+        }
+      } catch (e) {
+        setProjectsError(e instanceof Error ? e.message : 'Error al cargar proyectos');
+      } finally {
+        setProjectsLoading(false);
+      }
+    }
+    loadProjects();
+  }, [setValue]);
+
   const software = watch('software');
   const isRework = watch('is_rework');
+  const formValues = watch();
+
+  // Hook de borrador local (Offline-Resilience)
+  const { hasDraft, draftTimestamp, restoreDraft, clearDraft } = useFormDraft({
+    formKey: 'cad-register-form',
+    currentValues: formValues,
+    isDirty: Boolean(formValues.project_name || formValues.software || formValues.rework_observations),
+    onRestore: (draft) => {
+      reset(draft);
+    },
+  });
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
@@ -148,9 +173,16 @@ export default function CadRegisterFormPage() {
         throw new Error(resData.error || 'Error al registrar la actividad');
       }
 
+      // Sincronizar proyecto activo seleccionado
+      const foundProject = projects.find((p) => p.name === data.project_name);
+      if (foundProject) {
+        setActiveProjectId(foundProject.id);
+      }
+
       setLastSuccess({ project: data.project_name, software: data.software });
       setToast({ message: '¡Actividad registrada exitosamente!', type: 'success' });
       reset({ activity_date: today, is_rework: false });
+      clearDraft();
 
       // Invalidar consultas para refrescar métricas de inmediato en dashboards y divisiones
       queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
@@ -223,6 +255,13 @@ export default function CadRegisterFormPage() {
             </div>
           </div>
         )}
+
+        <DraftRecoveryAlert
+          hasDraft={hasDraft}
+          draftTimestamp={draftTimestamp}
+          onRestore={restoreDraft}
+          onClear={clearDraft}
+        />
 
         <div className="card shadow-xl overflow-hidden border border-border">
           {/* Informative Header Banner */}

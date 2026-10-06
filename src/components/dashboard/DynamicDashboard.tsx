@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Eye,
@@ -27,9 +27,11 @@ import {
   Clock,
   ArrowRight,
   LayoutDashboard,
+  Star,
   type LucideIcon,
 } from 'lucide-react';
 import type { ActivityRecord } from '@/lib/dashboard-activities';
+import { useActiveProject } from '@/hooks/useActiveProject';
 
 interface Tool {
   id: string;
@@ -412,6 +414,130 @@ export function DynamicDashboard({
     };
   }, [activeFormGroup, activeToolGroup]);
 
+  // Gestión del Proyecto Activo de Trabajo (persistente en localStorage y sincronizado)
+  const { activeProjectId, activeProject, setActiveProject } = useActiveProject(projects);
+
+  useEffect(() => {
+    if (projects.length === 1 && !activeProjectId) {
+      setActiveProject(projects[0].id);
+    }
+  }, [projects, activeProjectId, setActiveProject]);
+
+  // Estado de favoritos y accesos directos (persistente por usuario)
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(`pcm_favorites_${user.id}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setFavorites(parsed);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Error al leer favoritos:', e);
+    }
+
+    // Predeterminados inteligentes por rol: primeros 4 formularios y 2 herramientas
+    const defaults: string[] = [];
+    forms.slice(0, 4).forEach((f) => defaults.push(`form:${f.slug}`));
+    tools.slice(0, 2).forEach((t) => defaults.push(`tool:${t.slug}`));
+    setFavorites(defaults);
+  }, [user.id, forms, tools]);
+
+  const toggleFavorite = (itemKey: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setFavorites((prev) => {
+      const next = prev.includes(itemKey)
+        ? prev.filter((k) => k !== itemKey)
+        : [...prev, itemKey];
+      try {
+        localStorage.setItem(`pcm_favorites_${user.id}`, JSON.stringify(next));
+      } catch (err) {
+        console.warn('Error al persistir favorito:', err);
+      }
+      return next;
+    });
+  };
+
+  // Construir lista de accesos directos de 1 clic
+  const resolvedShortcuts = useMemo(() => {
+    interface QuickShortcut {
+      key: string;
+      type: 'form' | 'tool';
+      slug: string;
+      name: string;
+      href: string;
+      categoryKey: string;
+    }
+    const list: QuickShortcut[] = [];
+    const seen = new Set<string>();
+
+    favorites.forEach((fav) => {
+      if (fav.startsWith('form:')) {
+        const slug = fav.replace('form:', '');
+        const found = forms.find((f) => f.slug === slug);
+        if (found && !seen.has(fav)) {
+          seen.add(fav);
+          list.push({
+            key: fav,
+            type: 'form',
+            slug: found.slug,
+            name: found.name,
+            href: `/forms/${found.slug}`,
+            categoryKey: FORM_CATEGORY_MAP[found.slug] || 'universal',
+          });
+        }
+      } else if (fav.startsWith('tool:')) {
+        const slug = fav.replace('tool:', '');
+        const found = tools.find((t) => t.slug === slug);
+        if (found && !seen.has(fav)) {
+          seen.add(fav);
+          list.push({
+            key: fav,
+            type: 'tool',
+            slug: found.slug,
+            name: found.name,
+            href: `/tools/${found.slug}`,
+            categoryKey: found.category || 'universal',
+          });
+        }
+      }
+    });
+
+    // Si aún no hay favoritos cargados, usar los predeterminados
+    if (list.length === 0 && (forms.length > 0 || tools.length > 0)) {
+      forms.slice(0, 4).forEach((f) => {
+        list.push({
+          key: `form:${f.slug}`,
+          type: 'form',
+          slug: f.slug,
+          name: f.name,
+          href: `/forms/${f.slug}`,
+          categoryKey: FORM_CATEGORY_MAP[f.slug] || 'universal',
+        });
+      });
+      tools.slice(0, 2).forEach((t) => {
+        list.push({
+          key: `tool:${t.slug}`,
+          type: 'tool',
+          slug: t.slug,
+          name: t.name,
+          href: `/tools/${t.slug}`,
+          categoryKey: t.category || 'universal',
+        });
+      });
+    }
+
+    return list;
+  }, [favorites, forms, tools]);
+
   // 1. Agrupar Formularios por Categoría Canónica
   const formsByCategory = forms.reduce<Record<string, Form[]>>((acc, f) => {
     const cat = FORM_CATEGORY_MAP[f.slug] || 'universal';
@@ -652,6 +778,132 @@ export function DynamicDashboard({
               </div>
             </Link>
           </div>
+        </section>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────── */}
+      {/* PROYECTO ACTIVO & ACCESOS RÁPIDOS DIRECTOS (1 CLIC)         */}
+      {/* ─────────────────────────────────────────────────────────── */}
+      {(projects.length > 0 || resolvedShortcuts.length > 0) && (
+        <section className="bg-white border border-border rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+          {/* Selector de Proyecto Activo */}
+          {projects.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/80">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-primary-50 text-primary flex items-center justify-center flex-shrink-0 border border-primary-200">
+                  <Building2 className="w-4 h-4 text-primary" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+                      Proyecto Activo de Trabajo
+                    </span>
+                    {activeProjectId && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-900 border border-emerald-200">
+                        Sincronizado
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    {activeProject ? (
+                      <span className="font-semibold text-text-primary">
+                        {activeProject.name}{' '}
+                        <span className="font-mono text-primary font-bold">
+                          ({activeProject.cost_center || activeProject.code || 'S/C'})
+                        </span>
+                      </span>
+                    ) : (
+                      'Sin proyecto fijado (selecciona uno para prellenar formularios)'
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <select
+                  value={activeProjectId || ''}
+                  onChange={(e) => setActiveProject(e.target.value)}
+                  className="text-xs bg-surface border border-border rounded-xl px-3 py-2 font-medium text-text-primary focus:outline-none focus:border-accent cursor-pointer max-w-xs truncate shadow-2xs"
+                  aria-label="Seleccionar proyecto activo de trabajo"
+                >
+                  <option value="">-- Sin proyecto fijado --</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.cost_center ? `[${p.cost_center}] ` : ''}{p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Accesos Rápidos Directos (1 Clic) */}
+          {resolvedShortcuts.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Star className="w-4 h-4 text-accent fill-accent" strokeWidth={1.75} />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary">
+                    Accesos Rápidos (1 Clic)
+                  </h3>
+                </div>
+                <span className="text-[11px] text-text-muted hidden sm:inline">
+                  Acceso directo sin modales · Clic en la estrella para fijar favoritos
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {resolvedShortcuts.map((item) => {
+                  const meta = CATEGORY_META[item.categoryKey] || CATEGORY_META.universal;
+                  const Icon = meta.icon;
+                  const isStarred = favorites.includes(item.key);
+
+                  return (
+                    <div
+                      key={item.key}
+                      className="group relative flex items-center justify-between p-2.5 rounded-xl border border-border hover:border-accent hover:shadow-xs transition-all bg-surface/30 hover:bg-white"
+                    >
+                      <Link
+                        href={item.href}
+                        prefetch={false}
+                        className="flex items-center gap-2.5 min-w-0 flex-1 pr-1"
+                        title={`Ir directamente a ${item.name}`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg border flex items-center justify-center flex-shrink-0 transition-colors ${meta.badgeClass}`}>
+                          <Icon className={`w-4 h-4 ${meta.accentColor}`} strokeWidth={1.75} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-text-primary group-hover:text-primary transition-colors truncate">
+                            {item.name}
+                          </p>
+                          <p className="text-[10px] text-text-muted uppercase tracking-wider font-mono mt-0.5">
+                            {item.type === 'form' ? 'Formulario' : 'Herramienta'}
+                          </p>
+                        </div>
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={(e) => toggleFavorite(item.key, e)}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer flex-shrink-0 ${
+                          isStarred
+                            ? 'text-accent hover:text-amber-600'
+                            : 'text-text-muted/40 hover:text-accent'
+                        }`}
+                        title={isStarred ? 'Quitar de accesos rápidos' : 'Fijar en accesos rápidos'}
+                        aria-label="Fijar favorito"
+                      >
+                        <Star
+                          className={`w-3.5 h-3.5 ${isStarred ? 'fill-accent' : ''}`}
+                          strokeWidth={2}
+                        />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -1014,28 +1266,62 @@ export function DynamicDashboard({
 
             {/* Lista de Formularios */}
             <div className="p-3 sm:p-4 overflow-y-auto divide-y divide-border/60">
-              {activeFormGroup.items.map((f) => (
-                <Link
-                  key={f.id}
-                  href={`/forms/${f.slug}`}
-                  prefetch={false}
-                  onClick={() => setActiveFormGroup(null)}
-                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text-muted group-hover:text-primary group-hover:border-primary/40 transition-colors flex-shrink-0">
-                    <ClipboardList className="w-4 h-4" strokeWidth={1.75} />
+              {activeFormGroup.items.map((f) => {
+                const isStarred = favorites.includes(`form:${f.slug}`);
+                return (
+                  <div
+                    key={f.id}
+                    className="flex items-center justify-between gap-2 p-2.5 rounded-xl hover:bg-gray-50 transition-colors group"
+                  >
+                    <Link
+                      href={`/forms/${f.slug}`}
+                      prefetch={false}
+                      onClick={() => setActiveFormGroup(null)}
+                      className="flex items-center gap-3 min-w-0 flex-1 pr-1"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text-muted group-hover:text-primary group-hover:border-primary/40 transition-colors flex-shrink-0">
+                        <ClipboardList className="w-4 h-4" strokeWidth={1.75} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors truncate">
+                          {f.name}
+                        </p>
+                        <p className="text-[11px] font-mono text-text-muted">
+                          /forms/{f.slug}
+                        </p>
+                      </div>
+                    </Link>
+
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => toggleFavorite(`form:${f.slug}`, e)}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          isStarred
+                            ? 'text-accent hover:text-amber-600'
+                            : 'text-text-muted/40 hover:text-accent'
+                        }`}
+                        title={isStarred ? 'Quitar de accesos rápidos' : 'Fijar en accesos rápidos'}
+                        aria-label="Fijar favorito"
+                      >
+                        <Star
+                          className={`w-4 h-4 ${isStarred ? 'fill-accent' : ''}`}
+                          strokeWidth={1.75}
+                        />
+                      </button>
+                      <Link
+                        href={`/forms/${f.slug}`}
+                        prefetch={false}
+                        onClick={() => setActiveFormGroup(null)}
+                        className="text-text-muted p-1 group-hover:text-primary group-hover:translate-x-0.5 transition-all"
+                        aria-label="Abrir formulario"
+                      >
+                        →
+                      </Link>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors truncate">
-                      {f.name}
-                    </p>
-                    <p className="text-[11px] font-mono text-text-muted">
-                      /forms/{f.slug}
-                    </p>
-                  </div>
-                  <span className="text-text-muted text-sm flex-shrink-0 group-hover:text-primary group-hover:translate-x-1 transition-all">→</span>
-                </Link>
-              ))}
+                );
+              })}
             </div>
 
             {/* Footer del Modal */}
@@ -1095,31 +1381,65 @@ export function DynamicDashboard({
 
             {/* Lista de Herramientas */}
             <div className="p-3 sm:p-4 overflow-y-auto divide-y divide-border/60">
-              {activeToolGroup.items.map((t) => (
-                <Link
-                  key={t.id}
-                  href={`/tools/${t.slug}`}
-                  prefetch={false}
-                  onClick={() => setActiveToolGroup(null)}
-                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text-muted group-hover:text-primary group-hover:border-primary/40 transition-colors flex-shrink-0">
-                    {(() => {
-                      const Icon = CATEGORY_META[activeToolGroup.categoryKey]?.icon || Settings;
-                      return <Icon className="w-4 h-4" strokeWidth={1.75} />;
-                    })()}
+              {activeToolGroup.items.map((t) => {
+                const isStarred = favorites.includes(`tool:${t.slug}`);
+                return (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between gap-2 p-2.5 rounded-xl hover:bg-gray-50 transition-colors group"
+                  >
+                    <Link
+                      href={`/tools/${t.slug}`}
+                      prefetch={false}
+                      onClick={() => setActiveToolGroup(null)}
+                      className="flex items-center gap-3 min-w-0 flex-1 pr-1"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text-muted group-hover:text-primary group-hover:border-primary/40 transition-colors flex-shrink-0">
+                        {(() => {
+                          const Icon = CATEGORY_META[activeToolGroup.categoryKey]?.icon || Settings;
+                          return <Icon className="w-4 h-4" strokeWidth={1.75} />;
+                        })()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors truncate">
+                          {t.name}
+                        </p>
+                        <p className="text-[11px] font-mono text-text-muted">
+                          /tools/{t.slug}
+                        </p>
+                      </div>
+                    </Link>
+
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => toggleFavorite(`tool:${t.slug}`, e)}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          isStarred
+                            ? 'text-accent hover:text-amber-600'
+                            : 'text-text-muted/40 hover:text-accent'
+                        }`}
+                        title={isStarred ? 'Quitar de accesos rápidos' : 'Fijar en accesos rápidos'}
+                        aria-label="Fijar favorito"
+                      >
+                        <Star
+                          className={`w-4 h-4 ${isStarred ? 'fill-accent' : ''}`}
+                          strokeWidth={1.75}
+                        />
+                      </button>
+                      <Link
+                        href={`/tools/${t.slug}`}
+                        prefetch={false}
+                        onClick={() => setActiveToolGroup(null)}
+                        className="text-text-muted p-1 group-hover:text-primary group-hover:translate-x-0.5 transition-all"
+                        aria-label="Abrir herramienta"
+                      >
+                        →
+                      </Link>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors truncate">
-                      {t.name}
-                    </p>
-                    <p className="text-[11px] font-mono text-text-muted">
-                      /tools/{t.slug}
-                    </p>
-                  </div>
-                  <span className="text-text-muted text-sm flex-shrink-0 group-hover:text-primary group-hover:translate-x-1 transition-all">→</span>
-                </Link>
-              ))}
+                );
+              })}
             </div>
 
             {/* Footer del Modal */}
