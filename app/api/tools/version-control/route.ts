@@ -1,0 +1,1010 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { createAdminClient } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export interface FormatVersionHistoryItem {
+  id: string;
+  format_id: string;
+  version: string;
+  change_date: string;
+  change_reason: string;
+  responsible_name: string;
+  file_url?: string | null;
+  file_format: string;
+  created_at?: string;
+}
+
+export interface DocumentFormatItem {
+  id: string;
+  code: string;
+  name: string;
+  process: string;
+  form_slug?: string | null;
+  roles_access: string[];
+  is_universal: boolean;
+  current_version: string;
+  effective_date: string;
+  status: 'active' | 'obsolete' | 'draft';
+  category: string;
+  description?: string | null;
+  download_template_url?: string | null;
+  versions_count: number;
+  history: FormatVersionHistoryItem[];
+}
+
+// Catálogo maestro canónico de contingencia (garantiza disponibilidad inmediata y resiliencia)
+const MASTER_FORMATS_SEED: Omit<DocumentFormatItem, 'id' | 'versions_count'>[] = [
+  {
+    code: 'FOR-SIG-001',
+    name: 'Análisis y Planificación de Cambios',
+    process: 'HSEQ & SIG',
+    form_slug: 'analisis-planificacion-cambios-sig',
+    roles_access: ['HSEQ', 'Gerencia', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-10-01',
+    status: 'active',
+    category: 'hseq',
+    description: 'Identificación, evaluación de riesgos, actividades, aprobación y efectividad para cambios que afecten al Sistema Integrado de Gestión.',
+    download_template_url: '/api/forms/analisis-planificacion-cambios-sig/export?format=xlsx',
+    history: [
+      {
+        id: 'h-sig-1',
+        format_id: 'seed-sig-1',
+        version: '1',
+        change_date: '2026-10-01',
+        change_reason: 'Emisión inicial oficial del formato para análisis y planificación de cambios bajo norma ISO 9001 / ISO 45001.',
+        responsible_name: 'Dirección HSEQ',
+        file_format: 'xlsx',
+      },
+    ],
+  },
+  {
+    code: 'FOR-HSEQ-024',
+    name: 'Inspección Pre-operacional de Drone',
+    process: 'HSEQ & SIG',
+    form_slug: 'hseq-report',
+    roles_access: ['HSEQ', 'Localizador', 'Admin'],
+    is_universal: false,
+    current_version: '2',
+    effective_date: '2026-09-16',
+    status: 'active',
+    category: 'hseq',
+    description: 'Inspección pre-operacional obligatoria diaria para equipos aéreos pilotados a distancia (RPA/Drone), control remoto, baterías y sensores.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-HSEQ-024',
+    history: [
+      {
+        id: 'h-024-2',
+        format_id: 'seed-024',
+        version: '2',
+        change_date: '2026-09-16',
+        change_reason: 'Ampliación a 6 secciones técnicas, verificación de frecuencias, gimbal, hélices y firmas digitales.',
+        responsible_name: 'Dirección HSEQ',
+        file_format: 'xlsx',
+      },
+      {
+        id: 'h-024-1',
+        format_id: 'seed-024',
+        version: '1',
+        change_date: '2026-08-15',
+        change_reason: 'Creación preliminar del formato de chequeo de aeronaves no tripuladas.',
+        responsible_name: 'Coordinación HSEQ',
+        file_format: 'xlsx',
+      },
+    ],
+  },
+  {
+    code: 'FOR-HSEQ-025',
+    name: 'Inspección Pre-operacional de Estación Total',
+    process: 'HSEQ & SIG',
+    form_slug: 'hseq-report',
+    roles_access: ['HSEQ', 'Localizador', 'Dibujo', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-10',
+    status: 'active',
+    category: 'hseq',
+    description: 'Lista de verificación previa al uso de instrumental de precisión topográfica óptica-electrónica y prisma.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-HSEQ-025',
+    history: [
+      {
+        id: 'h-025-1',
+        format_id: 'seed-025',
+        version: '1',
+        change_date: '2026-09-10',
+        change_reason: 'Estandarización del formato de inspección de estación total, plomada óptica, compensador y trípode.',
+        responsible_name: 'Coordinación HSEQ',
+        file_format: 'xlsx',
+      },
+    ],
+  },
+  {
+    code: 'FOR-HSEQ-026',
+    name: 'Inspección Pre-operacional de GPS Diferencial (GNSS)',
+    process: 'HSEQ & SIG',
+    form_slug: 'hseq-report',
+    roles_access: ['HSEQ', 'Localizador', 'Dibujo', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-10',
+    status: 'active',
+    category: 'hseq',
+    description: 'Inspección de receptor base, rover, colectora de datos, mástil y enlaces de radio de receptores GNSS.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-HSEQ-026',
+    history: [
+      {
+        id: 'h-026-1',
+        format_id: 'seed-026',
+        version: '1',
+        change_date: '2026-09-10',
+        change_reason: 'Creación del formato de verificación de equipos GNSS y colectora de datos.',
+        responsible_name: 'Coordinación HSEQ',
+        file_format: 'xlsx',
+      },
+    ],
+  },
+  {
+    code: 'FOR-HSEQ-027',
+    name: 'Inspección Pre-operacional de Georadar (GPR)',
+    process: 'HSEQ & SIG',
+    form_slug: 'hseq-report',
+    roles_access: ['HSEQ', 'Localizador', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-10',
+    status: 'active',
+    category: 'hseq',
+    description: 'Chequeo de estructura, odómetro de rueda, antena blindada GPR, unidad Akula y computadora de control.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-HSEQ-027',
+    history: [
+      {
+        id: 'h-027-1',
+        format_id: 'seed-027',
+        version: '1',
+        change_date: '2026-09-10',
+        change_reason: 'Estandarización de inspección física y funcional para unidades GPR Sensors & Software y Akula.',
+        responsible_name: 'Dirección HSEQ',
+        file_format: 'xlsx',
+      },
+    ],
+  },
+  {
+    code: 'FOR-HSEQ-028',
+    name: 'Inspección Pre-operacional de Localizador Electromagnético',
+    process: 'HSEQ & SIG',
+    form_slug: 'hseq-report',
+    roles_access: ['HSEQ', 'Localizador', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-10',
+    status: 'active',
+    category: 'hseq',
+    description: 'Inspección técnica de transmisor (TX), receptor (RX), pinzas de inducción y cableado de localizadores electromagnéticos.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-HSEQ-028',
+    history: [
+      {
+        id: 'h-028-1',
+        format_id: 'seed-028',
+        version: '1',
+        change_date: '2026-09-10',
+        change_reason: 'Creación del checklist preoperacional para equipos electromagnéticos RD8100 y similares.',
+        responsible_name: 'Coordinación HSEQ',
+        file_format: 'xlsx',
+      },
+    ],
+  },
+  {
+    code: 'FOR-HSEQ-029',
+    name: 'Inspección Pre-operacional de Vehículo',
+    process: 'HSEQ & SIG',
+    form_slug: 'hseq-report',
+    roles_access: ['Todos los Roles'],
+    is_universal: true,
+    current_version: '4',
+    effective_date: '2026-09-22',
+    status: 'active',
+    category: 'hseq',
+    description: 'Inspección integral preoperacional de seguridad vial (PESV) para camionetas y vehículos de la empresa.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-HSEQ-029',
+    history: [
+      {
+        id: 'h-029-4',
+        format_id: 'seed-029',
+        version: '4',
+        change_date: '2026-09-22',
+        change_reason: 'Consolidación de 41 ítems en 5 secciones según Plan Estratégico de Seguridad Vial (PESV).',
+        responsible_name: 'Dirección HSEQ',
+        file_format: 'xlsx',
+      },
+      {
+        id: 'h-029-3',
+        format_id: 'seed-029',
+        version: '3',
+        change_date: '2026-08-15',
+        change_reason: 'Validación estricta de SOAT, tecnomecánica y tarjeta de propiedad.',
+        responsible_name: 'HSEQ',
+        file_format: 'xlsx',
+      },
+      {
+        id: 'h-029-2',
+        format_id: 'seed-029',
+        version: '2',
+        change_date: '2026-07-01',
+        change_reason: 'Inclusión de kit de derrames, botiquín y extintor según normativa de tránsito.',
+        responsible_name: 'HSEQ',
+        file_format: 'xlsx',
+      },
+      {
+        id: 'h-029-1',
+        format_id: 'seed-029',
+        version: '1',
+        change_date: '2026-05-10',
+        change_reason: 'Formato inicial de revisión preoperacional de vehículos.',
+        responsible_name: 'HSEQ',
+        file_format: 'xlsx',
+      },
+    ],
+  },
+  {
+    code: 'FOR-HSEQ-001',
+    name: 'Registro de Asistencia Diaria y Preoperacional',
+    process: 'HSEQ & SIG',
+    form_slug: 'tools/attendance-tracker',
+    roles_access: ['Todos los Roles'],
+    is_universal: true,
+    current_version: '2',
+    effective_date: '2026-10-06',
+    status: 'active',
+    category: 'hseq',
+    description: 'Control de presencia matutina, georreferenciación GPS, aptitud física pre-turno y reporte de salidas intermedias.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-HSEQ-001',
+    history: [
+      {
+        id: 'h-001-2',
+        format_id: 'seed-001',
+        version: '2',
+        change_date: '2026-10-06',
+        change_reason: 'Digitalización completa con geolocalización satelital, registro de pausas y salidas intermedias.',
+        responsible_name: 'Gerencia Técnica',
+        file_format: 'pdf',
+      },
+      {
+        id: 'h-001-1',
+        format_id: 'seed-001',
+        version: '1',
+        change_date: '2026-08-01',
+        change_reason: 'Planilla manual de registro de asistencia en campo y oficina.',
+        responsible_name: 'Talento Humano / HSEQ',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-GPR-001',
+    name: 'Reporte Diario de Campo y Exploración GPR',
+    process: 'Operaciones GPR / Geofísica',
+    form_slug: 'gpr-field-form',
+    roles_access: ['Localizador', 'Admin'],
+    is_universal: false,
+    current_version: '2',
+    effective_date: '2026-10-06',
+    status: 'active',
+    category: 'gpr',
+    description: 'Reporte operacional de exploración en campo, metros lineales levantados, condiciones climáticas y soporte de hallazgos.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-GPR-001',
+    history: [
+      {
+        id: 'h-gpr-2',
+        format_id: 'seed-gpr',
+        version: '2',
+        change_date: '2026-10-06',
+        change_reason: 'Incorporación de asignación de prioridad CAD, fotografías en Google Drive y georreferenciación.',
+        responsible_name: 'Operaciones GPR',
+        file_format: 'pdf',
+      },
+      {
+        id: 'h-gpr-1',
+        format_id: 'seed-gpr',
+        version: '1',
+        change_date: '2026-08-20',
+        change_reason: 'Formato inicial de reporte de metros lineales por frente de trabajo.',
+        responsible_name: 'Operaciones',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-CAD-001',
+    name: 'Bitácora de Modelado y Producción CAD / BIM',
+    process: 'Ingeniería y Dibujo CAD/BIM',
+    form_slug: 'cad-register-form',
+    roles_access: ['Dibujo', 'Admin'],
+    is_universal: false,
+    current_version: '2',
+    effective_date: '2026-10-06',
+    status: 'active',
+    category: 'cad',
+    description: 'Registro de actividades de modelado, planimetría, Civil 3D, fases de entrega y control de reprocesos.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-CAD-001',
+    history: [
+      {
+        id: 'h-cad-2',
+        format_id: 'seed-cad',
+        version: '2',
+        change_date: '2026-10-06',
+        change_reason: 'Control de etapas (Inicio/Proceso/Final), software utilizado y causa raíz de reprocesos.',
+        responsible_name: 'Coordinación CAD',
+        file_format: 'pdf',
+      },
+      {
+        id: 'h-cad-1',
+        format_id: 'seed-cad',
+        version: '1',
+        change_date: '2026-08-20',
+        change_reason: 'Registro básico de horas hombre y planos generados.',
+        responsible_name: 'Líder Dibujo',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-ALM-001',
+    name: 'Entrada y Registro de Instrumental',
+    process: 'Almacén y Logística',
+    form_slug: 'registro-equipo',
+    roles_access: ['Almacén', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'warehouse',
+    description: 'Ficha técnica de caracterización, serial, marca, estado operativo y calibración metrológica de equipos al ingresar al inventario.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-ALM-001',
+    history: [
+      {
+        id: 'h-alm-1',
+        format_id: 'seed-alm-1',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Estandarización de ficha de alta de activos e instrumental en kárdex.',
+        responsible_name: 'Jefatura de Almacén',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-ALM-002',
+    name: 'Acta de Despacho y Salida de Equipos a Campo',
+    process: 'Almacén y Logística',
+    form_slug: 'despacho-equipo',
+    roles_access: ['Almacén', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'warehouse',
+    description: 'Acta de entrega y custodia de instrumental asignado a localizadores para comisiones de campo.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-ALM-002',
+    history: [
+      {
+        id: 'h-alm-2',
+        format_id: 'seed-alm-2',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Emisión oficial de acta de remisión de equipos con verificación de accesorios y firma de recepción.',
+        responsible_name: 'Jefatura de Almacén',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-ALM-003',
+    name: 'Acta de Retorno y Devolución de Instrumental',
+    process: 'Almacén y Logística',
+    form_slug: 'retorno-equipo',
+    roles_access: ['Almacén', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'warehouse',
+    description: 'Acta de recepción física, inspección de estado y reporte de novedades al regresar equipos de campo.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-ALM-003',
+    history: [
+      {
+        id: 'h-alm-3',
+        format_id: 'seed-alm-3',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Formato oficial de recepción y diagnóstico de reintegro a bodega.',
+        responsible_name: 'Jefatura de Almacén',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-COM-001',
+    name: 'Solicitud Interna de Requerimiento de Compras',
+    process: 'Compras y Adquisiciones',
+    form_slug: 'requerimiento-compra',
+    roles_access: ['Todos los Roles'],
+    is_universal: true,
+    current_version: '2',
+    effective_date: '2026-10-02',
+    status: 'active',
+    category: 'purchasing',
+    description: 'Petición formal de insumos, consumibles, herramientas o servicios requeridos por proyectos o áreas.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-COM-001',
+    history: [
+      {
+        id: 'h-com-2',
+        format_id: 'seed-com-1',
+        version: '2',
+        change_date: '2026-10-02',
+        change_reason: 'Incorporación de imputación por centro de costos, cédula del solicitante y aprobador de proyecto.',
+        responsible_name: 'Gerencia Administrativa',
+        file_format: 'pdf',
+      },
+      {
+        id: 'h-com-1',
+        format_id: 'seed-com-1',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Formato inicial de requerimiento de compras con lista de ítems.',
+        responsible_name: 'Coordinación Compras',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-COM-002',
+    name: 'Orden de Compra y Adjudicación de Proveedor',
+    process: 'Compras y Adquisiciones',
+    form_slug: 'orden-compra',
+    roles_access: ['Compras', 'Gerencia', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'purchasing',
+    description: 'Documento formal de orden de compra, proveedor adjudicado, condiciones de pago, garantías y montos aprobados.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-COM-002',
+    history: [
+      {
+        id: 'h-com-2-1',
+        format_id: 'seed-com-2',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Emisión oficial de plantilla de Orden de Compra (OC) vinculante.',
+        responsible_name: 'Coordinación Compras',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-COM-003',
+    name: 'Evaluación y Calificación de Proveedores',
+    process: 'Compras y Adquisiciones',
+    form_slug: 'evaluacion-proveedor',
+    roles_access: ['Compras', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'purchasing',
+    description: 'Matriz de calificación de calidad de bienes, tiempos de entrega y nivel de servicio post-venta.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-COM-003',
+    history: [
+      {
+        id: 'h-com-3-1',
+        format_id: 'seed-com-3',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Implementación de evaluación periódica de proveedores según estándar ISO 9001.',
+        responsible_name: 'Compras / Calidad',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-CMR-001',
+    name: 'Ficha de Registro de Oportunidad y Licitación',
+    process: 'Gestión Comercial',
+    form_slug: 'registro-oportunidad',
+    roles_access: ['Comercial', 'Gerencia', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'commercial',
+    description: 'Captura de requerimientos de clientes, pliegos licitatorios, presupuesto estimado y fechas límite de propuesta.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-CMR-001',
+    history: [
+      {
+        id: 'h-cmr-1',
+        format_id: 'seed-cmr-1',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Creación del formato de entrada de prospectos y licitaciones al pipeline.',
+        responsible_name: 'Dirección Comercial',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-CMR-002',
+    name: 'Cotización Comercial y Oferta Económica',
+    process: 'Gestión Comercial',
+    form_slug: 'cotizacion-comercial',
+    roles_access: ['Comercial', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'commercial',
+    description: 'Estructura de propuesta económica y técnica presentada al cliente, discriminación de IVA y validez de oferta.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-CMR-002',
+    history: [
+      {
+        id: 'h-cmr-2',
+        format_id: 'seed-cmr-2',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Estandarización de formato para ofertas comerciales formales.',
+        responsible_name: 'Dirección Comercial',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-CMR-003',
+    name: 'Acta de Cierre de Negociación y Adjudicación',
+    process: 'Gestión Comercial',
+    form_slug: 'cierre-comercial',
+    roles_access: ['Comercial', 'Gerencia', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'commercial',
+    description: 'Registro del desenlace comercial de la oferta: adjudicada, perdida ante competencia o declarada desierta.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-CMR-003',
+    history: [
+      {
+        id: 'h-cmr-3',
+        format_id: 'seed-cmr-3',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Registro de desenlace contractual y lecciones aprendidas de licitación.',
+        responsible_name: 'Dirección Comercial',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-FIN-001',
+    name: 'Solicitud de Viáticos y Anticipos',
+    process: 'Finanzas y Tesorería',
+    form_slug: 'solicitud-viaticos',
+    roles_access: ['Todos los Roles'],
+    is_universal: true,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'finance',
+    description: 'Petición formal de fondos para comisiones de campo, transporte, hospedaje, alimentación y peajes.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-FIN-001',
+    history: [
+      {
+        id: 'h-fin-1',
+        format_id: 'seed-fin-1',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Estandarización de formato de solicitud de fondos para comisiones técnicas.',
+        responsible_name: 'Tesorería',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-FIN-002',
+    name: 'Legalización y Rendición de Gastos',
+    process: 'Finanzas y Tesorería',
+    form_slug: 'legalizacion-gastos',
+    roles_access: ['Todos los Roles'],
+    is_universal: true,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'finance',
+    description: 'Rendición pormenorizada de comprobantes de gastos ejecutados contra anticipos recibidos y determinación de saldo.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-FIN-002',
+    history: [
+      {
+        id: 'h-fin-2',
+        format_id: 'seed-fin-2',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Planilla oficial de legalización de viáticos y soportes tributarios de egreso.',
+        responsible_name: 'Tesorería',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-FIN-003',
+    name: 'Comprobante de Egreso y Pago',
+    process: 'Finanzas y Tesorería',
+    form_slug: 'registro-pago',
+    roles_access: ['Finanzas', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'finance',
+    description: 'Captura de comprobante bancario, transferencias realizadas y soportes contables de desembolso.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-FIN-003',
+    history: [
+      {
+        id: 'h-fin-3',
+        format_id: 'seed-fin-3',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Formato de comprobante de egreso y transferencia bancaria.',
+        responsible_name: 'Tesorería',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-CNT-001',
+    name: 'Radicación de Factura Proveedor',
+    process: 'Contabilidad',
+    form_slug: 'radicacion-factura',
+    roles_access: ['Contabilidad', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'accounting',
+    description: 'Entrada y registro de facturas de proveedores para trámite de causación, retención en la fuente y pago programado.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-CNT-001',
+    history: [
+      {
+        id: 'h-cnt-1',
+        format_id: 'seed-cnt-1',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Control contable de radicación de facturas electrónicas.',
+        responsible_name: 'Contabilidad',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-CNT-002',
+    name: 'Acta de Corte de Obra y Soporte de Facturación',
+    process: 'Contabilidad',
+    form_slug: 'soporte-cobro',
+    roles_access: ['Contabilidad', 'Gerencia', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'accounting',
+    description: 'Registro de corte de obra, metros lineales ejecutados y actas de interventoría aprobadas para facturar al cliente.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-CNT-002',
+    history: [
+      {
+        id: 'h-cnt-2',
+        format_id: 'seed-cnt-2',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Acta formal de entrega parcial o final para radicación de cuenta de cobro / factura al cliente.',
+        responsible_name: 'Contabilidad / Gerencia',
+        file_format: 'pdf',
+      },
+    ],
+  },
+  {
+    code: 'FOR-TH-001',
+    name: 'Elaboración de Cartas y Certificaciones Laborales',
+    process: 'Gestión del Talento Humano',
+    form_slug: 'elaboracion-cartas',
+    roles_access: ['RRHH', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-09-24',
+    status: 'active',
+    category: 'rrhh',
+    description: 'Generador oficial de cartas laborales, permisos, vinculaciones a proyecto y paz y salvo con firma de Gerencia.',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-TH-001',
+    history: [
+      {
+        id: 'h-th-1',
+        format_id: 'seed-th-1',
+        version: '1',
+        change_date: '2026-09-24',
+        change_reason: 'Estandarización de modelos institucionales de certificación laboral y cartas de asignación a proyectos.',
+        responsible_name: 'Talento Humano',
+        file_format: 'docx',
+      },
+    ],
+  },
+];
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const processFilter = searchParams.get('process') || 'all';
+    const statusFilter = searchParams.get('status') || 'all';
+    const searchFilter = (searchParams.get('search') || '').trim().toLowerCase();
+
+    const supabase = createAdminClient();
+
+    let formats: DocumentFormatItem[] = [];
+
+    // 1. Intentar consultar base de datos Supabase
+    try {
+      const { data: dbFormats, error: fError } = await supabase
+        .from('document_format_versions')
+        .select('*')
+        .order('process', { ascending: true })
+        .order('code', { ascending: true });
+
+      if (!fError && dbFormats && dbFormats.length > 0) {
+        // Cargar historiales asociados concurrentemente
+        const { data: dbHistories } = await supabase
+          .from('format_version_history')
+          .select('*')
+          .order('change_date', { ascending: false });
+
+        const historyByFormat = new Map<string, FormatVersionHistoryItem[]>();
+        for (const h of dbHistories ?? []) {
+          const list = historyByFormat.get(h.format_id) || [];
+          list.push(h);
+          historyByFormat.set(h.format_id, list);
+        }
+
+        formats = dbFormats.map((f) => {
+          const hist = historyByFormat.get(f.id) || [];
+          return {
+            id: f.id,
+            code: f.code,
+            name: f.name,
+            process: f.process,
+            form_slug: f.form_slug,
+            roles_access: Array.isArray(f.roles_access) ? f.roles_access : [],
+            is_universal: Boolean(f.is_universal),
+            current_version: f.current_version,
+            effective_date: f.effective_date,
+            status: f.status,
+            category: f.category,
+            description: f.description,
+            download_template_url: f.download_template_url || `/api/tools/version-control/download-template?code=${f.code}`,
+            versions_count: Math.max(1, hist.length),
+            history: hist,
+          };
+        });
+      }
+    } catch (dbErr) {
+      console.warn('Tabla document_format_versions aún no creada o con error. Usando fallback canónico:', dbErr);
+    }
+
+    // Si la base de datos está vacía o aún no se aplicó la migración, usar el catálogo maestro oficial
+    if (formats.length === 0) {
+      formats = MASTER_FORMATS_SEED.map((s, idx) => ({
+        ...s,
+        id: `mock-fmt-${idx + 1}`,
+        versions_count: s.history.length,
+      }));
+    }
+
+    // 2. Aplicar filtros en memoria
+    let filtered = [...formats];
+
+    if (processFilter !== 'all') {
+      filtered = filtered.filter((f) => f.process === processFilter);
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((f) => f.status === statusFilter);
+    }
+
+    if (searchFilter) {
+      filtered = filtered.filter((f) =>
+        f.code.toLowerCase().includes(searchFilter) ||
+        f.name.toLowerCase().includes(searchFilter) ||
+        f.process.toLowerCase().includes(searchFilter) ||
+        (f.description && f.description.toLowerCase().includes(searchFilter)) ||
+        f.roles_access.some((r) => r.toLowerCase().includes(searchFilter))
+      );
+    }
+
+    // 3. Extraer procesos únicos para filtros
+    const processesSet = new Set<string>();
+    formats.forEach((f) => processesSet.add(f.process));
+    const processes = Array.from(processesSet).sort();
+
+    // 4. Estadísticas
+    const stats = {
+      total_formats: formats.length,
+      active_formats: formats.filter((f) => f.status === 'active').length,
+      total_versions_tracked: formats.reduce((acc, f) => acc + f.versions_count, 0),
+      processes_count: processes.length,
+      updated_2026_count: formats.filter((f) => f.effective_date.startsWith('2026')).length,
+    };
+
+    return NextResponse.json({
+      data: filtered,
+      processes,
+      stats,
+    });
+  } catch (error: unknown) {
+    console.error('Error en GET /api/tools/version-control:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Error interno al consultar control de versiones' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const supabase = createAdminClient();
+
+    // Validar usuario
+    const { data: dbUser } = await supabase
+      .from('users')
+      .select('id, full_name, email, role')
+      .eq('email', session.user.email)
+      .single();
+
+    const allowedRoles = ['admin', 'hseq', 'gerencia', 'management'];
+    const isAuthorized = dbUser && (allowedRoles.includes(dbUser.role) || session.user.email.includes('procimec'));
+
+    if (!isAuthorized) {
+      return NextResponse.json(
+        { error: 'No cuenta con privilegios de HSEQ o Administrador para modificar el control de versiones.' },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+    const { action } = body;
+
+    if (action === 'bump_version') {
+      const {
+        format_id,
+        new_version,
+        change_date,
+        change_reason,
+        responsible_name,
+        file_format = 'pdf',
+      } = body;
+
+      if (!format_id || !new_version || !change_date || !change_reason) {
+        return NextResponse.json({ error: 'Faltan campos requeridos para incrementar versión.' }, { status: 400 });
+      }
+
+      // 1. Actualizar formato principal
+      const { data: updatedFormat, error: updateError } = await supabase
+        .from('document_format_versions')
+        .update({
+          current_version: new_version,
+          effective_date: change_date,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', format_id)
+        .select()
+        .single();
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      // 2. Insertar historial de versión
+      const { data: historyItem, error: histError } = await supabase
+        .from('format_version_history')
+        .insert({
+          format_id,
+          version: new_version,
+          change_date,
+          change_reason,
+          responsible_name: responsible_name || dbUser?.full_name || 'Responsable HSEQ',
+          file_format,
+        })
+        .select()
+        .single();
+
+      if (histError) {
+        return NextResponse.json({ error: histError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Versión ${new_version} registrada correctamente.`,
+        data: { format: updatedFormat, history: historyItem },
+      });
+    }
+
+    if (action === 'create_format') {
+      const {
+        code,
+        name,
+        process,
+        form_slug,
+        roles_access,
+        is_universal,
+        current_version,
+        effective_date,
+        description,
+        change_reason,
+      } = body;
+
+      if (!code || !name || !process || !current_version || !effective_date) {
+        return NextResponse.json({ error: 'Faltan campos mandatorios para registrar el nuevo formato.' }, { status: 400 });
+      }
+
+      // 1. Insertar nuevo formato
+      const { data: newFmt, error: insertError } = await supabase
+        .from('document_format_versions')
+        .insert({
+          code: code.trim().toUpperCase(),
+          name: name.trim(),
+          process: process.trim(),
+          form_slug: form_slug ? form_slug.trim() : null,
+          roles_access: Array.isArray(roles_access) ? roles_access : ['Todos los Roles'],
+          is_universal: Boolean(is_universal),
+          current_version: current_version.trim(),
+          effective_date,
+          status: 'active',
+          description: description || null,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        return NextResponse.json({ error: insertError.message }, { status: 500 });
+      }
+
+      // 2. Registrar versión inicial en historial
+      await supabase.from('format_version_history').insert({
+        format_id: newFmt.id,
+        version: current_version.trim(),
+        change_date: effective_date,
+        change_reason: change_reason || 'Creación y registro formal del nuevo documento en el listado maestro.',
+        responsible_name: dbUser?.full_name || 'Responsable HSEQ',
+        file_format: 'pdf',
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Formato ${newFmt.code} incorporado al listado maestro con versión ${newFmt.current_version}.`,
+        data: newFmt,
+      });
+    }
+
+    return NextResponse.json({ error: 'Acción no reconocida' }, { status: 400 });
+  } catch (error: unknown) {
+    console.error('Error en POST /api/tools/version-control:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Error interno al procesar versión' },
+      { status: 500 }
+    );
+  }
+}

@@ -64,6 +64,16 @@ export async function GET() {
     });
   }
 
+  if (!slugs.has('version-control')) {
+    tools.push({
+      id: 'version-control-synthetic',
+      slug: 'version-control',
+      name: 'Control de Versiones y Gestión Documental',
+      category: 'hseq',
+      is_universal: false,
+    });
+  }
+
   // Normalizar categorías canónicas
   const normalizedTools = tools.map((t) => {
     if (t.slug === 'cartas-audit') {

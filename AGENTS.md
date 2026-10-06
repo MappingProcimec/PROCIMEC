@@ -2,7 +2,7 @@
 
 Este repositorio contiene la plataforma empresarial **PROCIMEC** (Next.js 14, Supabase PostgreSQL, WhatsApp Bot con Baileys y Google Gemini AI).
 
-Todo agente de Inteligencia Artificial y desarrollador que opere en este workspace debe acatar estrictamente las **7 Leyes Fundamentales de Desarrollo de Software, Arquitectura y Operación**. Estas leyes regulan con rigor **CÓMO se programa, modela, diseña, prueba y despliega** el código del sistema:
+Todo agente de Inteligencia Artificial y desarrollador que opere en este workspace debe acatar estrictamente las **8 Leyes Fundamentales de Desarrollo de Software, Arquitectura y Operación**. Estas leyes regulan con rigor **CÓMO se programa, modela, diseña, prueba y despliega** el código del sistema:
 
 ---
 
@@ -105,8 +105,19 @@ Todo agente de Inteligencia Artificial y desarrollador que opere en este workspa
 
 ---
 
+## 📜 LEY 8: Gobernanza de Control de Versiones, Gestión Documental y Listado Maestro Obligatorio (HSEQ / ISO 9001 & 45001)
+*(Consolida codificación institucional, gobernanza de versiones y actualización mandatoria)*
+- **Registro Obligatorio en el Listado Maestro (`/tools/version-control`):** Queda estrictamente prohibido crear, desplegar o modificar cualquier formulario o formato operativo (en código, base de datos o interfaz) sin registrar o actualizar de forma simultánea e inmediata su versión en la herramienta oficial de HSEQ **Control de Versiones y Gestión Documental** (`document_format_versions` y `format_version_history`).
+- **Nomenclatura Canónica Institucional de Código:** Todo formato debe poseer obligatoriamente un código formal con prefijo `FOR-` seguido del identificador del proceso (ej. `FOR-HSEQ-...`, `FOR-SIG-...`, `FOR-GPR-...`, `FOR-CAD-...`, `FOR-ALM-...`, `FOR-COM-...`, `FOR-CMR-...`, `FOR-FIN-...`, `FOR-CNT-...`, `FOR-TH-...`). Queda prohibido publicar formatos sin código formalizado.
+- **Incremento Obligatorio de Versión por Modificación:** Cada vez que se altere la estructura de captura, se agreguen o eliminen campos, se modifiquen listas de chequeo o se modifiquen plantillas de exportación, es mandatorio incrementar el número de versión (ej. de v1 a v2) y estampar la fecha de entrada en vigencia (`effective_date`) con su respectiva justificación técnica de control de cambios.
+- **Declaración de Proceso y Matriz de Acceso RBAC:** Cada registro en el listado maestro debe estipular inequívocamente el proceso del SIG al que pertenece y la lista de roles autorizados para su diligenciamiento o si su alcance es transversal (`is_universal = true`).
+- **Disponibilidad de Plantillas Oficiales Vigentes:** Todo formato registrado debe permitir la descarga inmediata de su versión vigente y de sus versiones históricas en formato PDF o XLSX/DOCX con membrete institucional formal de PROCIMEC INGENIERÍA S.A.S.
+
+---
+
 Para especificaciones detalladas de interfaz y rendimiento, consultar:
 - [procimec_design_system.md](file:///.agents/rules/procimec_design_system.md)
 - [procimec_architecture.md](file:///.agents/rules/procimec_architecture.md)
 - [procimec_performance.md](file:///.agents/rules/procimec_performance.md)
 - [PRODUCT.md](file:///PRODUCT.md)
+

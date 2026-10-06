@@ -154,6 +154,11 @@ const TOOL_META: Record<string, { description: string; tag: string; path?: strin
     tag: 'Auditoría y Control',
     path: '/tools/forms-audit',
   },
+  'version-control': {
+    description: 'Listado maestro oficial de formatos, control de cambios, versiones vigentes y descarga de plantillas del SIG.',
+    tag: 'HSEQ / Calidad',
+    path: '/tools/version-control',
+  },
 };
 
 function renderToolIcon(slug: string) {
@@ -200,6 +205,8 @@ function renderToolIcon(slug: string) {
       return <Calculator {...props} />;
     case 'forms-audit':
       return <ClipboardCheck {...props} />;
+    case 'version-control':
+      return <ShieldCheck {...props} />;
     default:
       return <Wrench {...props} />;
   }
