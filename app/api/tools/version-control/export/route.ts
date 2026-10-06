@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { getToken } from 'next-auth/jwt';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
+import fs from 'fs';
+import path from 'path';
 import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { CORPORATE_LOGO_BASE64 } from '@/lib/gpr/logoBase64';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -12,7 +16,10 @@ export const revalidate = 0;
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+    const userEmail = session?.user?.email || token?.email;
+
+    if (!userEmail) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
@@ -58,6 +65,23 @@ export async function GET(req: NextRequest) {
       const worksheet = workbook.addWorksheet('Listado Maestro Formatos', {
         views: [{ showGridLines: true }],
       });
+
+      // Logo institucional
+      const logoPath = path.join(process.cwd(), 'public', 'logo.png');
+      if (fs.existsSync(logoPath)) {
+        try {
+          const imageId = workbook.addImage({
+            filename: logoPath,
+            extension: 'png',
+          });
+          worksheet.addImage(imageId, {
+            tl: { col: 0.1, row: 0.1 },
+            ext: { width: 130, height: 42 },
+          });
+        } catch (e) {
+          console.warn('Error al incrustar logo en export Excel:', e);
+        }
+      }
 
       // Filas de Encabezado Institucional
       worksheet.mergeCells('A1:H1');
@@ -190,15 +214,21 @@ export async function GET(req: NextRequest) {
     doc.setFillColor(234, 160, 35); // Ámbar #EAA023
     doc.rect(10, 28, 277, 3, 'F');
 
+    try {
+      doc.addImage(CORPORATE_LOGO_BASE64, 'PNG', 13, 12, 24, 7);
+    } catch {
+      // Fallback
+    }
+
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(255, 255, 255);
-    doc.text('PROCIMEC INGENIERÍA S.A.S.  •  PCM CLOUD', 15, 18);
+    doc.text('PROCIMEC INGENIERÍA S.A.S.  •  PCM CLOUD', 40, 18);
 
     doc.setFontSize(8.5);
     doc.setFont('Helvetica', 'normal');
     doc.setTextColor(234, 160, 35);
-    doc.text('SISTEMA INTEGRADO DE GESTIÓN (SIG) — LISTADO MAESTRO DE FORMATOS Y CONTROL DE VERSIONES', 15, 24);
+    doc.text('SISTEMA INTEGRADO DE GESTIÓN (SIG) — LISTADO MAESTRO DE FORMATOS Y CONTROL DE VERSIONES', 40, 24);
 
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(8);

@@ -133,6 +133,105 @@ export function VersionControlPanel() {
   };
 
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
+  const [isExportingMaster, setIsExportingMaster] = useState(false);
+
+  // Descarga segura vía Blob para evitar bloqueos del navegador en URLs sin extensión
+  const handleDownloadTemplate = async (
+    code: string,
+    format: string = 'xlsx',
+    version: string = '1',
+    customUrl?: string | null
+  ) => {
+    const key = `${code}-${format}-${version}`;
+    try {
+      setDownloadingKey(key);
+
+      // Si es una URL personalizada directa que no sea de nuestra API (ej: supabase storage)
+      if (customUrl && !customUrl.includes('download-template?')) {
+        const a = document.createElement('a');
+        a.href = customUrl;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+
+      const queryParams = new URLSearchParams({
+        code,
+        format,
+        version,
+      });
+
+      const res = await fetch(`/api/tools/version-control/download-template?${queryParams.toString()}`);
+
+      if (!res.ok) {
+        let errMsg = `Error ${res.status} al descargar formato`;
+        try {
+          const errData = await res.json();
+          if (errData?.error) errMsg = errData.error;
+        } catch {
+          // ignore
+        }
+        throw new Error(errMsg);
+      }
+
+      const blob = await res.blob();
+      let filename = `${code}_Plantilla_Oficial.${format}`;
+      const disposition = res.headers.get('content-disposition');
+      if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) {
+          filename = match[1].trim();
+        }
+      }
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(link);
+    } catch (err: unknown) {
+      console.error('Error al descargar plantilla:', err);
+      setActionFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Error al procesar la descarga del formato.',
+      });
+      setTimeout(() => setActionFeedback(null), 5000);
+    } finally {
+      setDownloadingKey(null);
+    }
+  };
+
+  const handleDownloadMasterExport = async () => {
+    try {
+      setIsExportingMaster(true);
+      const res = await fetch('/api/tools/version-control/export?format=xlsx');
+      if (!res.ok) throw new Error('Error al generar catálogo maestro en Excel');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `Listado_Maestro_Formatos_PROCIMEC_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(link);
+    } catch (err: unknown) {
+      setActionFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Error al exportar catálogo maestro',
+      });
+      setTimeout(() => setActionFeedback(null), 5000);
+    } finally {
+      setIsExportingMaster(false);
+    }
+  };
 
   // Consulta de datos al backend
   const { data: responseData, isLoading } = useQuery({
@@ -461,15 +560,19 @@ export function VersionControlPanel() {
       <div className="card p-4 sm:p-5 border border-border bg-white shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Exportar Listado Maestro:</span>
-          <a
-            href="/api/tools/version-control/export?format=xlsx"
-            download
+          <button
+            onClick={handleDownloadMasterExport}
+            disabled={isExportingMaster}
             className="btn btn-secondary text-xs font-semibold py-1.5 px-3 flex items-center gap-1.5 hover:border-emerald-500 hover:text-emerald-700 transition-colors"
             title="Descargar matriz completa en Excel"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
-            Descargar Excel (.xlsx)
-          </a>
+            {isExportingMaster ? (
+              <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
+            )}
+            <span>{isExportingMaster ? 'Generando Excel...' : 'Descargar Excel (.xlsx)'}</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
@@ -681,13 +784,22 @@ export function VersionControlPanel() {
                     <td className="py-3 px-4 align-top text-right whitespace-nowrap">
                       <div className="flex items-center justify-end flex-wrap gap-1.5">
                         {/* Descargar Formato Editable Principal */}
-                        <a
-                          href={fmt.download_template_url || `/api/tools/version-control/download-template?code=${fmt.code}&format=editable&version=${fmt.current_version}`}
-                          download
+                        <button
+                          onClick={() =>
+                            handleDownloadTemplate(
+                              fmt.code,
+                              fmt.editable_type || 'xlsx',
+                              fmt.current_version,
+                              fmt.download_template_url
+                            )
+                          }
+                          disabled={downloadingKey === `${fmt.code}-${fmt.editable_type || 'xlsx'}-${fmt.current_version}`}
                           className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-emerald-500 hover:text-emerald-800 transition-colors"
                           title={`Descargar plantilla editable vigente (${fmt.editable_type ? fmt.editable_type.toUpperCase() : 'XLSX'})`}
                         >
-                          {fmt.editable_type === 'docx' ? (
+                          {downloadingKey === `${fmt.code}-${fmt.editable_type || 'xlsx'}-${fmt.current_version}` ? (
+                            <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                          ) : fmt.editable_type === 'docx' ? (
                             <FileText className="w-3.5 h-3.5 text-blue-600" />
                           ) : fmt.editable_type === 'pptx' ? (
                             <Layers className="w-3.5 h-3.5 text-accent" />
@@ -695,38 +807,52 @@ export function VersionControlPanel() {
                             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                           )}
                           <span>
-                            {fmt.editable_type === 'docx'
+                            {downloadingKey === `${fmt.code}-${fmt.editable_type || 'xlsx'}-${fmt.current_version}`
+                              ? 'Descargando...'
+                              : fmt.editable_type === 'docx'
                               ? 'Word (.docx)'
                               : fmt.editable_type === 'pptx'
                               ? 'PowerPoint (.pptx)'
                               : 'Excel (.xlsx)'}
                           </span>
-                        </a>
+                        </button>
 
                         {/* Opción adicional PowerPoint si aplica */}
                         {fmt.has_pptx && fmt.editable_type !== 'pptx' && (
-                          <a
-                            href={`/api/tools/version-control/download-template?code=${fmt.code}&format=pptx&version=${fmt.current_version}`}
-                            download
+                          <button
+                            onClick={() =>
+                              handleDownloadTemplate(fmt.code, 'pptx', fmt.current_version)
+                            }
+                            disabled={downloadingKey === `${fmt.code}-pptx-${fmt.current_version}`}
                             className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-amber-500 hover:text-amber-800 transition-colors"
                             title="Descargar láminas editables en PowerPoint (.pptx)"
                           >
-                            <Layers className="w-3.5 h-3.5 text-accent" />
+                            {downloadingKey === `${fmt.code}-pptx-${fmt.current_version}` ? (
+                              <div className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Layers className="w-3.5 h-3.5 text-accent" />
+                            )}
                             <span>PowerPoint (.pptx)</span>
-                          </a>
+                          </button>
                         )}
 
                         {/* Opción adicional Excel si aplica */}
                         {fmt.has_xlsx && fmt.editable_type !== 'xlsx' && (
-                          <a
-                            href={`/api/tools/version-control/download-template?code=${fmt.code}&format=xlsx&version=${fmt.current_version}`}
-                            download
+                          <button
+                            onClick={() =>
+                              handleDownloadTemplate(fmt.code, 'xlsx', fmt.current_version)
+                            }
+                            disabled={downloadingKey === `${fmt.code}-xlsx-${fmt.current_version}`}
                             className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-emerald-500 hover:text-emerald-800 transition-colors"
                             title="Descargar formato editable en Excel (.xlsx)"
                           >
-                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                            {downloadingKey === `${fmt.code}-xlsx-${fmt.current_version}` ? (
+                              <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                            )}
                             <span>Excel (.xlsx)</span>
-                          </a>
+                          </button>
                         )}
 
                         {/* Ver Historial de Versiones */}
@@ -836,15 +962,22 @@ export function VersionControlPanel() {
                           <div className="flex items-center gap-1.5">
                             {/* Si la versión tiene un archivo adjunto subido */}
                             {ver.file_url ? (
-                              <a
-                                href={ver.file_url}
-                                download
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                onClick={() =>
+                                  handleDownloadTemplate(
+                                    historyModalFormat.code,
+                                    ver.file_format || 'xlsx',
+                                    ver.version,
+                                    ver.file_url
+                                  )
+                                }
+                                disabled={downloadingKey === `${historyModalFormat.code}-${ver.file_format || 'xlsx'}-${ver.version}`}
                                 className="btn btn-secondary text-xs py-1 px-2.5 flex items-center gap-1.5 hover:border-emerald-500 hover:text-emerald-800 font-semibold"
                                 title={`Descargar archivo editable adjunto versión ${ver.version}`}
                               >
-                                {ver.file_format === 'docx' || ver.file_format === 'doc' ? (
+                                {downloadingKey === `${historyModalFormat.code}-${ver.file_format || 'xlsx'}-${ver.version}` ? (
+                                  <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                                ) : ver.file_format === 'docx' || ver.file_format === 'doc' ? (
                                   <FileText className="w-3.5 h-3.5 text-blue-600" />
                                 ) : ver.file_format === 'pptx' || ver.file_format === 'ppt' ? (
                                   <Layers className="w-3.5 h-3.5 text-accent" />
@@ -852,42 +985,60 @@ export function VersionControlPanel() {
                                   <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                                 )}
                                 <span>Descargar {ver.file_format ? ver.file_format.toUpperCase() : 'Plantilla'} v{ver.version}</span>
-                              </a>
+                              </button>
                             ) : (
                               <>
                                 {/* Descarga editable para la versión histórica */}
                                 {(historyModalFormat.editable_type === 'xlsx' || historyModalFormat.has_xlsx) && (
-                                  <a
-                                    href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=xlsx&version=${ver.version}`}
-                                    download
+                                  <button
+                                    onClick={() =>
+                                      handleDownloadTemplate(historyModalFormat.code, 'xlsx', ver.version)
+                                    }
+                                    disabled={downloadingKey === `${historyModalFormat.code}-xlsx-${ver.version}`}
                                     className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-emerald-500 hover:text-emerald-800"
                                     title={`Descargar formato editable en Excel versión ${ver.version}`}
                                   >
-                                    <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                                    {downloadingKey === `${historyModalFormat.code}-xlsx-${ver.version}` ? (
+                                      <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                                    )}
                                     <span>Excel v{ver.version}</span>
-                                  </a>
+                                  </button>
                                 )}
                                 {historyModalFormat.editable_type === 'docx' && (
-                                  <a
-                                    href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=docx&version=${ver.version}`}
-                                    download
+                                  <button
+                                    onClick={() =>
+                                      handleDownloadTemplate(historyModalFormat.code, 'docx', ver.version)
+                                    }
+                                    disabled={downloadingKey === `${historyModalFormat.code}-docx-${ver.version}`}
                                     className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-blue-500 hover:text-blue-800"
                                     title={`Descargar formato editable en Word versión ${ver.version}`}
                                   >
-                                    <FileText className="w-3 h-3 text-blue-600" />
+                                    {downloadingKey === `${historyModalFormat.code}-docx-${ver.version}` ? (
+                                      <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <FileText className="w-3.5 h-3.5 text-blue-600" />
+                                    )}
                                     <span>Word v{ver.version}</span>
-                                  </a>
+                                  </button>
                                 )}
                                 {(historyModalFormat.has_pptx || historyModalFormat.editable_type === 'pptx') && (
-                                  <a
-                                    href={`/api/tools/version-control/download-template?code=${historyModalFormat.code}&format=pptx&version=${ver.version}`}
-                                    download
+                                  <button
+                                    onClick={() =>
+                                      handleDownloadTemplate(historyModalFormat.code, 'pptx', ver.version)
+                                    }
+                                    disabled={downloadingKey === `${historyModalFormat.code}-pptx-${ver.version}`}
                                     className="btn btn-secondary text-xs py-1 px-2 flex items-center gap-1 hover:border-amber-500 hover:text-amber-800"
                                     title={`Descargar PowerPoint versión ${ver.version}`}
                                   >
-                                    <Layers className="w-3 h-3 text-accent" />
+                                    {downloadingKey === `${historyModalFormat.code}-pptx-${ver.version}` ? (
+                                      <div className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <Layers className="w-3.5 h-3.5 text-accent" />
+                                    )}
                                     <span>PPTX v{ver.version}</span>
-                                  </a>
+                                  </button>
                                 )}
                               </>
                             )}
