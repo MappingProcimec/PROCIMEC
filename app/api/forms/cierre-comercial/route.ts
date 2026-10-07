@@ -258,13 +258,27 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Vincular project_id en la propuesta comercial si no lo tenía
+        // Sincronizar propuesta comercial con el proyecto y con el valor final contratado
         if (resolvedProposalId) {
-          await supabase
-            .from('commercial_proposals')
-            .update({ project_id: resolvedProjectId })
-            .eq('id', resolvedProposalId)
-            .is('project_id', null);
+          const propUpdate: Record<string, unknown> = {};
+          if (resolvedProjectId) {
+            propUpdate.project_id = resolvedProjectId;
+          }
+          if (closingResult === 'won' && final_contract_value) {
+            const finalNum = Number(final_contract_value);
+            const subtotalNum = Math.round(finalNum / 1.19);
+            propUpdate.total_amount = finalNum;
+            propUpdate.subtotal = subtotalNum;
+            propUpdate.tax_amount = finalNum - subtotalNum;
+            propUpdate.status = 'approved';
+          }
+
+          if (Object.keys(propUpdate).length > 0) {
+            await supabase
+              .from('commercial_proposals')
+              .update(propUpdate)
+              .eq('id', resolvedProposalId);
+          }
         }
       } catch (linkErr) {
         console.error('Error no crítico vinculando proyecto oficial en cierre:', linkErr);

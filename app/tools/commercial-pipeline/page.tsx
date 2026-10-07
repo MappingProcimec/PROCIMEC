@@ -478,9 +478,22 @@ export default function CommercialPipelinePage() {
                         <strong className="text-text-primary text-sm font-semibold">{prop.client_name}</strong>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-text-primary text-sm">
-                          {formatCOP(prop.total_amount)}
-                        </span>
+                        {linkedClosing?.result === 'won' && linkedClosing.final_contract_value ? (
+                          <div className="flex flex-col items-end">
+                            <span className="font-mono font-bold text-emerald-700 text-sm">
+                              {formatCOP(linkedClosing.final_contract_value)}
+                            </span>
+                            {linkedClosing.final_contract_value !== prop.total_amount && (
+                              <span className="text-[10px] text-text-muted font-mono line-through">
+                                Inicial: {formatCOP(prop.total_amount)}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="font-mono font-bold text-text-primary text-sm">
+                            {formatCOP(prop.total_amount)}
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={() => generateProposalPdf(prop)}

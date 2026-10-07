@@ -745,7 +745,9 @@ export default function AdminProjectsPage() {
                       return (
                         <tr
                           key={p.id}
-                          className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
+                          className={`hover:bg-gray-50/80 cursor-pointer transition-colors group relative ${
+                            openMenuId === p.id ? 'z-30' : 'z-auto'
+                          }`}
                           onClick={() => {
                             setSelectedProject(p);
                             setDetailFilter('all');
@@ -858,7 +860,12 @@ export default function AdminProjectsPage() {
                               {p.is_active ? 'Activo' : 'Inactivo'}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap text-right sticky right-0 bg-white group-hover:bg-gray-50/80 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
+                          <td
+                            className={`whitespace-nowrap text-right sticky right-0 bg-white group-hover:bg-gray-50/80 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.04)] transition-colors ${
+                              openMenuId === p.id ? 'z-40' : 'z-10'
+                            }`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <div className="relative inline-block text-left">
                               <button
                                 onClick={() => setOpenMenuId(openMenuId === p.id ? null : p.id)}
@@ -872,10 +879,10 @@ export default function AdminProjectsPage() {
                               {openMenuId === p.id && (
                                 <>
                                   <div
-                                    className="fixed inset-0 z-20 cursor-default"
+                                    className="fixed inset-0 z-30 cursor-default"
                                     onClick={() => setOpenMenuId(null)}
                                   />
-                                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-border py-1.5 z-30 animate-slide-up origin-top-right">
+                                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-2xl border border-border py-1.5 z-50 animate-slide-up origin-top-right">
                                     <button
                                       onClick={() => {
                                         setOpenMenuId(null);
