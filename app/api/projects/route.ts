@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
-import { parseProjectTargets, cleanDescription } from '@/app/api/admin/projects/route';
+import { parseProjectTargets, cleanDescription, parseProjectFinancials } from '@/app/api/admin/projects/route';
 
 interface OperationalSummaryRow {
   ml?: number;
@@ -109,6 +109,8 @@ export async function GET() {
       overallProgressPct = 100;
     }
 
+    const financials = parseProjectFinancials(p);
+
     return {
       ...p,
       cost_center: ccVal,
@@ -119,6 +121,11 @@ export async function GET() {
       target_metric_type: targets.target_metric_type,
       requires_mapping: targets.requires_mapping,
       requires_positioning: targets.requires_positioning,
+      contract_value: financials.contract_value,
+      deductions_percentage: financials.deductions_percentage,
+      deductions_amount: financials.deductions_amount,
+      execution_value: financials.execution_value,
+      deductions_config: financials.deductions_config,
       total_ml: totalML,
       total_m2: totalM2,
       mapping_ml: mappingML,

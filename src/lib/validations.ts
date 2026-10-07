@@ -67,6 +67,11 @@ export const createProjectSchema = z.object({
   target_metric_type: z.enum(['ml', 'm2']).optional(),
   requires_mapping: z.boolean().optional(),
   requires_positioning: z.boolean().optional(),
+  contract_value: z.union([z.number(), z.string(), z.null()]).optional(),
+  deductions_config: z.any().optional(),
+  deductions_percentage: z.union([z.number(), z.string(), z.null()]).optional(),
+  deductions_amount: z.union([z.number(), z.string(), z.null()]).optional(),
+  execution_value: z.union([z.number(), z.string(), z.null()]).optional(),
 }).transform((data) => ({
   ...data,
   cost_center: (data.cost_center || data.code || '').trim(),
@@ -75,6 +80,11 @@ export const createProjectSchema = z.object({
   target_metric_type: (data.target_metric_type === 'm2' || (!(data.target_ml !== undefined && data.target_ml !== null && data.target_ml !== '' ? Number(data.target_ml) : 0) && (data.target_m2 !== undefined && data.target_m2 !== null && data.target_m2 !== '' ? Number(data.target_m2) : 0) > 0)) ? 'm2' : (data.target_metric_type || 'ml'),
   requires_mapping: data.requires_mapping ?? true,
   requires_positioning: data.requires_positioning ?? true,
+  contract_value: data.contract_value !== undefined && data.contract_value !== null && data.contract_value !== '' ? Number(data.contract_value) : 0,
+  deductions_percentage: data.deductions_percentage !== undefined && data.deductions_percentage !== null && data.deductions_percentage !== '' ? Number(data.deductions_percentage) : 0,
+  deductions_amount: data.deductions_amount !== undefined && data.deductions_amount !== null && data.deductions_amount !== '' ? Number(data.deductions_amount) : 0,
+  execution_value: data.execution_value !== undefined && data.execution_value !== null && data.execution_value !== '' ? Number(data.execution_value) : 0,
+  deductions_config: Array.isArray(data.deductions_config) ? data.deductions_config : undefined,
 })).refine((data) => data.cost_center.length > 0, {
   message: 'El centro de costo es requerido',
   path: ['cost_center'],

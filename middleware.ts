@@ -96,8 +96,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/pending', request.url));
   }
 
-  // Solo admin puede acceder a rutas y APIs de administración
-  if (effectiveRole !== 'admin') {
+  // Solo admin y roles de gerencia pueden acceder a rutas y APIs de administración
+  const isManagerOrAdmin = effectiveRole === 'admin' || effectiveRole === 'management' || effectiveRole === 'gerencia';
+  if (!isManagerOrAdmin) {
     if (pathname.startsWith('/admin')) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }

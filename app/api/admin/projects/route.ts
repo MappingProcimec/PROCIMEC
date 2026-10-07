@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 import { createProjectSchema } from '@/lib/validations';
 import { createProjectFolder } from '@/lib/drive';
+import { isKnownAdmin } from '@/lib/admin-emails';
+import { computeProjectFinancials } from '@/lib/projectFinancials';
+import { ProjectDeduction, ProjectFinancials } from '@/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -51,6 +54,11 @@ interface DbProject {
   target_metric_type?: 'ml' | 'm2';
   requires_mapping?: boolean;
   requires_positioning?: boolean;
+  contract_value?: number;
+  deductions_percentage?: number;
+  deductions_amount?: number;
+  execution_value?: number;
+  deductions_config?: ProjectDeduction[];
   is_active: boolean;
   created_at: string;
   drive_folder_url?: string;
@@ -63,6 +71,33 @@ export interface TargetMeta {
   target_metric_type: 'ml' | 'm2';
   requires_mapping: boolean;
   requires_positioning: boolean;
+}
+
+export function isAuthorizedManagerOrAdmin(session: unknown): boolean {
+  const s = session as { user?: { role?: string; email?: string } } | null;
+  if (!s?.user) return false;
+  const role = s.user.role;
+  return role === 'admin' || role === 'management' || role === 'gerencia' || isKnownAdmin(s.user.email);
+}
+
+export function parseProjectFinancials(p: Record<string, unknown>): ProjectFinancials {
+  const directContractVal = Number(p.contract_value) || 0;
+  const directDeductionsConfig = Array.isArray(p.deductions_config) ? (p.deductions_config as ProjectDeduction[]) : null;
+
+  if (directContractVal > 0 || (directDeductionsConfig && directDeductionsConfig.length > 0)) {
+    return computeProjectFinancials(directContractVal, directDeductionsConfig);
+  }
+
+  const desc = String(p.description || '');
+  const match = desc.match(/<!--PROJECT_FINANCIALS:(\{.*?\})-->/);
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      return computeProjectFinancials(parsed.contract_value, parsed.deductions_config);
+    } catch {}
+  }
+
+  return computeProjectFinancials(0, directDeductionsConfig);
 }
 
 export function parseProjectTargets(p: Record<string, unknown>): TargetMeta {
@@ -97,12 +132,27 @@ export function parseProjectTargets(p: Record<string, unknown>): TargetMeta {
 
 export function cleanDescription(desc?: string | null): string {
   if (!desc) return '';
-  return desc.replace(/\n?<!--PROJECT_TARGETS:\{.*?\}-->/g, '').trim();
+  return desc
+    .replace(/\n?<!--PROJECT_TARGETS:\{.*?\}-->/g, '')
+    .replace(/\n?<!--PROJECT_FINANCIALS:\{.*?\}-->/g, '')
+    .trim();
+}
+
+export function encodeDescriptionWithMeta(
+  desc: string | null | undefined,
+  targets: TargetMeta,
+  financials?: ProjectFinancials
+): string {
+  const base = cleanDescription(desc);
+  let res = `${base}\n<!--PROJECT_TARGETS:${JSON.stringify(targets)}-->`.trim();
+  if (financials && (financials.contract_value > 0 || (financials.deductions_config && financials.deductions_config.length > 0))) {
+    res += `\n<!--PROJECT_FINANCIALS:${JSON.stringify(financials)}-->`.trim();
+  }
+  return res;
 }
 
 export function encodeDescriptionWithTargets(desc: string | null | undefined, targets: TargetMeta): string {
-  const base = cleanDescription(desc);
-  return `${base}\n<!--PROJECT_TARGETS:${JSON.stringify(targets)}-->`.trim();
+  return encodeDescriptionWithMeta(desc, targets);
 }
 
 async function fetchAllRows<T>(
@@ -128,7 +178,7 @@ async function fetchAllRows<T>(
 // GET /api/admin/projects
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== 'admin') {
+  if (!session || !isAuthorizedManagerOrAdmin(session)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
@@ -240,6 +290,8 @@ export async function GET() {
     }
 
     const ccVal = String(pRecord.cost_center || pRecord.code || '');
+    const financials = parseProjectFinancials(pRecord);
+
     return {
       id: p.id,
       code: ccVal,
@@ -261,6 +313,11 @@ export async function GET() {
       mapping_progress_pct: mappingProgressPct,
       positioning_progress_pct: positioningProgressPct,
       overall_progress_pct: overallProgressPct,
+      contract_value: financials.contract_value,
+      deductions_percentage: financials.deductions_percentage,
+      deductions_amount: financials.deductions_amount,
+      execution_value: financials.execution_value,
+      deductions_config: financials.deductions_config,
       is_active: p.is_active,
       created_at: p.created_at,
       drive_folder_url: p.drive_folder_url,
@@ -289,7 +346,7 @@ export async function GET() {
 // POST /api/admin/projects
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== 'admin') {
+  if (!session || !isAuthorizedManagerOrAdmin(session)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
@@ -339,7 +396,8 @@ export async function POST(request: NextRequest) {
     requires_positioning: requires_positioning ?? true,
   };
 
-  const encodedDescription = encodeDescriptionWithTargets(description, targetsMeta);
+  const financials = computeProjectFinancials(body.contract_value, body.deductions_config);
+  const encodedDescription = encodeDescriptionWithMeta(description, targetsMeta, financials);
 
   const supabase = createAdminClient();
 
@@ -355,6 +413,11 @@ export async function POST(request: NextRequest) {
     target_metric_type: targetsMeta.target_metric_type,
     requires_mapping: targetsMeta.requires_mapping,
     requires_positioning: targetsMeta.requires_positioning,
+    contract_value: financials.contract_value,
+    deductions_percentage: financials.deductions_percentage,
+    deductions_amount: financials.deductions_amount,
+    execution_value: financials.execution_value,
+    deductions_config: financials.deductions_config,
     drive_folder_id: driveFolderId,
     drive_folder_url: driveFolderUrl,
     created_by: session.user.id,
@@ -363,12 +426,16 @@ export async function POST(request: NextRequest) {
   let { data, error } = await supabase.from('projects').insert(baseInsert).select().single();
 
   if (error && error.code === '42703') {
-    // Si aún no se ha ejecutado la migración 008, guardamos sin las columnas nuevas
     delete baseInsert.target_ml;
     delete baseInsert.target_m2;
     delete baseInsert.target_metric_type;
     delete baseInsert.requires_mapping;
     delete baseInsert.requires_positioning;
+    delete baseInsert.contract_value;
+    delete baseInsert.deductions_percentage;
+    delete baseInsert.deductions_amount;
+    delete baseInsert.execution_value;
+    delete baseInsert.deductions_config;
     const retry = await supabase.from('projects').insert(baseInsert).select().single();
     data = retry.data;
     error = retry.error;
@@ -388,7 +455,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/admin/projects
 export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== 'admin') {
+  if (!session || !isAuthorizedManagerOrAdmin(session)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
@@ -420,8 +487,27 @@ export async function PATCH(request: NextRequest) {
     requires_positioning: updates.requires_positioning !== undefined ? Boolean(updates.requires_positioning) : true,
   };
 
-  if ('target_ml' in updates || 'target_m2' in updates || 'requires_mapping' in updates || 'requires_positioning' in updates || 'description' in updates) {
-    updates.description = encodeDescriptionWithTargets(updates.description, targetsMeta);
+  let financials: ProjectFinancials | undefined;
+  if ('contract_value' in updates || 'deductions_config' in updates || 'contract_value' in body || 'deductions_config' in body) {
+    const cVal = updates.contract_value !== undefined ? updates.contract_value : body.contract_value;
+    const dConf = updates.deductions_config !== undefined ? updates.deductions_config : body.deductions_config;
+    financials = computeProjectFinancials(cVal, dConf);
+    updates.contract_value = financials.contract_value;
+    updates.deductions_percentage = financials.deductions_percentage;
+    updates.deductions_amount = financials.deductions_amount;
+    updates.execution_value = financials.execution_value;
+    updates.deductions_config = financials.deductions_config;
+  }
+
+  if (
+    'target_ml' in updates ||
+    'target_m2' in updates ||
+    'requires_mapping' in updates ||
+    'requires_positioning' in updates ||
+    'description' in updates ||
+    financials
+  ) {
+    updates.description = encodeDescriptionWithMeta(updates.description, targetsMeta, financials);
   }
 
   const supabase = createAdminClient();
@@ -435,6 +521,11 @@ export async function PATCH(request: NextRequest) {
       delete fallback.target_metric_type;
       delete fallback.requires_mapping;
       delete fallback.requires_positioning;
+      delete fallback.contract_value;
+      delete fallback.deductions_percentage;
+      delete fallback.deductions_amount;
+      delete fallback.execution_value;
+      delete fallback.deductions_config;
       const retry = await supabase.from('projects').update(fallback).eq('id', id);
       error = retry.error;
     }

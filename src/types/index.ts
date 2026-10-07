@@ -29,6 +29,22 @@ export interface AppUser {
 
 // ─── Projects ─────────────────────────────────────────────────────────────────
 
+export interface ProjectDeduction {
+  id: string;
+  name: string;
+  percentage: number;
+  applies: boolean;
+  is_custom?: boolean;
+}
+
+export interface ProjectFinancials {
+  contract_value: number;
+  deductions_percentage: number;
+  deductions_amount: number;
+  execution_value: number;
+  deductions_config: ProjectDeduction[];
+}
+
 export interface Project {
   id: string;
   code?: string;
@@ -50,6 +66,11 @@ export interface Project {
   mapping_progress_pct?: number;
   positioning_progress_pct?: number;
   overall_progress_pct?: number;
+  contract_value?: number;
+  deductions_percentage?: number;
+  deductions_amount?: number;
+  execution_value?: number;
+  deductions_config?: ProjectDeduction[];
   drive_folder_id?: string;
   drive_folder_url?: string;
   is_active: boolean;

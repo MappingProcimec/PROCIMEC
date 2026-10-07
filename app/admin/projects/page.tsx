@@ -4,6 +4,11 @@ import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
+import { isKnownAdmin } from '@/lib/admin-emails';
+import { ProjectFinancialFields } from '@/components/admin/projects/ProjectFinancialFields';
+import { DEFAULT_COLOMBIA_DEDUCTIONS, formatCOP } from '@/lib/projectFinancials';
+import { ProjectDeduction } from '@/types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -27,6 +32,8 @@ import {
   ChevronDown,
   MapPin,
   Info,
+  Coins,
+  BadgePercent,
 } from 'lucide-react';
 
 interface DivisionOption { id: string; name: string }
@@ -76,6 +83,11 @@ interface Project {
   mapping_progress_pct?: number;
   positioning_progress_pct?: number;
   overall_progress_pct?: number;
+  contract_value?: number;
+  deductions_percentage?: number;
+  deductions_amount?: number;
+  execution_value?: number;
+  deductions_config?: ProjectDeduction[];
   drive_folder_url?: string;
   is_active: boolean;
   created_at: string;
@@ -106,7 +118,7 @@ async function fetchDivisionOptions(): Promise<DivisionOption[]> {
   return (json.data ?? []).map((d: DivisionOption) => ({ id: d.id, name: d.name }));
 }
 
-type SortField = 'cost_center' | 'name' | 'client' | 'records' | 'progress' | 'metrics' | 'status' | 'date';
+type SortField = 'cost_center' | 'name' | 'client' | 'records' | 'progress' | 'metrics' | 'status' | 'date' | 'execution_value';
 
 function CircularProgress({
   percentage,
@@ -163,6 +175,10 @@ function CircularProgress({
 
 export default function AdminProjectsPage() {
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const userRole = session?.user?.role;
+  const isAdminOrManager = userRole === 'admin' || userRole === 'management' || userRole === 'gerencia' || isKnownAdmin(session?.user?.email);
+
   const [showModal, setShowModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [detailFilter, setDetailFilter] = useState<'all' | 'campo' | 'dibujo'>('all');
@@ -191,6 +207,8 @@ export default function AdminProjectsPage() {
     target_metric_type: 'ml' as 'ml' | 'm2',
     requires_mapping: true,
     requires_positioning: true,
+    contract_value: '',
+    deductions_config: DEFAULT_COLOMBIA_DEDUCTIONS.map((d) => ({ ...d })),
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [selectedDivisions, setSelectedDivisions] = useState<Set<string>>(new Set());
@@ -208,6 +226,8 @@ export default function AdminProjectsPage() {
     target_metric_type: 'ml' as 'ml' | 'm2',
     requires_mapping: true,
     requires_positioning: true,
+    contract_value: '',
+    deductions_config: DEFAULT_COLOMBIA_DEDUCTIONS.map((d) => ({ ...d })),
   });
   const [editDivisions, setEditDivisions] = useState<Set<string>>(new Set());
 
@@ -246,6 +266,8 @@ export default function AdminProjectsPage() {
           target_metric_type: data.target_metric_type,
           requires_mapping: data.requires_mapping,
           requires_positioning: data.requires_positioning,
+          contract_value: data.contract_value ? Number(data.contract_value) : 0,
+          deductions_config: data.deductions_config,
           division_ids: Array.from(selectedDivisions),
         }),
       });
@@ -268,6 +290,8 @@ export default function AdminProjectsPage() {
         target_metric_type: 'ml',
         requires_mapping: true,
         requires_positioning: true,
+        contract_value: '',
+        deductions_config: DEFAULT_COLOMBIA_DEDUCTIONS.map((d) => ({ ...d })),
       });
       setSelectedDivisions(new Set());
     },
@@ -301,6 +325,10 @@ export default function AdminProjectsPage() {
       target_metric_type: p.target_metric_type || ((p.target_m2 ?? 0) > 0 && !(p.target_ml ?? 0) ? 'm2' : 'ml'),
       requires_mapping: p.requires_mapping ?? true,
       requires_positioning: p.requires_positioning ?? true,
+      contract_value: p.contract_value !== undefined && p.contract_value > 0 ? String(p.contract_value) : '',
+      deductions_config: Array.isArray(p.deductions_config) && p.deductions_config.length > 0
+        ? p.deductions_config
+        : DEFAULT_COLOMBIA_DEDUCTIONS.map((d) => ({ ...d })),
     });
     setEditDivisions(new Set((p.divisions ?? []).map((d) => d.id)));
   };
@@ -325,6 +353,8 @@ export default function AdminProjectsPage() {
           target_metric_type: editForm.target_metric_type === 'm2' || (!editForm.target_ml && Number(editForm.target_m2) > 0) ? 'm2' : 'ml',
           requires_mapping: editForm.requires_mapping,
           requires_positioning: editForm.requires_positioning,
+          contract_value: editForm.contract_value ? Number(editForm.contract_value) : 0,
+          deductions_config: editForm.deductions_config,
           division_ids: Array.from(editDivisions),
         }),
       });
@@ -433,6 +463,10 @@ export default function AdminProjectsPage() {
         case 'date':
           valA = new Date(a.created_at).getTime();
           valB = new Date(b.created_at).getTime();
+          break;
+        case 'execution_value':
+          valA = a.execution_value ?? 0;
+          valB = b.execution_value ?? 0;
           break;
       }
 
@@ -547,6 +581,17 @@ export default function AdminProjectsPage() {
                     </th>
                     <th className="hidden lg:table-cell py-3 px-4 text-left">Divisiones</th>
                     
+                    {/* Columna: Presupuesto de Ejecución */}
+                    <th
+                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-right transition-colors whitespace-nowrap"
+                      onClick={() => handleSort('execution_value')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <span>Presupuesto Ejecución</span>
+                        {getSortIcon('execution_value')}
+                      </div>
+                    </th>
+
                     {/* Nueva Columna: Avance de Campo hacia el 100% */}
                     <th
                       className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-center transition-colors min-w-[170px]"
@@ -621,6 +666,7 @@ export default function AdminProjectsPage() {
                     <td className="p-2"></td>
                     <td className="p-2"></td>
                     <td className="p-2"></td>
+                    <td className="p-2"></td>
                     <td className="p-2">
                       <select
                         value={filterStatus}
@@ -648,7 +694,7 @@ export default function AdminProjectsPage() {
                 <tbody>
                   {filteredAndSortedProjects.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-text-muted text-sm">
+                      <td colSpan={10} className="py-8 text-center text-text-muted text-sm">
                         No se encontraron proyectos con los filtros aplicados.
                       </td>
                     </tr>
@@ -688,7 +734,7 @@ export default function AdminProjectsPage() {
                               <div className="flex items-center gap-2 text-xs text-text-muted mt-0.5">
                                 <span>{format(new Date(p.created_at), 'dd/MM/yyyy', { locale: es })}</span>
                                 {p.contract_number && (
-                                  <>
+                                   <>
                                     <span>·</span>
                                     <span className="font-mono text-[11px] text-gray-500">CTO: {p.contract_number}</span>
                                   </>
@@ -706,6 +752,22 @@ export default function AdminProjectsPage() {
                                   ))
                               }
                             </div>
+                          </td>
+
+                          {/* Columna Presupuesto de Ejecución */}
+                          <td className="text-right whitespace-nowrap px-3">
+                            {(p.contract_value ?? 0) > 0 ? (
+                              <div className="flex flex-col items-end">
+                                <span className="font-mono font-bold text-xs text-emerald-700">
+                                  {formatCOP(p.execution_value)}
+                                </span>
+                                <span className="font-mono text-[10px] text-text-muted">
+                                  Bruto: {formatCOP(p.contract_value)} (-{(p.deductions_percentage ?? 0).toFixed(1)}%)
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-text-muted text-xs">—</span>
+                            )}
                           </td>
 
                           {/* Celda Avance de Campo (Mapeo vs Geolocalización) */}
@@ -927,6 +989,45 @@ export default function AdminProjectsPage() {
                       </div>
                     )}
 
+                    {/* Tarjeta de Gestión Financiera y Deducciones en Detalle del Proyecto */}
+                    {(currentSelected.contract_value ?? 0) > 0 && (
+                      <div className="mb-4 bg-slate-900 text-white p-3.5 rounded-xl border border-slate-800 space-y-2.5 shadow-md">
+                        <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                            <Coins className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                            <span>Presupuesto y Ejecución Financiera del Contrato</span>
+                          </div>
+                          <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
+                            {Math.max(0, Math.round(100 - (currentSelected.deductions_percentage ?? 0)))}% disponible para operar
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-slate-800 text-xs">
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Valor del Contrato (Bruto)</span>
+                            <span className="font-mono text-base font-bold text-white">{formatCOP(currentSelected.contract_value)} COP</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Deducciones Aplicadas ({currentSelected.deductions_percentage}%)</span>
+                            <span className="font-mono text-base font-bold text-red-400">-{formatCOP(currentSelected.deductions_amount)} COP</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Valor para Ejecución (Neto)</span>
+                            <span className="font-mono text-base font-extrabold text-accent">{formatCOP(currentSelected.execution_value)} COP</span>
+                          </div>
+                        </div>
+                        {Array.isArray(currentSelected.deductions_config) && currentSelected.deductions_config.some((d) => d.applies) && (
+                          <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap text-[11px]">
+                            <span className="text-slate-400 text-[10px]">Deducciones activas:</span>
+                            {currentSelected.deductions_config.filter((d) => d.applies).map((d) => (
+                              <span key={d.id} className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-200 border border-slate-700">
+                                {d.name}: {d.percentage}%
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* ── LOS 2 GRÁFICOS DE PROGRESO DE CAMPO (Mapeo vs Geolocalización) ── */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       
@@ -1132,7 +1233,7 @@ export default function AdminProjectsPage() {
 
             {/* Modal Stats & Filters */}
             <div className="bg-white border-b border-border px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-6 flex-wrap">
                 <div>
                   <div className="text-xs text-text-muted">Total Registros</div>
                   <div className="text-base font-bold text-text-primary">{currentSelected.report_count ?? 0}</div>
@@ -1145,6 +1246,22 @@ export default function AdminProjectsPage() {
                   <div className="text-xs text-text-muted">Dibujo (Horas)</div>
                   <div className="text-base font-bold text-amber-700">{(currentSelected.total_drawing_hours ?? 0).toFixed(1)} h</div>
                 </div>
+                {(currentSelected.contract_value ?? 0) > 0 && (
+                  <>
+                    <div className="border-l border-border pl-6">
+                      <div className="text-xs text-text-muted">Valor Contrato</div>
+                      <div className="text-base font-mono font-bold text-primary-900">{formatCOP(currentSelected.contract_value)}</div>
+                    </div>
+                    <div className="border-l border-border pl-6">
+                      <div className="text-xs text-text-muted">Deducciones ({currentSelected.deductions_percentage}%)</div>
+                      <div className="text-base font-mono font-bold text-red-600">-{formatCOP(currentSelected.deductions_amount)}</div>
+                    </div>
+                    <div className="border-l border-border pl-6">
+                      <div className="text-xs text-text-muted">Presupuesto Ejecución ({Math.max(0, Math.round(100 - (currentSelected.deductions_percentage ?? 0)))}%)</div>
+                      <div className="text-base font-mono font-bold text-emerald-600">{formatCOP(currentSelected.execution_value)}</div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Tabs */}
@@ -1456,6 +1573,15 @@ export default function AdminProjectsPage() {
                   placeholder="CTO-2024-001"
                 />
               </div>
+
+              {/* Gestión Financiera, Deducciones de Colombia y Valor de Ejecución */}
+              <ProjectFinancialFields
+                contractValue={editForm.contract_value}
+                onContractValueChange={(val) => setEditForm((prev) => ({ ...prev, contract_value: val }))}
+                deductions={editForm.deductions_config}
+                onDeductionsChange={(deds) => setEditForm((prev) => ({ ...prev, deductions_config: deds }))}
+                isAuthorized={isAdminOrManager}
+              />
               <div className="form-group">
                 <label className="label">Descripción</label>
                 <textarea
@@ -1662,6 +1788,15 @@ export default function AdminProjectsPage() {
                   className="input"
                 />
               </div>
+
+              {/* Gestión Financiera, Deducciones de Colombia y Valor de Ejecución */}
+              <ProjectFinancialFields
+                contractValue={form.contract_value}
+                onContractValueChange={(val) => setForm((prev) => ({ ...prev, contract_value: val }))}
+                deductions={form.deductions_config}
+                onDeductionsChange={(deds) => setForm((prev) => ({ ...prev, deductions_config: deds }))}
+                isAuthorized={isAdminOrManager}
+              />
 
               <div className="form-group">
                 <label className="label">Descripción</label>
