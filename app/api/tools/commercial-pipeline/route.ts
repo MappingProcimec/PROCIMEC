@@ -174,6 +174,7 @@ export async function GET() {
           cost_center,
           name,
           client,
+          description,
           location,
           contract_number,
           contract_value,

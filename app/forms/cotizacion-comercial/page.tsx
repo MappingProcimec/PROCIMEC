@@ -130,11 +130,27 @@ function CotizacionComercialContent() {
 
           if (qPrjId) {
             setSelectedProjectId(qPrjId);
+            const matchingP = prjList.find((p: Project) => p.id === qPrjId);
+            if (matchingP && !qBudgetId && !qOppId) {
+              if (matchingP.client) setClientName(matchingP.client);
+              const desc = matchingP.description || matchingP.name || '';
+              const cCenter = matchingP.cost_center || matchingP.code || '';
+              setScopeDescription(
+                desc
+                  ? `${desc} (Proyecto ${cCenter ? `${cCenter} - ` : ''}${matchingP.name})`
+                  : `Servicios de ingeniería y soporte para proyecto ${matchingP.name}`
+              );
+              if (matchingP.contract_value && Number(matchingP.contract_value) > 0) {
+                setSubtotal(Number(matchingP.contract_value));
+              } else if (matchingP.execution_value && Number(matchingP.execution_value) > 0) {
+                setSubtotal(Number(matchingP.execution_value));
+              }
+            }
           }
 
-          if (qClient && !qBudgetId && !qOppId) setClientName(decodeURIComponent(qClient));
-          if (qScope && !qBudgetId && !qOppId) setScopeDescription(decodeURIComponent(qScope));
-          if (qSubtotal && !qBudgetId) setSubtotal(Number(qSubtotal) || '');
+          if (qClient && !qBudgetId && !qOppId && !qPrjId) setClientName(decodeURIComponent(qClient));
+          if (qScope && !qBudgetId && !qOppId && !qPrjId) setScopeDescription(decodeURIComponent(qScope));
+          if (qSubtotal && !qBudgetId && !qPrjId) setSubtotal(Number(qSubtotal) || '');
         }
       } catch (err) {
         console.error('Error cargando antecedentes de cotización:', err);
@@ -172,6 +188,33 @@ function CotizacionComercialContent() {
       if (!clientName) setClientName(opp.client_name);
       if (!scopeDescription) setScopeDescription(opp.opportunity_title);
       if (!subtotal && opp.estimated_value) setSubtotal(opp.estimated_value);
+    }
+  };
+
+  // Manejar importación y auto-completado desde selector de proyecto oficial
+  const handleProjectChange = (prjId: string) => {
+    setSelectedProjectId(prjId);
+    if (!prjId) return;
+
+    const prj = projects.find((item) => item.id === prjId);
+    if (prj) {
+      if (prj.client) {
+        setClientName(prj.client);
+      }
+      const desc = prj.description || prj.name || '';
+      const cCenter = prj.cost_center || prj.code || '';
+      setScopeDescription(
+        desc
+          ? `${desc} (Proyecto ${cCenter ? `${cCenter} - ` : ''}${prj.name})`
+          : `Servicios de ingeniería y soporte para proyecto ${prj.name}`
+      );
+
+      // Cargar valor financiero del proyecto (contract_value o execution_value)
+      if (prj.contract_value && Number(prj.contract_value) > 0) {
+        setSubtotal(Number(prj.contract_value));
+      } else if (prj.execution_value && Number(prj.execution_value) > 0) {
+        setSubtotal(Number(prj.execution_value));
+      }
     }
   };
 
@@ -434,7 +477,7 @@ function CotizacionComercialContent() {
                   </label>
                   <select
                     value={selectedProjectId}
-                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    onChange={(e) => handleProjectChange(e.target.value)}
                     disabled={loadingAntecedents}
                     className="input w-full text-xs font-medium bg-white text-text-primary border-border focus:ring-accent"
                   >
