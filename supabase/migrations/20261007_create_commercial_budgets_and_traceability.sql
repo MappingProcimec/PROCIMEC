@@ -96,18 +96,19 @@ CREATE POLICY "commercial_budgets_write_auth"
     WITH CHECK (true);
 
 -- 7. Registrar formulario de Presupuesto en public.forms
-INSERT INTO public.forms (slug, name, description, category, is_universal)
+INSERT INTO public.forms (slug, name, description, steps_count, has_attachments)
 VALUES (
     'presupuesto-proyecto',
     'Presupuesto Operativo y APU de Ingeniería',
     'Estructura de costos directos (materiales, equipos, mano de obra, logística) y cálculo de AIU y margen comercial.',
-    'commercial',
+    2,
     false
 )
 ON CONFLICT (slug) DO UPDATE SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
-    category = EXCLUDED.category;
+    steps_count = EXCLUDED.steps_count,
+    has_attachments = EXCLUDED.has_attachments;
 
 -- 8. Asignar formulario a roles pertinentes (Comercial, Dibujo, Gerencia, Admin)
 DO $$
