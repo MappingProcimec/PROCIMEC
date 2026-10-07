@@ -565,9 +565,14 @@ function CierreComercialContent() {
                 <div className="p-4 rounded-xl bg-slate-50 border border-border space-y-4 animate-in fade-in">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-text-secondary mb-1">
-                        Valor Final Contratado (COP, con IVA) <span className="text-rose-500">*</span>
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-text-secondary">
+                          Valor Final Contratado (COP, con IVA) <span className="text-rose-500">*</span>
+                        </label>
+                        {selectedProject && projectContractVal > 0 && selectedProposal?.total_amount && (
+                          <span className="text-[10px] text-text-muted">Ajuste rápido</span>
+                        )}
+                      </div>
                       <div className="relative">
                         <DollarSign className="w-4 h-4 text-text-muted absolute left-3 top-3 pointer-events-none" strokeWidth={1.75} />
                         <input
@@ -581,11 +586,49 @@ function CierreComercialContent() {
                           placeholder="Monto final pactado"
                         />
                       </div>
-                      {Number(finalContractValue) > 0 && (
-                        <p className="text-[11px] text-emerald-800 font-mono font-semibold mt-1">
-                          {formatCOP(Number(finalContractValue))}
-                        </p>
-                      )}
+                      <div className="flex flex-wrap items-center justify-between gap-2 mt-1.5">
+                        {Number(finalContractValue) > 0 ? (
+                          <p className="text-[11px] text-emerald-800 font-mono font-semibold">
+                            {formatCOP(Number(finalContractValue))}
+                          </p>
+                        ) : <div />}
+
+                        {/* Presets rápidos para alternar entre Cotización y Techo de Proyecto */}
+                        <div className="flex items-center gap-1.5">
+                          {selectedProposal?.total_amount && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFinalContractValue(selectedProposal.total_amount);
+                                setSyncMode('sync_to_quote');
+                              }}
+                              className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors ${
+                                Number(finalContractValue) === Number(selectedProposal.total_amount)
+                                  ? 'bg-emerald-100 border-emerald-300 text-emerald-900 font-bold'
+                                  : 'bg-white border-border text-text-muted hover:text-text-primary'
+                              }`}
+                            >
+                              Cotización: {formatCOP(selectedProposal.total_amount)}
+                            </button>
+                          )}
+                          {selectedProject && projectContractVal > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFinalContractValue(projectContractVal);
+                                setSyncMode('keep_project_ceiling');
+                              }}
+                              className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors ${
+                                Number(finalContractValue) === projectContractVal
+                                  ? 'bg-amber-100 border-amber-300 text-amber-900 font-bold'
+                                  : 'bg-white border-border text-text-muted hover:text-text-primary'
+                              }`}
+                            >
+                              Techo Proyecto: {formatCOP(projectContractVal)}
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div>
@@ -665,7 +708,12 @@ function CierreComercialContent() {
                         {/* Camino 1 */}
                         <button
                           type="button"
-                          onClick={() => setSyncMode('sync_to_quote')}
+                          onClick={() => {
+                            setSyncMode('sync_to_quote');
+                            if (selectedProposal?.total_amount) {
+                              setFinalContractValue(selectedProposal.total_amount);
+                            }
+                          }}
                           className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
                             syncMode === 'sync_to_quote'
                               ? 'border-emerald-500 bg-white ring-2 ring-emerald-500/30 shadow-sm'
@@ -685,18 +733,18 @@ function CierreComercialContent() {
                               </div>
                             </div>
                             <p className="text-xs text-text-secondary mb-2">
-                              Actualiza el techo contractual y presupuesto de ejecución del proyecto oficial con las cifras definitivas de este cierre.
+                              Fija el valor del contrato en {selectedProposal?.total_amount ? formatCOP(selectedProposal.total_amount) : 'la cotización'} y sincroniza el techo y ejecución del proyecto.
                             </p>
                           </div>
                           <div className="pt-2 border-t border-slate-100 text-[11px] space-y-1">
                             <div className="flex justify-between">
                               <span className="text-text-muted">Nuevo Techo Proyecto:</span>
-                              <span className="font-mono font-bold text-emerald-900">{formatCOP(currentFinalValue)}</span>
+                              <span className="font-mono font-bold text-emerald-900">{formatCOP(selectedProposal?.total_amount || currentFinalValue)}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-text-muted">Nuevo Presupuesto Ejecución:</span>
                               <span className="font-mono font-bold text-emerald-900">
-                                {apuDirectCost > 0 ? formatCOP(apuDirectCost) : formatCOP(Math.round(currentFinalValue * 0.76))}
+                                {apuDirectCost > 0 ? formatCOP(apuDirectCost) : formatCOP(Math.round((selectedProposal?.total_amount || currentFinalValue) * 0.76))}
                               </span>
                             </div>
                           </div>
@@ -705,7 +753,12 @@ function CierreComercialContent() {
                         {/* Camino 2 */}
                         <button
                           type="button"
-                          onClick={() => setSyncMode('keep_project_ceiling')}
+                          onClick={() => {
+                            setSyncMode('keep_project_ceiling');
+                            if (projectContractVal > 0) {
+                              setFinalContractValue(projectContractVal);
+                            }
+                          }}
                           className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
                             syncMode === 'keep_project_ceiling'
                               ? 'border-accent bg-white ring-2 ring-accent/30 shadow-sm'
@@ -725,7 +778,7 @@ function CierreComercialContent() {
                               </div>
                             </div>
                             <p className="text-xs text-text-secondary mb-2">
-                              Mantiene intacto el techo contractual y presupuesto macro actual del proyecto. Vincula este cierre como orden de servicio o hito específico.
+                              Fija el valor del contrato en el techo actual ({formatCOP(projectContractVal)}) y mantiene intacto el presupuesto del proyecto.
                             </p>
                           </div>
                           <div className="pt-2 border-t border-slate-100 text-[11px] space-y-1">

@@ -35,6 +35,7 @@ import {
   Coins,
   BadgePercent,
   Download,
+  Sparkles,
 } from 'lucide-react';
 import { generateProjectFinancialPdf } from '@/lib/commercial/commercialPdfGenerator';
 
@@ -90,6 +91,9 @@ interface Project {
   deductions_amount?: number;
   execution_value?: number;
   deductions_config?: ProjectDeduction[];
+  commercial_proposal_id?: string | null;
+  commercial_budget_id?: string | null;
+  commercial_closing_id?: string | null;
   drive_folder_url?: string;
   is_active: boolean;
   created_at: string;
@@ -210,6 +214,8 @@ export default function AdminProjectsPage() {
     requires_mapping: true,
     requires_positioning: true,
     contract_value: '',
+    commercial_proposal_id: '',
+    commercial_budget_id: '',
     deductions_config: DEFAULT_COLOMBIA_DEDUCTIONS.map((d) => ({ ...d })),
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -229,6 +235,8 @@ export default function AdminProjectsPage() {
     requires_mapping: true,
     requires_positioning: true,
     contract_value: '',
+    commercial_proposal_id: '',
+    commercial_budget_id: '',
     deductions_config: DEFAULT_COLOMBIA_DEDUCTIONS.map((d) => ({ ...d })),
   });
   const [editDivisions, setEditDivisions] = useState<Set<string>>(new Set());
@@ -244,6 +252,21 @@ export default function AdminProjectsPage() {
     enabled: showModal || !!editProject,
   });
 
+  const { data: commercialData } = useQuery({
+    queryKey: ['admin-commercial-pipeline'],
+    queryFn: async () => {
+      const res = await fetch('/api/tools/commercial-pipeline');
+      if (!res.ok) return { proposals: [], budgets: [] };
+      const json = await res.json();
+      return {
+        proposals: (json.data?.proposals || []) as Array<{ id: string; quote_code: string; client_name: string; total_amount: number; budget_id?: string | null }>,
+        budgets: (json.data?.budgets || []) as Array<{ id: string; budget_code: string; client_name: string; project_title: string; total_direct_cost: number; suggested_sale_price: number }>,
+      };
+    },
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   // Mantener actualizado selectedProject si cambian los proyectos
   const currentSelected = useMemo(() => {
     if (!selectedProject) return null;
@@ -254,8 +277,9 @@ export default function AdminProjectsPage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const fromClosing = params.get('create_from_closing');
-      if (fromClosing) {
-        const cClient = params.get('client') || '';
+      const cPropId = params.get('commercial_proposal_id');
+      if (fromClosing || cPropId) {
+        const cClient = params.get('client') || params.get('client_name') || '';
         const cVal = params.get('contract_value') || '';
         const cNumber = params.get('contract_number') || '';
         setForm((prev) => ({
@@ -263,6 +287,7 @@ export default function AdminProjectsPage() {
           client: cClient,
           contract_value: cVal,
           contract_number: cNumber,
+          commercial_proposal_id: cPropId || '',
         }));
         setShowModal(true);
       }
@@ -288,6 +313,8 @@ export default function AdminProjectsPage() {
           requires_mapping: data.requires_mapping,
           requires_positioning: data.requires_positioning,
           contract_value: data.contract_value ? Number(data.contract_value) : 0,
+          commercial_proposal_id: data.commercial_proposal_id || null,
+          commercial_budget_id: data.commercial_budget_id || null,
           deductions_config: data.deductions_config,
           division_ids: Array.from(selectedDivisions),
         }),
@@ -312,6 +339,8 @@ export default function AdminProjectsPage() {
         requires_mapping: true,
         requires_positioning: true,
         contract_value: '',
+        commercial_proposal_id: '',
+        commercial_budget_id: '',
         deductions_config: DEFAULT_COLOMBIA_DEDUCTIONS.map((d) => ({ ...d })),
       });
       setSelectedDivisions(new Set());
@@ -347,6 +376,8 @@ export default function AdminProjectsPage() {
       requires_mapping: p.requires_mapping ?? true,
       requires_positioning: p.requires_positioning ?? true,
       contract_value: p.contract_value !== undefined && p.contract_value > 0 ? String(p.contract_value) : '',
+      commercial_proposal_id: p.commercial_proposal_id || '',
+      commercial_budget_id: p.commercial_budget_id || '',
       deductions_config: Array.isArray(p.deductions_config) && p.deductions_config.length > 0
         ? p.deductions_config
         : DEFAULT_COLOMBIA_DEDUCTIONS.map((d) => ({ ...d })),
@@ -375,6 +406,8 @@ export default function AdminProjectsPage() {
           requires_mapping: editForm.requires_mapping,
           requires_positioning: editForm.requires_positioning,
           contract_value: editForm.contract_value ? Number(editForm.contract_value) : 0,
+          commercial_proposal_id: editForm.commercial_proposal_id || null,
+          commercial_budget_id: editForm.commercial_budget_id || null,
           deductions_config: editForm.deductions_config,
           division_ids: Array.from(editDivisions),
         }),
@@ -1603,6 +1636,103 @@ export default function AdminProjectsPage() {
                 />
               </div>
 
+              {/* Sección de Vinculación Comercial y Trazabilidad */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs text-text-primary flex items-center gap-1.5 uppercase tracking-wide">
+                    <FolderKanban className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+                    <span>Vinculación Comercial (PCM CLOUD)</span>
+                  </h4>
+                  <span className="text-[10px] text-text-muted">Opcional &bull; Trazabilidad oficial</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Selector de Cotización Comercial */}
+                  <div className="form-group">
+                    <label className="label text-xs">Cotización Comercial Emitida</label>
+                    <select
+                      value={editForm.commercial_proposal_id}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const match = commercialData?.proposals?.find((p) => p.id === val);
+                        setEditForm((prev) => ({
+                          ...prev,
+                          commercial_proposal_id: val,
+                          commercial_budget_id: (!prev.commercial_budget_id && match?.budget_id) ? match.budget_id : prev.commercial_budget_id,
+                        }));
+                      }}
+                      className="input text-xs"
+                    >
+                      <option value="">— Sin cotización vinculada —</option>
+                      {commercialData?.proposals?.map((pr) => (
+                        <option key={pr.id} value={pr.id}>
+                          {pr.quote_code} &bull; {pr.client_name} ({formatCOP(pr.total_amount)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Selector de Presupuesto APU */}
+                  <div className="form-group">
+                    <label className="label text-xs">Presupuesto APU Base</label>
+                    <select
+                      value={editForm.commercial_budget_id}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, commercial_budget_id: e.target.value }))}
+                      className="input text-xs"
+                    >
+                      <option value="">— Sin presupuesto APU vinculado —</option>
+                      {commercialData?.budgets?.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.budget_code} &bull; {b.project_title || b.client_name} ({formatCOP(b.suggested_sale_price || b.total_direct_cost)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Asistente de sincronización si hay una cotización o APU seleccionada */}
+                {(() => {
+                  const matchedProp = commercialData?.proposals?.find((p) => p.id === editForm.commercial_proposal_id);
+                  const matchedBudget = commercialData?.budgets?.find((b) => b.id === editForm.commercial_budget_id);
+                  if (!matchedProp && !matchedBudget) return null;
+
+                  const propTotal = matchedProp?.total_amount || 0;
+                  const currentContractNum = Number(editForm.contract_value) || 0;
+                  const hasDiff = propTotal > 0 && Math.abs(currentContractNum - propTotal) > 1000;
+
+                  return (
+                    <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="text-amber-900 text-[11px]">
+                        {hasDiff ? (
+                          <>
+                            <strong>Valor dispar:</strong> El proyecto tiene <span className="font-mono font-bold">{formatCOP(currentContractNum)}</span> y la cotización <span className="font-mono font-bold">{formatCOP(propTotal)}</span>.
+                          </>
+                        ) : (
+                          <>
+                            <strong>Cifras alineadas:</strong> Techo del proyecto en <span className="font-mono font-bold">{formatCOP(currentContractNum)}</span>.
+                          </>
+                        )}
+                      </div>
+                      {propTotal > 0 && hasDiff && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditForm((prev) => ({
+                              ...prev,
+                              contract_value: String(propTotal),
+                            }));
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shrink-0 transition-colors shadow-xs"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Adoptar valor de cotización ({formatCOP(propTotal)})
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
               {/* Gestión Financiera, Deducciones de Colombia y Valor de Ejecución */}
               <ProjectFinancialFields
                 contractValue={editForm.contract_value}
@@ -1816,6 +1946,104 @@ export default function AdminProjectsPage() {
                   placeholder="CTO-2024-001"
                   className="input"
                 />
+              </div>
+
+              {/* Sección de Vinculación Comercial y Trazabilidad */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-xs text-text-primary flex items-center gap-1.5 uppercase tracking-wide">
+                    <FolderKanban className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+                    <span>Vinculación Comercial (PCM CLOUD)</span>
+                  </h4>
+                  <span className="text-[10px] text-text-muted">Opcional &bull; Trazabilidad oficial</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Selector de Cotización Comercial */}
+                  <div className="form-group">
+                    <label className="label text-xs">Cotización Comercial Emitida</label>
+                    <select
+                      value={form.commercial_proposal_id}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const match = commercialData?.proposals?.find((p) => p.id === val);
+                        setForm((prev) => ({
+                          ...prev,
+                          commercial_proposal_id: val,
+                          commercial_budget_id: (!prev.commercial_budget_id && match?.budget_id) ? match.budget_id : prev.commercial_budget_id,
+                          client: (!prev.client && match?.client_name) ? match.client_name : prev.client,
+                        }));
+                      }}
+                      className="input text-xs"
+                    >
+                      <option value="">— Sin cotización vinculada —</option>
+                      {commercialData?.proposals?.map((pr) => (
+                        <option key={pr.id} value={pr.id}>
+                          {pr.quote_code} &bull; {pr.client_name} ({formatCOP(pr.total_amount)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Selector de Presupuesto APU */}
+                  <div className="form-group">
+                    <label className="label text-xs">Presupuesto APU Base</label>
+                    <select
+                      value={form.commercial_budget_id}
+                      onChange={(e) => setForm((prev) => ({ ...prev, commercial_budget_id: e.target.value }))}
+                      className="input text-xs"
+                    >
+                      <option value="">— Sin presupuesto APU vinculado —</option>
+                      {commercialData?.budgets?.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.budget_code} &bull; {b.project_title || b.client_name} ({formatCOP(b.suggested_sale_price || b.total_direct_cost)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Asistente de sincronización si hay una cotización o APU seleccionada */}
+                {(() => {
+                  const matchedProp = commercialData?.proposals?.find((p) => p.id === form.commercial_proposal_id);
+                  const matchedBudget = commercialData?.budgets?.find((b) => b.id === form.commercial_budget_id);
+                  if (!matchedProp && !matchedBudget) return null;
+
+                  const propTotal = matchedProp?.total_amount || 0;
+                  const currentContractNum = Number(form.contract_value) || 0;
+                  const hasDiff = propTotal > 0 && Math.abs(currentContractNum - propTotal) > 1000;
+
+                  return (
+                    <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="text-amber-900 text-[11px]">
+                        {hasDiff ? (
+                          <>
+                            <strong>Valor dispar:</strong> El proyecto tiene <span className="font-mono font-bold">{formatCOP(currentContractNum)}</span> y la cotización <span className="font-mono font-bold">{formatCOP(propTotal)}</span>.
+                          </>
+                        ) : (
+                          <>
+                            <strong>Cifras alineadas:</strong> Techo del proyecto en <span className="font-mono font-bold">{formatCOP(currentContractNum)}</span>.
+                          </>
+                        )}
+                      </div>
+                      {propTotal > 0 && hasDiff && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setForm((prev) => ({
+                              ...prev,
+                              contract_value: String(propTotal),
+                            }));
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shrink-0 transition-colors shadow-xs"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Adoptar valor de cotización ({formatCOP(propTotal)})
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Gestión Financiera, Deducciones de Colombia y Valor de Ejecución */}

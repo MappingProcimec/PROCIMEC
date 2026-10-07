@@ -418,6 +418,8 @@ export async function POST(request: NextRequest) {
     deductions_amount: financials.deductions_amount,
     execution_value: financials.execution_value,
     deductions_config: financials.deductions_config,
+    commercial_proposal_id: body.commercial_proposal_id || null,
+    commercial_budget_id: body.commercial_budget_id || null,
     drive_folder_id: driveFolderId,
     drive_folder_url: driveFolderUrl,
     created_by: session.user.id,
@@ -436,12 +438,24 @@ export async function POST(request: NextRequest) {
     delete baseInsert.deductions_amount;
     delete baseInsert.execution_value;
     delete baseInsert.deductions_config;
+    delete baseInsert.commercial_proposal_id;
+    delete baseInsert.commercial_budget_id;
     const retry = await supabase.from('projects').insert(baseInsert).select().single();
     data = retry.data;
     error = retry.error;
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Sincronizar bidireccionalmente el proyecto en la propuesta si se seleccionó una
+  if (data?.id && body.commercial_proposal_id) {
+    try {
+      await supabase
+        .from('commercial_proposals')
+        .update({ project_id: data.id })
+        .eq('id', body.commercial_proposal_id);
+    } catch {}
+  }
 
   if (divisionIds.length > 0) {
     await supabase
@@ -526,10 +540,22 @@ export async function PATCH(request: NextRequest) {
       delete fallback.deductions_amount;
       delete fallback.execution_value;
       delete fallback.deductions_config;
+      delete fallback.commercial_proposal_id;
+      delete fallback.commercial_budget_id;
       const retry = await supabase.from('projects').update(fallback).eq('id', id);
       error = retry.error;
     }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Sincronizar bidireccionalmente la propuesta si se seleccionó una
+    if (updates.commercial_proposal_id) {
+      try {
+        await supabase
+          .from('commercial_proposals')
+          .update({ project_id: id })
+          .eq('id', updates.commercial_proposal_id);
+      } catch {}
+    }
   }
 
   if (Array.isArray(division_ids)) {
