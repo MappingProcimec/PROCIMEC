@@ -23,6 +23,10 @@ import {
   Send,
   HelpCircle,
   Rocket,
+  FolderKanban,
+  Scale,
+  Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 import { CommercialClosing, CommercialProposal, Project } from '@/types';
 import { generateClosingPdf } from '@/lib/commercial/commercialPdfGenerator';
@@ -43,13 +47,16 @@ function CierreComercialContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savedClosing, setSavedClosing] = useState<CommercialClosing | null>(null);
 
-  // Listado de cotizaciones activas para selección
+  // Listado de cotizaciones y proyectos activos para selección
   const [proposals, setProposals] = useState<CommercialProposal[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProposals, setLoadingProposals] = useState(true);
 
   // Campos de Formulario (Paso Único)
   const [quoteCode, setQuoteCode] = useState('');
   const [selectedProposalId, setSelectedProposalId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [syncMode, setSyncMode] = useState<'sync_to_quote' | 'keep_project_ceiling'>('sync_to_quote');
   const [clientName, setClientName] = useState('');
   const [result, setResult] = useState<'won' | 'lost' | 'cancelled'>('won');
   const [finalContractValue, setFinalContractValue] = useState<number | ''>('');
@@ -57,16 +64,33 @@ function CierreComercialContent() {
   const [lossReason, setLossReason] = useState('precio');
   const [closingNotes, setClosingNotes] = useState('');
 
-  // Cargar cotizaciones emitidas
+  // Cargar cotizaciones y proyectos emitidos
   useEffect(() => {
-    async function loadProposals() {
+    async function loadData() {
       try {
         setLoadingProposals(true);
         let pList: CommercialProposal[] = [];
-        const res = await fetch('/api/tools/commercial-pipeline');
-        if (res.ok) {
-          const json = await res.json();
+        let prjList: Project[] = [];
+
+        const [pipeRes, prjRes] = await Promise.all([
+          fetch('/api/tools/commercial-pipeline'),
+          fetch('/api/projects').catch(() => null),
+        ]);
+
+        if (pipeRes.ok) {
+          const json = await pipeRes.json();
           pList = json.data?.proposals || [];
+          if (json.data?.projects && json.data.projects.length > 0) {
+            prjList = json.data.projects;
+          }
+        }
+
+        if (prjRes && prjRes.ok) {
+          const pJson = await prjRes.json();
+          const fetchedPrjs = pJson.data || [];
+          if (fetchedPrjs.length > 0) {
+            prjList = fetchedPrjs;
+          }
         }
 
         // Respaldo resiliente directo al endpoint de cotizaciones
@@ -79,34 +103,40 @@ function CierreComercialContent() {
         }
 
         setProposals(pList);
+        setProjects(prjList);
 
-          // Si vienen parámetros en URL
-          const qQuoteCode = searchParams.get('quote_code');
-          const qPropId = searchParams.get('proposal_id');
-          const qClient = searchParams.get('client_name');
-          const qAmount = searchParams.get('amount');
+        // Si vienen parámetros en URL
+        const qQuoteCode = searchParams.get('quote_code');
+        const qPropId = searchParams.get('proposal_id');
+        const qProjectId = searchParams.get('project_id');
+        const qClient = searchParams.get('client_name');
+        const qAmount = searchParams.get('amount');
 
-          if (qQuoteCode) setQuoteCode(qQuoteCode);
-          if (qPropId) setSelectedProposalId(qPropId);
-          if (qClient) setClientName(decodeURIComponent(qClient));
-          if (qAmount) setFinalContractValue(Number(qAmount) || '');
+        if (qQuoteCode) setQuoteCode(qQuoteCode);
+        if (qPropId) setSelectedProposalId(qPropId);
+        if (qProjectId) setSelectedProjectId(qProjectId);
+        if (qClient) setClientName(decodeURIComponent(qClient));
+        if (qAmount) setFinalContractValue(Number(qAmount) || '');
 
-          if (qPropId && !qClient) {
-            const match = pList.find((p: CommercialProposal) => p.id === qPropId);
-            if (match) {
-              setQuoteCode(match.quote_code);
-              setClientName(match.client_name);
-              setFinalContractValue(match.total_amount);
+        if (qPropId) {
+          const match = pList.find((p: CommercialProposal) => p.id === qPropId);
+          if (match) {
+            setQuoteCode(match.quote_code);
+            if (!qClient) setClientName(match.client_name);
+            if (!qAmount) setFinalContractValue(match.total_amount);
+            if (!qProjectId && match.project_id) {
+              setSelectedProjectId(match.project_id);
             }
           }
+        }
       } catch (err) {
-        console.error('Error cargando cotizaciones para cierre:', err);
+        console.error('Error cargando cotizaciones y proyectos para cierre:', err);
       } finally {
         setLoadingProposals(false);
       }
     }
 
-    loadProposals();
+    loadData();
   }, [searchParams]);
 
   // Manejar selección de cotización desde dropdown
@@ -119,8 +149,35 @@ function CierreComercialContent() {
       setQuoteCode(match.quote_code);
       setClientName(match.client_name);
       setFinalContractValue(match.total_amount);
+      if (match.project_id) {
+        setSelectedProjectId(match.project_id);
+      }
     }
   };
+
+  // Manejar selección de proyecto desde dropdown
+  const handleProjectSelect = (projId: string) => {
+    setSelectedProjectId(projId);
+    if (!projId) return;
+    const prj = projects.find((p) => p.id === projId);
+    if (prj && !clientName) {
+      setClientName(prj.client);
+    }
+  };
+
+  // Valores derivados para deliberación
+  const selectedProposal = proposals.find((p) => p.id === selectedProposalId);
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const apuDirectCost = selectedProposal?.commercial_budgets?.total_direct_cost || 0;
+  const projectContractVal = Number(selectedProject?.contract_value || 0);
+  const projectExecVal = Number(selectedProject?.execution_value || 0);
+  const currentFinalValue = Number(finalContractValue) || 0;
+
+  const hasFinancialDiscrepancy =
+    selectedProject &&
+    currentFinalValue > 0 &&
+    projectContractVal > 0 &&
+    Math.abs(currentFinalValue - projectContractVal) > 1000;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +198,9 @@ function CierreComercialContent() {
       const payload = {
         quote_code: quoteCode.trim().toUpperCase(),
         proposal_id: selectedProposalId || null,
+        project_id: selectedProjectId || null,
+        sync_mode: syncMode,
+        direct_cost: apuDirectCost > 0 ? apuDirectCost : null,
         result,
         final_contract_value: result === 'won' ? Number(finalContractValue) : null,
         contract_number: result === 'won' ? contractNumber.trim() || null : null,
@@ -255,13 +315,23 @@ function CierreComercialContent() {
                           Contrato / Orden: <span className="font-mono font-bold">{savedClosing.contract_number}</span>
                         </p>
                       )}
+                      {(savedClosing.project_id || selectedProjectId) && (
+                        <p className="text-xs text-emerald-800 font-medium mt-1 flex items-center gap-1.5">
+                          <FolderKanban className="w-3.5 h-3.5 text-emerald-700" strokeWidth={1.75} />
+                          Proyecto Oficial Sincronizado: <strong className="text-emerald-950">{projects.find((p) => p.id === (savedClosing.project_id || selectedProjectId))?.name || 'Vinculado'}</strong>
+                        </p>
+                      )}
                     </div>
                     <Link
-                      href={`/admin/projects?create=true&commercial_proposal_id=${savedClosing.proposal_id || ''}&client_name=${encodeURIComponent(clientName)}`}
+                      href={
+                        (savedClosing.project_id || selectedProjectId)
+                          ? `/admin/projects?project_id=${savedClosing.project_id || selectedProjectId}`
+                          : `/admin/projects?create=true&commercial_proposal_id=${savedClosing.proposal_id || ''}&client_name=${encodeURIComponent(clientName)}`
+                      }
                       className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-accent text-primary-900 font-extrabold text-sm hover:brightness-105 shadow-md shrink-0"
                     >
                       <Rocket className="w-5 h-5" strokeWidth={2} />
-                      Aperturar Proyecto Oficial en PROCIMEC
+                      {(savedClosing.project_id || selectedProjectId) ? 'Ver Proyecto Oficial Sincronizado' : 'Aperturar Proyecto Oficial en PROCIMEC'}
                     </Link>
                   </div>
                 )}
@@ -291,6 +361,7 @@ function CierreComercialContent() {
                       setSavedClosing(null);
                       setQuoteCode('');
                       setSelectedProposalId('');
+                      setSelectedProjectId('');
                       setClientName('');
                       setFinalContractValue('');
                       setContractNumber('');
@@ -378,6 +449,38 @@ function CierreComercialContent() {
                       placeholder="Nombre del cliente o entidad contratante"
                     />
                   </div>
+                </div>
+
+                {/* Selector de Proyecto Oficial */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-text-secondary mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <FolderKanban className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+                      Vincular a Proyecto Oficial en PROCIMEC (Opcional):
+                    </span>
+                    {selectedProject && (
+                      <span className="text-[11px] font-mono text-accent font-semibold">
+                        CC: {selectedProject.cost_center || 'S/N'}
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => handleProjectSelect(e.target.value)}
+                    className="input w-full text-xs font-medium bg-white text-text-primary border-border focus:ring-accent"
+                  >
+                    <option value="">— Ninguno (O asociar / crear proyecto posteriormente) —</option>
+                    {projects.map((pr) => (
+                      <option key={pr.id} value={pr.id}>
+                        {pr.cost_center ? `[${pr.cost_center}] ` : ''}{pr.name} &bull; {pr.client} {pr.contract_value ? `(${formatCOP(pr.contract_value)})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-text-muted mt-1">
+                    {selectedProject
+                      ? `Proyecto enlazado: ${selectedProject.name}. Techo contractual registrado: ${formatCOP(selectedProject.contract_value || 0)}. Presupuesto ejecución: ${formatCOP(selectedProject.execution_value || 0)}.`
+                      : 'Al vincular un proyecto oficial, podrás deliberar si actualizas su techo contractual y presupuesto de ejecución con los valores de este cierre.'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -498,6 +601,159 @@ function CierreComercialContent() {
                       />
                     </div>
                   </div>
+
+                  {/* Panel de Deliberación Financiera cuando hay un proyecto vinculado */}
+                  {selectedProject && (
+                    <div className="p-4 sm:p-5 rounded-xl border border-accent/40 bg-accent/5 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-accent/20">
+                        <div className="flex items-center gap-2">
+                          <Scale className="w-5 h-5 text-accent shrink-0" strokeWidth={1.75} />
+                          <div>
+                            <h3 className="text-sm font-extrabold text-text-primary">
+                              Deliberación Financiera: Proyecto Oficial &bull; {selectedProject.name}
+                            </h3>
+                            <p className="text-xs text-text-muted">
+                              Define cómo conciliar el techo contractual y el presupuesto de ejecución en la base de datos oficial.
+                            </p>
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-accent/20 text-accent font-mono self-start sm:self-auto">
+                          CC: {selectedProject.cost_center || 'S/N'}
+                        </span>
+                      </div>
+
+                      {/* Resumen comparativo de cifras */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div className="p-2.5 rounded-lg bg-white border border-border">
+                          <span className="text-[10px] uppercase font-bold text-text-muted block">Cierre Adjudicado (Techo)</span>
+                          <span className="font-mono font-extrabold text-emerald-800 text-sm">
+                            {formatCOP(currentFinalValue)}
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-lg bg-white border border-border">
+                          <span className="text-[10px] uppercase font-bold text-text-muted block">Costo Directo APU Puro</span>
+                          <span className="font-mono font-extrabold text-primary-900 text-sm">
+                            {apuDirectCost > 0 ? formatCOP(apuDirectCost) : 'Sin APU vinculado'}
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-lg bg-white border border-border">
+                          <span className="text-[10px] uppercase font-bold text-text-muted block">Techo Actual Proyecto</span>
+                          <span className="font-mono font-extrabold text-text-primary text-sm">
+                            {formatCOP(projectContractVal)}
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-lg bg-white border border-border">
+                          <span className="text-[10px] uppercase font-bold text-text-muted block">Presupuesto Ejecución Proyecto</span>
+                          <span className="font-mono font-extrabold text-text-secondary text-sm">
+                            {formatCOP(projectExecVal)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Alerta de discrepancia si los valores difieren */}
+                      {hasFinancialDiscrepancy && (
+                        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" strokeWidth={1.75} />
+                          <div>
+                            <strong className="font-bold">Discrepancia detectada:</strong> El valor final de este cierre (<span className="font-mono font-bold">{formatCOP(currentFinalValue)}</span>) difiere del techo contractual registrado en el proyecto (<span className="font-mono font-bold">{formatCOP(projectContractVal)}</span>). Selecciona el camino que debe asumir el sistema.
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Opciones de Deliberación (Camino 1 vs Camino 2) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Camino 1 */}
+                        <button
+                          type="button"
+                          onClick={() => setSyncMode('sync_to_quote')}
+                          className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                            syncMode === 'sync_to_quote'
+                              ? 'border-emerald-500 bg-white ring-2 ring-emerald-500/30 shadow-sm'
+                              : 'border-border bg-white/70 hover:bg-white'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-extrabold text-xs text-emerald-800 uppercase tracking-wide flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                                Camino 1: Sincronizar Proyecto
+                              </span>
+                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                syncMode === 'sync_to_quote' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300'
+                              }`}>
+                                {syncMode === 'sync_to_quote' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                              </div>
+                            </div>
+                            <p className="text-xs text-text-secondary mb-2">
+                              Actualiza el techo contractual y presupuesto de ejecución del proyecto oficial con las cifras definitivas de este cierre.
+                            </p>
+                          </div>
+                          <div className="pt-2 border-t border-slate-100 text-[11px] space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-text-muted">Nuevo Techo Proyecto:</span>
+                              <span className="font-mono font-bold text-emerald-900">{formatCOP(currentFinalValue)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-text-muted">Nuevo Presupuesto Ejecución:</span>
+                              <span className="font-mono font-bold text-emerald-900">
+                                {apuDirectCost > 0 ? formatCOP(apuDirectCost) : formatCOP(Math.round(currentFinalValue * 0.76))}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Camino 2 */}
+                        <button
+                          type="button"
+                          onClick={() => setSyncMode('keep_project_ceiling')}
+                          className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                            syncMode === 'keep_project_ceiling'
+                              ? 'border-accent bg-white ring-2 ring-accent/30 shadow-sm'
+                              : 'border-border bg-white/70 hover:bg-white'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-extrabold text-xs text-primary-900 uppercase tracking-wide flex items-center gap-1.5">
+                                <ShieldCheck className="w-3.5 h-3.5 text-accent" />
+                                Camino 2: Conservar Techo Global
+                              </span>
+                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                syncMode === 'keep_project_ceiling' ? 'border-accent bg-accent text-primary-900' : 'border-slate-300'
+                              }`}>
+                                {syncMode === 'keep_project_ceiling' && <span className="w-1.5 h-1.5 rounded-full bg-primary-900" />}
+                              </div>
+                            </div>
+                            <p className="text-xs text-text-secondary mb-2">
+                              Mantiene intacto el techo contractual y presupuesto macro actual del proyecto. Vincula este cierre como orden de servicio o hito específico.
+                            </p>
+                          </div>
+                          <div className="pt-2 border-t border-slate-100 text-[11px] space-y-1">
+                            <div className="flex justify-between">
+                              <span className="text-text-muted">Techo Conservado:</span>
+                              <span className="font-mono font-bold text-text-primary">{formatCOP(projectContractVal)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-text-muted">Presupuesto Conservado:</span>
+                              <span className="font-mono font-bold text-text-primary">{formatCOP(projectExecVal)}</span>
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Resumen dinámico de acción */}
+                      <div className="p-3 rounded-lg bg-surface text-xs text-white/90 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                        <span className="text-white/70">
+                          Acción al confirmar cierre:
+                        </span>
+                        <span className="font-medium text-accent">
+                          {syncMode === 'sync_to_quote'
+                            ? `Actualizará el proyecto a ${formatCOP(currentFinalValue)} (Techo) y ${apuDirectCost > 0 ? formatCOP(apuDirectCost) : 'neto estimado'} (Ejecución)`
+                            : `Conservará el techo de ${formatCOP(projectContractVal)} y asociará este radicado`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* Campos condicionales si es PERDIDA o CANCELADA */

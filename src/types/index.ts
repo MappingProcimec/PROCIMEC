@@ -731,6 +731,8 @@ export interface CommercialClosing {
   opportunity_id?: string | null;
   proposal_id: string | null;
   budget_id?: string | null;
+  project_id?: string | null;
+  sync_mode?: 'sync_to_quote' | 'keep_project_ceiling' | string | null;
   user_id: string;
   created_by_name?: string | null;
   created_by_email?: string | null;
@@ -747,6 +749,7 @@ export interface CommercialClosing {
   created_at: string;
   users?: { id: string; full_name: string; email: string } | null;
   commercial_proposals?: { quote_code?: string; client_name?: string; total_amount?: number } | null;
+  projects?: { id?: string; cost_center?: string; name?: string; client?: string; contract_value?: number; execution_value?: number } | null;
 }
 
 export interface CommercialPipelineStats {

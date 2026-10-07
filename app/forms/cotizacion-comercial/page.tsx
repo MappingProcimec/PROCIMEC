@@ -23,6 +23,10 @@ import {
   Clock,
   Send,
   Link as LinkIcon,
+  Scale,
+  CheckSquare,
+  Square,
+  ChevronDown,
 } from 'lucide-react';
 import { CommercialProposal, CommercialBudget, CommercialOpportunity, Project } from '@/types';
 import { generateProposalPdf } from '@/lib/commercial/commercialPdfGenerator';
@@ -43,6 +47,49 @@ function cleanProjectDescription(desc?: string | null): string {
     .replace(/<!--[\s\S]*?-->/gi, '')
     .trim();
 }
+
+const STANDARD_PAYMENT_CONDITIONS = [
+  {
+    id: 'anticipo_50_50',
+    label: '50% Anticipo / 50% Contra Entrega',
+    text: '50% de anticipo a la firma de contrato u orden de servicio (OS), y 50% contra entrega de informe técnico a satisfacción.',
+  },
+  {
+    id: 'anticipo_30_70',
+    label: '30% Anticipo / 70% Final',
+    text: '30% de anticipo a la orden de inicio y 70% contra entrega final de memorias de cálculo, planos y entregables.',
+  },
+  {
+    id: 'credito_30',
+    label: 'Crédito a 30 Días',
+    text: 'Pago a 30 días calendario tras radicación y aprobación formal de factura electrónica.',
+  },
+  {
+    id: 'contra_entrega_100',
+    label: '100% Contra Entrega',
+    text: '100% del valor total contra entrega y radicación de informe técnico final a satisfacción.',
+  },
+  {
+    id: 'exclusiones_ley',
+    label: 'Exclusiones de Permisos',
+    text: 'Los precios ofertados no incluyen permisos de intervención en vía pública, licencias ambientales ni tasas de entidades externas.',
+  },
+  {
+    id: 'personal_hseq',
+    label: 'Seguridad Social y HSEQ',
+    text: 'Personal técnico operativo con seguridad social integral vigente (ARL Nivel V, EPS, Pensión) y certificación de trabajo seguro en alturas.',
+  },
+  {
+    id: 'entregables_dwg_pdf',
+    label: 'Entregables (PDF + DWG)',
+    text: 'Entrega de informe técnico digital en formato PDF con memorias y planos georreferenciados en formato DWG (AutoCAD / BIM).',
+  },
+  {
+    id: 'vigencia_30_dias',
+    label: 'Vigencia de Precios',
+    text: 'Precios firmes durante los días de validez estipulados en la presente oferta comercial.',
+  },
+];
 
 function CotizacionComercialContent() {
   const router = useRouter();
@@ -68,6 +115,15 @@ function CotizacionComercialContent() {
   const [deliveryWeeks, setDeliveryWeeks] = useState<number>(2);
   const [notes, setNotes] = useState('');
 
+  // Condiciones comerciales y forma de pago con checklist interactivo
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+
+  // Deducciones contractuales y tributarias opcionales
+  const [showDeductionsPanel, setShowDeductionsPanel] = useState(false);
+  const [applyRetefuente, setApplyRetefuente] = useState(false); // 2%
+  const [applyReteica, setApplyReteica] = useState(false); // 0.966%
+  const [applyAI, setApplyAI] = useState(false); // 5%
+
   // Vínculos opcionales (Autonomía total)
   const [selectedBudgetId, setSelectedBudgetId] = useState<string>('');
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string>('');
@@ -77,6 +133,60 @@ function CotizacionComercialContent() {
   const subtotalNumber = Number(subtotal) || 0;
   const taxAmount = applyTax ? Math.round(subtotalNumber * 0.19) : 0;
   const totalAmount = subtotalNumber + taxAmount;
+
+  const retefuenteAmount = applyRetefuente ? Math.round(subtotalNumber * 0.02) : 0;
+  const reteicaAmount = applyReteica ? Math.round(subtotalNumber * 0.00966) : 0;
+  const aiAmount = applyAI ? Math.round(subtotalNumber * 0.05) : 0;
+  const totalDeductionsAmount = retefuenteAmount + reteicaAmount + aiAmount;
+  const netEstimatedExecution = Math.max(0, subtotalNumber - totalDeductionsAmount);
+
+  // Manejador del checklist para concatenar/desconcatenar notas
+  const handleToggleCondition = (condId: string) => {
+    setSelectedConditions((prev) => {
+      const next = prev.includes(condId) ? prev.filter((id) => id !== condId) : [...prev, condId];
+      const selectedTexts = STANDARD_PAYMENT_CONDITIONS.filter((c) => next.includes(c.id)).map(
+        (c) => `• ${c.text}`
+      );
+      setNotes(selectedTexts.join('\n\n'));
+      return next;
+    });
+  };
+
+  // Objetos seleccionados para Deliberación Económica
+  const selectedBudget = budgets.find((b) => b.id === selectedBudgetId);
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+
+  const hasEconomicConflict = Boolean(
+    selectedBudget &&
+      selectedProject &&
+      selectedProject.contract_value &&
+      Number(selectedProject.contract_value) > 0 &&
+      selectedBudget.suggested_sale_price &&
+      Math.abs(Number(selectedBudget.suggested_sale_price) - Number(selectedProject.contract_value)) > 1000
+  );
+
+  const apuSubtotal = Number(selectedBudget?.suggested_sale_price || selectedBudget?.total_direct_cost || 0);
+  const apuTotalWithTax = Math.round(apuSubtotal * 1.19);
+  const apuDirectCost = Number(selectedBudget?.total_direct_cost || 0);
+
+  const projectContractVal = Number(selectedProject?.contract_value || 0);
+  const projectBaseSubtotal = Math.round(projectContractVal / 1.19);
+  const projectExecVal = Number(selectedProject?.execution_value || Math.round(projectContractVal * 0.76));
+
+  const applyApuPricing = () => {
+    setSubtotal(apuSubtotal);
+    setApplyTax(true);
+  };
+
+  const applyProjectCeilingPricing = () => {
+    setSubtotal(projectBaseSubtotal);
+    setApplyTax(true);
+  };
+
+  const applyProjectGrossPricing = () => {
+    setSubtotal(projectContractVal);
+    setApplyTax(false);
+  };
 
   // Cargar datos previos y parámetros de URL
   useEffect(() => {
@@ -612,6 +722,70 @@ function CotizacionComercialContent() {
                 </h2>
               </div>
 
+              {/* Panel de Deliberación Económica si hay conflicto APU vs Proyecto */}
+              {hasEconomicConflict && (
+                <div className="mb-5 p-4 rounded-xl bg-amber-500/10 border-2 border-accent/40 animate-in fade-in">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Scale className="w-4 h-4 text-amber-900" strokeWidth={2} />
+                    <h3 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                      Deliberación de Base Económica (APU vs. Proyecto Oficial)
+                    </h3>
+                  </div>
+                  <p className="text-xs text-amber-900 mb-3">
+                    Se detectaron dos montos financieros: el Presupuesto APU (<strong className="font-mono">{formatCOP(apuTotalWithTax)}</strong> con IVA) y el Contrato del Proyecto (<strong className="font-mono">{formatCOP(projectContractVal)}</strong>). Selecciona qué camino económico deseas aplicar a esta cotización:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Opción APU */}
+                    <button
+                      type="button"
+                      onClick={applyApuPricing}
+                      className="text-left p-3.5 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 transition-all shadow-xs group"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-text-primary group-hover:text-amber-900">
+                          1. Aplicar Base del Presupuesto APU
+                        </span>
+                        <span className="font-mono text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                          {selectedBudget?.budget_code}
+                        </span>
+                      </div>
+                      <div className="text-xs text-text-secondary space-y-0.5 font-mono">
+                        <div>Subtotal con AIU: <strong className="text-text-primary">{formatCOP(apuSubtotal)}</strong></div>
+                        <div>Total Ofertado (con IVA): <strong className="text-amber-800 font-bold">{formatCOP(apuTotalWithTax)}</strong></div>
+                        <div className="text-[11px] text-text-muted">Costo Directo Puro: {formatCOP(apuDirectCost)}</div>
+                      </div>
+                      <span className="inline-block mt-2 text-[10px] font-bold text-amber-700">
+                        &bull; Clic para cargar estos valores en la cotización
+                      </span>
+                    </button>
+
+                    {/* Opción Proyecto Oficial */}
+                    <button
+                      type="button"
+                      onClick={applyProjectCeilingPricing}
+                      className="text-left p-3.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition-all shadow-xs group"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-text-primary group-hover:text-slate-900">
+                          2. Aplicar Techo del Proyecto Oficial
+                        </span>
+                        <span className="font-mono text-[10px] font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {selectedProject?.cost_center || selectedProject?.code}
+                        </span>
+                      </div>
+                      <div className="text-xs text-text-secondary space-y-0.5 font-mono">
+                        <div>Techo Contrato Bruto: <strong className="text-amber-800 font-bold">{formatCOP(projectContractVal)}</strong></div>
+                        <div>Base antes de IVA: <strong className="text-text-primary">{formatCOP(projectBaseSubtotal)}</strong></div>
+                        <div className="text-[11px] text-text-muted">Presupuesto Ejecución: {formatCOP(projectExecVal)}</div>
+                      </div>
+                      <span className="inline-block mt-2 text-[10px] font-bold text-slate-700">
+                        &bull; Clic para ajustar la oferta a los {formatCOP(projectContractVal)}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
                 {/* Subtotal */}
                 <div>
@@ -673,17 +847,125 @@ function CotizacionComercialContent() {
                 </div>
               </div>
 
-              {/* Condiciones Comerciales y Forma de Pago */}
-              <div className="mt-4 pt-4 border-t border-border">
-                <label className="block text-xs font-bold text-text-secondary mb-1">
-                  Condiciones Comerciales y Forma de Pago
-                </label>
+              {/* Desglose Opcional de Deducciones de Ley (Colombia) */}
+              <div className="mt-4 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setShowDeductionsPanel(!showDeductionsPanel)}
+                  className="flex items-center justify-between w-full text-xs font-semibold text-text-secondary hover:text-text-primary py-1"
+                >
+                  <span className="flex items-center gap-2">
+                    <Percent className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
+                    Desglose de Deducciones y Presupuesto Neto de Ejecución (Opcional)
+                  </span>
+                  <span className="text-[11px] text-text-muted flex items-center gap-1 font-mono">
+                    {totalDeductionsAmount > 0 ? `Deducciones: -${formatCOP(totalDeductionsAmount)}` : 'Configurar'}
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDeductionsPanel ? 'rotate-180' : ''}`} />
+                  </span>
+                </button>
+
+                {showDeductionsPanel && (
+                  <div className="mt-3 p-4 rounded-xl bg-slate-50 border border-border animate-in fade-in space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <label className="flex items-start gap-2 text-xs p-2.5 rounded-lg bg-white border border-border cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={applyRetefuente}
+                          onChange={(e) => setApplyRetefuente(e.target.checked)}
+                          className="mt-0.5 rounded text-accent focus:ring-accent"
+                        />
+                        <div>
+                          <span className="font-bold text-text-primary block">ReteFuente (2.0%)</span>
+                          <span className="font-mono text-[11px] text-text-muted">
+                            -{formatCOP(retefuenteAmount)}
+                          </span>
+                        </div>
+                      </label>
+
+                      <label className="flex items-start gap-2 text-xs p-2.5 rounded-lg bg-white border border-border cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={applyReteica}
+                          onChange={(e) => setApplyReteica(e.target.checked)}
+                          className="mt-0.5 rounded text-accent focus:ring-accent"
+                        />
+                        <div>
+                          <span className="font-bold text-text-primary block">ReteICA (0.966%)</span>
+                          <span className="font-mono text-[11px] text-text-muted">
+                            -{formatCOP(reteicaAmount)}
+                          </span>
+                        </div>
+                      </label>
+
+                      <label className="flex items-start gap-2 text-xs p-2.5 rounded-lg bg-white border border-border cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={applyAI}
+                          onChange={(e) => setApplyAI(e.target.checked)}
+                          className="mt-0.5 rounded text-accent focus:ring-accent"
+                        />
+                        <div>
+                          <span className="font-bold text-text-primary block">A.I. / Utilidad (5.0%)</span>
+                          <span className="font-mono text-[11px] text-text-muted">
+                            -{formatCOP(aiAmount)}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
+                      <span className="text-text-muted">Presupuesto Neto Estimado de Ejecución (para Costos Directos):</span>
+                      <span className="font-mono font-bold text-emerald-800 text-sm">
+                        {formatCOP(netEstimatedExecution)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Condiciones Comerciales y Forma de Pago con Galería Checklist */}
+              <div className="mt-5 pt-4 border-t border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-text-secondary">
+                    Condiciones Comerciales y Forma de Pago
+                  </label>
+                  <span className="text-[11px] text-text-muted">
+                    Selecciona cláusulas del checklist para agregarlas automáticamente
+                  </span>
+                </div>
+
+                {/* Galería Checklist de Cláusulas Estándar */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                  {STANDARD_PAYMENT_CONDITIONS.map((cond) => {
+                    const isChecked = selectedConditions.includes(cond.id);
+                    return (
+                      <button
+                        key={cond.id}
+                        type="button"
+                        onClick={() => handleToggleCondition(cond.id)}
+                        className={`text-left p-2.5 rounded-lg border text-xs transition-all flex items-start gap-2 ${
+                          isChecked
+                            ? 'bg-amber-50/80 border-accent text-amber-950 font-medium'
+                            : 'bg-slate-50 hover:bg-slate-100 border-border text-text-secondary'
+                        }`}
+                      >
+                        {isChecked ? (
+                          <CheckSquare className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+                        ) : (
+                          <Square className="w-4 h-4 text-text-muted shrink-0 mt-0.5" />
+                        )}
+                        <span className="text-[11px] leading-tight">{cond.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="input w-full py-2 bg-white text-text-primary border-border focus:ring-accent"
-                  placeholder="Ej: 50% de anticipo a la firma del contrato y 50% contra entrega de informe a satisfacción. Precios no incluyen permisos especiales de terceros..."
+                  className="input w-full py-2 bg-white text-text-primary border-border focus:ring-accent font-sans text-xs leading-relaxed"
+                  placeholder="Detalle de condiciones comerciales, forma de pago y garantías aplicables..."
                 />
               </div>
             </div>

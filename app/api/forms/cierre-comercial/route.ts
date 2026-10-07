@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
+import { computeProjectFinancials } from '@/lib/projectFinancials';
+import { parseProjectTargets, encodeDescriptionWithMeta } from '@/app/api/admin/projects/route';
+import { ProjectFinancials } from '@/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -58,6 +61,9 @@ export async function POST(request: NextRequest) {
   const {
     quote_code,
     proposal_id,
+    project_id,
+    sync_mode = 'sync_to_quote',
+    direct_cost,
     result: closingResult,
     final_contract_value,
     contract_number,
@@ -87,18 +93,20 @@ export async function POST(request: NextRequest) {
     let resolvedProposalId = proposal_id || null;
     let resolvedOppId = opportunity_id || null;
     let resolvedBudgetId = budget_id || null;
+    let resolvedProjectId = project_id || null;
 
-    if (!resolvedProposalId && quote_code) {
+    if ((!resolvedProposalId || !resolvedProjectId) && quote_code) {
       const { data: prop } = await supabase
         .from('commercial_proposals')
-        .select('id, opportunity_id, budget_id')
+        .select('id, opportunity_id, budget_id, project_id')
         .eq('quote_code', quote_code.trim().toUpperCase())
         .maybeSingle();
 
       if (prop) {
-        resolvedProposalId = prop.id;
-        resolvedOppId = prop.opportunity_id;
-        resolvedBudgetId = prop.budget_id;
+        if (!resolvedProposalId) resolvedProposalId = prop.id;
+        if (!resolvedOppId) resolvedOppId = prop.opportunity_id;
+        if (!resolvedBudgetId) resolvedBudgetId = prop.budget_id;
+        if (!resolvedProjectId && prop.project_id) resolvedProjectId = prop.project_id;
       }
     }
 
@@ -108,6 +116,8 @@ export async function POST(request: NextRequest) {
       consecutive_number: consecutiveNum,
       closing_code: closingCode,
       proposal_id: resolvedProposalId,
+      project_id: resolvedProjectId,
+      sync_mode: sync_mode || 'sync_to_quote',
       opportunity_id: resolvedOppId,
       budget_id: resolvedBudgetId,
       created_by_name: dbUser.full_name || session.user.name || 'Comercial',
@@ -130,6 +140,8 @@ export async function POST(request: NextRequest) {
       delete closingPayload.consecutive_number;
       delete closingPayload.closing_code;
       delete closingPayload.budget_id;
+      delete closingPayload.project_id;
+      delete closingPayload.sync_mode;
       delete closingPayload.created_by_name;
       delete closingPayload.created_by_email;
 
@@ -142,6 +154,121 @@ export async function POST(request: NextRequest) {
       console.error('Error insertando en commercial_closings:', error);
       const detail = error.message || error.details || 'Error en base de datos';
       return NextResponse.json({ error: `No fue posible guardar el cierre: ${detail}` }, { status: 500 });
+    }
+
+    // 3. Sincronización y Deliberación con el Proyecto Oficial
+    if (data?.id && resolvedProjectId) {
+      try {
+        const { data: currentProject } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('id', resolvedProjectId)
+          .maybeSingle();
+
+        if (currentProject) {
+          if (closingResult === 'won' && sync_mode === 'sync_to_quote' && final_contract_value) {
+            // Camino 1: Sincronizar Techo Contractual con el Cierre y Presupuesto de Ejecución con Costo Directo puro APU
+            let execVal = direct_cost && Number(direct_cost) > 0 ? Number(direct_cost) : 0;
+
+            if (execVal === 0 && resolvedBudgetId) {
+              const { data: bData } = await supabase
+                .from('commercial_budgets')
+                .select('total_direct_cost')
+                .eq('id', resolvedBudgetId)
+                .maybeSingle();
+              if (bData?.total_direct_cost && Number(bData.total_direct_cost) > 0) {
+                execVal = Number(bData.total_direct_cost);
+              }
+            }
+
+            const finalValNum = Number(final_contract_value);
+            let finCalc: ProjectFinancials;
+
+            if (execVal > 0 && execVal < finalValNum) {
+              const dedAmount = Math.max(0, finalValNum - execVal);
+              const dedPct = Math.round((dedAmount / finalValNum) * 10000) / 100;
+              finCalc = {
+                contract_value: finalValNum,
+                execution_value: execVal,
+                deductions_amount: dedAmount,
+                deductions_percentage: dedPct,
+                deductions_config: currentProject.deductions_config || undefined,
+              };
+            } else {
+              finCalc = computeProjectFinancials(finalValNum, currentProject.deductions_config);
+            }
+
+            const targets = parseProjectTargets(currentProject);
+            const encodedDesc = encodeDescriptionWithMeta(currentProject.description, targets, finCalc);
+
+            const prjUpdate: Record<string, unknown> = {
+              contract_value: finCalc.contract_value,
+              execution_value: finCalc.execution_value,
+              deductions_amount: finCalc.deductions_amount,
+              deductions_percentage: finCalc.deductions_percentage,
+              commercial_closing_id: data.id,
+              description: encodedDesc,
+            };
+
+            if (contract_number) {
+              prjUpdate.contract_number = String(contract_number).trim();
+            }
+            if (resolvedProposalId) {
+              prjUpdate.commercial_proposal_id = resolvedProposalId;
+            }
+            if (resolvedBudgetId) {
+              prjUpdate.commercial_budget_id = resolvedBudgetId;
+            }
+
+            let { error: pErr } = await supabase.from('projects').update(prjUpdate).eq('id', resolvedProjectId);
+            if (pErr && pErr.code === '42703') {
+              delete prjUpdate.contract_value;
+              delete prjUpdate.execution_value;
+              delete prjUpdate.deductions_amount;
+              delete prjUpdate.deductions_percentage;
+              delete prjUpdate.commercial_closing_id;
+              delete prjUpdate.commercial_proposal_id;
+              delete prjUpdate.commercial_budget_id;
+              await supabase.from('projects').update(prjUpdate).eq('id', resolvedProjectId);
+            }
+          } else {
+            // Camino 2 o resultado no 'won': Conservar Techo y Presupuesto del Proyecto pero vincular IDs de auditoría
+            const prjUpdate: Record<string, unknown> = {
+              commercial_closing_id: data.id,
+            };
+            if (resolvedProposalId) {
+              prjUpdate.commercial_proposal_id = resolvedProposalId;
+            }
+            if (resolvedBudgetId) {
+              prjUpdate.commercial_budget_id = resolvedBudgetId;
+            }
+            if (contract_number && !currentProject.contract_number) {
+              prjUpdate.contract_number = String(contract_number).trim();
+            }
+
+            let { error: pErr } = await supabase.from('projects').update(prjUpdate).eq('id', resolvedProjectId);
+            if (pErr && pErr.code === '42703') {
+              delete prjUpdate.commercial_closing_id;
+              delete prjUpdate.commercial_proposal_id;
+              delete prjUpdate.commercial_budget_id;
+              if (Object.keys(prjUpdate).length > 0) {
+                await supabase.from('projects').update(prjUpdate).eq('id', resolvedProjectId);
+              }
+            }
+          }
+        }
+
+        // Vincular project_id en la propuesta comercial si no lo tenía
+        if (resolvedProposalId) {
+          await supabase
+            .from('commercial_proposals')
+            .update({ project_id: resolvedProjectId })
+            .eq('id', resolvedProposalId)
+            .is('project_id', null);
+        }
+      } catch (linkErr) {
+        console.error('Error no crítico vinculando proyecto oficial en cierre:', linkErr);
+      }
     }
 
     return NextResponse.json({
