@@ -58,13 +58,13 @@ const SERVICE_LABELS: Record<string, string> = {
 };
 
 const STATUS_OPP_LABELS: Record<string, { label: string; badge: string }> = {
-  open: { label: 'Abierta', badge: 'bg-blue-500/10 text-blue-400 border border-blue-500/30' },
-  budgeted: { label: 'Presupuestada', badge: 'bg-amber-500/10 text-amber-400 border border-amber-500/30' },
-  quoted: { label: 'Cotizada', badge: 'bg-purple-500/10 text-purple-400 border border-purple-500/30' },
-  in_negotiation: { label: 'En Negociación', badge: 'bg-amber-500/10 text-amber-300 border border-amber-500/40' },
-  won: { label: 'Adjudicada', badge: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' },
-  lost: { label: 'Perdida', badge: 'bg-red-500/10 text-red-400 border border-red-500/30' },
-  abandoned: { label: 'Desierta / Cancelada', badge: 'bg-slate-500/10 text-slate-400 border border-slate-500/30' },
+  open: { label: 'Abierta', badge: 'bg-blue-50 text-blue-700 border border-blue-200' },
+  budgeted: { label: 'Presupuestada', badge: 'bg-amber-50 text-amber-800 border border-amber-200' },
+  quoted: { label: 'Cotizada', badge: 'bg-purple-50 text-purple-700 border border-purple-200' },
+  in_negotiation: { label: 'En Negociación', badge: 'bg-amber-100 text-amber-900 border border-amber-300' },
+  won: { label: 'Adjudicada', badge: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  lost: { label: 'Perdida', badge: 'bg-rose-50 text-rose-700 border border-rose-200' },
+  abandoned: { label: 'Desierta / Cancelada', badge: 'bg-slate-100 text-slate-700 border border-slate-300' },
 };
 
 function formatCOP(amount: number): string {
@@ -101,41 +101,43 @@ export default function CommercialPipelinePage() {
 
   const [activeTab, setActiveTab] = useState<PipelineTab>('timeline');
   const [search, setSearch] = useState('');
-  const [filterService, setFilterService] = useState<string>('all');
+  const [filterService, setFilterService] = useState('all');
 
-  // Modales de Detalle
-  const [selectedOpp, setSelectedOpp] = useState<CommercialOpportunity | null>(null);
-  const [selectedBudget, setSelectedBudget] = useState<CommercialBudget | null>(null);
-  const [selectedProposal, setSelectedProposal] = useState<CommercialProposal | null>(null);
-  const [selectedClosing, setSelectedClosing] = useState<CommercialClosing | null>(null);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-
-  // Modal de Vinculación Retroactiva
+  // Modal para vinculación retroactiva
   const [linkProposalModal, setLinkProposalModal] = useState<CommercialProposal | null>(null);
-  const [targetProjectIdForLink, setTargetProjectIdForLink] = useState<string>('');
+  const [targetProjectIdForLink, setTargetProjectIdForLink] = useState('');
 
-  const { data, isLoading } = useQuery<{ data: CommercialPipelineData }>({
+  // Consulta React Query con staleTime de 60s
+  const {
+    data: dashboard,
+    isLoading,
+    isError,
+    error,
+  } = useQuery<CommercialPipelineData>({
     queryKey: ['commercial-pipeline'],
     queryFn: async () => {
       const res = await fetch('/api/tools/commercial-pipeline');
-      if (!res.ok) throw new Error('Error al cargar datos comerciales');
-      return res.json();
+      if (!res.ok) {
+        throw new Error('Error al consultar datos del pipeline comercial');
+      }
+      const json = await res.json();
+      return json.data;
     },
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
-  const dashboard = data?.data;
-
-  // Mutación para vincular retroactivamente propuesta a proyecto
+  // Mutación para vincular cotización con proyecto existente
   const linkMutation = useMutation({
     mutationFn: async ({ proposal_id, project_id }: { proposal_id: string; project_id: string }) => {
       const res = await fetch('/api/tools/commercial-pipeline', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'link_proposal_project', proposal_id, project_id }),
+        body: JSON.stringify({ proposal_id, project_id }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al vincular');
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Error al vincular cotización con proyecto');
       }
       return res.json();
     },
@@ -143,23 +145,19 @@ export default function CommercialPipelinePage() {
       queryClient.invalidateQueries({ queryKey: ['commercial-pipeline'] });
       setLinkProposalModal(null);
       setTargetProjectIdForLink('');
-      alert('Propuesta vinculada exitosamente con el proyecto.');
-    },
-    onError: (err: Error) => {
-      alert(`Error al vincular: ${err.message}`);
     },
   });
 
-  // Filtros en memoria O(N)
+  // Filtros en memoria
   const filteredOpportunities = useMemo(() => {
     if (!dashboard?.opportunities) return [];
-    return dashboard.opportunities.filter((o) => {
+    return dashboard.opportunities.filter((opp) => {
       const matchSearch =
         search === '' ||
-        (o.opportunity_title || '').toLowerCase().includes(search.toLowerCase()) ||
-        (o.client_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (o.opportunity_code || '').toLowerCase().includes(search.toLowerCase());
-      const matchService = filterService === 'all' || o.service_type === filterService;
+        (opp.opportunity_code || '').toLowerCase().includes(search.toLowerCase()) ||
+        opp.client_name.toLowerCase().includes(search.toLowerCase()) ||
+        opp.opportunity_title.toLowerCase().includes(search.toLowerCase());
+      const matchService = filterService === 'all' || opp.service_type === filterService;
       return matchSearch && matchService;
     });
   }, [dashboard?.opportunities, search, filterService]);
@@ -169,9 +167,10 @@ export default function CommercialPipelinePage() {
     return dashboard.budgets.filter((b) => {
       return (
         search === '' ||
-        (b.budget_code || '').toLowerCase().includes(search.toLowerCase()) ||
-        (b.client_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (b.project_title || '').toLowerCase().includes(search.toLowerCase())
+        b.budget_code.toLowerCase().includes(search.toLowerCase()) ||
+        b.client_name.toLowerCase().includes(search.toLowerCase()) ||
+        b.project_title.toLowerCase().includes(search.toLowerCase()) ||
+        b.service_category.toLowerCase().includes(search.toLowerCase())
       );
     });
   }, [dashboard?.budgets, search]);
@@ -181,9 +180,11 @@ export default function CommercialPipelinePage() {
     return dashboard.proposals.filter((p) => {
       return (
         search === '' ||
-        (p.quote_code || '').toLowerCase().includes(search.toLowerCase()) ||
-        (p.client_name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (p.scope_description || '').toLowerCase().includes(search.toLowerCase())
+        p.quote_code.toLowerCase().includes(search.toLowerCase()) ||
+        p.client_name.toLowerCase().includes(search.toLowerCase()) ||
+        p.scope_description.toLowerCase().includes(search.toLowerCase()) ||
+        (p.commercial_budgets?.budget_code || '').toLowerCase().includes(search.toLowerCase()) ||
+        (p.projects?.code || '').toLowerCase().includes(search.toLowerCase())
       );
     });
   }, [dashboard?.proposals, search]);
@@ -215,125 +216,134 @@ export default function CommercialPipelinePage() {
   }, [dashboard?.projects, search]);
 
   return (
-    <div className="min-h-screen bg-[#15181D] text-slate-100 pb-20">
+    <div className="min-h-[100dvh] bg-surface flex flex-col">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 pt-6">
-        <BackButton href="/dashboard" label="Volver a Mi Panel" />
+      {/* Hero Institucional Oscuro Carbón */}
+      <section className="page-hero">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="mb-3">
+            <BackButton href="/dashboard" label="Volver a Mi Panel" />
+          </div>
 
-        {/* Encabezado Institucional */}
-        <div className="mt-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#2A303C] pb-5">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400">
-                <Briefcase className="w-6 h-6" strokeWidth={1.75} />
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-accent/20 text-accent font-mono">
+                  PCM CLOUD &bull; HERRAMIENTA TÉCNICA
+                </span>
+                <span className="text-white/60 text-xs">Gestión Comercial & Proyectos</span>
               </div>
-              <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-3">
+                <Briefcase className="w-8 h-8 text-accent shrink-0" strokeWidth={1.75} />
                 Gestión Comercial & Proyectos de Ingeniería
               </h1>
+              <p className="text-white/70 text-xs sm:text-sm mt-1 max-w-2xl">
+                Trazabilidad articulada de Oportunidades, Presupuestos APU, Cotizaciones, Cierres y Apertura Oficial de Proyectos.
+              </p>
             </div>
-            <p className="text-slate-400 text-xs md:text-sm mt-1">
-              PCM CLOUD — Trazabilidad articulada de Oportunidades, Presupuestos APU, Cotizaciones, Cierres y Apertura de Proyectos.
-            </p>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <Link
-              href="/forms/registro-oportunidad"
-              className="px-3.5 py-2 rounded-xl bg-[#2A303C] hover:bg-[#323946] text-white text-xs font-semibold flex items-center gap-1.5 border border-slate-600 transition-all"
-            >
-              <Plus className="w-4 h-4 text-amber-400" strokeWidth={2} />
-              Nueva Oportunidad
-            </Link>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Link
+                href="/forms/registro-oportunidad"
+                className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 border border-white/15 transition-all shadow-xs"
+              >
+                <Plus className="w-4 h-4 text-accent" strokeWidth={2} />
+                Nueva Oportunidad
+              </Link>
 
-            <Link
-              href="/forms/presupuesto-proyecto"
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-amber-500/20"
-            >
-              <Calculator className="w-4 h-4" strokeWidth={2} />
-              Nuevo Presupuesto APU
-            </Link>
+              <Link
+                href="/forms/presupuesto-proyecto"
+                className="px-4 py-2.5 rounded-xl bg-accent text-primary-900 font-extrabold text-xs flex items-center gap-2 hover:brightness-105 active:scale-[0.98] transition-all shadow-md"
+              >
+                <Calculator className="w-4 h-4" strokeWidth={2} />
+                Nuevo Presupuesto APU
+              </Link>
+            </div>
           </div>
         </div>
+      </section>
 
+      {/* Contenedor Principal en Superficie Clara */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full flex-1">
         {/* Resumen Ejecutivo KPI */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-xl p-4">
-            <div className="flex items-center justify-between text-slate-400 mb-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Pipeline Activo</span>
-              <TrendingUp className="w-4 h-4 text-amber-400" strokeWidth={1.75} />
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Pipeline Activo</span>
+              <TrendingUp className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
             </div>
-            <p className="text-lg md:text-xl font-bold text-white font-mono truncate">
+            <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono truncate">
               {formatCOP(dashboard?.stats.pipelineCOP ?? 0)}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">En estudio o negociación</p>
+            <p className="text-[11px] text-text-muted mt-0.5">En estudio o negociación</p>
           </div>
 
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-xl p-4">
-            <div className="flex items-center justify-between text-slate-400 mb-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Oportunidades</span>
-              <Briefcase className="w-4 h-4 text-blue-400" strokeWidth={1.75} />
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Oportunidades</span>
+              <Briefcase className="w-4 h-4 text-blue-600" strokeWidth={1.75} />
             </div>
-            <p className="text-lg md:text-xl font-bold text-white font-mono">
+            <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono">
               {dashboard?.stats.activeOpportunitiesCount ?? 0}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Licitaciones y prospectos</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Licitaciones y prospectos</p>
           </div>
 
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-xl p-4">
-            <div className="flex items-center justify-between text-slate-400 mb-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Presupuestos APU</span>
-              <Calculator className="w-4 h-4 text-purple-400" strokeWidth={1.75} />
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Presupuestos APU</span>
+              <Calculator className="w-4 h-4 text-purple-600" strokeWidth={1.75} />
             </div>
-            <p className="text-lg md:text-xl font-bold text-white font-mono">
+            <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono">
               {dashboard?.stats.budgetsCount ?? 0}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Costeos de ingeniería</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Costeos de ingeniería</p>
           </div>
 
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-xl p-4">
-            <div className="flex items-center justify-between text-slate-400 mb-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Cotizaciones</span>
-              <FileCheck2 className="w-4 h-4 text-emerald-400" strokeWidth={1.75} />
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Cotizaciones</span>
+              <FileCheck2 className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
             </div>
-            <p className="text-lg md:text-xl font-bold text-white font-mono">
+            <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono">
               {dashboard?.stats.issuedProposalsCount ?? 0}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Ofertas económicas</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Ofertas económicas</p>
           </div>
 
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-xl p-4 col-span-2 lg:col-span-1">
-            <div className="flex items-center justify-between text-slate-400 mb-1">
-              <span className="text-[11px] font-semibold uppercase tracking-wider">Contratos Ganados</span>
-              <Trophy className="w-4 h-4 text-amber-400" strokeWidth={1.75} />
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl col-span-2 lg:col-span-1">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Contratos Ganados</span>
+              <Trophy className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
             </div>
-            <p className="text-lg md:text-xl font-bold text-emerald-400 font-mono truncate">
+            <p className="text-lg sm:text-xl font-extrabold text-emerald-700 font-mono truncate">
               {formatCOP(dashboard?.stats.wonContractsCOP ?? 0)}
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Tasa de éxito: {dashboard?.stats.winRatePct ?? 0}%</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Éxito: {dashboard?.stats.winRatePct ?? 0}%</p>
           </div>
         </div>
 
         {/* Barra de Filtros y Búsqueda */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-5 bg-[#1E2229] p-3 rounded-xl border border-[#2A303C]">
+        <div className="card p-3.5 bg-white border border-border shadow-card rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 mb-5">
           <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" strokeWidth={1.75} />
+            <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por código, cliente o proyecto..."
-              className="w-full bg-[#15181D] border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              className="input w-full pl-9 py-2 text-xs bg-white text-text-primary border-border focus:ring-accent"
             />
           </div>
 
           {activeTab === 'opportunities' && (
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Filter className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
+              <Filter className="w-4 h-4 text-text-muted" strokeWidth={1.75} />
               <select
                 value={filterService}
                 onChange={(e) => setFilterService(e.target.value)}
-                className="bg-[#15181D] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="input py-1.5 text-xs bg-white text-text-primary border-border focus:ring-accent"
               >
                 <option value="all">Todas las Líneas de Servicio</option>
                 {Object.entries(SERVICE_LABELS).map(([k, v]) => (
@@ -346,14 +356,14 @@ export default function CommercialPipelinePage() {
           )}
         </div>
 
-        {/* Navegador de Pestañas con RBAC */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b border-[#2A303C] mb-6">
+        {/* Navegador de Pestañas con Estándar PCM CLOUD */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6">
           <button
             onClick={() => setActiveTab('timeline')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'timeline'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'bg-[#1E2229] text-slate-300 hover:bg-[#2A303C]'
+                ? 'bg-accent text-primary-900 shadow-sm'
+                : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
             }`}
           >
             <Layers className="w-4 h-4" strokeWidth={1.75} />
@@ -363,10 +373,10 @@ export default function CommercialPipelinePage() {
           {isCommercial && (
             <button
               onClick={() => setActiveTab('opportunities')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'opportunities'
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                  : 'bg-[#1E2229] text-slate-300 hover:bg-[#2A303C]'
+                  ? 'bg-accent text-primary-900 shadow-sm'
+                  : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
               }`}
             >
               <Briefcase className="w-4 h-4" strokeWidth={1.75} />
@@ -377,10 +387,10 @@ export default function CommercialPipelinePage() {
           {(isEngineeringOrDrawing || isCommercial) && (
             <button
               onClick={() => setActiveTab('budgets')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'budgets'
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                  : 'bg-[#1E2229] text-slate-300 hover:bg-[#2A303C]'
+                  ? 'bg-accent text-primary-900 shadow-sm'
+                  : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
               }`}
             >
               <Calculator className="w-4 h-4" strokeWidth={1.75} />
@@ -391,10 +401,10 @@ export default function CommercialPipelinePage() {
           {isCommercial && (
             <button
               onClick={() => setActiveTab('proposals')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'proposals'
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                  : 'bg-[#1E2229] text-slate-300 hover:bg-[#2A303C]'
+                  ? 'bg-accent text-primary-900 shadow-sm'
+                  : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
               }`}
             >
               <FileCheck2 className="w-4 h-4" strokeWidth={1.75} />
@@ -405,10 +415,10 @@ export default function CommercialPipelinePage() {
           {isCommercial && (
             <button
               onClick={() => setActiveTab('closings')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'closings'
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                  : 'bg-[#1E2229] text-slate-300 hover:bg-[#2A303C]'
+                  ? 'bg-accent text-primary-900 shadow-sm'
+                  : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
               }`}
             >
               <Trophy className="w-4 h-4" strokeWidth={1.75} />
@@ -418,10 +428,10 @@ export default function CommercialPipelinePage() {
 
           <button
             onClick={() => setActiveTab('projects')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'projects'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'bg-[#1E2229] text-slate-300 hover:bg-[#2A303C]'
+                ? 'bg-accent text-primary-900 shadow-sm'
+                : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
             }`}
           >
             <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />
@@ -434,88 +444,92 @@ export default function CommercialPipelinePage() {
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'timeline' && (
           <div className="space-y-4">
-            <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl p-5 mb-4">
-              <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider mb-2">
-                Mapa de Flujo Comercial y Ejecución
+            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl">
+              <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1">
+                Mapa de Flujo Comercial y Articulación Integral
               </h2>
-              <p className="text-xs text-slate-400">
-                Visualización de expedientes conectados. Recuerde que el sistema es totalmente desacoplado: se puede iniciar desde cualquier fase y vincular posteriormente.
+              <p className="text-xs text-text-secondary">
+                Visualización de expedientes conectados. Cada fase opera de forma 100% autónoma y permite vinculación retroactiva.
               </p>
             </div>
 
             {/* Listado de expedientes conectados por Cotización */}
             <div className="space-y-3">
-              {(dashboard?.proposals || []).slice(0, 20).map((prop) => {
+              {(dashboard?.proposals || []).slice(0, 25).map((prop) => {
                 const linkedBudget = dashboard?.budgets.find((b) => b.id === prop.budget_id);
                 const linkedOpp = dashboard?.opportunities.find((o) => o.id === prop.opportunity_id);
-                const linkedClosing = dashboard?.closings.find((c) => c.proposal_id === prop.id);
-                const linkedProject = dashboard?.projects.find(
-                  (pr) => pr.commercial_proposal_id === prop.id || pr.id === prop.project_id
+                const linkedClosing = dashboard?.closings.find(
+                  (c) => c.proposal_id === prop.id || c.commercial_proposals?.quote_code === prop.quote_code
                 );
+                const linkedProject =
+                  dashboard?.projects.find((pr) => pr.id === prop.project_id) ||
+                  dashboard?.projects.find((pr) => pr.commercial_proposal?.quote_code === prop.quote_code);
 
                 return (
                   <div
                     key={prop.id}
-                    className="bg-[#1E2229] border border-[#2A303C] hover:border-slate-600 rounded-xl p-4 transition-all"
+                    className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/50 transition-all"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2A303C] pb-2 mb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border mb-3">
                       <div>
-                        <span className="font-mono text-xs font-bold text-amber-400 mr-2">{prop.quote_code}</span>
-                        <span className="text-xs font-semibold text-white">{prop.client_name}</span>
+                        <span className="font-mono text-sm font-bold text-amber-700 mr-2">
+                          {prop.quote_code}
+                        </span>
+                        <strong className="text-text-primary text-sm font-semibold">{prop.client_name}</strong>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-200">
+                        <span className="font-mono font-bold text-text-primary text-sm">
                           {formatCOP(prop.total_amount)}
                         </span>
                         <button
                           type="button"
                           onClick={() => generateProposalPdf(prop)}
-                          className="p-1 rounded bg-[#15181D] hover:bg-[#2A303C] text-slate-300 hover:text-amber-400 transition-colors"
-                          title="Descargar PDF Oferta"
+                          className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-text-secondary"
+                          title="Descargar PDF Cotización"
                         >
-                          <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
+                          <Download className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
 
-                    {/* Cadena visual horizontal */}
+                    {/* Cadena de Nodos Visual */}
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       {/* Nodo Oportunidad */}
-                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#15181D] border border-slate-700">
-                        <Briefcase className="w-3.5 h-3.5 text-blue-400" strokeWidth={1.75} />
-                        <span className="text-[11px] text-slate-300">
-                          {linkedOpp ? linkedOpp.opportunity_code || 'OPP' : 'Directa (Sin Oportunidad)'}
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 font-semibold">
+                        <Briefcase className="w-3.5 h-3.5 text-blue-600" strokeWidth={1.75} />
+                        <span className="text-[11px] font-mono">
+                          {linkedOpp?.opportunity_code || 'Sin Oportunidad'}
                         </span>
                       </div>
 
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />
 
-                      {/* Nodo Presupuesto */}
-                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#15181D] border border-slate-700">
-                        <Calculator className="w-3.5 h-3.5 text-purple-400" strokeWidth={1.75} />
-                        <span className="text-[11px] text-slate-300">
-                          {linkedBudget ? linkedBudget.budget_code : 'Sin APU Previsto'}
+                      {/* Nodo Presupuesto APU */}
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-900 font-semibold">
+                        <Calculator className="w-3.5 h-3.5 text-purple-600" strokeWidth={1.75} />
+                        <span className="text-[11px] font-mono">
+                          {linkedBudget?.budget_code || 'Directo (Sin APU)'}
                         </span>
                       </div>
 
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />
 
                       {/* Nodo Cotización */}
-                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/40 text-amber-300 font-semibold">
-                        <FileCheck2 className="w-3.5 h-3.5 text-amber-400" strokeWidth={1.75} />
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 font-semibold">
+                        <FileCheck2 className="w-3.5 h-3.5 text-amber-600" strokeWidth={1.75} />
                         <span className="text-[11px] font-mono">{prop.quote_code}</span>
                       </div>
 
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />
 
                       {/* Nodo Cierre */}
                       <div
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
                           linkedClosing?.result === 'won'
-                            ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                             : linkedClosing?.result === 'lost'
-                            ? 'bg-red-500/10 border-red-500/40 text-red-400'
-                            : 'bg-[#15181D] border-slate-700 text-slate-400'
+                            ? 'bg-rose-50 border-rose-200 text-rose-800'
+                            : 'bg-slate-100 border-slate-200 text-slate-600'
                         }`}
                       >
                         <Trophy className="w-3.5 h-3.5" strokeWidth={1.75} />
@@ -528,20 +542,20 @@ export default function CommercialPipelinePage() {
                         </span>
                       </div>
 
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-500" strokeWidth={1.75} />
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />
 
                       {/* Nodo Proyecto */}
-                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#15181D] border border-slate-700">
-                        <ShieldCheck className="w-3.5 h-3.5 text-amber-400" strokeWidth={1.75} />
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200">
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-600" strokeWidth={1.75} />
                         {linkedProject ? (
-                          <span className="text-[11px] text-amber-300 font-mono">
+                          <span className="text-[11px] text-text-primary font-mono font-bold">
                             {linkedProject.code || linkedProject.cost_center}: {linkedProject.name}
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => setLinkProposalModal(prop)}
-                            className="text-[11px] text-amber-400 hover:underline flex items-center gap-1"
+                            className="text-[11px] text-amber-700 font-bold hover:underline flex items-center gap-1"
                           >
                             <LinkIcon className="w-3 h-3" strokeWidth={2} />
                             + Vincular a Proyecto
@@ -560,10 +574,10 @@ export default function CommercialPipelinePage() {
             PESTAÑA 2: OPORTUNIDADES (FOR-CMR-001)
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'opportunities' && isCommercial && (
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl overflow-hidden shadow-xl">
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#15181D] text-slate-400 uppercase tracking-wider text-[10px] border-b border-[#2A303C]">
+                <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
                   <tr>
                     <th className="py-3 px-4">Código / Fecha</th>
                     <th className="py-3 px-4">Oportunidad / Cliente</th>
@@ -574,42 +588,42 @@ export default function CommercialPipelinePage() {
                     <th className="py-3 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#2A303C]">
+                <tbody className="divide-y divide-border">
                   {filteredOpportunities.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-slate-500 italic">
+                      <td colSpan={7} className="text-center py-8 text-text-muted italic">
                         No se encontraron oportunidades registradas.
                       </td>
                     </tr>
                   ) : (
                     filteredOpportunities.map((opp) => (
-                      <tr key={opp.id} className="hover:bg-[#15181D]/60 transition-colors">
+                      <tr key={opp.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3 px-4">
-                          <span className="font-mono font-bold text-amber-400 block">{opp.opportunity_code}</span>
-                          <span className="text-[10px] text-slate-500">{formatDate(opp.created_at)}</span>
+                          <span className="font-mono font-bold text-amber-700 block">{opp.opportunity_code}</span>
+                          <span className="text-[10px] text-text-muted">{formatDate(opp.created_at)}</span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="font-semibold text-white block">{opp.opportunity_title}</span>
-                          <span className="text-slate-400 text-[11px]">{opp.client_name}</span>
+                          <span className="font-semibold text-text-primary block">{opp.opportunity_title}</span>
+                          <span className="text-text-secondary text-[11px]">{opp.client_name}</span>
                         </td>
-                        <td className="py-3 px-4 text-slate-300">
+                        <td className="py-3 px-4 text-text-secondary">
                           {SERVICE_LABELS[opp.service_type] || opp.service_type}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-semibold text-slate-200">
+                        <td className="py-3 px-4 text-right font-mono font-bold text-text-primary">
                           {opp.estimated_value ? formatCOP(opp.estimated_value) : 'Por definir'}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="text-slate-200 block truncate max-w-[140px]">
+                          <span className="text-text-primary block truncate max-w-[140px] font-medium">
                             {opp.created_by_name || opp.users?.full_name || 'Comercial'}
                           </span>
-                          <span className="text-[10px] text-slate-500 block">
+                          <span className="text-[10px] text-text-muted block">
                             {opp.created_by_email || opp.users?.email || ''}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                              STATUS_OPP_LABELS[opp.status]?.badge || 'bg-slate-700 text-slate-300'
+                              STATUS_OPP_LABELS[opp.status]?.badge || 'bg-slate-100 text-slate-700'
                             }`}
                           >
                             {STATUS_OPP_LABELS[opp.status]?.label || opp.status}
@@ -619,14 +633,14 @@ export default function CommercialPipelinePage() {
                           <button
                             type="button"
                             onClick={() => generateOpportunityPdf(opp)}
-                            className="p-1.5 rounded-lg bg-[#15181D] hover:bg-[#2A303C] text-slate-300 hover:text-amber-400 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
                             title="Descargar PDF (FOR-CMR-001)"
                           >
                             <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
                           </button>
                           <Link
                             href={`/forms/presupuesto-proyecto?opportunity_id=${opp.id}`}
-                            className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-semibold inline-flex items-center gap-1 transition-all border border-amber-500/30"
+                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold inline-flex items-center gap-1 transition-all border border-amber-200"
                             title="Crear Presupuesto APU"
                           >
                             <Calculator className="w-3.5 h-3.5" strokeWidth={1.75} />
@@ -634,10 +648,10 @@ export default function CommercialPipelinePage() {
                           </Link>
                           <Link
                             href={`/forms/cotizacion-comercial?opportunity_id=${opp.id}&client_name=${encodeURIComponent(opp.client_name)}&scope=${encodeURIComponent(opp.opportunity_title)}`}
-                            className="p-1.5 rounded-lg bg-[#2A303C] hover:bg-[#323946] text-white font-semibold inline-flex items-center gap-1 transition-all"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold inline-flex items-center gap-1 transition-all"
                             title="Emitir Cotización Directa"
                           >
-                            <FileCheck2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                            <FileCheck2 className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
                           </Link>
                         </td>
                       </tr>
@@ -653,10 +667,10 @@ export default function CommercialPipelinePage() {
             PESTAÑA 3: PRESUPUESTOS APU (FOR-CMR-004)
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'budgets' && (isEngineeringOrDrawing || isCommercial) && (
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl overflow-hidden shadow-xl">
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#15181D] text-slate-400 uppercase tracking-wider text-[10px] border-b border-[#2A303C]">
+                <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
                   <tr>
                     <th className="py-3 px-4">Código APU</th>
                     <th className="py-3 px-4">Proyecto / Alcance</th>
@@ -667,49 +681,49 @@ export default function CommercialPipelinePage() {
                     <th className="py-3 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#2A303C]">
+                <tbody className="divide-y divide-border">
                   {filteredBudgets.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-slate-500 italic">
+                      <td colSpan={7} className="text-center py-8 text-text-muted italic">
                         No se encontraron presupuestos APU registrados.
                       </td>
                     </tr>
                   ) : (
                     filteredBudgets.map((b) => (
-                      <tr key={b.id} className="hover:bg-[#15181D]/60 transition-colors">
+                      <tr key={b.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3 px-4">
-                          <span className="font-mono font-bold text-amber-400 block">{b.budget_code}</span>
-                          <span className="text-[10px] text-slate-500">{formatDate(b.created_at)}</span>
+                          <span className="font-mono font-bold text-purple-700 block">{b.budget_code}</span>
+                          <span className="text-[10px] text-text-muted">{formatDate(b.created_at)}</span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="font-semibold text-white block">{b.project_title}</span>
-                          <span className="text-[11px] text-slate-400">{b.service_category}</span>
+                          <span className="font-semibold text-text-primary block">{b.project_title}</span>
+                          <span className="text-[11px] text-text-secondary">{b.service_category}</span>
                         </td>
-                        <td className="py-3 px-4 text-slate-300 font-medium">{b.client_name}</td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-300">
+                        <td className="py-3 px-4 text-text-primary font-medium">{b.client_name}</td>
+                        <td className="py-3 px-4 text-right font-mono text-text-secondary">
                           {formatCOP(b.total_direct_cost)}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
+                        <td className="py-3 px-4 text-right font-mono font-extrabold text-emerald-700">
                           {formatCOP(b.suggested_sale_price)}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="text-slate-200 block truncate max-w-[130px]">
+                          <span className="text-text-primary block truncate max-w-[130px] font-medium">
                             {b.created_by_name || 'Ingeniero de Costos'}
                           </span>
-                          <span className="text-[10px] text-slate-500">{formatDate(b.created_at)}</span>
+                          <span className="text-[10px] text-text-muted">{formatDate(b.created_at)}</span>
                         </td>
                         <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => generateBudgetPdf(b)}
-                            className="p-1.5 rounded-lg bg-[#15181D] hover:bg-[#2A303C] text-slate-300 hover:text-amber-400 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
                             title="Descargar PDF APU (FOR-CMR-004)"
                           >
                             <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
                           </button>
                           <Link
                             href={`/forms/cotizacion-comercial?budget_id=${b.id}&client_name=${encodeURIComponent(b.client_name)}&scope=${encodeURIComponent(b.project_title)}&subtotal=${b.suggested_sale_price}`}
-                            className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold inline-flex items-center gap-1 transition-all text-xs"
+                            className="px-2.5 py-1.5 rounded-lg bg-accent text-primary-900 font-extrabold inline-flex items-center gap-1 transition-all text-xs hover:brightness-105"
                             title="Generar Cotización desde este Presupuesto"
                           >
                             Cotizar
@@ -729,10 +743,10 @@ export default function CommercialPipelinePage() {
             PESTAÑA 4: COTIZACIONES (FOR-CMR-002)
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'proposals' && isCommercial && (
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl overflow-hidden shadow-xl">
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#15181D] text-slate-400 uppercase tracking-wider text-[10px] border-b border-[#2A303C]">
+                <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
                   <tr>
                     <th className="py-3 px-4">Código Oferta</th>
                     <th className="py-3 px-4">Cliente / Razón Social</th>
@@ -744,51 +758,51 @@ export default function CommercialPipelinePage() {
                     <th className="py-3 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#2A303C]">
+                <tbody className="divide-y divide-border">
                   {filteredProposals.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-8 text-slate-500 italic">
+                      <td colSpan={8} className="text-center py-8 text-text-muted italic">
                         No se encontraron cotizaciones emitidas.
                       </td>
                     </tr>
                   ) : (
                     filteredProposals.map((p) => (
-                      <tr key={p.id} className="hover:bg-[#15181D]/60 transition-colors">
+                      <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3 px-4">
-                          <span className="font-mono font-bold text-amber-400 block">{p.quote_code}</span>
-                          <span className="text-[10px] text-slate-500">{formatDate(p.created_at)}</span>
+                          <span className="font-mono font-bold text-amber-700 block">{p.quote_code}</span>
+                          <span className="text-[10px] text-text-muted">{formatDate(p.created_at)}</span>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="font-semibold text-white block">{p.client_name}</span>
-                          <span className="text-[11px] text-slate-400 truncate max-w-[200px] block">
+                          <span className="font-semibold text-text-primary block">{p.client_name}</span>
+                          <span className="text-[11px] text-text-secondary truncate max-w-[200px] block">
                             {p.scope_description}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-300">
+                        <td className="py-3 px-4 text-right font-mono text-text-secondary">
                           {formatCOP(p.subtotal)}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
+                        <td className="py-3 px-4 text-right font-mono font-extrabold text-amber-800">
                           {formatCOP(p.total_amount)}
                         </td>
                         <td className="py-3 px-4">
                           {p.commercial_budgets?.budget_code ? (
-                            <span className="font-mono text-xs text-purple-400">
+                            <span className="font-mono text-xs text-purple-700 font-semibold">
                               {p.commercial_budgets.budget_code}
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">Directa</span>
+                            <span className="text-text-muted text-[11px]">Directa</span>
                           )}
                         </td>
                         <td className="py-3 px-4">
                           {p.projects?.code || p.projects?.name ? (
-                            <span className="font-mono text-xs text-amber-300">
+                            <span className="font-mono text-xs text-emerald-700 font-bold">
                               {p.projects.code || p.projects.name}
                             </span>
                           ) : (
                             <button
                               type="button"
                               onClick={() => setLinkProposalModal(p)}
-                              className="text-amber-400 hover:underline text-[11px] flex items-center gap-1"
+                              className="text-amber-700 hover:underline text-[11px] font-bold flex items-center gap-1"
                             >
                               <LinkIcon className="w-3 h-3" />
                               Vincular
@@ -796,7 +810,7 @@ export default function CommercialPipelinePage() {
                           )}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="text-slate-200 block truncate max-w-[120px]">
+                          <span className="text-text-primary block truncate max-w-[120px] font-medium">
                             {p.created_by_name || p.users?.full_name || 'Comercial'}
                           </span>
                         </td>
@@ -804,17 +818,17 @@ export default function CommercialPipelinePage() {
                           <button
                             type="button"
                             onClick={() => generateProposalPdf(p)}
-                            className="p-1.5 rounded-lg bg-[#15181D] hover:bg-[#2A303C] text-slate-300 hover:text-amber-400 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
                             title="Descargar PDF (FOR-CMR-002)"
                           >
                             <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
                           </button>
                           <Link
                             href={`/forms/cierre-comercial?quote_code=${p.quote_code}&client_name=${encodeURIComponent(p.client_name)}`}
-                            className="px-2.5 py-1.5 rounded-lg bg-[#2A303C] hover:bg-[#323946] text-white font-semibold inline-flex items-center gap-1 transition-all text-xs"
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold inline-flex items-center gap-1 transition-all text-xs"
                             title="Registrar desenlace de cierre"
                           >
-                            <Trophy className="w-3 h-3 text-amber-400" />
+                            <Trophy className="w-3 h-3 text-accent" />
                             Cierre
                           </Link>
                         </td>
@@ -831,10 +845,10 @@ export default function CommercialPipelinePage() {
             PESTAÑA 5: CIERRES & ADJUDICACIONES (FOR-CMR-003)
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'closings' && isCommercial && (
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl overflow-hidden shadow-xl">
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#15181D] text-slate-400 uppercase tracking-wider text-[10px] border-b border-[#2A303C]">
+                <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
                   <tr>
                     <th className="py-3 px-4">Código Cierre</th>
                     <th className="py-3 px-4">Cotización / Cliente</th>
@@ -845,10 +859,10 @@ export default function CommercialPipelinePage() {
                     <th className="py-3 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#2A303C]">
+                <tbody className="divide-y divide-border">
                   {filteredClosings.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-slate-500 italic">
+                      <td colSpan={7} className="text-center py-8 text-text-muted italic">
                         No se han registrado cierres comerciales.
                       </td>
                     </tr>
@@ -856,16 +870,16 @@ export default function CommercialPipelinePage() {
                     filteredClosings.map((c) => {
                       const isWon = c.result === 'won' || c.closing_type === 'won';
                       return (
-                        <tr key={c.id} className="hover:bg-[#15181D]/60 transition-colors">
+                        <tr key={c.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-3 px-4">
-                            <span className="font-mono font-bold text-amber-400 block">{c.closing_code}</span>
-                            <span className="text-[10px] text-slate-500">{formatDate(c.created_at)}</span>
+                            <span className="font-mono font-bold text-amber-700 block">{c.closing_code}</span>
+                            <span className="text-[10px] text-text-muted">{formatDate(c.created_at)}</span>
                           </td>
                           <td className="py-3 px-4">
-                            <span className="font-mono font-bold text-slate-200 block">
+                            <span className="font-mono font-bold text-text-primary block">
                               {c.commercial_proposals?.quote_code || 'Directa'}
                             </span>
-                            <span className="text-[11px] text-slate-400">
+                            <span className="text-[11px] text-text-secondary">
                               {c.commercial_proposals?.client_name || 'N/A'}
                             </span>
                           </td>
@@ -873,30 +887,30 @@ export default function CommercialPipelinePage() {
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                                 isWon
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-red-500/10 text-red-400 border border-red-500/30'
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : 'bg-rose-50 text-rose-800 border border-rose-200'
                               }`}
                             >
                               {isWon ? 'Adjudicada / Ganada' : 'No Adjudicada'}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
+                          <td className="py-3 px-4 text-right font-mono font-extrabold text-emerald-700">
                             {formatCOP(c.final_contract_value || c.final_value || 0)}
                           </td>
-                          <td className="py-3 px-4 font-mono text-slate-300">
+                          <td className="py-3 px-4 font-mono text-text-primary">
                             {c.contract_number || 'Pendiente'}
                           </td>
                           <td className="py-3 px-4">
-                            <span className="text-slate-200 block truncate max-w-[120px]">
+                            <span className="text-text-primary block truncate max-w-[120px] font-medium">
                               {c.created_by_name || c.users?.full_name || 'Comercial'}
                             </span>
-                            <span className="text-[10px] text-slate-500">{formatDate(c.created_at)}</span>
+                            <span className="text-[10px] text-text-muted">{formatDate(c.created_at)}</span>
                           </td>
                           <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => generateClosingPdf(c)}
-                              className="p-1.5 rounded-lg bg-[#15181D] hover:bg-[#2A303C] text-slate-300 hover:text-amber-400 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
                               title="Descargar PDF (FOR-CMR-003)"
                             >
                               <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
@@ -904,7 +918,7 @@ export default function CommercialPipelinePage() {
                             {isWon && (
                               <Link
                                 href={`/admin/projects?create_from_closing=${c.id}&client=${encodeURIComponent(c.commercial_proposals?.client_name || '')}&contract_value=${c.final_contract_value || c.final_value}&contract_number=${encodeURIComponent(c.contract_number || '')}`}
-                                className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold inline-flex items-center gap-1 transition-all text-xs"
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1 transition-all text-xs"
                                 title="Aperturar Proyecto Oficial en Sistema"
                               >
                                 <ShieldCheck className="w-3.5 h-3.5" />
@@ -926,10 +940,10 @@ export default function CommercialPipelinePage() {
             PESTAÑA 6: PROYECTOS OFICIALES DERIVADOS
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'projects' && (
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl overflow-hidden shadow-xl">
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#15181D] text-slate-400 uppercase tracking-wider text-[10px] border-b border-[#2A303C]">
+                <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
                   <tr>
                     <th className="py-3 px-4">Código / CC</th>
                     <th className="py-3 px-4">Nombre del Proyecto</th>
@@ -940,51 +954,51 @@ export default function CommercialPipelinePage() {
                     <th className="py-3 px-4 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#2A303C]">
+                <tbody className="divide-y divide-border">
                   {filteredProjects.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-8 text-slate-500 italic">
+                      <td colSpan={7} className="text-center py-8 text-text-muted italic">
                         No se encontraron proyectos oficiales.
                       </td>
                     </tr>
                   ) : (
                     filteredProjects.map((pr) => (
-                      <tr key={pr.id} className="hover:bg-[#15181D]/60 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-amber-400">
+                      <tr key={pr.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-amber-700">
                           {pr.code || pr.cost_center}
                         </td>
-                        <td className="py-3 px-4 font-semibold text-white">{pr.name}</td>
-                        <td className="py-3 px-4 text-slate-300">{pr.client}</td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-300">
+                        <td className="py-3 px-4 font-semibold text-text-primary">{pr.name}</td>
+                        <td className="py-3 px-4 text-text-secondary">{pr.client}</td>
+                        <td className="py-3 px-4 text-right font-mono text-text-secondary">
                           {formatCOP(pr.contract_value || 0)}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
+                        <td className="py-3 px-4 text-right font-mono font-extrabold text-emerald-700">
                           {formatCOP(pr.execution_value || 0)}
                         </td>
                         <td className="py-3 px-4">
                           {pr.commercial_proposal?.quote_code ? (
-                            <span className="font-mono text-xs text-amber-300">
+                            <span className="font-mono text-xs text-amber-700 font-bold">
                               {pr.commercial_proposal.quote_code}
                             </span>
                           ) : (
-                            <span className="text-slate-500 text-[11px]">Directo (Sin Cotización)</span>
+                            <span className="text-text-muted text-[11px]">Directo (Sin Cotización)</span>
                           )}
                         </td>
                         <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => generateProjectFinancialPdf(pr)}
-                            className="p-1.5 rounded-lg bg-[#15181D] hover:bg-[#2A303C] text-slate-300 hover:text-amber-400 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
                             title="Descargar Ficha Financiera PDF (FOR-GPR-001)"
                           >
                             <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
                           </button>
                           <Link
                             href={`/admin/projects`}
-                            className="p-1.5 rounded-lg bg-[#2A303C] hover:bg-[#323946] text-white font-semibold inline-flex items-center gap-1 transition-all"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold inline-flex items-center gap-1 transition-all"
                             title="Ver en Gestión de Proyectos"
                           >
-                            <ExternalLink className="w-3.5 h-3.5" strokeWidth={1.75} />
+                            <ExternalLink className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
                           </Link>
                         </td>
                       </tr>
@@ -1000,39 +1014,39 @@ export default function CommercialPipelinePage() {
             MODAL DE VINCULACIÓN RETROACTIVA: COTIZACIÓN <-> PROYECTO
            ──────────────────────────────────────────────────────────────────── */}
         {linkProposalModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-            <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl p-6 max-w-md w-full shadow-2xl">
-              <div className="flex items-center justify-between border-b border-[#2A303C] pb-3 mb-4">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <LinkIcon className="w-4 h-4 text-amber-400" strokeWidth={1.75} />
-                  Vincular Cotización a Proyecto
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl">
+              <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+                <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                  Vincular Cotización a Proyecto Oficial
                 </h3>
                 <button
                   type="button"
                   onClick={() => setLinkProposalModal(null)}
-                  className="text-slate-400 hover:text-white"
+                  className="text-text-muted hover:text-text-primary"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="space-y-4">
-                <div className="bg-[#15181D] p-3 rounded-xl border border-[#2A303C]">
-                  <span className="text-[11px] text-slate-400 block">Cotización a Vincular:</span>
-                  <span className="font-mono text-sm font-bold text-amber-400">
+                <div className="bg-slate-50 p-3 rounded-xl border border-border">
+                  <span className="text-[11px] text-text-muted block">Cotización a Vincular:</span>
+                  <span className="font-mono text-sm font-bold text-amber-700">
                     {linkProposalModal.quote_code}
                   </span>
-                  <span className="text-xs text-white block mt-0.5">{linkProposalModal.client_name}</span>
+                  <span className="text-xs text-text-primary block mt-0.5">{linkProposalModal.client_name}</span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-text-secondary mb-1.5">
                     Seleccionar Proyecto Existente:
                   </label>
                   <select
                     value={targetProjectIdForLink}
                     onChange={(e) => setTargetProjectIdForLink(e.target.value)}
-                    className="w-full bg-[#15181D] border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="input w-full py-2 text-xs bg-white text-text-primary border-border focus:ring-accent"
                   >
                     <option value="">Seleccione un proyecto...</option>
                     {(dashboard?.projects || []).map((prj) => (
@@ -1043,11 +1057,11 @@ export default function CommercialPipelinePage() {
                   </select>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#2A303C]">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
                   <button
                     type="button"
                     onClick={() => setLinkProposalModal(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-text-primary text-xs font-semibold"
                   >
                     Cancelar
                   </button>
@@ -1060,7 +1074,7 @@ export default function CommercialPipelinePage() {
                         project_id: targetProjectIdForLink,
                       })
                     }
-                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold disabled:opacity-50 transition-all flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-accent text-primary-900 text-xs font-bold disabled:opacity-50 transition-all flex items-center gap-1.5 hover:brightness-105"
                   >
                     {linkMutation.isPending ? 'Vinculando...' : 'Confirmar Vínculo'}
                   </button>

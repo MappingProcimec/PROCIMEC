@@ -26,19 +26,19 @@ import { BudgetItem, CommercialOpportunity, CommercialBudget } from '@/types';
 import { generateBudgetPdf } from '@/lib/commercial/commercialPdfGenerator';
 
 const SERVICE_CATEGORIES = [
-  { value: 'mapping_geofisica', label: 'Georradar GPR y Geofísica Aplicada' },
   { value: 'civil_planta', label: 'Obras Civiles y Adecuaciones en Planta In-House' },
-  { value: 'montaje_mecanico', label: 'Montajes Mecánicos, Piping y Estructuras' },
-  { value: 'topografia_industrial', label: 'Topografía Industrial y Modelado BIM' },
+  { value: 'montaje_mecanico', label: 'Montajes Mecánicos, Piping y Estructuras Metálicas' },
+  { value: 'mapping_geofisica', label: 'Georradar GPR y Geofísica Aplicada' },
+  { value: 'topografia_industrial', label: 'Topografía Industrial y Modelado CAD/BIM' },
   { value: 'interventoria_obra', label: 'Interventoría Técnica y Supervisión de Obra' },
   { value: 'consultoria_diseno', label: 'Consultoría, Memorias de Cálculo e Ingeniería' },
 ];
 
 const ITEM_CATEGORIES: Array<{ key: BudgetItem['category']; label: string; icon: typeof Layers }> = [
-  { key: 'materials', label: 'Materiales e Insumos Civiles / Industriales', icon: Layers },
-  { key: 'equipment', label: 'Equipos, Maquinaria y Herramientas', icon: Wrench },
-  { key: 'labor', label: 'Personal, Cuadrillas y Mano de Obra Técnica', icon: Users },
-  { key: 'logistics', label: 'Logística, Viáticos y Transporte de Planta', icon: Truck },
+  { key: 'materials', label: '1. Materiales e Insumos Civiles / Industriales', icon: Layers },
+  { key: 'equipment', label: '2. Equipos, Maquinaria y Herramientas', icon: Wrench },
+  { key: 'labor', label: '3. Personal, Cuadrillas y Mano de Obra Técnica', icon: Users },
+  { key: 'logistics', label: '4. Logística, Viáticos y Transporte de Planta', icon: Truck },
 ];
 
 function formatCOP(amount: number): string {
@@ -55,6 +55,7 @@ export default function PresupuestoProyectoPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [opportunities, setOpportunities] = useState<CommercialOpportunity[]>([]);
   const [nextBudgetCode, setNextBudgetCode] = useState<string>('PRE-2026-001');
 
@@ -121,7 +122,17 @@ export default function PresupuestoProyectoPage() {
     loadInitialData();
   }, []);
 
-  // Manejador de cambio de oportunidad vinculada
+  // Prellenar si viene query param opportunity_id
+  useEffect(() => {
+    if (typeof window !== 'undefined' && opportunities.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const oppId = params.get('opportunity_id');
+      if (oppId) {
+        handleOpportunityChange(oppId);
+      }
+    }
+  }, [opportunities]);
+
   const handleOpportunityChange = (oppId: string) => {
     setSelectedOpportunityId(oppId);
     if (!oppId) return;
@@ -140,7 +151,6 @@ export default function PresupuestoProyectoPage() {
     }
   };
 
-  // Cálculos reactivos por rubro
   const totalsByCategory = useMemo(() => {
     const cats: Record<BudgetItem['category'], number> = {
       materials: 0,
@@ -173,7 +183,6 @@ export default function PresupuestoProyectoPage() {
     return totalDirectCost + aiuAmount;
   }, [totalDirectCost, aiuAmount]);
 
-  // Manipulación de ítems
   const handleAddItem = (category: BudgetItem['category']) => {
     const newItem: BudgetItem = {
       id: `item-${Date.now()}`,
@@ -210,11 +219,12 @@ export default function PresupuestoProyectoPage() {
     setItems((prev) => prev.filter((it) => it.id !== id));
   };
 
-  // Envío del presupuesto
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+
     if (!clientName.trim() || !projectTitle.trim()) {
-      alert('Por favor ingrese el nombre del cliente y el título del proyecto.');
+      setErrorMessage('Por favor ingrese el nombre del cliente y el título del proyecto.');
       return;
     }
 
@@ -241,16 +251,13 @@ export default function PresupuestoProyectoPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Error al guardar el presupuesto');
-      }
-
       const resJson = await res.json();
+      if (!res.ok) throw new Error(resJson.error || 'Error al guardar el presupuesto');
+
       setSavedBudget(resJson.data);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error inesperado';
-      alert(`Error: ${msg}`);
+      setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -258,59 +265,72 @@ export default function PresupuestoProyectoPage() {
 
   if (savedBudget) {
     return (
-      <div className="min-h-screen bg-[#15181D] text-slate-100 pb-16">
+      <div className="min-h-[100dvh] bg-surface flex flex-col">
         <Navbar />
-        <main className="max-w-4xl mx-auto px-4 pt-6">
-          <BackButton href="/dashboard" label="Volver a Mi Panel" />
+        <div className="page-hero">
+          <div className="max-w-4xl mx-auto">
+            <BackButton href="/dashboard" label="Volver a Mi Panel" />
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
+              <Calculator className="w-7 h-7 text-accent" strokeWidth={1.75} />
+              Presupuesto APU Registrado con Éxito
+            </h1>
+            <p className="text-white/70 text-sm mt-1">
+              FOR-CMR-004 — Estructura técnica de costos directos y AIU formalizada en PCM CLOUD.
+            </p>
+          </div>
+        </div>
 
-          <div className="mt-6 bg-[#1E2229] border border-[#2A303C] rounded-2xl p-8 text-center shadow-2xl">
-            <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-400">
-              <CheckCircle2 className="w-9 h-9" strokeWidth={1.75} />
+        <main className="flex-1 max-w-4xl mx-auto px-4 -mt-6 pb-20 w-full space-y-6">
+          <div className="card p-6 sm:p-8 text-center bg-white border border-border shadow-card">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-9 h-9" />
             </div>
 
-            <h1 className="text-2xl font-bold text-white mb-2">Presupuesto Registrado Exitosamente</h1>
-            <p className="text-slate-400 text-sm mb-6">
-              El presupuesto APU se ha guardado formalmente bajo el código institucional:
+            <span className="font-mono text-sm font-bold px-3 py-1 rounded-full bg-accent/20 text-primary-900 border border-accent/40 inline-block mb-3">
+              {savedBudget.budget_code}
+            </span>
+
+            <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-2">
+              Presupuesto Guardado Exitosamente
+            </h2>
+            <p className="text-text-secondary text-sm max-w-md mx-auto mb-6">
+              El análisis de precios unitarios y costeo para <strong className="text-text-primary">{savedBudget.project_title}</strong> ha sido registrado.
             </p>
 
-            <div className="inline-block px-5 py-2.5 bg-[#15181D] border border-amber-500/40 rounded-xl mb-6 font-mono text-amber-400 text-xl font-bold">
-              {savedBudget.budget_code}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-xl mx-auto mb-8 text-left bg-[#15181D]/60 p-4 rounded-xl border border-[#2A303C]">
+            <div className="bg-surface border border-border rounded-xl p-4 text-left max-w-lg mx-auto mb-8 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div>
-                <span className="text-xs text-slate-400 block">Costos Directos</span>
-                <span className="font-mono text-sm font-semibold text-slate-200">
+                <span className="text-text-muted block">Costos Directos (CD):</span>
+                <span className="font-mono font-bold text-text-primary text-sm">
                   {formatCOP(savedBudget.total_direct_cost)}
                 </span>
               </div>
               <div>
-                <span className="text-xs text-slate-400 block">AIU ({savedBudget.aiu_percentage}%)</span>
-                <span className="font-mono text-sm font-semibold text-amber-300">
-                  {formatCOP(Math.round((savedBudget.total_direct_cost * savedBudget.aiu_percentage) / 100))}
+                <span className="text-text-muted block">AIU ({savedBudget.aiu_percentage}%):</span>
+                <span className="font-mono font-bold text-amber-700 text-sm">
+                  +{formatCOP(Math.round((savedBudget.total_direct_cost * savedBudget.aiu_percentage) / 100))}
                 </span>
               </div>
               <div>
-                <span className="text-xs text-slate-400 block">Venta Sugerida</span>
-                <span className="font-mono text-sm font-bold text-emerald-400">
+                <span className="text-text-muted block">Venta Sugerida:</span>
+                <span className="font-mono font-bold text-emerald-700 text-sm">
                   {formatCOP(savedBudget.suggested_sale_price)}
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-4">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={() => generateBudgetPdf(savedBudget)}
-                className="px-5 py-3 rounded-xl bg-[#2A303C] hover:bg-[#323946] text-white font-semibold flex items-center gap-2 border border-slate-600 transition-all text-sm"
+                className="btn btn-secondary text-xs flex items-center gap-2"
               >
-                <Download className="w-4 h-4 text-amber-400" strokeWidth={1.75} />
-                Descargar PDF Oficial (FOR-CMR-004)
+                <Download className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                Descargar PDF APU (FOR-CMR-004)
               </button>
 
               <Link
                 href={`/forms/cotizacion-comercial?budget_id=${savedBudget.id}&client_name=${encodeURIComponent(savedBudget.client_name)}&scope=${encodeURIComponent(savedBudget.project_title)}&subtotal=${savedBudget.suggested_sale_price}`}
-                className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold flex items-center gap-2 transition-all shadow-lg shadow-amber-500/20 text-sm"
+                className="btn btn-accent text-xs flex items-center gap-2 shadow-sm"
               >
                 Generar Cotización desde este Presupuesto
                 <ArrowRight className="w-4 h-4" strokeWidth={2} />
@@ -323,54 +343,59 @@ export default function PresupuestoProyectoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#15181D] text-slate-100 pb-20">
+    <div className="min-h-[100dvh] bg-surface flex flex-col">
       <Navbar />
 
-      <main className="max-w-5xl mx-auto px-4 pt-6">
-        <BackButton href="/dashboard" label="Volver a Mi Panel" />
-
-        {/* Encabezado Principal */}
-        <div className="mt-4 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#2A303C] pb-5">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400">
-                <Calculator className="w-6 h-6" strokeWidth={1.75} />
-              </div>
-              <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight">
+      {/* Header Corporativo Oscuro Oficial */}
+      <div className="page-hero">
+        <div className="max-w-5xl mx-auto">
+          <BackButton href="/dashboard" label="Volver a Mi Panel" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
+                <Calculator className="w-7 h-7 text-accent" strokeWidth={1.75} />
                 Presupuesto Operativo y APU de Ingeniería
               </h1>
+              <p className="text-white/70 text-sm mt-1">
+                FOR-CMR-004 — Estructura técnica de costos directos (materiales, equipos, mano de obra, logística) y cálculo de AIU
+              </p>
             </div>
-            <p className="text-slate-400 text-xs md:text-sm mt-1">
-              FOR-CMR-004 — Estructura de costos directos (materiales, equipos, mano de obra, logística) y cálculo de AIU.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="bg-[#1E2229] border border-amber-500/40 rounded-xl px-3.5 py-2 text-right">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Consecutivo Previsto</span>
-              <span className="font-mono text-sm font-bold text-amber-400">{nextBudgetCode}</span>
+            <div className="bg-primary-900/60 border border-accent/40 rounded-xl px-3.5 py-1.5 text-right w-fit">
+              <span className="text-[10px] text-white/70 uppercase tracking-wider block">Consecutivo Previsto</span>
+              <span className="font-mono text-xs sm:text-sm font-bold text-accent">{nextBudgetCode}</span>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Contenedor Principal (Superficie Clara PCM CLOUD) */}
+      <main className="flex-1 max-w-5xl mx-auto px-4 -mt-6 pb-20 w-full space-y-6">
+        {errorMessage && (
+          <div className="card p-4 bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2 rounded-xl">
+            <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Bloque 1: Vinculación Opcional y Datos del Proyecto */}
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl p-5 md:p-6 shadow-xl">
-            <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-              <Briefcase className="w-4 h-4" strokeWidth={1.75} />
-              1. Identificación del Proyecto & Vínculo Opcional
-            </h2>
+          {/* Tarjeta 1: Identificación y Vínculo Inteligente */}
+          <div className="card p-5 sm:p-6 bg-white border border-border shadow-card space-y-4">
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <Briefcase className="w-4 h-4 text-accent" strokeWidth={1.75} />
+              <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">
+                1. Identificación del Proyecto & Vínculo Opcional
+              </h2>
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Selector Opcional de Oportunidad */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="label text-xs font-semibold text-text-secondary mb-1">
                   ¿Vincular a una Oportunidad / Licitación Existente? (Opcional)
                 </label>
                 <select
                   value={selectedOpportunityId}
                   onChange={(e) => handleOpportunityChange(e.target.value)}
-                  className="w-full bg-[#15181D] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="select"
                 >
                   <option value="">Presupuesto Independiente / Sin Oportunidad Previa</option>
                   {opportunities.map((opp) => (
@@ -379,14 +404,14 @@ export default function PresupuestoProyectoPage() {
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Si se selecciona una oportunidad, se precargarán cliente, título y tipo de servicio automáticamente.
+                <p className="text-[11px] text-text-muted mt-1">
+                  Si seleccionas una oportunidad, se precargarán automáticamente el cliente, el título y la especialidad.
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Cliente o Destinatario *
+                <label className="label text-xs font-semibold text-text-secondary mb-1">
+                  Cliente o Razón Social *
                 </label>
                 <input
                   type="text"
@@ -394,18 +419,18 @@ export default function PresupuestoProyectoPage() {
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="Ej: Ecopetrol / Consorcio Vial / Planta Bavaria"
-                  className="w-full bg-[#15181D] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="label text-xs font-semibold text-text-secondary mb-1">
                   Especialidad de Ingeniería *
                 </label>
                 <select
                   value={serviceCategory}
                   onChange={(e) => setServiceCategory(e.target.value)}
-                  className="w-full bg-[#15181D] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="select"
                 >
                   {SERVICE_CATEGORIES.map((c) => (
                     <option key={c.value} value={c.value}>
@@ -415,9 +440,9 @@ export default function PresupuestoProyectoPage() {
                 </select>
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Título del Proyecto / Alcance Presupuestado *
+              <div className="sm:col-span-2">
+                <label className="label text-xs font-semibold text-text-secondary mb-1">
+                  Título del Proyecto / Objeto Presupuestado *
                 </label>
                 <input
                   type="text"
@@ -425,21 +450,23 @@ export default function PresupuestoProyectoPage() {
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
                   placeholder="Ej: Adecuación losa industrial y nivelación de pisos nave 3"
-                  className="w-full bg-[#15181D] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  className="input"
                 />
               </div>
             </div>
           </div>
 
-          {/* Bloque 2: Desglose de Costos Directos (APU) */}
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl p-5 md:p-6 shadow-xl space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2A303C] pb-3">
-              <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
-                <Layers className="w-4 h-4" strokeWidth={1.75} />
-                2. Rubros de Costos Directos (APU)
-              </h2>
-              <span className="text-xs text-slate-400">
-                Materiales, Equipos, Mano de Obra y Logística de Planta
+          {/* Tarjeta 2: Desglose de Costos Directos (APU) */}
+          <div className="card p-5 sm:p-6 bg-white border border-border shadow-card space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">
+                  2. Rubros de Costos Directos (APU)
+                </h2>
+              </div>
+              <span className="text-xs text-text-muted">
+                Materiales, Equipos, Cuadrillas de Obra y Logística de Planta
               </span>
             </div>
 
@@ -449,38 +476,38 @@ export default function PresupuestoProyectoPage() {
               const IconComp = catGroup.icon;
 
               return (
-                <div key={catGroup.key} className="bg-[#15181D]/80 border border-[#2A303C] rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
+                <div key={catGroup.key} className="bg-surface rounded-xl p-4 border border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2">
-                      <IconComp className="w-4 h-4 text-amber-400" strokeWidth={1.75} />
-                      <h3 className="text-xs md:text-sm font-bold text-slate-200">{catGroup.label}</h3>
+                      <IconComp className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                      <h3 className="text-xs sm:text-sm font-bold text-text-primary">{catGroup.label}</h3>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-xs font-semibold text-amber-400">
+                      <span className="font-mono text-xs font-bold text-text-primary">
                         Subtotal: {formatCOP(subtotalCat)}
                       </span>
                       <button
                         type="button"
                         onClick={() => handleAddItem(catGroup.key)}
-                        className="px-2.5 py-1 text-xs rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-semibold border border-amber-500/30 flex items-center gap-1 transition-all"
+                        className="btn btn-sm btn-secondary text-xs flex items-center gap-1 border-dashed"
                       >
-                        <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                        <Plus className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
                         Agregar Ítem
                       </button>
                     </div>
                   </div>
 
                   {catItems.length === 0 ? (
-                    <p className="text-xs text-slate-500 italic py-2">
-                      No hay ítems registrados en este rubro. Presione &quot;Agregar Ítem&quot; si aplica.
+                    <p className="text-xs text-text-muted italic py-2">
+                      No hay ítems registrados en este rubro. Presiona &quot;Agregar Ítem&quot; si aplica.
                     </p>
                   ) : (
                     <div className="space-y-2">
                       {catItems.map((it) => (
                         <div
                           key={it.id}
-                          className="grid grid-cols-12 gap-2 items-center bg-[#1E2229] p-2.5 rounded-lg border border-[#2A303C]"
+                          className="grid grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-lg border border-border shadow-xs"
                         >
                           <div className="col-span-12 sm:col-span-5">
                             <input
@@ -488,7 +515,7 @@ export default function PresupuestoProyectoPage() {
                               value={it.description}
                               onChange={(e) => handleUpdateItem(it.id, 'description', e.target.value)}
                               placeholder="Descripción del material, cuadrilla o equipo..."
-                              className="w-full bg-[#15181D] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              className="input text-xs py-1.5"
                             />
                           </div>
 
@@ -498,7 +525,7 @@ export default function PresupuestoProyectoPage() {
                               value={it.unit}
                               onChange={(e) => handleUpdateItem(it.id, 'unit', e.target.value)}
                               placeholder="Und / M3 / Dia"
-                              className="w-full bg-[#15181D] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-center text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              className="input text-xs py-1.5 text-center font-mono"
                             />
                           </div>
 
@@ -510,7 +537,7 @@ export default function PresupuestoProyectoPage() {
                               value={it.quantity}
                               onChange={(e) => handleUpdateItem(it.id, 'quantity', e.target.value)}
                               placeholder="Cant"
-                              className="w-full bg-[#15181D] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-right font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              className="input text-xs py-1.5 text-right font-mono"
                             />
                           </div>
 
@@ -521,7 +548,7 @@ export default function PresupuestoProyectoPage() {
                               value={it.unit_cost}
                               onChange={(e) => handleUpdateItem(it.id, 'unit_cost', e.target.value)}
                               placeholder="Vr. Unit"
-                              className="w-full bg-[#15181D] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-right font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              className="input text-xs py-1.5 text-right font-mono"
                             />
                           </div>
 
@@ -529,7 +556,7 @@ export default function PresupuestoProyectoPage() {
                             <button
                               type="button"
                               onClick={() => handleRemoveItem(it.id)}
-                              className="text-slate-500 hover:text-red-400 p-1 transition-colors"
+                              className="text-text-muted hover:text-red-600 p-1 transition-colors"
                               title="Eliminar fila"
                             >
                               <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
@@ -544,16 +571,18 @@ export default function PresupuestoProyectoPage() {
             })}
           </div>
 
-          {/* Bloque 3: AIU, Margen Comercial y Consolidado Económico */}
-          <div className="bg-[#1E2229] border border-[#2A303C] rounded-2xl p-5 md:p-6 shadow-xl">
-            <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-              <DollarSign className="w-4 h-4" strokeWidth={1.75} />
-              3. AIU y Determinación del Precio de Venta Sugerido
-            </h2>
+          {/* Tarjeta 3: AIU y Consolidado Económico */}
+          <div className="card p-5 sm:p-6 bg-white border border-border shadow-card space-y-4">
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <DollarSign className="w-4 h-4 text-accent" strokeWidth={1.75} />
+              <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">
+                3. AIU y Determinación del Precio de Venta Sugerido
+              </h2>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="label text-xs font-semibold text-text-secondary mb-1.5">
                   Porcentaje de AIU (Administración, Imprevistos, Utilidad)
                 </label>
                 <div className="flex items-center gap-2">
@@ -564,32 +593,32 @@ export default function PresupuestoProyectoPage() {
                     step="0.5"
                     value={aiuPercentage}
                     onChange={(e) => setAiuPercentage(Number(e.target.value) || 0)}
-                    className="w-28 bg-[#15181D] border border-slate-700 rounded-xl px-3 py-2 text-sm font-mono text-right text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    className="input w-28 text-right font-mono font-bold"
                   />
-                  <span className="text-slate-400 text-sm font-semibold">%</span>
+                  <span className="text-text-muted text-sm font-semibold">%</span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Típico en ingeniería civil / contratos en planta: 20% a 30%.
+                <p className="text-[11px] text-text-muted mt-1">
+                  Estándar en ingeniería civil / contratos de planta: 20% a 30%.
                 </p>
               </div>
 
-              <div className="md:col-span-2 bg-[#15181D] border border-[#2A303C] rounded-xl p-4">
+              <div className="md:col-span-2 bg-surface border border-border rounded-xl p-4">
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
-                    <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Costo Directo (CD)</span>
-                    <span className="font-mono text-sm md:text-base font-bold text-slate-200">
+                    <span className="text-[10px] text-text-muted uppercase tracking-wider block">Costo Directo (CD)</span>
+                    <span className="font-mono text-sm md:text-base font-bold text-text-primary">
                       {formatCOP(totalDirectCost)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-amber-400 uppercase tracking-wider block">AIU ({aiuPercentage}%)</span>
-                    <span className="font-mono text-sm md:text-base font-bold text-amber-300">
+                    <span className="text-[10px] text-amber-700 uppercase tracking-wider block">AIU ({aiuPercentage}%)</span>
+                    <span className="font-mono text-sm md:text-base font-bold text-amber-700">
                       +{formatCOP(aiuAmount)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-emerald-400 uppercase tracking-wider block">Precio Venta Sugerido</span>
-                    <span className="font-mono text-base md:text-lg font-bold text-emerald-400">
+                    <span className="text-[10px] text-emerald-700 uppercase tracking-wider block">Precio Venta Sugerido</span>
+                    <span className="font-mono text-base md:text-lg font-extrabold text-emerald-700">
                       {formatCOP(suggestedSalePrice)}
                     </span>
                   </div>
@@ -597,33 +626,29 @@ export default function PresupuestoProyectoPage() {
               </div>
             </div>
 
-            <div className="mt-4">
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Observaciones, Condiciones de Planta y Restricciones Operativas
+            <div>
+              <label className="label text-xs font-semibold text-text-secondary mb-1">
+                Condiciones Operativas de Planta, Turnos y Observaciones
               </label>
               <textarea
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Permisos en caliente, certificaciones de soldadura requeridas, ingreso a refinería..."
-                className="w-full bg-[#15181D] border border-slate-700 rounded-xl px-3.5 py-2 text-xs md:text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                placeholder="Permisos de trabajo en caliente, pólizas de planta, cursos de alturas requeridos..."
+                className="input"
               />
             </div>
           </div>
 
-          {/* Botón de Envío */}
+          {/* Botones de Acción de Paso Único */}
           <div className="flex items-center justify-end gap-3 pt-2">
-            <Link
-              href="/dashboard"
-              className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-all"
-            >
+            <Link href="/dashboard" className="btn btn-ghost text-xs">
               Cancelar
             </Link>
-
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center gap-2"
+              className="btn btn-accent text-xs shadow-sm flex items-center gap-1.5"
             >
               {isSubmitting ? 'Guardando Presupuesto...' : 'Guardar Presupuesto APU'}
               <ArrowRight className="w-4 h-4" strokeWidth={2} />
