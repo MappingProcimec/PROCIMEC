@@ -385,26 +385,19 @@ export async function POST(
         created_by_name: dbUser.full_name || session.user.name || 'Comercial',
         created_by_email: dbUser.email || session.user.email,
         result: closingResult,
-        closing_type: closingResult,
-        final_contract_value: final_contract_value ? Number(final_contract_value) : null,
-        final_value: final_contract_value ? Number(final_contract_value) : null,
-        contract_number: contract_number ? String(contract_number).trim() : null,
-        loss_reason: loss_reason ? String(loss_reason).trim() : null,
-        reason: loss_reason ? String(loss_reason).trim() : null,
+        final_contract_value: closingResult === 'won' && final_contract_value ? Number(final_contract_value) : null,
+        contract_number: closingResult === 'won' && contract_number ? String(contract_number).trim() : null,
+        loss_reason: closingResult !== 'won' && loss_reason ? String(loss_reason).trim() : null,
         closing_notes: closing_notes ? String(closing_notes).trim() : null,
-        feedback_notes: closing_notes ? String(closing_notes).trim() : null,
       };
 
       let { data, error } = await supabase.from('commercial_closings').insert(closingPayload).select().single();
-      if (error && error.code === '42703') {
+      if (error && (error.code === '42703' || String(error.message || '').includes('schema cache'))) {
         delete closingPayload.consecutive_number;
         delete closingPayload.closing_code;
         delete closingPayload.budget_id;
         delete closingPayload.created_by_name;
         delete closingPayload.created_by_email;
-        delete closingPayload.final_contract_value;
-        delete closingPayload.closing_notes;
-        delete closingPayload.loss_reason;
         const retry = await supabase.from('commercial_closings').insert(closingPayload).select().single();
         data = retry.data;
         error = retry.error;
