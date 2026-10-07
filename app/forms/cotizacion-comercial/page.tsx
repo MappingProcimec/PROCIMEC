@@ -82,9 +82,20 @@ function CotizacionComercialContent() {
           setOpportunities(oList);
           setProjects(prjList);
 
-          // Generar código consecutivo sugerido
+          // Generar código consecutivo sugerido sin colisiones
+          let maxNum = 0;
+          for (const p of pList) {
+            if (p.consecutive_number && Number(p.consecutive_number) > maxNum) {
+              maxNum = Number(p.consecutive_number);
+            }
+            const match = (p.quote_code || '').match(/COT-\d{4}-(\d+)/);
+            if (match) {
+              const parsed = parseInt(match[1], 10);
+              if (parsed > maxNum) maxNum = parsed;
+            }
+          }
           const year = new Date().getFullYear();
-          const nextNum = (pList.length || 0) + 1;
+          const nextNum = maxNum + 1;
           setQuoteCode(`COT-${year}-${String(nextNum).padStart(3, '0')}`);
 
           // Si vienen parámetros en URL

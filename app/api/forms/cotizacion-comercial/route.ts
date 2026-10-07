@@ -15,18 +15,41 @@ export async function GET() {
   const supabase = createAdminClient();
 
   try {
-    const { count } = await supabase
+    // 1. Obtener todas las cotizaciones para calcular con precisión el siguiente consecutivo y servirlas al cliente
+    const { data: proposals, error: propsError } = await supabase
       .from('commercial_proposals')
-      .select('*', { count: 'exact', head: true });
+      .select('id, quote_code, consecutive_number, client_name, total_amount, subtotal, scope_description, validity_days, delivery_weeks, created_at')
+      .order('created_at', { ascending: false });
+
+    if (propsError) {
+      console.error('Error obteniendo cotizaciones en GET:', propsError);
+    }
+
+    let maxNum = 0;
+    if (proposals && proposals.length > 0) {
+      for (const p of proposals) {
+        if (p.consecutive_number && Number(p.consecutive_number) > maxNum) {
+          maxNum = Number(p.consecutive_number);
+        }
+        if (p.quote_code) {
+          const match = p.quote_code.match(/COT-\d{4}-(\d+)/);
+          if (match) {
+            const parsed = parseInt(match[1], 10);
+            if (parsed > maxNum) maxNum = parsed;
+          }
+        }
+      }
+    }
 
     const currentYear = new Date().getFullYear();
-    const nextNumber = (count || 0) + 1;
+    const nextNumber = maxNum + 1;
     const nextCode = `COT-${currentYear}-${String(nextNumber).padStart(3, '0')}`;
 
     return NextResponse.json({
       data: {
         nextCode,
         nextNumber,
+        proposals: proposals ?? [],
       },
     });
   } catch (err: unknown) {
@@ -77,12 +100,43 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  try {
-    const { count } = await supabase
-      .from('commercial_proposals')
-      .select('*', { count: 'exact', head: true });
+  const cleanQuoteCode = String(quote_code).trim().toUpperCase();
 
-    const consecutiveNum = (count || 0) + 1;
+  try {
+    // Verificar si el código ya existe para alertar de forma clara
+    const { data: existingQuote } = await supabase
+      .from('commercial_proposals')
+      .select('id, quote_code')
+      .eq('quote_code', cleanQuoteCode)
+      .maybeSingle();
+
+    if (existingQuote) {
+      return NextResponse.json(
+        {
+          error: `Ya existe una cotización emitida con el código ${cleanQuoteCode}. Por favor ingrese o acepte el siguiente número consecutivo sugerido.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Calcular consecutivo seguro
+    const { data: latestProposal } = await supabase
+      .from('commercial_proposals')
+      .select('consecutive_number, quote_code')
+      .order('consecutive_number', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+
+    let maxNum = 0;
+    if (latestProposal?.consecutive_number && Number(latestProposal.consecutive_number) > 0) {
+      maxNum = Math.max(maxNum, Number(latestProposal.consecutive_number));
+    }
+    if (latestProposal?.quote_code) {
+      const match = latestProposal.quote_code.match(/COT-\d{4}-(\d+)/);
+      if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10));
+    }
+
+    const consecutiveNum = maxNum + 1;
 
     const proposalPayload: Record<string, unknown> = {
       user_id: dbUser.id,
@@ -92,7 +146,7 @@ export async function POST(request: NextRequest) {
       project_id: project_id || null,
       created_by_name: dbUser.full_name || session.user.name || 'Comercial',
       created_by_email: dbUser.email || session.user.email,
-      quote_code: String(quote_code).trim().toUpperCase(),
+      quote_code: cleanQuoteCode,
       client_name: String(client_name).trim(),
       scope_description: String(scope_description || '').trim(),
       subtotal: Number(subtotal) || 0,

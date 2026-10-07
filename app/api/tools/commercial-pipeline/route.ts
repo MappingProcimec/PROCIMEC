@@ -138,7 +138,7 @@ export async function GET() {
           users(id, full_name, email),
           commercial_opportunities(opportunity_code, opportunity_title, service_type),
           commercial_budgets(budget_code, total_direct_cost, suggested_sale_price),
-          projects(id, code, cost_center, name)
+          projects:project_id(id, cost_center, name)
         `)
         .order('created_at', { ascending: false }),
 
@@ -155,16 +155,11 @@ export async function GET() {
           user_id,
           created_by_name,
           created_by_email,
-          closing_type,
           result,
-          final_value,
           final_contract_value,
           contract_number,
-          reason,
           loss_reason,
-          feedback_notes,
           closing_notes,
-          project_code,
           created_at,
           users(id, full_name, email),
           commercial_proposals(quote_code, client_name, total_amount)
@@ -176,7 +171,6 @@ export async function GET() {
         .from('projects')
         .select(`
           id,
-          code,
           cost_center,
           name,
           client,
@@ -187,8 +181,6 @@ export async function GET() {
           deductions_percentage,
           deductions_amount,
           commercial_proposal_id,
-          commercial_closing_id,
-          commercial_budget_id,
           is_active,
           created_at,
           commercial_proposal:commercial_proposal_id(quote_code, client_name)
@@ -196,6 +188,16 @@ export async function GET() {
         .order('created_at', { ascending: false })
         .limit(100),
     ]);
+
+    if (proposalsRes.error) {
+      console.error('Error al consultar commercial_proposals:', proposalsRes.error);
+    }
+    if (closingsRes.error) {
+      console.error('Error al consultar commercial_closings:', closingsRes.error);
+    }
+    if (projectsRes.error) {
+      console.error('Error al consultar projects:', projectsRes.error);
+    }
 
     const opportunities = (oppsRes.data ?? []).map((o) => ({
       ...o,
@@ -212,15 +214,18 @@ export async function GET() {
     const closings = (closingsRes.data ?? []).map((c) => ({
       ...c,
       closing_code: c.closing_code || `CIE-${c.consecutive_number || '001'}`,
-      result: c.result || c.closing_type || 'won',
-      final_contract_value: c.final_contract_value || c.final_value || 0,
+      result: c.result || 'won',
+      final_contract_value: c.final_contract_value || 0,
     }));
 
-    const projects = projectsRes.data ?? [];
+    const projects = (projectsRes.data ?? []).map((p) => ({
+      ...p,
+      code: p.cost_center || p.id.substring(0, 8),
+    }));
 
     const activePipeline = opportunities.filter((o) => ['open', 'quoted', 'in_negotiation'].includes(o.status));
     const totalPipelineCOP = activePipeline.reduce((acc, curr) => acc + (Number(curr.estimated_value) || 0), 0);
-    const wonClosings = closings.filter((c) => c.result === 'won' || c.closing_type === 'won' || c.closing_type === 'adjudicada');
+    const wonClosings = closings.filter((c) => c.result === 'won');
     const totalWonCOP = wonClosings.reduce((acc, curr) => acc + (Number(curr.final_contract_value) || 0), 0);
     const totalEvaluatedClosings = closings.length;
     const winRate = totalEvaluatedClosings > 0 ? Math.round((wonClosings.length / totalEvaluatedClosings) * 100) : 0;

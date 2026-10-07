@@ -62,11 +62,23 @@ function CierreComercialContent() {
     async function loadProposals() {
       try {
         setLoadingProposals(true);
+        let pList: CommercialProposal[] = [];
         const res = await fetch('/api/tools/commercial-pipeline');
         if (res.ok) {
           const json = await res.json();
-          const { proposals: pList = [] } = json.data || {};
-          setProposals(pList);
+          pList = json.data?.proposals || [];
+        }
+
+        // Respaldo resiliente directo al endpoint de cotizaciones
+        if (pList.length === 0) {
+          const resProps = await fetch('/api/forms/cotizacion-comercial');
+          if (resProps.ok) {
+            const jsonProps = await resProps.json();
+            pList = (jsonProps.data?.proposals || []) as CommercialProposal[];
+          }
+        }
+
+        setProposals(pList);
 
           // Si vienen parámetros en URL
           const qQuoteCode = searchParams.get('quote_code');
@@ -87,7 +99,6 @@ function CierreComercialContent() {
               setFinalContractValue(match.total_amount);
             }
           }
-        }
       } catch (err) {
         console.error('Error cargando cotizaciones para cierre:', err);
       } finally {
