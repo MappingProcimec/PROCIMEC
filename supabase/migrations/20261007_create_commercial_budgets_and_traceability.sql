@@ -136,7 +136,7 @@ DECLARE
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'document_format_versions') THEN
         INSERT INTO public.document_format_versions (
-            code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description, editable_type
+            code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description
         ) VALUES (
             'FOR-CMR-004',
             'Presupuesto Operativo y APU de Ingeniería',
@@ -148,8 +148,7 @@ BEGIN
             '2026-10-07',
             'active',
             'commercial',
-            'Estructura técnica de costos directos APU para proyectos de geofísica, topografía y obras civiles de planta.',
-            'xlsx'
+            'Estructura técnica de costos directos APU para proyectos de geofísica, topografía y obras civiles de planta.'
         )
         ON CONFLICT (code) DO UPDATE SET
             name = EXCLUDED.name,
