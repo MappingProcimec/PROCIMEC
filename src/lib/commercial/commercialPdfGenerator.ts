@@ -36,6 +36,34 @@ function formatDateFull(dateStr?: string | null): string {
   }
 }
 
+// ─── Diccionarios de Traducción Canónica Institucional ─────────────────────────
+const SERVICE_LABELS: Record<string, string> = {
+  gpr_localizacion: 'Georradar GPR y Localización Subterránea',
+  civil_planta: 'Obras Civiles y Adecuaciones en Planta In-House',
+  montaje_mecanico: 'Montajes Mecánicos, Piping y Estructuras',
+  topografia_cad: 'Topografía Industrial y Modelado CAD/BIM',
+  topografia_industrial: 'Topografía Industrial y Escaneo Láser',
+  inspeccion_dron: 'Inspección Aérea y Fotogrametría con Dron',
+  geofisica_integral: 'Geofísica Aplicada Integral (MASW, SEV)',
+  interventoria_obra: 'Interventoría Técnica y Supervisión de Obra',
+  consultoria: 'Consultoría Especializada y Memorias de Cálculo',
+  mapping_geofisica: 'Geofísica de Exploración y Mapping Subterráneo',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  open: 'ABIERTA / EN ESTUDIO',
+  budgeted: 'PRESUPUESTADA',
+  quoted: 'COTIZADA',
+  in_negotiation: 'EN NEGOCIACIÓN',
+  won: 'ADJUDICADA / GANADA',
+  lost: 'NO ADJUDICADA / PERDIDA',
+  abandoned: 'DESIERTA / CANCELADA',
+  submitted: 'RADICADO',
+  draft: 'BORRADOR TÉCNICO',
+  approved: 'APROBADO',
+  archived: 'ARCHIVADO',
+};
+
 // ─── Colores Oficiales PROCIMEC ──────────────────────────────────────────────
 const COLOR_CHARCOAL = [30, 34, 41] as const; // #1E2229
 const COLOR_AMBER = [234, 160, 35] as const; // #EAA023
@@ -44,45 +72,38 @@ const COLOR_MUTED = [100, 116, 139] as const; // #64748B
 const COLOR_BG_LIGHT = [248, 250, 252] as const; // #F8FAFC
 const COLOR_BORDER = [203, 213, 225] as const; // #CBD5E1
 
+/**
+ * Renderiza el membrete institucional oficial de PROCIMEC (Ley 5 & Ley 8):
+ * - Logotipo institucional a la izquierda.
+ * - Razón social y proceso institucional sin desbordamiento.
+ * - Badge de Control de Versiones a la derecha con CÓDIGO, VERSIÓN y FECHA DE VIGENCIA DEL FORMATO.
+ */
 function renderHeader(
   doc: jsPDF,
   code: string,
   version: string,
+  versionDate: string,
   title: string,
-  formLabel: string,
-  consecutiveCode: string
+  formLabel: string
 ): number {
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 12;
   const curY = 12;
 
+  // 1. Logotipo PROCIMEC a la izquierda
   try {
-    doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', marginX, curY - 2, 40, 14);
+    doc.addImage(PROCIMEC_LOGO_BASE64, 'JPEG', marginX, curY - 2, 38, 14);
   } catch {
     doc.setFillColor(...COLOR_CHARCOAL);
-    doc.roundedRect(marginX, curY - 2, 40, 14, 2, 2, 'F');
+    doc.roundedRect(marginX, curY - 2, 38, 14, 2, 2, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.text('PROCIMEC', marginX + 5, curY + 7);
   }
 
-  doc.setTextColor(...COLOR_CHARCOAL);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text('PROCIMEC INGENIERÍA S.A.S.', marginX + 44, curY + 2.5);
-
-  doc.setTextColor(...COLOR_AMBER);
-  doc.setFontSize(8.5);
-  doc.text('PCM CLOUD — GESTIÓN COMERCIAL & PROYECTOS DE INGENIERÍA', marginX + 44, curY + 7);
-
-  doc.setTextColor(...COLOR_MUTED);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.text(formLabel, marginX + 44, curY + 11);
-
-  // Badge derecho
-  const badgeWidth = 48;
+  // 2. Badge HSEQ de Calidad a la derecha (Código, Versión, Fecha de Vigencia del Formato)
+  const badgeWidth = 52;
   const badgeHeight = 16;
   const badgeX = pageWidth - marginX - badgeWidth;
   const badgeY = curY - 2;
@@ -96,26 +117,56 @@ function renderHeader(
   doc.setTextColor(...COLOR_AMBER);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
-  doc.text(`CÓDIGO: ${code}`, badgeX + badgeWidth / 2, badgeY + 4, { align: 'center' });
+  doc.text(`CÓDIGO: ${code}`, badgeX + badgeWidth / 2, badgeY + 4.2, { align: 'center' });
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text(`VERSIÓN: ${version}`, badgeX + badgeWidth / 2, badgeY + 9.5, { align: 'center' });
+  doc.setFontSize(8.5);
+  doc.text(`VERSIÓN: ${version}`, badgeX + badgeWidth / 2, badgeY + 9.2, { align: 'center' });
 
-  doc.setFont('courier', 'bold');
-  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
   doc.setTextColor(...COLOR_AMBER);
-  doc.text(consecutiveCode, badgeX + badgeWidth / 2, badgeY + 14, { align: 'center' });
+  doc.text(`FECHA VIGENCIA: ${versionDate}`, badgeX + badgeWidth / 2, badgeY + 13.8, { align: 'center' });
 
-  // Línea divisoria
+  // 3. Títulos Centrales con ancho protegido para evitar cualquier recorte o solapamiento
+  const textX = marginX + 41;
+  const maxTextWidth = badgeX - textX - 4; // Ancho máximo disponible entre logo y badge
+
+  doc.setTextColor(...COLOR_CHARCOAL);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.text('PROCIMEC INGENIERÍA S.A.S.', textX, curY + 2.5);
+
+  doc.setTextColor(...COLOR_AMBER);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  const titleLines = doc.splitTextToSize(title, maxTextWidth);
+  doc.text(titleLines, textX, curY + 7);
+
+  const titleExtraY = (titleLines.length - 1) * 3.5;
+
+  doc.setTextColor(...COLOR_MUTED);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  const labelLines = doc.splitTextToSize(formLabel, maxTextWidth);
+  doc.text(labelLines, textX, curY + 11.5 + titleExtraY);
+
+  const labelExtraY = (labelLines.length - 1) * 3;
+  const totalHeaderHeight = Math.max(16, 14 + titleExtraY + labelExtraY);
+
+  // Línea divisoria inferior
+  const lineY = curY + totalHeaderHeight + 2;
   doc.setDrawColor(...COLOR_BORDER);
   doc.setLineWidth(0.4);
-  doc.line(marginX, curY + 18, pageWidth - marginX, curY + 18);
+  doc.line(marginX, lineY, pageWidth - marginX, lineY);
 
-  return curY + 24;
+  return lineY + 5;
 }
 
+/**
+ * Renderiza caja de auditoría y trazabilidad oficial (Ley 3 & Ley 7)
+ */
 function renderAuditBox(
   doc: jsPDF,
   startY: number,
@@ -143,12 +194,14 @@ function renderAuditBox(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(...COLOR_MUTED);
-  doc.text(`Elaborado por: ${authorName || 'No registrado'} (${authorEmail || 'N/A'})`, marginX + 4, startY + 10);
-  doc.text(`Fecha y hora de registro: ${formatDateFull(createdAt)}`, marginX + 4, startY + 14);
+  doc.text(`Elaborado por: ${authorName || 'No registrado'} (${authorEmail || 'N/A'})`, marginX + 4, startY + 9.5);
+  doc.text(`Fecha y hora de registro: ${formatDateFull(createdAt)}`, marginX + 4, startY + 13.5);
 
+  const displayStatus = STATUS_LABELS[status.toLowerCase()] || status.toUpperCase();
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
   doc.setTextColor(...COLOR_AMBER);
-  doc.text(`Estado: ${status.toUpperCase()}`, marginX + width - 36, startY + 9);
+  doc.text(`Estado: ${displayStatus}`, marginX + width - 4, startY + 9.5, { align: 'right' });
 
   return startY + height + 6;
 }
@@ -159,13 +212,14 @@ function renderAuditBox(
 export function generateOpportunityPdf(opp: CommercialOpportunity): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const code = opp.opportunity_code || `OPP-${opp.consecutive_number || '001'}`;
+
   let curY = renderHeader(
     doc,
     'FOR-CMR-001',
-    '1',
-    'Ficha de Oportunidad Comercial y Licitación',
-    'REGISTRO OFICIAL DE OPORTUNIDAD / LICITACIÓN',
-    code
+    '01',
+    '24/09/2026',
+    'PCM CLOUD — GESTIÓN COMERCIAL & PROYECTOS DE INGENIERÍA',
+    'REGISTRO OFICIAL DE OPORTUNIDAD / LICITACIÓN'
   );
 
   curY = renderAuditBox(
@@ -185,11 +239,12 @@ export function generateOpportunityPdf(opp: CommercialOpportunity): void {
     margin: { left: marginX, right: marginX },
     head: [['CAMPO DE REGISTRO', 'DETALLE TÉCNICO & COMERCIAL']],
     body: [
+      ['Código Consecutivo Oficial', code],
       ['Título de la Oportunidad', opp.opportunity_title || 'N/A'],
       ['Cliente / Razón Social', opp.client_name || 'N/A'],
       ['Contacto Principal', `${opp.client_contact || 'N/A'} | ${opp.client_phone || 'N/A'}`],
       ['Correo de Contacto', opp.client_email || 'N/A'],
-      ['Línea de Servicio / Proceso', opp.service_type || 'N/A'],
+      ['Línea de Servicio / Proceso', SERVICE_LABELS[opp.service_type] || opp.service_type || 'N/A'],
       ['Presupuesto Estimado Cliente', opp.estimated_value ? formatCOP(opp.estimated_value) : 'Por definir'],
       ['Fecha Límite de Propuesta', opp.deadline_date || 'N/A'],
       ['Ubicación del Proyecto', opp.location || 'N/A'],
@@ -220,13 +275,14 @@ export function generateOpportunityPdf(opp: CommercialOpportunity): void {
 export function generateBudgetPdf(budget: CommercialBudget): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const code = budget.budget_code || `PRE-${budget.consecutive_number || '001'}`;
+
   let curY = renderHeader(
     doc,
     'FOR-CMR-004',
-    '1',
-    'Presupuesto Operativo y APU de Ingeniería',
-    'FORMATO OFICIAL: ESTRUCTURA DE COSTOS APU',
-    code
+    '01',
+    '07/10/2026',
+    'PCM CLOUD — GESTIÓN COMERCIAL & PROYECTOS DE INGENIERÍA',
+    'FORMATO OFICIAL: ESTRUCTURA DE COSTOS APU'
   );
 
   curY = renderAuditBox(
@@ -247,9 +303,10 @@ export function generateBudgetPdf(budget: CommercialBudget): void {
     margin: { left: marginX, right: marginX },
     head: [['INFORMACIÓN GENERAL DEL PRESUPUESTO', 'VALOR']],
     body: [
+      ['Código Consecutivo APU', code],
       ['Título del Proyecto / Alcance', budget.project_title || 'N/A'],
       ['Cliente / Destinatario', budget.client_name || 'N/A'],
-      ['Especialidad de Ingeniería', budget.service_category || 'N/A'],
+      ['Especialidad de Ingeniería', SERVICE_LABELS[budget.service_category] || budget.service_category || 'N/A'],
       ['Oportunidad Vinculada', budget.commercial_opportunities?.opportunity_code || 'Independiente (Sin Oportunidad)'],
     ],
     theme: 'grid',
@@ -356,13 +413,14 @@ export function generateBudgetPdf(budget: CommercialBudget): void {
 export function generateProposalPdf(proposal: CommercialProposal): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const code = proposal.quote_code;
+
   let curY = renderHeader(
     doc,
     'FOR-CMR-002',
-    '1',
-    'Propuesta Técnico-Económica Oficial',
-    'FORMATO OFICIAL: COTIZACIÓN COMERCIAL EMITIDA',
-    code
+    '01',
+    '24/09/2026',
+    'PCM CLOUD — GESTIÓN COMERCIAL & PROYECTOS DE INGENIERÍA',
+    'FORMATO OFICIAL: COTIZACIÓN COMERCIAL EMITIDA'
   );
 
   curY = renderAuditBox(
@@ -380,10 +438,10 @@ export function generateProposalPdf(proposal: CommercialProposal): void {
   autoTable(doc, {
     startY: curY,
     margin: { left: marginX, right: marginX },
-    head: [['DATOS DE LA OFERTA', 'DETALLE']],
+    head: [['DATOS DE LA OFERTA COMERCIAL', 'DETALLE']],
     body: [
+      ['Código Consecutivo de Cotización', code],
       ['Cliente / Razón Social', proposal.client_name || 'N/A'],
-      ['Código de Oferta Comercial', proposal.quote_code],
       ['Presupuesto APU de Referencia', proposal.commercial_budgets?.budget_code || 'Directo (Sin APU Previo)'],
       ['Proyecto Oficial Vinculado', proposal.projects?.code || proposal.projects?.name || 'Por aperturar tras adjudicación'],
       ['Alcance Técnico Ofertado', proposal.scope_description || 'N/A'],
@@ -450,13 +508,14 @@ export function generateProposalPdf(proposal: CommercialProposal): void {
 export function generateClosingPdf(closing: CommercialClosing): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const code = closing.closing_code || `CIE-${closing.consecutive_number || '001'}`;
+
   let curY = renderHeader(
     doc,
     'FOR-CMR-003',
-    '1',
-    'Acta de Cierre de Negociación y Adjudicación',
-    'FORMATO OFICIAL: DESENLACE CONTRACTUAL',
-    code
+    '01',
+    '24/09/2026',
+    'PCM CLOUD — GESTIÓN COMERCIAL & PROYECTOS DE INGENIERÍA',
+    'FORMATO OFICIAL: ACTA DE CIERRE DE NEGOCIACIÓN'
   );
 
   const res = closing.result || closing.closing_type || 'won';
@@ -477,9 +536,10 @@ export function generateClosingPdf(closing: CommercialClosing): void {
     margin: { left: marginX, right: marginX },
     head: [['PARÁMETRO DE CIERRE CONTRACTUAL', 'DETALLE']],
     body: [
+      ['Código Consecutivo de Cierre', code],
       ['Resultado Final', res === 'won' ? 'ADJUDICADA / GANADA' : res === 'lost' ? 'NO ADJUDICADA / PERDIDA' : 'CANCELADA / DESIERTA'],
-      ['Cotización de Referencia', closing.commercial_proposals?.quote_code || 'Directa'],
-      ['Cliente', closing.commercial_proposals?.client_name || 'N/A'],
+      ['Cotización Negociada', closing.commercial_proposals?.quote_code || 'Directa'],
+      ['Cliente / Destinatario', closing.commercial_proposals?.client_name || 'N/A'],
       ['Número de Contrato / Orden de Servicio (OS)', closing.contract_number || 'Pendiente de radicación'],
       ['Valor Final de Adjudicación (COP)', closing.final_contract_value || closing.final_value ? formatCOP(Number(closing.final_contract_value || closing.final_value)) : 'N/A'],
       ['Motivo de Pérdida / Deserción', closing.loss_reason || closing.reason || 'N/A (Oferta Ganada)'],
@@ -510,13 +570,14 @@ export function generateClosingPdf(closing: CommercialClosing): void {
 export function generateProjectFinancialPdf(project: Project): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const code = project.code || project.cost_center || 'PRJ-001';
+
   let curY = renderHeader(
     doc,
     'FOR-GPR-001',
-    '2',
-    'Ficha Técnica y Gobernanza Financiera de Proyecto',
-    'FICHA TÉCNICA Y PRESUPUESTO DE EJECUCIÓN',
-    code
+    '02',
+    '24/09/2026',
+    'PCM CLOUD — GESTIÓN COMERCIAL & PROYECTOS DE INGENIERÍA',
+    'FICHA TÉCNICA Y PRESUPUESTO DE EJECUCIÓN'
   );
 
   curY = renderAuditBox(
@@ -536,10 +597,11 @@ export function generateProjectFinancialPdf(project: Project): void {
     margin: { left: marginX, right: marginX },
     head: [['INFORMACIÓN DEL PROYECTO', 'DETALLE']],
     body: [
+      ['Código Consecutivo de Proyecto', code],
       ['Nombre del Proyecto', project.name],
       ['Centro de Costos / Código', `${project.cost_center} (${project.code || ''})`],
       ['Cliente / Razón Social', project.client],
-      ['Ubicación', project.location],
+      ['Ubicación Geográfica', project.location],
       ['Número de Contrato', project.contract_number || 'N/A'],
       ['Cotización Comercial Asociada', project.commercial_proposal?.quote_code || 'Sin cotización vinculada'],
       ['Metas Operativas', `Meta ML: ${project.target_ml || 0} ml | Meta M²: ${project.target_m2 || 0} m²`],
