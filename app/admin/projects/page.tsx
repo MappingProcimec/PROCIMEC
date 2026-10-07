@@ -602,7 +602,7 @@ export default function AdminProjectsPage() {
                   <ArrowLeftRight className="w-3.5 h-3.5" strokeWidth={1.75} /> Desliza horizontalmente para ver todas las columnas
                 </span>
               </div>
-              <table className="table-base w-full min-w-[1020px]">
+              <table className="table-base w-full min-w-[760px]">
                 <thead>
                   {/* Fila de Títulos con Ordenamiento */}
                   <tr className="bg-gray-50 border-b border-border text-xs text-text-secondary select-none">
@@ -658,24 +658,6 @@ export default function AdminProjectsPage() {
                     </th>
 
                     <th
-                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-center transition-colors"
-                      onClick={() => handleSort('records')}
-                    >
-                      <div className="flex items-center justify-center gap-1">
-                        <span>Registros</span>
-                        {getSortIcon('records')}
-                      </div>
-                    </th>
-                    <th
-                      className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-right transition-colors"
-                      onClick={() => handleSort('metrics')}
-                    >
-                      <div className="flex items-center justify-end gap-1">
-                        <span>Métricas</span>
-                        {getSortIcon('metrics')}
-                      </div>
-                    </th>
-                    <th
                       className="cursor-pointer hover:bg-gray-100 py-3 px-4 text-left transition-colors"
                       onClick={() => handleSort('status')}
                     >
@@ -684,7 +666,9 @@ export default function AdminProjectsPage() {
                         {getSortIcon('status')}
                       </div>
                     </th>
-                    <th className="py-3 px-4 text-right">Acciones</th>
+                    <th className="py-3 px-4 text-right sticky right-0 bg-gray-50 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.04)]">
+                      Acciones
+                    </th>
                   </tr>
 
                   {/* Fila de Filtros en Encabezado */}
@@ -719,8 +703,6 @@ export default function AdminProjectsPage() {
                     <td className="hidden lg:table-cell p-2"></td>
                     <td className="p-2"></td>
                     <td className="p-2"></td>
-                    <td className="p-2"></td>
-                    <td className="p-2"></td>
                     <td className="p-2">
                       <select
                         value={filterStatus}
@@ -732,7 +714,7 @@ export default function AdminProjectsPage() {
                         <option value="inactive">Inactivos</option>
                       </select>
                     </td>
-                    <td className="p-2 text-right">
+                    <td className="p-2 text-right sticky right-0 bg-gray-50/70 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.04)]">
                       {hasActiveFilters && (
                         <button
                           onClick={clearFilters}
@@ -748,17 +730,12 @@ export default function AdminProjectsPage() {
                 <tbody>
                   {filteredAndSortedProjects.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-8 text-center text-text-muted text-sm">
+                      <td colSpan={8} className="py-8 text-center text-text-muted text-sm">
                         No se encontraron proyectos con los filtros aplicados.
                       </td>
                     </tr>
                   ) : (
                     filteredAndSortedProjects.map((p) => {
-                      const totalRecords = p.report_count ?? 0;
-                      const fieldCount = p.field_reports_count ?? 0;
-                      const drawingCount = p.drawing_count ?? 0;
-                      const ml = p.total_ml ?? 0;
-                      const drawingHours = p.total_drawing_hours ?? 0;
                       const ccDisplay = p.cost_center || p.code || '—';
 
                       const effectiveMetric = (p.target_metric_type === 'm2' || (!p.target_ml && (p.target_m2 ?? 0) > 0)) ? 'm2' : 'ml';
@@ -768,7 +745,7 @@ export default function AdminProjectsPage() {
                       return (
                         <tr
                           key={p.id}
-                          className="hover:bg-gray-50/80 cursor-pointer transition-colors"
+                          className="hover:bg-gray-50/80 cursor-pointer transition-colors group"
                           onClick={() => {
                             setSelectedProject(p);
                             setDetailFilter('all');
@@ -876,38 +853,12 @@ export default function AdminProjectsPage() {
                             </div>
                           </td>
 
-                          <td className="text-center whitespace-nowrap">
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="font-bold text-sm text-text-primary">{totalRecords}</span>
-                              <div className="flex items-center gap-1 font-mono">
-                                {fieldCount > 0 && (
-                                  <span className="badge bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5">
-                                    Campo {fieldCount}
-                                  </span>
-                                )}
-                                {drawingCount > 0 && (
-                                  <span className="badge bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5">
-                                    CAD {drawingCount}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="text-right text-xs whitespace-nowrap">
-                            {ml > 0 && (
-                              <div className="font-semibold text-primary">{ml.toFixed(1)} ml</div>
-                            )}
-                            {drawingHours > 0 && (
-                              <div className="font-semibold text-amber-700">{drawingHours.toFixed(1)} h</div>
-                            )}
-                            {ml === 0 && drawingHours === 0 && <span className="text-text-muted">—</span>}
-                          </td>
                           <td className="whitespace-nowrap">
                             <span className={`badge text-xs ${p.is_active ? 'badge-success' : 'badge-gray'}`}>
                               {p.is_active ? 'Activo' : 'Inactivo'}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="whitespace-nowrap text-right sticky right-0 bg-white group-hover:bg-gray-50/80 z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.04)]" onClick={(e) => e.stopPropagation()}>
                             <div className="relative inline-block text-left">
                               <button
                                 onClick={() => setOpenMenuId(openMenuId === p.id ? null : p.id)}
