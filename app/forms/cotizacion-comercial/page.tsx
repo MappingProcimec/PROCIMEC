@@ -35,6 +35,15 @@ function formatCOP(amount: number): string {
   }).format(amount);
 }
 
+function cleanProjectDescription(desc?: string | null): string {
+  if (!desc) return '';
+  return desc
+    .replace(/\n?<!--PROJECT_TARGETS:[\s\S]*?-->/gi, '')
+    .replace(/\n?<!--PROJECT_FINANCIALS:[\s\S]*?-->/gi, '')
+    .replace(/<!--[\s\S]*?-->/gi, '')
+    .trim();
+}
+
 function CotizacionComercialContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -133,11 +142,11 @@ function CotizacionComercialContent() {
             const matchingP = prjList.find((p: Project) => p.id === qPrjId);
             if (matchingP && !qBudgetId && !qOppId) {
               if (matchingP.client) setClientName(matchingP.client);
-              const desc = matchingP.description || matchingP.name || '';
+              const rawDesc = cleanProjectDescription(matchingP.description);
               const cCenter = matchingP.cost_center || matchingP.code || '';
               setScopeDescription(
-                desc
-                  ? `${desc} (Proyecto ${cCenter ? `${cCenter} - ` : ''}${matchingP.name})`
+                rawDesc
+                  ? `${rawDesc} (Proyecto ${cCenter ? `${cCenter} - ` : ''}${matchingP.name})`
                   : `Servicios de ingeniería y soporte para proyecto ${matchingP.name}`
               );
               if (matchingP.contract_value && Number(matchingP.contract_value) > 0) {
@@ -201,11 +210,11 @@ function CotizacionComercialContent() {
       if (prj.client) {
         setClientName(prj.client);
       }
-      const desc = prj.description || prj.name || '';
+      const rawDesc = cleanProjectDescription(prj.description);
       const cCenter = prj.cost_center || prj.code || '';
       setScopeDescription(
-        desc
-          ? `${desc} (Proyecto ${cCenter ? `${cCenter} - ` : ''}${prj.name})`
+        rawDesc
+          ? `${rawDesc} (Proyecto ${cCenter ? `${cCenter} - ` : ''}${prj.name})`
           : `Servicios de ingeniería y soporte para proyecto ${prj.name}`
       );
 

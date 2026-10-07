@@ -6,6 +6,15 @@ import { createAdminClient } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+function cleanProjectDescription(desc?: string | null): string {
+  if (!desc) return '';
+  return desc
+    .replace(/\n?<!--PROJECT_TARGETS:[\s\S]*?-->/g, '')
+    .replace(/\n?<!--PROJECT_FINANCIALS:[\s\S]*?-->/g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .trim();
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -222,6 +231,7 @@ export async function GET() {
     const projects = (projectsRes.data ?? []).map((p) => ({
       ...p,
       code: p.cost_center || p.id.substring(0, 8),
+      description: cleanProjectDescription(p.description),
     }));
 
     const activePipeline = opportunities.filter((o) => ['open', 'quoted', 'in_negotiation'].includes(o.status));
