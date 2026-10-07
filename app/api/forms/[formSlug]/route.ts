@@ -3,6 +3,20 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+function parseDateToIso(dateStr?: string | null): string | null {
+  if (!dateStr || !dateStr.trim()) return null;
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const parts = trimmed.split('/');
+  if (parts.length === 3 && parts[2].length === 4) {
+    return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  }
+  return trimmed;
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { formSlug: string } }
@@ -206,7 +220,7 @@ export async function POST(
         client_phone: client_phone ? String(client_phone).trim() : null,
         service_type: service_type || 'gpr_localizacion',
         estimated_value: estimated_value ? Number(estimated_value) : null,
-        deadline_date: deadline_date || null,
+        deadline_date: parseDateToIso(deadline_date),
         location: location ? String(location).trim() : null,
         notes: notes ? String(notes).trim() : null,
         status: 'open',
@@ -221,6 +235,15 @@ export async function POST(
         const retry = await supabase.from('commercial_opportunities').insert(oppPayload).select().single();
         data = retry.data;
         error = retry.error;
+      }
+
+      if (error && (error.code === '23514' || String(error.message || '').includes('check constraint'))) {
+        const originalService = String(oppPayload.service_type);
+        oppPayload.service_type = 'consultoria';
+        oppPayload.notes = `[Línea Solicitada: ${originalService}] ${oppPayload.notes || ''}`.trim();
+        const retryCheck = await supabase.from('commercial_opportunities').insert(oppPayload).select().single();
+        data = retryCheck.data;
+        error = retryCheck.error;
       }
 
       if (error) throw error;
@@ -554,7 +577,13 @@ export async function POST(
     });
   } catch (err: unknown) {
     console.error(`Error en POST /api/forms/${formSlug}:`, err);
-    const message = err instanceof Error ? err.message : 'Error interno al procesar el formulario';
+    let message = 'Error interno al procesar el formulario';
+    if (err instanceof Error) {
+      message = err.message;
+    } else if (typeof err === 'object' && err !== null) {
+      const pg = err as { message?: string; details?: string };
+      if (pg.message) message = `${pg.message}${pg.details ? ` (${pg.details})` : ''}`;
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
