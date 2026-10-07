@@ -266,7 +266,7 @@ export async function GET() {
   }
 }
 
-// PATCH /api/tools/commercial-pipeline - Vinculación bidireccional retroactiva
+// PATCH /api/tools/commercial-pipeline - Actualización y vinculación bidireccional
 export async function PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -274,34 +274,62 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { action, proposal_id, project_id } = body;
-
-  if (action !== 'link_proposal_project') {
-    return NextResponse.json({ error: 'Acción no soportada' }, { status: 400 });
-  }
-
-  if (!proposal_id || !project_id) {
-    return NextResponse.json({ error: 'Se requiere proposal_id y project_id' }, { status: 400 });
-  }
+  const { action, proposal_id, project_id, subtotal, tax_amount, total_amount, scope_description, notes } = body;
 
   const supabase = createAdminClient();
 
   try {
-    // 1. Vincular propuesta al proyecto
-    await supabase
-      .from('commercial_proposals')
-      .update({ project_id })
-      .eq('id', proposal_id);
+    // 1. Actualización de datos económicos y alcance de Cotización
+    if (action === 'update_proposal' || (!action && proposal_id && (total_amount !== undefined || subtotal !== undefined))) {
+      if (!proposal_id) {
+        return NextResponse.json({ error: 'Se requiere proposal_id' }, { status: 400 });
+      }
 
-    // 2. Vincular proyecto a la propuesta
-    await supabase
-      .from('projects')
-      .update({ commercial_proposal_id: proposal_id })
-      .eq('id', project_id);
+      const updateData: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (subtotal !== undefined) updateData.subtotal = Number(subtotal);
+      if (tax_amount !== undefined) updateData.tax_amount = Number(tax_amount);
+      if (total_amount !== undefined) updateData.total_amount = Number(total_amount);
+      if (scope_description !== undefined) updateData.scope_description = String(scope_description).trim();
+      if (notes !== undefined) updateData.notes = notes ? String(notes).trim() : null;
 
-    return NextResponse.json({ success: true, message: 'Vinculación bidireccional exitosa' });
+      const { data, error } = await supabase
+        .from('commercial_proposals')
+        .update(updateData)
+        .eq('id', proposal_id)
+        .select()
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: `Error al actualizar cotización: ${error.message}` }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Cotización actualizada correctamente', data });
+    }
+
+    // 2. Vinculación bidireccional retroactiva Cotización <-> Proyecto
+    if (action === 'link_proposal_project' || (!action && proposal_id && project_id)) {
+      if (!proposal_id || !project_id) {
+        return NextResponse.json({ error: 'Se requiere proposal_id y project_id' }, { status: 400 });
+      }
+
+      await supabase
+        .from('commercial_proposals')
+        .update({ project_id })
+        .eq('id', proposal_id);
+
+      await supabase
+        .from('projects')
+        .update({ commercial_proposal_id: proposal_id })
+        .eq('id', project_id);
+
+      return NextResponse.json({ success: true, message: 'Vinculación bidireccional exitosa' });
+    }
+
+    return NextResponse.json({ error: 'Acción no soportada' }, { status: 400 });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error al vincular';
+    const message = err instanceof Error ? err.message : 'Error al procesar solicitud';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

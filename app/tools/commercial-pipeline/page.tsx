@@ -28,6 +28,8 @@ import {
   Plus,
   ShieldCheck,
   Lock,
+  PenTool,
+  RotateCw,
 } from 'lucide-react';
 import {
   CommercialOpportunity,
@@ -107,10 +109,18 @@ export default function CommercialPipelinePage() {
   const [linkProposalModal, setLinkProposalModal] = useState<CommercialProposal | null>(null);
   const [targetProjectIdForLink, setTargetProjectIdForLink] = useState('');
 
-  // Consulta React Query con staleTime de 60s
+  // Modal para edición directa de cotización
+  const [editProposalModal, setEditProposalModal] = useState<CommercialProposal | null>(null);
+  const [editSubtotal, setEditSubtotal] = useState<number>(0);
+  const [editApplyTax, setEditApplyTax] = useState<boolean>(true);
+  const [editScope, setEditScope] = useState<string>('');
+
+  // Consulta React Query con staleTime de 60s y refetch manual
   const {
     data: dashboard,
     isLoading,
+    isFetching,
+    refetch,
     isError,
     error,
   } = useQuery<CommercialPipelineData>({
@@ -133,7 +143,7 @@ export default function CommercialPipelinePage() {
       const res = await fetch('/api/tools/commercial-pipeline', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proposal_id, project_id }),
+        body: JSON.stringify({ action: 'link_proposal_project', proposal_id, project_id }),
       });
       if (!res.ok) {
         const errJson = await res.json();
@@ -147,6 +157,74 @@ export default function CommercialPipelinePage() {
       setTargetProjectIdForLink('');
     },
   });
+
+  // Mutación para actualizar valores económicos de cotización
+  const updateProposalMutation = useMutation({
+    mutationFn: async ({
+      proposal_id,
+      subtotal,
+      tax_amount,
+      total_amount,
+      scope_description,
+    }: {
+      proposal_id: string;
+      subtotal: number;
+      tax_amount: number;
+      total_amount: number;
+      scope_description: string;
+    }) => {
+      const res = await fetch('/api/tools/commercial-pipeline', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_proposal',
+          proposal_id,
+          subtotal,
+          tax_amount,
+          total_amount,
+          scope_description,
+        }),
+      });
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Error al actualizar cotización');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commercial-pipeline'] });
+      setEditProposalModal(null);
+    },
+  });
+
+  const openEditProposal = (prop: CommercialProposal) => {
+    setEditProposalModal(prop);
+    const sub = prop.subtotal ? Number(prop.subtotal) : Math.round(Number(prop.total_amount || 0) / 1.19);
+    setEditSubtotal(sub);
+    setEditApplyTax((prop.tax_amount ?? 0) > 0 || prop.total_amount > sub);
+    setEditScope(prop.scope_description || '');
+  };
+
+  const calculatedTax = editApplyTax ? Math.round(editSubtotal * 0.19) : 0;
+  const calculatedTotal = editSubtotal + calculatedTax;
+
+  const syncWithProject = () => {
+    if (!editProposalModal) return;
+    const linkedPrj = dashboard?.projects.find(
+      (p) => p.id === editProposalModal.project_id || p.commercial_proposal?.quote_code === editProposalModal.quote_code
+    );
+    const linkedClose = dashboard?.closings.find(
+      (c) => c.proposal_id === editProposalModal.id || c.commercial_proposals?.quote_code === editProposalModal.quote_code
+    );
+    const targetVal = linkedClose?.final_contract_value || linkedPrj?.contract_value || 100000000;
+    if (targetVal > 0) {
+      if (editApplyTax) {
+        setEditSubtotal(Math.round(targetVal / 1.19));
+      } else {
+        setEditSubtotal(targetVal);
+      }
+    }
+  };
 
   // Filtros en memoria
   const filteredOpportunities = useMemo(() => {
@@ -244,6 +322,19 @@ export default function CommercialPipelinePage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ['commercial-pipeline'] });
+                  refetch();
+                }}
+                className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 border border-white/15 transition-all shadow-xs"
+                title="Recargar datos del servidor"
+              >
+                <RotateCw className={`w-3.5 h-3.5 text-accent ${isFetching ? 'animate-spin' : ''}`} />
+                <span>Actualizar</span>
+              </button>
+
               <Link
                 href="/forms/registro-oportunidad"
                 className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-2 border border-white/15 transition-all shadow-xs"
@@ -836,6 +927,14 @@ export default function CommercialPipelinePage() {
                           >
                             <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => openEditProposal(p)}
+                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 transition-colors"
+                            title="Editar Valores de Cotización"
+                          >
+                            <PenTool className="w-3.5 h-3.5" strokeWidth={1.75} />
+                          </button>
                           <Link
                             href={`/forms/cierre-comercial?quote_code=${p.quote_code}&client_name=${encodeURIComponent(p.client_name)}`}
                             className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold inline-flex items-center gap-1 transition-all text-xs"
@@ -1090,6 +1189,126 @@ export default function CommercialPipelinePage() {
                     className="px-4 py-2 rounded-xl bg-accent text-primary-900 text-xs font-bold disabled:opacity-50 transition-all flex items-center gap-1.5 hover:brightness-105"
                   >
                     {linkMutation.isPending ? 'Vinculando...' : 'Confirmar Vínculo'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ────────────────────────────────────────────────────────────────────
+            MODAL DE EDICIÓN ECONÓMICA DE COTIZACIÓN
+           ──────────────────────────────────────────────────────────────────── */}
+        {editProposalModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+            <div className="bg-white border border-border rounded-2xl p-6 max-w-lg w-full shadow-2xl">
+              <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+                <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
+                  <PenTool className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                  Editar Valores de Cotización
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEditProposalModal(null)}
+                  className="text-text-muted hover:text-text-primary"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-slate-50 p-3 rounded-xl border border-border flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-text-muted block">Expediente Oficial:</span>
+                    <span className="font-mono text-sm font-bold text-amber-700">
+                      {editProposalModal.quote_code}
+                    </span>
+                    <span className="text-xs text-text-primary font-medium block mt-0.5">{editProposalModal.client_name}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={syncWithProject}
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] flex items-center gap-1 shadow-2xs transition-all"
+                    title="Tomar el valor del contrato oficial o del cierre ganado"
+                  >
+                    <span>⚡ Sincronizar con Proyecto</span>
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">
+                    Descripción / Alcance:
+                  </label>
+                  <input
+                    type="text"
+                    value={editScope}
+                    onChange={(e) => setEditScope(e.target.value)}
+                    className="input w-full py-2 text-xs bg-white text-text-primary border-border focus:ring-accent"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">
+                      Subtotal (COP):
+                    </label>
+                    <input
+                      type="number"
+                      value={editSubtotal || ''}
+                      onChange={(e) => setEditSubtotal(Number(e.target.value))}
+                      className="input w-full py-2 text-xs font-mono font-bold bg-white text-text-primary border-border focus:ring-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">
+                      IVA (19%):
+                    </label>
+                    <div className="flex items-center gap-2 h-10 px-3 bg-gray-50 border border-border rounded-xl">
+                      <input
+                        type="checkbox"
+                        id="modalApplyTax"
+                        checked={editApplyTax}
+                        onChange={(e) => setEditApplyTax(e.target.checked)}
+                        className="rounded border-gray-300 text-accent focus:ring-accent"
+                      />
+                      <label htmlFor="modalApplyTax" className="text-xs text-text-primary cursor-pointer select-none">
+                        {editApplyTax ? `+ ${formatCOP(calculatedTax)}` : 'Exento (0%)'}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-900">Total Ofertado Resultante:</span>
+                  <span className="text-base font-extrabold font-mono text-amber-800">
+                    {formatCOP(calculatedTotal)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => setEditProposalModal(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-text-primary text-xs font-semibold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={updateProposalMutation.isPending || calculatedTotal <= 0}
+                    onClick={() =>
+                      updateProposalMutation.mutate({
+                        proposal_id: editProposalModal.id,
+                        subtotal: editSubtotal,
+                        tax_amount: calculatedTax,
+                        total_amount: calculatedTotal,
+                        scope_description: editScope,
+                      })
+                    }
+                    className="px-4 py-2 rounded-xl bg-accent text-primary-900 text-xs font-bold disabled:opacity-50 transition-all flex items-center gap-1.5 hover:brightness-105"
+                  >
+                    {updateProposalMutation.isPending ? 'Guardando...' : 'Guardar y Actualizar'}
                   </button>
                 </div>
               </div>
