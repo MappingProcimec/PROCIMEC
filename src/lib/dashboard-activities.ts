@@ -411,6 +411,46 @@ export async function getDashboardActivities({
     })()
   );
 
+  // 8.1. COMERCIAL - Presupuestos APU (commercial_budgets)
+  tasks.push(
+    (async () => {
+      try {
+        let q = supabase
+          .from('commercial_budgets')
+          .select('id, created_at, created_by_user_id, budget_code, client_name, project_title, suggested_sale_price, status')
+          .order('created_at', { ascending: false })
+          .limit(cappedLimit);
+
+        if (!isAdmin && userId) {
+          q = q.eq('created_by_user_id', userId);
+        }
+
+        const { data } = await q;
+        for (const r of data ?? []) {
+          const u = resolveUser(r.created_by_user_id);
+          activities.push({
+            id: `budget-${r.id}`,
+            created_at: r.created_at,
+            date: r.created_at?.split('T')[0] || '',
+            type: 'Presupuesto APU',
+            category: 'commercial',
+            formSlug: 'presupuesto-proyecto',
+            projectName: r.client_name,
+            projectCode: 'APU',
+            detail: `${r.budget_code} · ${r.project_title} · $${Number(r.suggested_sale_price || 0).toLocaleString('es-CO')} COP`,
+            userName: u.name,
+            userEmail: u.email,
+            status: r.status || 'draft',
+            statusLabel: 'Costeado',
+          });
+        }
+      } catch (err) {
+        // Ignorar si la tabla no existe aún
+      }
+    })()
+  );
+
+
   // 9. COMERCIAL - Cotizaciones (commercial_proposals)
   tasks.push(
     (async () => {

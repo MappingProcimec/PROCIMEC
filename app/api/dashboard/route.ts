@@ -192,6 +192,7 @@ export async function GET(req: NextRequest) {
       if (!formSlugs.has('orden-compra')) forms.push({ id: 'orden-compra', slug: 'orden-compra', name: 'Orden de Compra y Adjudicación' });
       if (!formSlugs.has('evaluacion-proveedor')) forms.push({ id: 'evaluacion-proveedor', slug: 'evaluacion-proveedor', name: 'Evaluación y Recepción de Proveedor' });
       if (!formSlugs.has('registro-oportunidad')) forms.push({ id: 'registro-oportunidad', slug: 'registro-oportunidad', name: 'Registro de Oportunidad / Licitación' });
+      if (!formSlugs.has('presupuesto-proyecto')) forms.push({ id: 'presupuesto-proyecto', slug: 'presupuesto-proyecto', name: 'Presupuesto Operativo y APU' });
       if (!formSlugs.has('cotizacion-comercial')) forms.push({ id: 'cotizacion-comercial', slug: 'cotizacion-comercial', name: 'Cotización Comercial Emitida' });
       if (!formSlugs.has('cierre-comercial')) forms.push({ id: 'cierre-comercial', slug: 'cierre-comercial', name: 'Cierre de Negociación' });
       if (!formSlugs.has('solicitud-viaticos')) forms.push({ id: 'solicitud-viaticos', slug: 'solicitud-viaticos', name: 'Solicitud de Viáticos y Anticipos' });
@@ -255,6 +256,7 @@ export async function GET(req: NextRequest) {
     } else if (dbUser.role === 'commercial') {
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('registro-oportunidad')) forms.push({ id: 'registro-oportunidad', slug: 'registro-oportunidad', name: 'Registro de Oportunidad / Licitación' });
+      if (!formSlugs.has('presupuesto-proyecto')) forms.push({ id: 'presupuesto-proyecto', slug: 'presupuesto-proyecto', name: 'Presupuesto Operativo y APU' });
       if (!formSlugs.has('cotizacion-comercial')) forms.push({ id: 'cotizacion-comercial', slug: 'cotizacion-comercial', name: 'Cotización Comercial Emitida' });
       if (!formSlugs.has('cierre-comercial')) forms.push({ id: 'cierre-comercial', slug: 'cierre-comercial', name: 'Cierre de Negociación' });
     } else if (dbUser.role === 'finance') {

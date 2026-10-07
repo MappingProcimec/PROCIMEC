@@ -52,6 +52,7 @@ export const COMMON_SYSTEM_FORMS = [
   { slug: 'registro-oportunidad', label: 'FOR-CMR-001 — Registro de Oportunidad Comercial' },
   { slug: 'cotizacion-comercial', label: 'FOR-CMR-002 — Cotización y Oferta Económica' },
   { slug: 'cierre-comercial', label: 'FOR-CMR-003 — Acta de Cierre y Adjudicación Comercial' },
+  { slug: 'presupuesto-proyecto', label: 'FOR-CMR-004 — Presupuesto Operativo y APU de Ingeniería' },
 ];
 
 export function VersionControlPanel() {

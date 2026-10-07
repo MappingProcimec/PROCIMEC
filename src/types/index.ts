@@ -71,6 +71,10 @@ export interface Project {
   deductions_amount?: number;
   execution_value?: number;
   deductions_config?: ProjectDeduction[];
+  commercial_proposal_id?: string | null;
+  commercial_closing_id?: string | null;
+  commercial_budget_id?: string | null;
+  commercial_proposal?: { quote_code?: string; client_name?: string } | null;
   drive_folder_id?: string;
   drive_folder_url?: string;
   is_active: boolean;
@@ -631,6 +635,136 @@ export interface ConsumableEntry {
     full_name: string;
     email: string;
   };
+}
+
+// ─── Commercial Lifecycle & Engineering APU ──────────────────────────────────
+
+export interface CommercialOpportunity {
+  id: string;
+  consecutive_number?: number | null;
+  opportunity_code?: string | null;
+  user_id: string;
+  created_by_name?: string | null;
+  created_by_email?: string | null;
+  client_name: string;
+  client_contact: string | null;
+  client_email: string | null;
+  client_phone: string | null;
+  opportunity_title: string;
+  service_type: string;
+  estimated_value: number | null;
+  deadline_date: string | null;
+  location: string | null;
+  notes: string | null;
+  status: string;
+  created_at: string;
+  users?: { id: string; full_name: string; email: string } | null;
+}
+
+export interface BudgetItem {
+  id: string;
+  category: 'materials' | 'equipment' | 'labor' | 'logistics' | 'subcontracts';
+  description: string;
+  unit: string;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  notes?: string;
+}
+
+export interface CommercialBudget {
+  id: string;
+  consecutive_number: number;
+  budget_code: string;
+  opportunity_id: string | null;
+  created_by_user_id: string;
+  created_by_name: string;
+  created_by_email: string;
+  client_name: string;
+  project_title: string;
+  service_category: string;
+  direct_cost_materials: number;
+  direct_cost_equipment: number;
+  direct_cost_labor: number;
+  direct_cost_logistics: number;
+  total_direct_cost: number;
+  aiu_percentage: number;
+  suggested_sale_price: number;
+  items_detail: BudgetItem[];
+  status: 'draft' | 'approved' | 'quoted' | 'archived';
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  users?: { id: string; full_name: string; email: string } | null;
+  commercial_opportunities?: { opportunity_code?: string; opportunity_title?: string; client_name?: string } | null;
+}
+
+export interface CommercialProposal {
+  id: string;
+  consecutive_number?: number | null;
+  opportunity_id: string | null;
+  budget_id: string | null;
+  project_id: string | null;
+  user_id: string;
+  created_by_name?: string | null;
+  created_by_email?: string | null;
+  quote_code: string;
+  client_name: string;
+  scope_description: string;
+  subtotal: number;
+  tax_amount: number;
+  total_amount: number;
+  validity_days: number;
+  delivery_weeks: number;
+  notes: string | null;
+  created_at: string;
+  users?: { id: string; full_name: string; email: string } | null;
+  commercial_opportunities?: { opportunity_title?: string; service_type?: string; opportunity_code?: string } | null;
+  commercial_budgets?: { budget_code?: string; total_direct_cost?: number; suggested_sale_price?: number } | null;
+  projects?: { id?: string; code?: string; name?: string; cost_center?: string } | null;
+}
+
+export interface CommercialClosing {
+  id: string;
+  consecutive_number?: number | null;
+  closing_code?: string | null;
+  opportunity_id?: string | null;
+  proposal_id: string | null;
+  budget_id?: string | null;
+  user_id: string;
+  created_by_name?: string | null;
+  created_by_email?: string | null;
+  closing_type?: string;
+  result?: string;
+  final_value?: number;
+  final_contract_value?: number;
+  contract_number?: string | null;
+  reason?: string | null;
+  loss_reason?: string | null;
+  feedback_notes?: string | null;
+  closing_notes?: string | null;
+  project_code?: string | null;
+  created_at: string;
+  users?: { id: string; full_name: string; email: string } | null;
+  commercial_proposals?: { quote_code?: string; client_name?: string; total_amount?: number } | null;
+}
+
+export interface CommercialPipelineStats {
+  pipelineCOP: number;
+  activeOpportunitiesCount: number;
+  budgetsCount: number;
+  issuedProposalsCount: number;
+  wonContractsCOP: number;
+  winRatePct: number;
+}
+
+export interface CommercialPipelineData {
+  stats: CommercialPipelineStats;
+  opportunities: CommercialOpportunity[];
+  budgets: CommercialBudget[];
+  proposals: CommercialProposal[];
+  closings: CommercialClosing[];
+  projects: Project[];
 }
 
 

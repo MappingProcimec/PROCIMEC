@@ -195,6 +195,7 @@ const FORM_CATEGORY_MAP: Record<string, string> = {
   'evaluacion-proveedor': 'purchasing',
   // Comercial
   'registro-oportunidad': 'commercial',
+  'presupuesto-proyecto': 'commercial',
   'cotizacion-comercial': 'commercial',
   'cierre-comercial': 'commercial',
   // Finanzas

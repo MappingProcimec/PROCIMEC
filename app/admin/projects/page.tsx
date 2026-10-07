@@ -3,7 +3,7 @@
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { isKnownAdmin } from '@/lib/admin-emails';
 import { ProjectFinancialFields } from '@/components/admin/projects/ProjectFinancialFields';
@@ -34,7 +34,9 @@ import {
   Info,
   Coins,
   BadgePercent,
+  Download,
 } from 'lucide-react';
+import { generateProjectFinancialPdf } from '@/lib/commercial/commercialPdfGenerator';
 
 interface DivisionOption { id: string; name: string }
 
@@ -247,6 +249,25 @@ export default function AdminProjectsPage() {
     if (!selectedProject) return null;
     return projects.find((p) => p.id === selectedProject.id) || selectedProject;
   }, [projects, selectedProject]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const fromClosing = params.get('create_from_closing');
+      if (fromClosing) {
+        const cClient = params.get('client') || '';
+        const cVal = params.get('contract_value') || '';
+        const cNumber = params.get('contract_number') || '';
+        setForm((prev) => ({
+          ...prev,
+          client: cClient,
+          contract_value: cVal,
+          contract_number: cNumber,
+        }));
+        setShowModal(true);
+      }
+    }
+  }, []);
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof form) => {
@@ -963,6 +984,14 @@ export default function AdminProjectsPage() {
                 >
                   <PenTool className="w-3.5 h-3.5" />
                   <span>Editar Proyecto y Metas</span>
+                </button>
+                <button
+                  onClick={() => generateProjectFinancialPdf(currentSelected)}
+                  className="btn-sm bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-xs"
+                  title="Descargar Ficha Financiera Oficial (FOR-GPR-001)"
+                >
+                  <Download className="w-3.5 h-3.5" strokeWidth={2} />
+                  <span>Ficha PDF</span>
                 </button>
                 <button
                   onClick={() => setSelectedProject(null)}

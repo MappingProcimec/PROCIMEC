@@ -29,7 +29,8 @@ import {
   FileSpreadsheet,
   DollarSign,
   ChevronDown,
-  X
+  X,
+  Calculator,
 } from 'lucide-react';
 
 interface Form {
@@ -60,6 +61,7 @@ const FORM_CATEGORY: Record<string, string> = {
   'orden-compra': 'purchasing',
   'evaluacion-proveedor': 'purchasing',
   'registro-oportunidad': 'commercial',
+  'presupuesto-proyecto': 'commercial',
   'cotizacion-comercial': 'commercial',
   'cierre-comercial': 'commercial',
   'solicitud-viaticos': 'finance',
@@ -120,6 +122,8 @@ function renderFormIcon(slug: string) {
       return <Star {...props} />;
     case 'registro-oportunidad':
       return <Target {...props} />;
+    case 'presupuesto-proyecto':
+      return <Calculator {...props} />;
     case 'cotizacion-comercial':
       return <BarChart2 {...props} />;
     case 'cierre-comercial':

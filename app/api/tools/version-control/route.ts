@@ -620,6 +620,32 @@ const MASTER_FORMATS_SEED: Omit<DocumentFormatItem, 'id' | 'versions_count'>[] =
       },
     ],
   },
+  {
+    code: 'FOR-CMR-004',
+    name: 'Presupuesto Operativo y APU de Ingeniería',
+    process: 'Gestión Comercial & Técnica',
+    form_slug: 'presupuesto-proyecto',
+    roles_access: ['Comercial', 'Dibujo', 'Gerencia', 'Admin'],
+    is_universal: false,
+    current_version: '1',
+    effective_date: '2026-10-07',
+    status: 'active',
+    category: 'commercial',
+    description: 'Estructura técnica de costos directos APU para geofísica, topografía y obras civiles de planta con cálculo de AIU.',
+    editable_type: 'xlsx',
+    download_template_url: '/api/tools/version-control/download-template?code=FOR-CMR-004&format=editable',
+    history: [
+      {
+        id: 'h-cmr-4',
+        format_id: 'seed-cmr-4',
+        version: '1',
+        change_date: '2026-10-07',
+        change_reason: 'Emisión oficial del formato APU para cálculo de costos directos y AIU en ingeniería civil y de planta.',
+        responsible_name: 'Dirección Técnica y Comercial',
+        file_format: 'xlsx',
+      },
+    ],
+  },
 
   // ─── FINANZAS Y TESORERÍA ─────────────────────────────────────────────────
   {

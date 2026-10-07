@@ -30,6 +30,7 @@ import HseqReportFormPage from '@/app/forms/hseq-report/page';
 import ElaboracionCartasForm from '@/components/forms/ElaboracionCartasForm';
 import RegistroEquipoFormPage from '@/app/forms/registro-equipo/page';
 import SigManagementChangeFormPage from '@/app/forms/analisis-planificacion-cambios-sig/page';
+import PresupuestoProyectoPage from '@/app/forms/presupuesto-proyecto/page';
 
 // --- Form catalog configurations ---
 const FORM_CONFIGS: Record<string, FormConfig> = {
@@ -282,11 +283,14 @@ const FORM_CONFIGS: Record<string, FormConfig> = {
         type: 'select',
         required: true,
         options: [
-          { value: 'gpr_localizacion', label: 'Georradar GPR y Localización de Redes' },
-          { value: 'topografia_cad', label: 'Topografía de Precisión y Modelado CAD/BIM' },
+          { value: 'gpr_localizacion', label: 'Georradar GPR y Localización de Redes Subterráneas' },
+          { value: 'civil_planta', label: 'Obras Civiles y Adecuaciones en Planta In-House' },
+          { value: 'montaje_mecanico', label: 'Montajes Mecánicos, Piping y Estructuras Metálicas' },
+          { value: 'topografia_cad', label: 'Topografía Industrial y Modelado CAD/BIM' },
           { value: 'inspeccion_dron', label: 'Inspección Aérea y Fotogrametría Dron' },
-          { value: 'geofisica_integral', label: 'Geofísica Integral (Tomografía, MASW, SEV)' },
-          { value: 'consultoria', label: 'Consultoría y Diseño de Infraestructura' },
+          { value: 'geofisica_integral', label: 'Geofísica Aplicada (Tomografía, MASW, SEV)' },
+          { value: 'interventoria_obra', label: 'Interventoría Técnica y Supervisión de Obra' },
+          { value: 'consultoria', label: 'Consultoría, Memorias de Cálculo e Ingeniería' },
         ],
       },
       { key: 'estimated_value', label: 'Presupuesto Estimado del Cliente (COP)', type: 'number', placeholder: 'Monto aproximado' },
@@ -603,6 +607,14 @@ export default function FormPage({ params }: { params: { formSlug: string } }) {
     params.formSlug === 'gestion-cambio'
   ) {
     return <SigManagementChangeFormPage />;
+  }
+
+  if (
+    params.formSlug === 'presupuesto-proyecto' ||
+    params.formSlug === 'presupuesto' ||
+    params.formSlug === 'apu'
+  ) {
+    return <PresupuestoProyectoPage />;
   }
 
   return (

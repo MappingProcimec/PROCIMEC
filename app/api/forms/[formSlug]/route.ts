@@ -188,70 +188,204 @@ export async function POST(
         return NextResponse.json({ error: 'Título de la oportunidad y cliente son obligatorios' }, { status: 400 });
       }
 
-      const { data, error } = await supabase
-        .from('commercial_opportunities')
-        .insert({
-          user_id: dbUser.id,
-          opportunity_title: String(opportunity_title).trim(),
-          client_name: String(client_name).trim(),
-          client_contact: client_contact ? String(client_contact).trim() : null,
-          client_email: client_email ? String(client_email).trim() : null,
-          client_phone: client_phone ? String(client_phone).trim() : null,
-          service_type: service_type || 'gpr_localizacion',
-          estimated_value: estimated_value ? Number(estimated_value) : null,
-          deadline_date: deadline_date || null,
-          location: location ? String(location).trim() : null,
-          notes: notes ? String(notes).trim() : null,
-          status: 'open',
-        })
-        .select()
-        .single();
+      const { count } = await supabase.from('commercial_opportunities').select('*', { count: 'exact', head: true });
+      const consecutiveNum = (count || 0) + 1;
+      const year = new Date().getFullYear();
+      const oppCode = `OPP-${year}-${String(consecutiveNum).padStart(3, '0')}`;
+
+      const oppPayload: Record<string, unknown> = {
+        user_id: dbUser.id,
+        consecutive_number: consecutiveNum,
+        opportunity_code: oppCode,
+        created_by_name: dbUser.full_name || session.user.name || 'Comercial',
+        created_by_email: dbUser.email || session.user.email,
+        opportunity_title: String(opportunity_title).trim(),
+        client_name: String(client_name).trim(),
+        client_contact: client_contact ? String(client_contact).trim() : null,
+        client_email: client_email ? String(client_email).trim() : null,
+        client_phone: client_phone ? String(client_phone).trim() : null,
+        service_type: service_type || 'gpr_localizacion',
+        estimated_value: estimated_value ? Number(estimated_value) : null,
+        deadline_date: deadline_date || null,
+        location: location ? String(location).trim() : null,
+        notes: notes ? String(notes).trim() : null,
+        status: 'open',
+      };
+
+      let { data, error } = await supabase.from('commercial_opportunities').insert(oppPayload).select().single();
+      if (error && error.code === '42703') {
+        delete oppPayload.consecutive_number;
+        delete oppPayload.opportunity_code;
+        delete oppPayload.created_by_name;
+        delete oppPayload.created_by_email;
+        const retry = await supabase.from('commercial_opportunities').insert(oppPayload).select().single();
+        data = retry.data;
+        error = retry.error;
+      }
+
+      if (error) throw error;
+      result = data;
+    } else if (formSlug === 'presupuesto-proyecto') {
+      const {
+        opportunity_id,
+        client_name,
+        project_title,
+        service_category,
+        direct_cost_materials,
+        direct_cost_equipment,
+        direct_cost_labor,
+        direct_cost_logistics,
+        aiu_percentage,
+        items_detail,
+        notes,
+        status,
+      } = body;
+
+      if (!client_name?.trim() || !project_title?.trim()) {
+        return NextResponse.json({ error: 'Nombre del cliente y proyecto son obligatorios' }, { status: 400 });
+      }
+
+      const mat = Number(direct_cost_materials) || 0;
+      const eq = Number(direct_cost_equipment) || 0;
+      const lab = Number(direct_cost_labor) || 0;
+      const log = Number(direct_cost_logistics) || 0;
+      const totalDirect = mat + eq + lab + log;
+      const aiuPct = Number(aiu_percentage) > 0 ? Number(aiu_percentage) : 25.0;
+      const suggestedSale = Math.round(totalDirect * (1 + aiuPct / 100));
+
+      const { count } = await supabase.from('commercial_budgets').select('*', { count: 'exact', head: true });
+      const consecutiveNum = (count || 0) + 1;
+      const year = new Date().getFullYear();
+      const budgetCode = `PRE-${year}-${String(consecutiveNum).padStart(3, '0')}`;
+
+      const { data, error } = await supabase.from('commercial_budgets').insert({
+        consecutive_number: consecutiveNum,
+        budget_code: budgetCode,
+        opportunity_id: opportunity_id || null,
+        created_by_user_id: dbUser.id,
+        created_by_name: dbUser.full_name || session.user.name || 'Área Técnica',
+        created_by_email: dbUser.email || session.user.email,
+        client_name: String(client_name).trim(),
+        project_title: String(project_title).trim(),
+        service_category: service_category || 'mapping_geofisica',
+        direct_cost_materials: mat,
+        direct_cost_equipment: eq,
+        direct_cost_labor: lab,
+        direct_cost_logistics: log,
+        total_direct_cost: totalDirect,
+        aiu_percentage: aiuPct,
+        suggested_sale_price: suggestedSale,
+        items_detail: Array.isArray(items_detail) ? items_detail : [],
+        status: status || 'draft',
+        notes: notes ? String(notes).trim() : null,
+      }).select().single();
 
       if (error) throw error;
       result = data;
     } else if (formSlug === 'cotizacion-comercial') {
-      const { quote_code, client_name, scope_description, subtotal, tax_amount, total_amount, validity_days, delivery_weeks, notes } = body;
+      const { quote_code, client_name, scope_description, subtotal, tax_amount, total_amount, validity_days, delivery_weeks, notes, opportunity_id, budget_id, project_id } = body;
       if (!quote_code?.trim() || !client_name?.trim()) {
         return NextResponse.json({ error: 'Código de cotización y cliente son obligatorios' }, { status: 400 });
       }
 
-      const { data, error } = await supabase
-        .from('commercial_proposals')
-        .insert({
-          user_id: dbUser.id,
-          quote_code: String(quote_code).trim().toUpperCase(),
-          client_name: String(client_name).trim(),
-          scope_description: String(scope_description || '').trim(),
-          subtotal: Number(subtotal) || 0,
-          tax_amount: Number(tax_amount) || 0,
-          total_amount: Number(total_amount) || (Number(subtotal) || 0),
-          validity_days: Number(validity_days) || 30,
-          delivery_weeks: Number(delivery_weeks) || 2,
-          notes: notes ? String(notes).trim() : null,
-        })
-        .select()
-        .single();
+      const { count } = await supabase.from('commercial_proposals').select('*', { count: 'exact', head: true });
+      const consecutiveNum = (count || 0) + 1;
+
+      const proposalPayload: Record<string, unknown> = {
+        user_id: dbUser.id,
+        consecutive_number: consecutiveNum,
+        opportunity_id: opportunity_id || null,
+        budget_id: budget_id || null,
+        project_id: project_id || null,
+        created_by_name: dbUser.full_name || session.user.name || 'Comercial',
+        created_by_email: dbUser.email || session.user.email,
+        quote_code: String(quote_code).trim().toUpperCase(),
+        client_name: String(client_name).trim(),
+        scope_description: String(scope_description || '').trim(),
+        subtotal: Number(subtotal) || 0,
+        tax_amount: Number(tax_amount) || 0,
+        total_amount: Number(total_amount) || (Number(subtotal) || 0),
+        validity_days: Number(validity_days) || 30,
+        delivery_weeks: Number(delivery_weeks) || 2,
+        notes: notes ? String(notes).trim() : null,
+      };
+
+      let { data, error } = await supabase.from('commercial_proposals').insert(proposalPayload).select().single();
+      if (error && error.code === '42703') {
+        delete proposalPayload.consecutive_number;
+        delete proposalPayload.budget_id;
+        delete proposalPayload.project_id;
+        delete proposalPayload.created_by_name;
+        delete proposalPayload.created_by_email;
+        const retry = await supabase.from('commercial_proposals').insert(proposalPayload).select().single();
+        data = retry.data;
+        error = retry.error;
+      }
 
       if (error) throw error;
+
+      // Vinculación bidireccional si se seleccionó un proyecto existente
+      if (project_id && data?.id) {
+        try {
+          await supabase.from('projects').update({ commercial_proposal_id: data.id }).eq('id', project_id);
+        } catch {}
+      }
+
       result = data;
     } else if (formSlug === 'cierre-comercial') {
-      const { quote_code, result: closingResult, final_contract_value, contract_number, loss_reason, closing_notes } = body;
+      const { quote_code, proposal_id, budget_id, opportunity_id, result: closingResult, final_contract_value, contract_number, loss_reason, closing_notes } = body;
       if (!quote_code?.trim() || !closingResult) {
         return NextResponse.json({ error: 'Código de cotización y resultado son obligatorios' }, { status: 400 });
       }
 
-      const { data, error } = await supabase
-        .from('commercial_closings')
-        .insert({
-          user_id: dbUser.id,
-          result: closingResult,
-          final_contract_value: final_contract_value ? Number(final_contract_value) : null,
-          contract_number: contract_number ? String(contract_number).trim() : null,
-          loss_reason: loss_reason ? String(loss_reason).trim() : null,
-          closing_notes: closing_notes ? String(closing_notes).trim() : null,
-        })
-        .select()
-        .single();
+      const { count } = await supabase.from('commercial_closings').select('*', { count: 'exact', head: true });
+      const consecutiveNum = (count || 0) + 1;
+      const year = new Date().getFullYear();
+      const closingCode = `CIE-${year}-${String(consecutiveNum).padStart(3, '0')}`;
+
+      // Buscar proposal_id si no viene explícito
+      let resolvedProposalId = proposal_id || null;
+      if (!resolvedProposalId && quote_code) {
+        const { data: prop } = await supabase.from('commercial_proposals').select('id, opportunity_id, budget_id').eq('quote_code', quote_code.trim().toUpperCase()).maybeSingle();
+        if (prop) {
+          resolvedProposalId = prop.id;
+        }
+      }
+
+      const closingPayload: Record<string, unknown> = {
+        user_id: dbUser.id,
+        consecutive_number: consecutiveNum,
+        closing_code: closingCode,
+        proposal_id: resolvedProposalId,
+        opportunity_id: opportunity_id || null,
+        budget_id: budget_id || null,
+        created_by_name: dbUser.full_name || session.user.name || 'Comercial',
+        created_by_email: dbUser.email || session.user.email,
+        result: closingResult,
+        closing_type: closingResult,
+        final_contract_value: final_contract_value ? Number(final_contract_value) : null,
+        final_value: final_contract_value ? Number(final_contract_value) : null,
+        contract_number: contract_number ? String(contract_number).trim() : null,
+        loss_reason: loss_reason ? String(loss_reason).trim() : null,
+        reason: loss_reason ? String(loss_reason).trim() : null,
+        closing_notes: closing_notes ? String(closing_notes).trim() : null,
+        feedback_notes: closing_notes ? String(closing_notes).trim() : null,
+      };
+
+      let { data, error } = await supabase.from('commercial_closings').insert(closingPayload).select().single();
+      if (error && error.code === '42703') {
+        delete closingPayload.consecutive_number;
+        delete closingPayload.closing_code;
+        delete closingPayload.budget_id;
+        delete closingPayload.created_by_name;
+        delete closingPayload.created_by_email;
+        delete closingPayload.final_contract_value;
+        delete closingPayload.closing_notes;
+        delete closingPayload.loss_reason;
+        const retry = await supabase.from('commercial_closings').insert(closingPayload).select().single();
+        data = retry.data;
+        error = retry.error;
+      }
 
       if (error) throw error;
       result = data;

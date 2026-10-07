@@ -128,6 +128,17 @@ export async function GET() {
       created_at: new Date().toISOString(),
     });
   }
+  if (!formSlugs.has('presupuesto-proyecto')) {
+    normalized.push({
+      id: 'presupuesto-proyecto-synthetic',
+      slug: 'presupuesto-proyecto',
+      name: 'Presupuesto Operativo y APU de Ingeniería',
+      description: 'Estructura técnica de costos directos (materiales, equipos, mano de obra, logística) y cálculo de AIU.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
   if (!formSlugs.has('cotizacion-comercial')) {
     normalized.push({
       id: 'cotizacion-comercial-synthetic',
