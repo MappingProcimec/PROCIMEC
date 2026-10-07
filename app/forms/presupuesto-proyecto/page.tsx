@@ -21,6 +21,8 @@ import {
   Truck,
   ArrowRight,
   Download,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { BudgetItem, CommercialOpportunity, CommercialBudget } from '@/types';
 import { generateBudgetPdf } from '@/lib/commercial/commercialPdfGenerator';
@@ -40,6 +42,96 @@ const ITEM_CATEGORIES: Array<{ key: BudgetItem['category']; label: string; icon:
   { key: 'labor', label: '3. Personal, Cuadrillas y Mano de Obra Técnica', icon: Users },
   { key: 'logistics', label: '4. Logística, Viáticos y Transporte de Planta', icon: Truck },
 ];
+
+const COMMON_UNITS = [
+  'UND',
+  'DIA',
+  'MES',
+  'HR',
+  'ML',
+  'M2',
+  'M3',
+  'KM',
+  'HA',
+  'KG',
+  'TON',
+  'GL',
+  'LT',
+  'PTO',
+  'VIAJE',
+  'GLOBAL',
+  'CUADRILLA-DIA',
+  'JORNAL',
+  'TRAMO',
+  'BOLSA',
+  'CAJA',
+  'JUEGO',
+];
+
+function UnitCombobox({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="relative w-full">
+      <div className="relative flex items-center">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="UND"
+          className="input text-xs py-1.5 pr-6 text-center font-mono uppercase w-full bg-white text-text-primary border-border focus:ring-accent"
+        />
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary p-0.5 rounded transition-colors"
+          title="Seleccionar unidad de la lista o escribir"
+        >
+          <ChevronDown className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute left-0 top-full mt-1 w-40 max-h-48 overflow-y-auto bg-white border border-border shadow-xl rounded-lg py-1 z-50 text-xs animate-in fade-in zoom-in-95">
+            <div className="px-2.5 py-1 text-[10px] font-bold text-text-muted uppercase tracking-wider border-b border-border bg-slate-50">
+              Seleccionar o escribir
+            </div>
+            {COMMON_UNITS.map((u) => {
+              const isSelected = value.toUpperCase() === u.toUpperCase();
+              return (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => {
+                    onChange(u);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 hover:bg-slate-100 flex items-center justify-between font-mono ${
+                    isSelected ? 'bg-amber-50 text-amber-900 font-bold' : 'text-text-primary'
+                  }`}
+                >
+                  <span>{u}</span>
+                  {isSelected && <Check className="w-3 h-3 text-accent" strokeWidth={2.5} />}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function formatCOP(amount: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -504,6 +596,13 @@ export default function PresupuestoProyectoPage() {
                     </p>
                   ) : (
                     <div className="space-y-2">
+                      <div className="hidden sm:grid grid-cols-12 gap-2 px-2.5 pb-1 text-[11px] font-bold text-text-muted uppercase tracking-wider">
+                        <div className="col-span-5">Descripción del Ítem</div>
+                        <div className="col-span-2 text-center">Unidad (UND)</div>
+                        <div className="col-span-2 text-right">Cantidad</div>
+                        <div className="col-span-2 text-right">Vr. Unitario</div>
+                        <div className="col-span-1 text-center">Quitar</div>
+                      </div>
                       {catItems.map((it) => (
                         <div
                           key={it.id}
@@ -519,13 +618,10 @@ export default function PresupuestoProyectoPage() {
                             />
                           </div>
 
-                          <div className="col-span-3 sm:col-span-2">
-                            <input
-                              type="text"
+                          <div className="col-span-4 sm:col-span-2">
+                            <UnitCombobox
                               value={it.unit}
-                              onChange={(e) => handleUpdateItem(it.id, 'unit', e.target.value)}
-                              placeholder="Und / M3 / Dia"
-                              className="input text-xs py-1.5 text-center font-mono"
+                              onChange={(val) => handleUpdateItem(it.id, 'unit', val)}
                             />
                           </div>
 
@@ -552,7 +648,7 @@ export default function PresupuestoProyectoPage() {
                             />
                           </div>
 
-                          <div className="col-span-1 text-center">
+                          <div className="col-span-12 sm:col-span-1 flex justify-end sm:justify-center">
                             <button
                               type="button"
                               onClick={() => handleRemoveItem(it.id)}
