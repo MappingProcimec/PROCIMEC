@@ -164,6 +164,8 @@ export default function PresupuestoProyectoPage() {
       id: 'item-1',
       category: 'materials',
       description: 'Concreto MR 4.2 / 3000 PSI para losa de planta',
+      brand: 'Argos',
+      suggested_supplier: 'Concretos del Norte',
       unit: 'M3',
       quantity: 12,
       unit_cost: 450000,
@@ -173,6 +175,8 @@ export default function PresupuestoProyectoPage() {
       id: 'item-2',
       category: 'equipment',
       description: 'Andamios multidireccionales certificados (Días)',
+      brand: 'Layher',
+      suggested_supplier: 'Alquileres Andinos',
       unit: 'Dia',
       quantity: 5,
       unit_cost: 180000,
@@ -182,6 +186,8 @@ export default function PresupuestoProyectoPage() {
       id: 'item-3',
       category: 'labor',
       description: 'Cuadrilla civil: Oficial de obra + 2 Ayudantes de planta',
+      brand: 'In-House',
+      suggested_supplier: 'PROCIMEC Operaciones',
       unit: 'Dia',
       quantity: 5,
       unit_cost: 380000,
@@ -280,6 +286,8 @@ export default function PresupuestoProyectoPage() {
       id: `item-${Date.now()}`,
       category,
       description: '',
+      brand: '',
+      suggested_supplier: '',
       unit: 'Und',
       quantity: 1,
       unit_cost: 0,
@@ -597,10 +605,12 @@ export default function PresupuestoProyectoPage() {
                   ) : (
                     <div className="space-y-2">
                       <div className="hidden sm:grid grid-cols-12 gap-2 px-2.5 pb-1 text-[11px] font-bold text-text-muted uppercase tracking-wider">
-                        <div className="col-span-5">Descripción del Ítem</div>
-                        <div className="col-span-2 text-center">Unidad (UND)</div>
-                        <div className="col-span-2 text-right">Cantidad</div>
-                        <div className="col-span-2 text-right">Vr. Unitario</div>
+                        <div className="col-span-4">Descripción del Ítem</div>
+                        <div className="col-span-2">Marca</div>
+                        <div className="col-span-2">Proveedor Sugerido</div>
+                        <div className="col-span-1 text-center">Und</div>
+                        <div className="col-span-1 text-right">Cant</div>
+                        <div className="col-span-1 text-right">Vr. Unit</div>
                         <div className="col-span-1 text-center">Quitar</div>
                       </div>
                       {catItems.map((it) => (
@@ -608,24 +618,44 @@ export default function PresupuestoProyectoPage() {
                           key={it.id}
                           className="grid grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-lg border border-border shadow-xs"
                         >
-                          <div className="col-span-12 sm:col-span-5">
+                          <div className="col-span-12 sm:col-span-4">
                             <input
                               type="text"
                               value={it.description}
                               onChange={(e) => handleUpdateItem(it.id, 'description', e.target.value)}
-                              placeholder="Descripción del material, cuadrilla o equipo..."
+                              placeholder="Descripción detallada del material o servicio..."
                               className="input text-xs py-1.5"
                             />
                           </div>
 
-                          <div className="col-span-4 sm:col-span-2">
+                          <div className="col-span-6 sm:col-span-2">
+                            <input
+                              type="text"
+                              value={it.brand || ''}
+                              onChange={(e) => handleUpdateItem(it.id, 'brand', e.target.value)}
+                              placeholder="Marca (ej: Argos)"
+                              className="input text-xs py-1.5"
+                            />
+                          </div>
+
+                          <div className="col-span-6 sm:col-span-2">
+                            <input
+                              type="text"
+                              value={it.suggested_supplier || ''}
+                              onChange={(e) => handleUpdateItem(it.id, 'suggested_supplier', e.target.value)}
+                              placeholder="Proveedor sugerido..."
+                              className="input text-xs py-1.5"
+                            />
+                          </div>
+
+                          <div className="col-span-4 sm:col-span-1">
                             <UnitCombobox
                               value={it.unit}
                               onChange={(val) => handleUpdateItem(it.id, 'unit', val)}
                             />
                           </div>
 
-                          <div className="col-span-4 sm:col-span-2">
+                          <div className="col-span-4 sm:col-span-1">
                             <input
                               type="number"
                               min="0"
@@ -637,7 +667,7 @@ export default function PresupuestoProyectoPage() {
                             />
                           </div>
 
-                          <div className="col-span-4 sm:col-span-2">
+                          <div className="col-span-4 sm:col-span-1">
                             <input
                               type="number"
                               min="0"

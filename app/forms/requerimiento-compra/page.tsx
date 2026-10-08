@@ -35,11 +35,29 @@ interface ItemRow {
   item_no: number;
   quantity: number | '';
   unit: string;
+  budget_rubro: string;
+  budget_item_id?: string;
   description: string;
-  client_quote_no: string;
+  client_quote_no?: string;
   brand: string;
   suggested_supplier: string;
   unit_price: number | '';
+}
+
+interface ProjectBudgetData {
+  budget_id: string;
+  budget_code: string;
+  project_title: string;
+  items: Array<{
+    id: string;
+    category?: string;
+    description: string;
+    brand?: string;
+    suggested_supplier?: string;
+    unit: string;
+    quantity: number;
+    unit_cost: number;
+  }>;
 }
 
 const UNIT_OPTIONS = [
@@ -111,6 +129,7 @@ export default function RequerimientoCompraPage() {
   const [approverUserId, setApproverUserId] = useState<string>('');
   const [projectUsers, setProjectUsers] = useState<Record<string, Array<{ id: string; full_name: string; email: string; role: string }>>>({});
   const [allApprovers, setAllApprovers] = useState<Array<{ id: string; full_name: string; email: string; role: string }>>([]);
+  const [projectBudgets, setProjectBudgets] = useState<Record<string, ProjectBudgetData>>({});
   const [deliveryDate, setDeliveryDate] = useState<string>('');
   const [deliverySite, setDeliverySite] = useState<string>('');
   const [contactPhone, setContactPhone] = useState<string>('');
@@ -122,8 +141,8 @@ export default function RequerimientoCompraPage() {
       item_no: 1,
       quantity: 1,
       unit: 'Und',
+      budget_rubro: '',
       description: '',
-      client_quote_no: '',
       brand: '',
       suggested_supplier: '',
       unit_price: '',
@@ -162,6 +181,9 @@ export default function RequerimientoCompraPage() {
           }
           if (formData.allApprovers) {
             setAllApprovers(formData.allApprovers);
+          }
+          if (formData.projectBudgets) {
+            setProjectBudgets(formData.projectBudgets);
           }
         } else if (session?.user?.name) {
           setApplicantName(session.user.name);
@@ -204,6 +226,11 @@ export default function RequerimientoCompraPage() {
   const selectedProject = useMemo(() => {
     return projects.find((p) => p.id === selectedProjectId) || null;
   }, [projects, selectedProjectId]);
+
+  // Presupuesto APU asociado al proyecto seleccionado
+  const currentProjectBudget = useMemo(() => {
+    return selectedProjectId ? projectBudgets[selectedProjectId] || null : null;
+  }, [selectedProjectId, projectBudgets]);
 
   // Hook de borrador local (Offline-Resilience)
   const draftPayload = useMemo(() => ({
@@ -264,6 +291,40 @@ export default function RequerimientoCompraPage() {
     }
   }, [selectedProjectId, projectUsers, allApprovers, approverName]);
 
+  // Manejo de selección de rubro de presupuesto con autocompletado en cascada
+  const handleSelectBudgetRubro = (index: number, selectedValue: string) => {
+    setItems((prev) => {
+      const updated = [...prev];
+      const currentRow = updated[index];
+
+      if (currentProjectBudget && selectedValue && selectedValue !== '__custom__') {
+        const budgetItem = currentProjectBudget.items.find(
+          (bIt) => bIt.id === selectedValue || bIt.description === selectedValue
+        );
+        if (budgetItem) {
+          updated[index] = {
+            ...currentRow,
+            budget_rubro: budgetItem.description,
+            budget_item_id: budgetItem.id,
+            description: budgetItem.description,
+            unit: budgetItem.unit || currentRow.unit,
+            brand: budgetItem.brand || currentRow.brand || '',
+            suggested_supplier: budgetItem.suggested_supplier || currentRow.suggested_supplier || '',
+            unit_price: budgetItem.unit_cost > 0 ? budgetItem.unit_cost : currentRow.unit_price,
+          };
+          return updated;
+        }
+      }
+
+      updated[index] = {
+        ...currentRow,
+        budget_rubro: selectedValue === '__custom__' ? '' : selectedValue,
+        budget_item_id: undefined,
+      };
+      return updated;
+    });
+  };
+
   // Manejo de ítems en la tabla
   const handleAddItem = () => {
     setItems((prev) => [
@@ -273,8 +334,8 @@ export default function RequerimientoCompraPage() {
         item_no: prev.length + 1,
         quantity: 1,
         unit: 'Und',
+        budget_rubro: '',
         description: '',
-        client_quote_no: '',
         brand: '',
         suggested_supplier: '',
         unit_price: '',
@@ -395,8 +456,10 @@ export default function RequerimientoCompraPage() {
           item_no: it.item_no,
           quantity: Number(it.quantity) || 1,
           unit: it.unit,
+          budget_rubro: (it.budget_rubro || '').trim(),
+          budget_item_id: it.budget_item_id,
           description: it.description.trim(),
-          client_quote_no: it.client_quote_no.trim(),
+          client_quote_no: (it.budget_rubro || it.client_quote_no || '').trim(),
           brand: it.brand.trim(),
           suggested_supplier: it.suggested_supplier.trim(),
           unit_price: Number(it.unit_price) || 0,
@@ -473,8 +536,9 @@ export default function RequerimientoCompraPage() {
           item_no: it.item_no,
           quantity: it.quantity,
           unit: it.unit,
+          budget_rubro: it.budget_rubro,
           description: it.description,
-          client_quote_no: it.client_quote_no,
+          client_quote_no: it.budget_rubro,
           brand: it.brand,
           suggested_supplier: it.suggested_supplier,
           unit_price: it.unit_price,
@@ -595,8 +659,8 @@ export default function RequerimientoCompraPage() {
                       item_no: 1,
                       quantity: 1,
                       unit: 'Und',
+                      budget_rubro: '',
                       description: '',
-                      client_quote_no: '',
                       brand: '',
                       suggested_supplier: '',
                       unit_price: '',
@@ -883,12 +947,19 @@ export default function RequerimientoCompraPage() {
             <div className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-card space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border">
                 <div>
-                  <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-accent" strokeWidth={1.75} />
-                    Detalle de Bienes e Insumos Solicitados
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                      Detalle de Bienes e Insumos Solicitados
+                    </h3>
+                    {currentProjectBudget && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-900 border border-amber-300">
+                        APU Vinculado: {currentProjectBudget.budget_code} ({currentProjectBudget.items.length} ítems)
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-text-muted mt-0.5">
-                    Especifica cada requerimiento con su cantidad, unidad de medida y precio estimado.
+                    Especifica cada requerimiento con su cantidad, unidad de medida, imputación APU y precio estimado.
                   </p>
                 </div>
 
@@ -903,19 +974,19 @@ export default function RequerimientoCompraPage() {
                 </button>
               </div>
 
-              {/* Tabla de Precisión Industrial */}
+              {/* Tabla de Precisión Industrial: Orden Item, Cant, Und, RUBRO APU, Descripción, Marca, Proveedor, Vr Unit, Total, Acción */}
               <div className="overflow-x-auto border border-border rounded-lg shadow-2xs">
-                <table className="w-full text-left border-collapse min-w-[1050px]">
+                <table className="w-full text-left border-collapse min-w-[1100px]">
                   <thead>
                     <tr className="bg-primary-900 text-white text-[11px] uppercase tracking-wider font-semibold">
-                      <th className="py-2.5 px-3 w-14 text-center border-r border-primary-800">Item</th>
-                      <th className="py-2.5 px-3 w-20 text-center border-r border-primary-800">Cant</th>
-                      <th className="py-2.5 px-3 w-32 border-r border-primary-800">Und</th>
-                      <th className="py-2.5 px-3 min-w-[240px] border-r border-primary-800">Descripción</th>
-                      <th className="py-2.5 px-3 w-36 border-r border-primary-800">No Cotiz. Cliente</th>
-                      <th className="py-2.5 px-3 w-32 border-r border-primary-800">Marca</th>
-                      <th className="py-2.5 px-3 w-36 border-r border-primary-800">Proveedor Sugerido</th>
-                      <th className="py-2.5 px-3 w-32 text-right border-r border-primary-800">Precio Unit. (COP)</th>
+                      <th className="py-2.5 px-3 w-12 text-center border-r border-primary-800">Item</th>
+                      <th className="py-2.5 px-3 w-16 text-center border-r border-primary-800">Cant</th>
+                      <th className="py-2.5 px-3 w-28 border-r border-primary-800">Und</th>
+                      <th className="py-2.5 px-3 min-w-[220px] w-64 border-r border-primary-800">Rubro APU</th>
+                      <th className="py-2.5 px-3 min-w-[220px] border-r border-primary-800">Descripción</th>
+                      <th className="py-2.5 px-3 w-28 border-r border-primary-800">Marca</th>
+                      <th className="py-2.5 px-3 w-32 border-r border-primary-800">Proveedor Sugerido</th>
+                      <th className="py-2.5 px-3 w-28 text-right border-r border-primary-800">Precio Unit. (COP)</th>
                       <th className="py-2.5 px-3 w-32 text-right border-r border-primary-800">TOTAL (COP)</th>
                       <th className="py-2.5 px-2 w-12 text-center">Acción</th>
                     </tr>
@@ -923,12 +994,12 @@ export default function RequerimientoCompraPage() {
                   <tbody className="divide-y divide-border bg-white text-xs">
                     {itemsWithTotal.map((item, index) => (
                       <tr key={item.id} className="hover:bg-surface-secondary/50 transition-colors">
-                        {/* Item consecutivo */}
+                        {/* 1. Item consecutivo */}
                         <td className="py-2 px-2 text-center font-mono font-bold text-text-secondary bg-gray-50 border-r border-border">
                           {item.item_no}
                         </td>
 
-                        {/* Cantidad */}
+                        {/* 2. Cantidad */}
                         <td className="py-2 px-2 border-r border-border">
                           <input
                             type="number"
@@ -948,7 +1019,7 @@ export default function RequerimientoCompraPage() {
                           />
                         </td>
 
-                        {/* Unidad desplegable */}
+                        {/* 3. Unidad desplegable */}
                         <td className="py-2 px-2 border-r border-border">
                           <select
                             value={item.unit}
@@ -963,7 +1034,57 @@ export default function RequerimientoCompraPage() {
                           </select>
                         </td>
 
-                        {/* Descripción */}
+                        {/* 4. RUBRO APU (Selector de ítems de presupuesto o entrada manual) */}
+                        <td className="py-2 px-2 border-r border-border">
+                          {currentProjectBudget && currentProjectBudget.items.length > 0 ? (
+                            <select
+                              value={
+                                currentProjectBudget.items.some(
+                                  (bIt) =>
+                                    bIt.id === item.budget_item_id ||
+                                    bIt.description === item.budget_rubro
+                                )
+                                  ? item.budget_item_id ||
+                                    currentProjectBudget.items.find(
+                                      (bIt) => bIt.description === item.budget_rubro
+                                    )?.id ||
+                                    ''
+                                  : item.budget_rubro
+                                  ? '__custom__'
+                                  : ''
+                              }
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '__custom__') {
+                                  handleItemChange(index, 'budget_item_id', undefined);
+                                  handleItemChange(index, 'budget_rubro', 'No presupuestado');
+                                } else {
+                                  handleSelectBudgetRubro(index, val);
+                                }
+                              }}
+                              className="w-full text-xs font-semibold rounded border border-amber-300 bg-amber-50/40 text-primary-900 px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent truncate"
+                              title={item.budget_rubro || 'Seleccionar Rubro APU'}
+                            >
+                              <option value="">-- Seleccionar Rubro APU --</option>
+                              {currentProjectBudget.items.map((bIt) => (
+                                <option key={bIt.id} value={bIt.id}>
+                                  {bIt.description}
+                                </option>
+                              ))}
+                              <option value="__custom__">-- Otro / Ítem No Presupuestado --</option>
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={item.budget_rubro}
+                              onChange={(e) => handleItemChange(index, 'budget_rubro', e.target.value)}
+                              placeholder="Gasto directo / Rubro libre..."
+                              className="w-full text-xs rounded border border-border px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent text-text-primary"
+                            />
+                          )}
+                        </td>
+
+                        {/* 5. Descripción */}
                         <td className="py-2 px-2 border-r border-border">
                           <input
                             type="text"
@@ -975,29 +1096,18 @@ export default function RequerimientoCompraPage() {
                           />
                         </td>
 
-                        {/* No Cotización Cliente */}
-                        <td className="py-2 px-2 border-r border-border">
-                          <input
-                            type="text"
-                            value={item.client_quote_no}
-                            onChange={(e) => handleItemChange(index, 'client_quote_no', e.target.value)}
-                            placeholder="Ej: COT-2026-9"
-                            className="w-full text-xs font-mono rounded border border-border px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent text-text-primary"
-                          />
-                        </td>
-
-                        {/* Marca */}
+                        {/* 6. Marca */}
                         <td className="py-2 px-2 border-r border-border">
                           <input
                             type="text"
                             value={item.brand}
                             onChange={(e) => handleItemChange(index, 'brand', e.target.value)}
-                            placeholder="Ej: GSSI / Truper"
+                            placeholder="Ej: Argos / Layher"
                             className="w-full text-xs rounded border border-border px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent text-text-primary"
                           />
                         </td>
 
-                        {/* Proveedor Sugerido */}
+                        {/* 7. Proveedor Sugerido */}
                         <td className="py-2 px-2 border-r border-border">
                           <input
                             type="text"
@@ -1008,7 +1118,7 @@ export default function RequerimientoCompraPage() {
                           />
                         </td>
 
-                        {/* Precio Unitario COP */}
+                        {/* 8. Precio Unitario COP */}
                         <td className="py-2 px-2 border-r border-border text-right">
                           <input
                             type="number"
@@ -1027,12 +1137,12 @@ export default function RequerimientoCompraPage() {
                           />
                         </td>
 
-                        {/* Total por Fila (Calculado automáticamente) */}
+                        {/* 9. Total por Fila (Calculado automáticamente) */}
                         <td className="py-2 px-3 border-r border-border text-right font-mono font-bold text-text-primary bg-surface-secondary/30">
                           {formatCurrency(item.calculatedTotal)}
                         </td>
 
-                        {/* Botón Eliminar Fila */}
+                        {/* 10. Botón Eliminar Fila */}
                         <td className="py-2 px-1 text-center">
                           <button
                             type="button"

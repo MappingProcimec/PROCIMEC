@@ -7,8 +7,10 @@ export interface PurchaseRequestItem {
   item_no: number;
   quantity: number;
   unit: string;
+  budget_rubro?: string;
+  budget_item_id?: string;
   description: string;
-  client_quote_no: string;
+  client_quote_no?: string;
   brand: string;
   suggested_supplier: string;
   unit_price: number;
@@ -170,6 +172,104 @@ export async function GET() {
     console.warn('Error obteniendo usuarios de proyectos:', uErr);
   }
 
+  // 3b. Consultar presupuestos APU asociados a proyectos (para autocompletar Rubro de Presupuesto)
+  const projectBudgets: Record<
+    string,
+    {
+      budget_id: string;
+      budget_code: string;
+      project_title: string;
+      items: Array<{
+        id: string;
+        category?: string;
+        description: string;
+        brand?: string;
+        suggested_supplier?: string;
+        unit: string;
+        quantity: number;
+        unit_cost: number;
+      }>;
+    }
+  > = {};
+
+  try {
+    const { data: allBudgets } = await supabase
+      .from('commercial_budgets')
+      .select('id, budget_code, project_title, client_name, items_detail');
+
+    if (allBudgets && allBudgets.length > 0) {
+      const budgetMap = new Map<string, typeof allBudgets[0]>();
+      allBudgets.forEach((b) => budgetMap.set(b.id, b));
+
+      const { data: allPrjWithBudgets } = await supabase
+        .from('projects')
+        .select('id, commercial_budget_id, commercial_proposal_id')
+        .eq('is_active', true);
+
+      if (allPrjWithBudgets) {
+        for (const p of allPrjWithBudgets) {
+          const bId = p.commercial_budget_id as string | undefined;
+          if (bId && budgetMap.has(bId)) {
+            const b = budgetMap.get(bId)!;
+            const rawItems = Array.isArray(b.items_detail) ? b.items_detail : [];
+            projectBudgets[p.id as string] = {
+              budget_id: b.id,
+              budget_code: b.budget_code,
+              project_title: b.project_title,
+              items: rawItems
+                .map((it: Record<string, unknown>) => ({
+                  id: (it.id as string) || String(Math.random()),
+                  category: (it.category as string) || 'materials',
+                  description: String(it.description || '').trim(),
+                  brand: String(it.brand || '').trim(),
+                  suggested_supplier: String(it.suggested_supplier || '').trim(),
+                  unit: String(it.unit || 'Und').trim(),
+                  quantity: Number(it.quantity) || 1,
+                  unit_cost: Number(it.unit_cost) || 0,
+                }))
+                .filter((it: { description: string }) => Boolean(it.description)),
+            };
+          }
+        }
+      }
+
+      // Complementar con propuestas vinculadas a proyectos
+      const { data: propRows } = await supabase
+        .from('commercial_proposals')
+        .select('project_id, budget_id')
+        .not('project_id', 'is', null)
+        .not('budget_id', 'is', null);
+
+      if (propRows) {
+        for (const pr of propRows) {
+          if (pr.project_id && pr.budget_id && !projectBudgets[pr.project_id] && budgetMap.has(pr.budget_id)) {
+            const b = budgetMap.get(pr.budget_id)!;
+            const rawItems = Array.isArray(b.items_detail) ? b.items_detail : [];
+            projectBudgets[pr.project_id] = {
+              budget_id: b.id,
+              budget_code: b.budget_code,
+              project_title: b.project_title,
+              items: rawItems
+                .map((it: Record<string, unknown>) => ({
+                  id: (it.id as string) || String(Math.random()),
+                  category: (it.category as string) || 'materials',
+                  description: String(it.description || '').trim(),
+                  brand: String(it.brand || '').trim(),
+                  suggested_supplier: String(it.suggested_supplier || '').trim(),
+                  unit: String(it.unit || 'Und').trim(),
+                  quantity: Number(it.quantity) || 1,
+                  unit_cost: Number(it.unit_cost) || 0,
+                }))
+                .filter((it: { description: string }) => Boolean(it.description)),
+            };
+          }
+        }
+      }
+    }
+  } catch (bErr) {
+    console.warn('Error obteniendo presupuestos de proyectos:', bErr);
+  }
+
   // 4. Calcular siguiente consecutivo automatizado con tolerancia de esquema
   let nextConsecutive = 1;
   try {
@@ -207,6 +307,7 @@ export async function GET() {
     requestCode,
     projects,
     projectUsers,
+    projectBudgets,
     allApprovers,
     today: new Date().toISOString().split('T')[0],
   });
@@ -312,12 +413,15 @@ export async function POST(req: NextRequest) {
     const qty = Number(item.quantity) || 1;
     const unitPrice = Number(item.unit_price) || 0;
     const total = qty * unitPrice;
+    const rubro = String(item.budget_rubro || item.client_quote_no || '').trim();
     return {
       item_no: index + 1,
       quantity: qty,
       unit: String(item.unit || 'Und').trim(),
+      budget_rubro: rubro,
+      budget_item_id: item.budget_item_id ? String(item.budget_item_id).trim() : undefined,
       description: String(item.description || '').trim(),
-      client_quote_no: String(item.client_quote_no || '').trim(),
+      client_quote_no: rubro,
       brand: String(item.brand || '').trim(),
       suggested_supplier: String(item.suggested_supplier || '').trim(),
       unit_price: unitPrice,

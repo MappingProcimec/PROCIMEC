@@ -37,6 +37,8 @@ interface PurchaseRequestItemData {
   description?: string;
   quantity?: number | '';
   unit?: string;
+  budget_rubro?: string;
+  budget_item_id?: string;
   client_quote_no?: string;
   brand?: string;
   suggested_supplier?: string;
@@ -412,7 +414,8 @@ export default function PurchasingDashboardPage() {
         quantity: it.quantity || 1,
         unit: it.unit || 'Und',
         description: it.description || it.item || 'Ítem sin descripción',
-        client_quote_no: it.client_quote_no || '',
+        budget_rubro: it.budget_rubro || it.client_quote_no || '',
+        client_quote_no: it.budget_rubro || it.client_quote_no || '',
         brand: it.brand || '',
         suggested_supplier: it.suggested_supplier || '',
         unit_price: it.unit_price || 0,
@@ -1072,9 +1075,9 @@ export default function PurchasingDashboardPage() {
                             <td className="p-2 text-center font-mono text-text-muted">{it.item_no || idx + 1}</td>
                             <td className="p-2 font-medium text-text-primary">
                               {it.description || it.item || 'Ítem'}
-                              {it.client_quote_no && (
-                                <span className="block text-[10px] text-text-muted font-mono">
-                                  Cot: {it.client_quote_no}
+                              {(it.budget_rubro || it.client_quote_no) && (
+                                <span className="block text-[10px] text-amber-700 font-mono font-semibold">
+                                  APU: {it.budget_rubro || it.client_quote_no}
                                 </span>
                               )}
                             </td>

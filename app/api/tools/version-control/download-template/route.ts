@@ -564,11 +564,11 @@ async function generateExcelTemplate(
       'Ítem',
       'Cant.',
       'Unidad',
+      'Rubro APU',
       'Descripción Técnica Detallada',
+      'Marca',
       'Proveedor Sugerido',
-      'Moneda',
       'Precio Unitario Est.',
-      'Subtotal Est.',
       'Total COP',
     ]);
     rTh.height = 22;
@@ -587,11 +587,10 @@ async function generateExcelTemplate(
     // Filas de Datos de Ítems
     const startItemRow = rTh.number + 1;
     for (let i = 1; i <= 8; i++) {
-      const curRow = ws.addRow([i, 1, 'UND', `Insumo / Servicio técnico ítem #${i}`, 'Proveedor Autorizado', 'COP', 0, 0, 0]);
+      const curRow = ws.addRow([i, 1, 'UND', `Rubro APU #${i}`, `Insumo / Servicio técnico ítem #${i}`, 'Marca / Fabricante', 'Proveedor Sugerido', 0, 0]);
       curRow.height = 19;
       const rNum = curRow.number;
-      curRow.getCell(8).value = { formula: `B${rNum}*G${rNum}` };
-      curRow.getCell(9).value = { formula: `H${rNum}` };
+      curRow.getCell(9).value = { formula: `B${rNum}*H${rNum}` };
 
       curRow.eachCell((c, col) => {
         c.font = cellFont;
@@ -601,10 +600,10 @@ async function generateExcelTemplate(
           left: { style: 'thin', color: { argb: 'FFE5E7EB' } },
           right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
         };
-        if (col === 1 || col === 2 || col === 3 || col === 6) {
+        if (col === 1 || col === 2 || col === 3) {
           c.alignment = { vertical: 'middle', horizontal: 'center' };
         }
-        if (col === 7 || col === 8 || col === 9) {
+        if (col === 8 || col === 9) {
           c.numFmt = '$#,##0';
           c.alignment = { vertical: 'middle', horizontal: 'right' };
         }

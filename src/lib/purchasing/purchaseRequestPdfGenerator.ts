@@ -6,6 +6,7 @@ export interface PurchaseRequestPdfItem {
   item_no?: number;
   quantity: number | '';
   unit: string;
+  budget_rubro?: string;
   description: string;
   client_quote_no?: string;
   brand?: string;
@@ -116,8 +117,8 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
   const badgeY = curY - 2;
 
   const docCode = data.code || 'FOR-COM-001';
-  const docVer = data.version || '2';
-  const docEffDate = data.effectiveDate || '2026-10-02';
+  const docVer = data.version || '3';
+  const docEffDate = data.effectiveDate || '2026-10-08';
 
   doc.setFillColor(...COLOR_CHARCOAL);
   doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 2, 2, 'F');
@@ -279,8 +280,8 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
       String(it.item_no || idx + 1),
       String(qty),
       it.unit || 'Und',
+      it.budget_rubro || it.client_quote_no || '—',
       it.description || 'Sin descripción',
-      it.client_quote_no || '—',
       it.brand || '—',
       it.suggested_supplier || '—',
       formatCOP(unitPrice),
@@ -313,19 +314,19 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
       0: { cellWidth: 8, halign: 'center', fontStyle: 'bold' },
       1: { cellWidth: 12, halign: 'center', font: 'courier' },
       2: { cellWidth: 12, halign: 'center' },
-      3: { cellWidth: 54, halign: 'left' },
-      4: { cellWidth: 24, halign: 'center', font: 'courier', fontSize: 6.5 },
-      5: { cellWidth: 22, halign: 'left' },
-      6: { cellWidth: 24, halign: 'left' },
-      7: { cellWidth: 15, halign: 'right', font: 'courier' },
-      8: { cellWidth: 15, halign: 'right', font: 'courier', fontStyle: 'bold' },
+      3: { cellWidth: 32, halign: 'left' },
+      4: { cellWidth: 46, halign: 'left' },
+      5: { cellWidth: 20, halign: 'left' },
+      6: { cellWidth: 22, halign: 'left' },
+      7: { cellWidth: 14, halign: 'right', font: 'courier' },
+      8: { cellWidth: 14, halign: 'right', font: 'courier', fontStyle: 'bold' },
     },
     head: [[
       '#',
       'CANT.',
       'UND',
+      'RUBRO APU',
       'DESCRIPCIÓN DEL BIEN O SERVICIO',
-      'NO. COTIZACIÓN',
       'MARCA',
       'PROVEEDOR SUG.',
       'VR. UNIT.',

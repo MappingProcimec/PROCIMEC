@@ -665,6 +665,8 @@ export interface BudgetItem {
   id: string;
   category: 'materials' | 'equipment' | 'labor' | 'logistics' | 'subcontracts';
   description: string;
+  brand?: string;
+  suggested_supplier?: string;
   unit: string;
   quantity: number;
   unit_cost: number;
