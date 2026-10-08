@@ -388,6 +388,7 @@ export default function PurchasingDashboardPage() {
 
   // Estados para evaluación de proveedores ISO 9001 (Pestaña 7)
   const [evaluatingOrder, setEvaluatingOrder] = useState<PurchaseOrder | null>(null);
+  const [selectedSupplierHistoryName, setSelectedSupplierHistoryName] = useState<string | null>(null);
   const [evalQuality, setEvalQuality] = useState(5);
   const [evalDelivery, setEvalDelivery] = useState(5);
   const [evalService, setEvalService] = useState(5);
@@ -944,6 +945,71 @@ export default function PurchasingDashboardPage() {
       return isCompleted && notEvaluated && matchSearch && matchProject;
     });
   }, [dashboard?.orders, dashboard?.evaluations, search, filterProject]);
+
+  // Historial consolidado del proveedor seleccionado (Auditorías ISO 9001, calificaciones y OCs)
+  const supplierHistoryData = useMemo(() => {
+    if (!selectedSupplierHistoryName) return null;
+    const target = selectedSupplierHistoryName.trim().toLowerCase();
+
+    const matchSupplier = (name?: string | null) => {
+      if (!name) return false;
+      const n = name.trim().toLowerCase();
+      return n === target || n.includes(target) || target.includes(n);
+    };
+
+    // 1. Evaluaciones registradas del proveedor
+    const evals = (dashboard?.evaluations || []).filter((e) => matchSupplier(e.supplier_name));
+
+    // 2. Órdenes de compra del proveedor
+    const orders = (dashboard?.orders || []).filter((o) => matchSupplier(o.supplier_name));
+
+    // 3. Directorio de proveedores
+    const directorySupplier = (suppliersList || []).find((s) => matchSupplier(s.company_name));
+
+    // 4. Métricas consolidadas
+    const totalEvals = evals.length;
+    const avgOverall = totalEvals > 0 ? evals.reduce((acc, e) => acc + Number(e.overall_rating || 0), 0) / totalEvals : 0;
+    const avgQuality = totalEvals > 0 ? evals.reduce((acc, e) => acc + Number(e.quality_score || 0), 0) / totalEvals : 0;
+    const avgDelivery = totalEvals > 0 ? evals.reduce((acc, e) => acc + Number(e.delivery_time_score || 0), 0) / totalEvals : 0;
+    const avgService = totalEvals > 0 ? evals.reduce((acc, e) => acc + Number(e.service_score || 0), 0) / totalEvals : 0;
+    const recommendedCount = evals.filter((e) => e.recommend_supplier).length;
+    const recommendationRate = totalEvals > 0 ? Math.round((recommendedCount / totalEvals) * 100) : 0;
+
+    const totalCommitted = orders.reduce((acc, o) => acc + (Number(o.total_amount) || 0), 0);
+    const deliveredOrdersCount = orders.filter((o) => o.status === 'completed').length;
+
+    // Metadatos adicionales
+    const nit = directorySupplier?.nit || orders.find((o) => o.supplier_nit)?.supplier_nit || null;
+    const phone = directorySupplier?.phone || null;
+    const email = directorySupplier?.email || null;
+    const contact = directorySupplier?.contact_name || orders.find((o) => o.supplier_contact)?.supplier_contact || null;
+    const category = directorySupplier?.category || null;
+    const paymentTerms = directorySupplier?.payment_terms || null;
+
+    return {
+      name: selectedSupplierHistoryName,
+      nit,
+      phone,
+      email,
+      contact,
+      category,
+      paymentTerms,
+      evals,
+      orders,
+      metrics: {
+        totalEvals,
+        avgOverall,
+        avgQuality,
+        avgDelivery,
+        avgService,
+        recommendedCount,
+        recommendationRate,
+        totalOrders: orders.length,
+        deliveredOrdersCount,
+        totalCommitted,
+      },
+    };
+  }, [selectedSupplierHistoryName, dashboard?.evaluations, dashboard?.orders, suppliersList]);
 
   const formatCOP = (val: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -1529,6 +1595,10 @@ export default function PurchasingDashboardPage() {
     setEvalRecommend(true);
     setEvalComments('');
     setEvalSuccessMsg(null);
+  };
+
+  const handleOpenSupplierHistory = (supplierName: string) => {
+    setSelectedSupplierHistoryName(supplierName);
   };
 
   // Enviar evaluación de desempeño del proveedor
@@ -3168,13 +3238,22 @@ export default function PurchasingDashboardPage() {
                         <th className="py-3 px-4">Comentarios</th>
                         <th className="py-3 px-4 text-center">Estado</th>
                         <th className="py-3 px-4">Fecha</th>
+                        <th className="py-3 px-4 text-right">Acción</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {filteredSuppliers.map((ev) => (
-                        <tr key={ev.id} className="hover:bg-slate-50/70 transition-colors">
+                        <tr
+                          key={ev.id}
+                          onClick={() => handleOpenSupplierHistory(ev.supplier_name)}
+                          className="hover:bg-amber-50/40 transition-colors cursor-pointer group"
+                          title={`Haga clic para ver el historial y hoja de vida de ${ev.supplier_name}`}
+                        >
                           <td className="py-3 px-4 font-bold text-text-primary whitespace-nowrap">
-                            {ev.supplier_name}
+                            <span className="group-hover:text-amber-700 transition-colors flex items-center gap-1.5 font-bold">
+                              {ev.supplier_name}
+                              <ExternalLink className="w-3.5 h-3.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </span>
                           </td>
                           <td className="py-3 px-4 text-center whitespace-nowrap">
                             <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-amber-800 text-xs font-bold font-mono">
@@ -3224,6 +3303,19 @@ export default function PurchasingDashboardPage() {
                           </td>
                           <td className="py-3 px-4 text-text-muted font-mono whitespace-nowrap text-[11px]">
                             {new Date(ev.created_at).toLocaleDateString('es-CO')}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenSupplierHistory(ev.supplier_name);
+                              }}
+                              className="btn bg-white hover:bg-amber-50 border border-border hover:border-accent text-xs px-2.5 py-1.5 rounded-lg text-text-primary shadow-xs font-semibold cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-accent" />
+                              Ver Histórico
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -4837,7 +4929,19 @@ export default function PurchasingDashboardPage() {
                         </p>
                       </div>
                     </div>
-                    {!isAlreadyEvaluated && (
+                    {isAlreadyEvaluated ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedOrder(null);
+                          handleOpenSupplierHistory(selectedOrder.supplier_name);
+                        }}
+                        className="btn bg-white hover:bg-emerald-100 border border-emerald-300 text-xs px-3 py-1.5 rounded-lg text-emerald-900 shadow-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap self-end sm:self-center"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-emerald-700" />
+                        Ver Histórico
+                      </button>
+                    ) : (
                       <button
                         type="button"
                         onClick={() => handleOpenEvaluationModal(selectedOrder)}
@@ -6067,6 +6171,362 @@ export default function PurchasingDashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ────────────────────────────────────────────────────────────────────
+          MODAL HISTÓRICO Y HOJA DE VIDA DEL PROVEEDOR (ISO 9001 / SIG)
+         ──────────────────────────────────────────────────────────────────── */}
+      {selectedSupplierHistoryName && supplierHistoryData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-surface rounded-2xl border border-border max-w-4xl w-full p-5 sm:p-6 space-y-5 shadow-2xl max-h-[92vh] overflow-y-auto">
+            {/* Cabecera del Proveedor */}
+            <div className="flex items-start justify-between border-b border-border pb-4">
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-accent shrink-0">
+                  <Building2 className="w-6 h-6 text-accent" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300">
+                      Hoja de Vida de Proveedor • ISO 9001
+                    </span>
+                    {supplierHistoryData.nit && (
+                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-primary-900/5 text-primary-900 border border-border">
+                        NIT: {supplierHistoryData.nit}
+                      </span>
+                    )}
+                    {supplierHistoryData.category && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
+                        {supplierHistoryData.category}
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-lg sm:text-xl font-extrabold text-text-primary mt-1">
+                    {supplierHistoryData.name}
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted mt-1">
+                    {supplierHistoryData.contact && (
+                      <span>Contacto: <strong className="text-text-secondary">{supplierHistoryData.contact}</strong></span>
+                    )}
+                    {supplierHistoryData.phone && (
+                      <span>Tel: <strong className="text-text-secondary">{supplierHistoryData.phone}</strong></span>
+                    )}
+                    {supplierHistoryData.email && (
+                      <span>Email: <strong className="text-text-secondary">{supplierHistoryData.email}</strong></span>
+                    )}
+                    {supplierHistoryData.paymentTerms && (
+                      <span>Condición Comercial: <strong className="text-text-secondary">{supplierHistoryData.paymentTerms}</strong></span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSupplierHistoryName(null)}
+                className="p-1.5 rounded-lg hover:bg-surface-hover text-text-muted hover:text-text-primary transition-colors cursor-pointer"
+                title="Cerrar modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* KPIs Consolidados de Desempeño */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Tarjeta 1: Calificación General */}
+              <div className="bg-gradient-to-br from-amber-500/10 to-transparent p-3.5 rounded-xl border border-accent/30 space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 block">
+                  Calificación Histórica
+                </span>
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
+                  <span className="font-mono text-2xl font-extrabold text-amber-950">
+                    {supplierHistoryData.metrics.totalEvals > 0
+                      ? supplierHistoryData.metrics.avgOverall.toFixed(1)
+                      : '—'}
+                  </span>
+                  <span className="text-xs text-amber-800 font-medium">/ 5.0</span>
+                </div>
+                <div>
+                  {supplierHistoryData.metrics.totalEvals === 0 ? (
+                    <span className="text-[11px] text-text-muted">Sin evaluaciones aún</span>
+                  ) : supplierHistoryData.metrics.avgOverall >= 4.0 ? (
+                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      Proveedor Conforme (Apto)
+                    </span>
+                  ) : supplierHistoryData.metrics.avgOverall >= 3.0 ? (
+                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                      Desempeño Aceptable
+                    </span>
+                  ) : (
+                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
+                      No Conforme (Alerta)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Tarjeta 2: Factores Clave */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-border space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                  Desglose por Criterio
+                </span>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-secondary">Calidad Técnica:</span>
+                    <span className="font-mono font-bold text-text-primary">
+                      {supplierHistoryData.metrics.totalEvals > 0
+                        ? `${supplierHistoryData.metrics.avgQuality.toFixed(1)}/5`
+                        : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-secondary">Puntualidad Entrega:</span>
+                    <span className="font-mono font-bold text-text-primary">
+                      {supplierHistoryData.metrics.totalEvals > 0
+                        ? `${supplierHistoryData.metrics.avgDelivery.toFixed(1)}/5`
+                        : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-secondary">Servicio & Soporte:</span>
+                    <span className="font-mono font-bold text-text-primary">
+                      {supplierHistoryData.metrics.totalEvals > 0
+                        ? `${supplierHistoryData.metrics.avgService.toFixed(1)}/5`
+                        : '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tarjeta 3: Índice de Recomendación */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-border space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                  Índice de Recomendación
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="font-mono text-2xl font-extrabold text-text-primary">
+                    {supplierHistoryData.metrics.totalEvals > 0
+                      ? `${supplierHistoryData.metrics.recommendationRate}%`
+                      : '—'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-text-muted">
+                  {supplierHistoryData.metrics.recommendedCount} de {supplierHistoryData.metrics.totalEvals} encuestas recomiendan recomprar.
+                </p>
+              </div>
+
+              {/* Tarjeta 4: Volumen Transaccional */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-border space-y-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                  Trazabilidad Comercial
+                </span>
+                <div className="font-mono text-lg font-extrabold text-primary-900 truncate" title={formatCOP(supplierHistoryData.metrics.totalCommitted)}>
+                  {formatCOP(supplierHistoryData.metrics.totalCommitted)}
+                </div>
+                <p className="text-[11px] text-text-muted">
+                  {supplierHistoryData.metrics.totalOrders} órdenes ({supplierHistoryData.metrics.deliveredOrdersCount} completadas)
+                </p>
+              </div>
+            </div>
+
+            {/* Bloque 1: Historial de Evaluaciones de Desempeño */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-1.5">
+                  <Star className="w-4 h-4 text-accent" />
+                  Auditorías y Evaluaciones Realizadas ({supplierHistoryData.evals.length})
+                </h3>
+              </div>
+
+              {supplierHistoryData.evals.length === 0 ? (
+                <div className="p-4 bg-slate-50 rounded-xl border border-border text-center text-xs text-text-muted">
+                  No hay encuestas de evaluación registradas para este proveedor.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-border rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 border-b border-border text-text-secondary uppercase tracking-wider text-[10px] font-bold">
+                      <tr>
+                        <th className="py-2.5 px-3">Fecha</th>
+                        <th className="py-2.5 px-3">Orden Asociada</th>
+                        <th className="py-2.5 px-3 text-center">Calificación</th>
+                        <th className="py-2.5 px-3 text-center">Calidad</th>
+                        <th className="py-2.5 px-3 text-center">Tiempos</th>
+                        <th className="py-2.5 px-3 text-center">Servicio</th>
+                        <th className="py-2.5 px-3 text-center">Recomendado</th>
+                        <th className="py-2.5 px-3">Evaluador</th>
+                        <th className="py-2.5 px-3">Observaciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {supplierHistoryData.evals.map((ev) => {
+                        const linkedOrder = (dashboard?.orders || []).find((o) => o.id === ev.purchase_order_id);
+                        return (
+                          <tr key={ev.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-2.5 px-3 font-mono text-text-muted whitespace-nowrap text-[11px]">
+                              {new Date(ev.created_at).toLocaleDateString('es-CO')}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              {linkedOrder ? (
+                                <div>
+                                  <span className="font-mono font-bold text-primary block text-xs">
+                                    {linkedOrder.order_code}
+                                  </span>
+                                  <span className="text-[10px] text-text-muted truncate block max-w-[140px]">
+                                    {linkedOrder.projects?.name || 'Administración'}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-text-muted text-[11px]">Evaluación General</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-amber-900 text-xs font-bold font-mono">
+                                <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                                {Number(ev.overall_rating).toFixed(1)} / 5
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-semibold text-text-primary">
+                              {ev.quality_score}/5
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-semibold text-text-primary">
+                              {ev.delivery_time_score}/5
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-semibold text-text-primary">
+                              {ev.service_score}/5
+                            </td>
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              {ev.recommend_supplier ? (
+                                <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 text-[10px]">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Sí
+                                </span>
+                              ) : (
+                                <span className="text-rose-700 bg-rose-50 border border-rose-200 font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 text-[10px]">
+                                  <AlertTriangle className="w-3 h-3 text-rose-600" /> No
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <p className="font-medium text-text-primary text-xs">
+                                {ev.users?.full_name || 'Auditor SIG'}
+                              </p>
+                              <p className="text-[10px] text-text-muted">
+                                {ev.users?.email || ''}
+                              </p>
+                            </td>
+                            <td className="py-2.5 px-3 max-w-[240px]">
+                              <p className="text-text-secondary italic text-[11px] leading-relaxed">
+                                {ev.comments ? `"${ev.comments}"` : 'Sin comentarios'}
+                              </p>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Bloque 2: Órdenes de Compra Asociadas */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-accent" />
+                  Órdenes de Compra Emitidas a este Proveedor ({supplierHistoryData.orders.length})
+                </h3>
+              </div>
+
+              {supplierHistoryData.orders.length === 0 ? (
+                <div className="p-4 bg-slate-50 rounded-xl border border-border text-center text-xs text-text-muted">
+                  No hay órdenes de compra formalizadas en el sistema para este proveedor.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-border rounded-xl">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 border-b border-border text-text-secondary uppercase tracking-wider text-[10px] font-bold">
+                      <tr>
+                        <th className="py-2.5 px-3">Código OC</th>
+                        <th className="py-2.5 px-3">Proyecto / CC</th>
+                        <th className="py-2.5 px-3">Monto Total</th>
+                        <th className="py-2.5 px-3">Plazo Entrega</th>
+                        <th className="py-2.5 px-3 text-center">Estado</th>
+                        <th className="py-2.5 px-3 text-right">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {supplierHistoryData.orders.map((o) => (
+                        <tr key={o.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-2.5 px-3 font-mono font-bold text-primary whitespace-nowrap">
+                            {o.order_code}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-mono text-xs font-semibold text-primary block">
+                              {o.projects?.cost_center || 'General'}
+                            </span>
+                            <span className="text-[11px] text-text-muted truncate block max-w-[200px]">
+                              {o.projects?.name || 'Administración'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-text-primary whitespace-nowrap">
+                            {formatCOP(Number(o.total_amount) || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-text-muted whitespace-nowrap text-[11px]">
+                            {o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : 'Inmediata'}
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            {o.status === 'completed' ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                Completada / Entregada
+                              </span>
+                            ) : o.status === 'in_transit' ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+                                En Tránsito
+                              </span>
+                            ) : o.status === 'confirmed' ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                                Confirmada
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                Emitida
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadOrderPdf(o)}
+                              disabled={downloadingOrderId === o.id}
+                              className="btn bg-white hover:bg-slate-100 border border-border text-[11px] px-2.5 py-1 rounded-lg text-text-primary shadow-xs font-semibold inline-flex items-center gap-1 cursor-pointer"
+                              title="Descargar PDF de esta Orden"
+                            >
+                              <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                              PDF
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Pie del Modal */}
+            <div className="flex items-center justify-between pt-3 border-t border-border">
+              <span className="text-[11px] text-text-muted">
+                PROCIMEC INGENIERÍA S.A.S. • Gestión y Control de Calidad de Proveedores
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedSupplierHistoryName(null)}
+                className="px-5 py-2 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-text-primary transition-colors cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
