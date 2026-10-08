@@ -35,12 +35,40 @@ import {
   TrendingDown,
   HelpCircle,
   Calculator,
+  Sparkles,
+  RefreshCw,
+  Save,
 } from 'lucide-react';
 import {
   downloadPurchaseRequestPdf,
   PurchaseRequestPdfItem,
   PurchaseRequestPdfSignatures,
 } from '@/lib/purchasing/purchaseRequestPdfGenerator';
+
+export interface ItemQuotationOption {
+  option_no: number;
+  source?: 'solicitud' | 'presupuesto' | 'mercado' | string;
+  supplier: string;
+  brand?: string;
+  unit_price: number | '';
+  total?: number;
+  delivery_days?: number | string;
+  notes?: string;
+  is_selected?: boolean;
+}
+
+export interface ItemPriceAudit {
+  updated_at: string;
+  updated_at_formatted: string;
+  updated_by_id?: string;
+  updated_by_name?: string;
+  updated_by_email?: string;
+  previous_unit_price?: number;
+  new_unit_price: number;
+  original_unit_price?: number;
+  variation_pct?: number;
+  change_reason?: string;
+}
 
 interface PurchaseRequestItemData {
   item?: string;
@@ -55,6 +83,11 @@ interface PurchaseRequestItemData {
   suggested_supplier?: string;
   unit_price?: number | '';
   total?: number;
+  original_unit_price?: number;
+  original_total?: number;
+  selected_quotation_index?: number;
+  quotations?: ItemQuotationOption[];
+  price_audit?: ItemPriceAudit;
 }
 
 export interface RequestSignatureData {
@@ -251,7 +284,11 @@ export default function PurchasingDashboardPage() {
   const [expandProjectDetails, setExpandProjectDetails] = useState(true);
   const [expandJustification, setExpandJustification] = useState(true);
   const [expandSignaturesFlow, setExpandSignaturesFlow] = useState(true);
-  const [itemsViewMode, setItemsViewMode] = useState<'standard' | 'analysis'>('standard');
+  const [itemsViewMode, setItemsViewMode] = useState<'standard' | 'analysis' | 'quotation'>('standard');
+  const [quotationDraftItems, setQuotationDraftItems] = useState<PurchaseRequestItemData[]>([]);
+  const [quotationChangeReason, setQuotationChangeReason] = useState<string>('');
+  const [isSavingQuotations, setIsSavingQuotations] = useState<boolean>(false);
+  const [quotationSuccessMsg, setQuotationSuccessMsg] = useState<string | null>(null);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery<{ data: PurchasingDashboardData }>({
     queryKey: ['purchasing-dashboard'],
@@ -689,14 +726,93 @@ export default function PurchasingDashboardPage() {
     setSignerNotes('');
     setOpenDropdownId(null);
 
-    // Para pestaña 3. VB Técnico (approvals), iniciar contraídas las secciones de metadatos, justificación y firmas,
-    // enfocando toda la atención en la sección de Bienes e Insumos Solicitados con su respectivo Análisis Presupuestal APU.
-    // Para otras pestañas (1. Cadena de Trazabilidad, 2. Requerimientos, etc.), mostrar tal cual está (expandido y tabular).
+    // Si viene de la pestaña 4 (En Cotización), contraer todo excepto Bienes e Insumos y activar Modo Cotización
+    // Si viene de la pestaña 3 (VB Técnico), contraer metadatos y enfocar en Análisis Presupuestal APU
+    // Para otras pestañas (1. Cadena de Trazabilidad, 2. Requerimientos, etc.), mostrar tal cual está
     const isApprovalsTab = activeTab === 'approvals';
-    setExpandProjectDetails(!isApprovalsTab);
-    setExpandJustification(!isApprovalsTab);
-    setExpandSignaturesFlow(!isApprovalsTab);
-    setItemsViewMode(isApprovalsTab ? 'analysis' : 'standard');
+    const isQuotationsTab = activeTab === 'quotations';
+
+    if (isQuotationsTab) {
+      setExpandProjectDetails(false);
+      setExpandJustification(false);
+      setExpandSignaturesFlow(false);
+      setItemsViewMode('quotation');
+    } else if (isApprovalsTab) {
+      setExpandProjectDetails(false);
+      setExpandJustification(false);
+      setExpandSignaturesFlow(false);
+      setItemsViewMode('analysis');
+    } else {
+      setExpandProjectDetails(true);
+      setExpandJustification(true);
+      setExpandSignaturesFlow(true);
+      setItemsViewMode('standard');
+    }
+
+    // Inicializar borrador de cotizaciones con las 3 opciones por ítem
+    const pId = r.project_id || '';
+    const pBudget = pId && dashboard?.projectBudgets ? dashboard.projectBudgets[pId] : undefined;
+    const initialDraftItems: PurchaseRequestItemData[] = (r.items || []).map((it) => {
+      if (it.quotations && it.quotations.length > 0) {
+        return { ...it };
+      }
+
+      const budgetItem = pBudget?.items?.find(
+        (b: BudgetAPUItem) =>
+          (it.budget_item_id && b.id === it.budget_item_id) ||
+          (Boolean(b.description) &&
+            Boolean(String(it.description || '').trim()) &&
+            b.description.toLowerCase().trim() === String(it.description || '').toLowerCase().trim())
+      );
+
+      const qty = Number(it.quantity) || 1;
+      const opt1Price = Number(it.unit_price) || 0;
+      const opt2Price = budgetItem?.unit_cost !== undefined ? budgetItem.unit_cost : opt1Price;
+
+      const opts: ItemQuotationOption[] = [
+        {
+          option_no: 1,
+          source: 'solicitud',
+          supplier: it.suggested_supplier || 'Proveedor de Solicitud',
+          brand: it.brand || 'Marca Solicitada',
+          unit_price: opt1Price,
+          total: qty * opt1Price,
+          delivery_days: 'Según Solicitud',
+          notes: 'Sugerido en solicitud de campo',
+          is_selected: true,
+        },
+        {
+          option_no: 2,
+          source: budgetItem ? 'presupuesto' : 'mercado',
+          supplier: budgetItem?.suggested_supplier || (budgetItem ? 'Tarifa Base APU' : ''),
+          brand: budgetItem?.brand || (budgetItem ? 'Estándar APU' : ''),
+          unit_price: opt2Price,
+          total: qty * opt2Price,
+          delivery_days: 'Inmediata',
+          notes: budgetItem ? `Tarifa contractual APU (${budgetItem.description})` : 'Proveedor alternativo B',
+          is_selected: false,
+        },
+        {
+          option_no: 3,
+          source: 'mercado',
+          supplier: '',
+          brand: '',
+          unit_price: '',
+          total: 0,
+          delivery_days: '',
+          notes: '',
+          is_selected: false,
+        },
+      ];
+
+      return {
+        ...it,
+        original_unit_price: it.original_unit_price !== undefined ? it.original_unit_price : opt1Price,
+        selected_quotation_index: 0,
+        quotations: opts,
+      };
+    });
+    setQuotationDraftItems(initialDraftItems);
 
     fetch('/api/tools/purchasing-dashboard/view', {
       method: 'POST',
@@ -710,6 +826,136 @@ export default function PurchasingDashboardPage() {
         }
       })
       .catch((err) => console.warn('Advertencia registrando vista silenciosa:', err));
+  };
+
+  // Manejo de edición de cotizaciones y selección de opción adjudicada
+  const handleUpdateOptionField = (
+    itemIdx: number,
+    optIdx: number,
+    field: keyof ItemQuotationOption,
+    value: unknown
+  ) => {
+    setQuotationDraftItems((prev) => {
+      const next = [...prev];
+      const curIt = { ...next[itemIdx] };
+      const curOpts = [...(curIt.quotations || [])];
+      curOpts[optIdx] = {
+        ...(curOpts[optIdx] || { option_no: optIdx + 1, supplier: '', unit_price: 0, total: 0 }),
+        [field]: value,
+      };
+
+      const uPrice = Number(curOpts[optIdx].unit_price) || 0;
+      curOpts[optIdx].total = (Number(curIt.quantity) || 1) * uPrice;
+      curIt.quotations = curOpts;
+
+      if (curIt.selected_quotation_index === optIdx) {
+        curIt.unit_price = uPrice;
+        curIt.total = (Number(curIt.quantity) || 1) * uPrice;
+        if (field === 'supplier') curIt.suggested_supplier = String(value);
+        if (field === 'brand') curIt.brand = String(value);
+      }
+
+      next[itemIdx] = curIt;
+      return next;
+    });
+  };
+
+  const handleSelectWinningOption = (itemIdx: number, optIdx: number) => {
+    setQuotationDraftItems((prev) => {
+      const next = [...prev];
+      const curIt = { ...next[itemIdx] };
+      const curOpts = (curIt.quotations || []).map((opt, idx) => ({
+        ...opt,
+        is_selected: idx === optIdx,
+      }));
+
+      const winningOpt = curOpts[optIdx];
+      const winPrice = Number(winningOpt?.unit_price) || 0;
+
+      curIt.selected_quotation_index = optIdx;
+      curIt.quotations = curOpts;
+      curIt.unit_price = winPrice;
+      curIt.total = (Number(curIt.quantity) || 1) * winPrice;
+      if (winningOpt?.supplier) curIt.suggested_supplier = winningOpt.supplier;
+      if (winningOpt?.brand) curIt.brand = winningOpt.brand;
+
+      next[itemIdx] = curIt;
+      return next;
+    });
+  };
+
+  const handleApplyApuPriceToOption = (
+    itemIdx: number,
+    optIdx: number,
+    budgetItem: BudgetAPUItem
+  ) => {
+    setQuotationDraftItems((prev) => {
+      const next = [...prev];
+      const curIt = { ...next[itemIdx] };
+      const curOpts = [...(curIt.quotations || [])];
+
+      curOpts[optIdx] = {
+        ...(curOpts[optIdx] || { option_no: optIdx + 1 }),
+        source: 'presupuesto',
+        supplier: budgetItem.suggested_supplier || curOpts[optIdx]?.supplier || 'Tarifa Base APU',
+        brand: budgetItem.brand || curOpts[optIdx]?.brand || 'Estándar APU',
+        unit_price: budgetItem.unit_cost,
+        total: (Number(curIt.quantity) || 1) * budgetItem.unit_cost,
+        notes: `Tarifa APU confirmada: ${budgetItem.description}`,
+      };
+
+      curIt.quotations = curOpts;
+      if (curIt.selected_quotation_index === optIdx) {
+        curIt.unit_price = budgetItem.unit_cost;
+        curIt.total = (Number(curIt.quantity) || 1) * budgetItem.unit_cost;
+        if (budgetItem.suggested_supplier) curIt.suggested_supplier = budgetItem.suggested_supplier;
+        if (budgetItem.brand) curIt.brand = budgetItem.brand;
+      }
+
+      next[itemIdx] = curIt;
+      return next;
+    });
+  };
+
+  const handleSaveQuotationsToDb = async () => {
+    if (!selectedRequest) return;
+    try {
+      setIsSavingQuotations(true);
+      setQuotationSuccessMsg(null);
+
+      const res = await fetch('/api/tools/purchasing-dashboard/quotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          request_id: selectedRequest.id,
+          items: quotationDraftItems,
+          change_reason: quotationChangeReason.trim(),
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Error al persistir cotizaciones en la base de datos');
+      }
+
+      setSelectedRequest((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: json.items,
+              total_amount: json.total_amount,
+            }
+          : prev
+      );
+
+      setQuotationSuccessMsg(`Cotizaciones y precios actualizados exitosamente en la base de datos (${json.updated_at_formatted}).`);
+      queryClient.invalidateQueries({ queryKey: ['purchasing-dashboard'] });
+      refetch();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al guardar cotizaciones');
+    } finally {
+      setIsSavingQuotations(false);
+    }
   };
 
   // Acceso directo a firma desde bandejas operativas
@@ -1645,15 +1891,23 @@ export default function PurchasingDashboardPage() {
                     <tr>
                       <th className="py-3 px-4">Código REQ</th>
                       <th className="py-3 px-4">Proyecto Destino</th>
-                      <th className="py-3 px-4">Aprobado VB por</th>
                       <th className="py-3 px-4">Insumos y Proveedores Sugeridos</th>
                       <th className="py-3 px-4 text-right">Valor Estimado</th>
+                      <th className="py-3 px-4 text-center">Ítems Cotizados</th>
                       <th className="py-3 px-4 text-center">Estado</th>
                       <th className="py-3 px-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {inQuotationRequests.map((r) => (
+                    {inQuotationRequests.map((r) => {
+                      const totalItems = (r.items || []).length;
+                      const quotedCount = (r.items || []).filter(
+                        (it) =>
+                          (it.quotations && it.quotations.length > 0 && it.selected_quotation_index !== undefined) ||
+                          it.price_audit !== undefined
+                      ).length;
+
+                      return (
                       <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3 px-4 whitespace-nowrap">
                           <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200 block w-fit">
@@ -1671,14 +1925,6 @@ export default function PurchasingDashboardPage() {
                             {r.client_name || r.projects?.client || 'Cliente'}
                           </span>
                         </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="font-medium text-text-primary block">
-                            {r.signatures?.director?.name || r.approver_name || 'Director'}
-                          </span>
-                          <span className="text-[10px] text-emerald-700 font-mono">
-                            {r.signatures?.director?.date_time ? `VB: ${r.signatures.director.date_time}` : 'Aprobado'}
-                          </span>
-                        </td>
                         <td className="py-3 px-4 max-w-[240px]">
                           <p className="text-text-secondary truncate text-[11px]">
                             {(r.items || []).map((it) => `${it.description || it.item} (${it.quantity} ${it.unit})`).join(' · ') || 'Sin ítems'}
@@ -1686,6 +1932,21 @@ export default function PurchasingDashboardPage() {
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-text-primary whitespace-nowrap">
                           {formatCOP(r.total_amount || 0)}
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          {quotedCount === totalItems && totalItems > 0 ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 inline-flex items-center gap-1 font-mono">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-700" /> {quotedCount} / {totalItems}
+                            </span>
+                          ) : quotedCount > 0 ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300 inline-flex items-center gap-1 font-mono">
+                              {quotedCount} / {totalItems} cotizados
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 inline-flex items-center gap-1 font-mono">
+                              0 / {totalItems} cotizados
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           {r.signatures?.purchasing || r.status === 'quoted' || r.status === 'approved' ? (
@@ -1719,7 +1980,8 @@ export default function PurchasingDashboardPage() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
@@ -2308,8 +2570,8 @@ export default function PurchasingDashboardPage() {
                     )}
                   </div>
 
-                  {/* Switch de modo de visualización: Tabla compacta vs Análisis Presupuestal APU */}
-                  <div className="flex items-center gap-1 bg-surface-secondary p-0.5 rounded-lg border border-border text-[11px] self-start sm:self-auto">
+                  {/* Switch de modo de visualización: Tabla compacta vs Análisis Presupuestal APU vs Cuadro de Cotizaciones */}
+                  <div className="flex flex-wrap items-center gap-1 bg-surface-secondary p-0.5 rounded-lg border border-border text-[11px] self-start sm:self-auto">
                     <button
                       type="button"
                       onClick={() => setItemsViewMode('standard')}
@@ -2333,6 +2595,18 @@ export default function PurchasingDashboardPage() {
                       <Calculator className="w-3 h-3 text-accent" strokeWidth={2} />
                       Análisis Presupuestal APU
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setItemsViewMode('quotation')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                        itemsViewMode === 'quotation'
+                          ? 'bg-white shadow-2xs font-bold text-amber-900 border border-amber-300'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                    >
+                      <Sparkles className="w-3 h-3 text-accent" strokeWidth={2} />
+                      Cuadro de Cotizaciones (3 Opciones)
+                    </button>
                   </div>
                 </div>
 
@@ -2351,8 +2625,291 @@ export default function PurchasingDashboardPage() {
                   </div>
                 )}
 
-                {/* Vista 1: Análisis Presupuestal APU Individual (Ficha técnica por ítem) */}
-                {itemsViewMode === 'analysis' ? (
+                {/* Vista 0: Cuadro Comparativo de 3 Cotizaciones por Ítem con Selección y Actualización */}
+                {itemsViewMode === 'quotation' ? (
+                  <div className="space-y-4">
+                    <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-300 text-xs text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-accent shrink-0" />
+                        <span>
+                          <strong>Mesa de Cotizaciones de Compras:</strong> Registra y compara hasta 3 ofertas, ajusta o confirma valores de presupuesto y selecciona la opción a adjudicar para la Orden de Compra.
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-amber-900 shrink-0 font-semibold bg-white/80 px-2 py-0.5 rounded border border-amber-200">
+                        {quotationDraftItems.filter((it) => it.quotations && it.quotations.length > 0 && it.selected_quotation_index !== undefined).length} de {quotationDraftItems.length} ítems listos
+                      </span>
+                    </div>
+
+                    {quotationDraftItems.map((draftIt, itemIdx) => {
+                      const budgetAnalysis = getItemBudgetAnalysis(draftIt);
+                      const selOptIdx = draftIt.selected_quotation_index ?? 0;
+                      const opts = draftIt.quotations || [];
+
+                      return (
+                        <div key={itemIdx} className="bg-white rounded-xl border border-border p-4 space-y-3.5 shadow-2xs">
+                          {/* Cabecera del ítem */}
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-border/80 pb-2.5">
+                            <div className="flex items-start gap-2.5 min-w-0">
+                              <span className="w-7 h-7 rounded-lg bg-primary-900 text-amber-400 font-mono font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                                #{draftIt.item_no || itemIdx + 1}
+                              </span>
+                              <div>
+                                <h4 className="font-bold text-text-primary text-sm leading-snug">
+                                  {draftIt.description || draftIt.item || 'Ítem Solicitado'}
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted mt-1">
+                                  <span>
+                                    Cantidad: <strong className="font-mono text-text-primary">{draftIt.quantity} {draftIt.unit || 'Und'}</strong>
+                                  </span>
+                                  {draftIt.budget_rubro && (
+                                    <span className="text-accent-800 font-semibold font-mono">
+                                      Rubro APU: {draftIt.budget_rubro}
+                                    </span>
+                                  )}
+                                  {budgetAnalysis.budgetItem && (
+                                    <span className="text-emerald-700 font-medium font-mono">
+                                      (Tarifa APU: {formatCOP(budgetAnalysis.budgetPrice)})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Estampa de auditoría horaria si ya fue modificado */}
+                            {draftIt.price_audit && (
+                              <div className="text-right text-[10px] text-text-muted font-mono bg-slate-50 px-2.5 py-1.5 rounded-lg border border-border">
+                                <span className="block font-semibold text-text-primary">
+                                  Modificado: {draftIt.price_audit.updated_at_formatted}
+                                </span>
+                                <span className="block text-text-secondary truncate max-w-[200px]" title={draftIt.price_audit.updated_by_name}>
+                                  Por: {draftIt.price_audit.updated_by_name}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Grid de las 3 opciones de cotización */}
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                            {[0, 1, 2].map((optIdx) => {
+                              const opt = opts[optIdx] || {
+                                option_no: optIdx + 1,
+                                source: optIdx === 0 ? 'solicitud' : optIdx === 1 ? 'presupuesto' : 'mercado',
+                                supplier: '',
+                                brand: '',
+                                unit_price: '',
+                                total: 0,
+                                delivery_days: '',
+                                notes: '',
+                              };
+                              const isSelected = selOptIdx === optIdx;
+                              const optPrice = typeof opt.unit_price === 'number' ? opt.unit_price : Number(opt.unit_price) || 0;
+                              const optTotal = (Number(draftIt.quantity) || 1) * optPrice;
+
+                              return (
+                                <div
+                                  key={optIdx}
+                                  className={`rounded-xl border p-3 flex flex-col justify-between transition-all ${
+                                    isSelected
+                                      ? 'border-2 border-accent bg-amber-50/40 shadow-xs ring-1 ring-accent'
+                                      : 'border-border bg-slate-50/50 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <div className="space-y-2.5">
+                                    <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-border/60">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center font-mono ${
+                                          isSelected ? 'bg-accent text-primary-900 font-bold' : 'bg-slate-200 text-slate-700'
+                                        }`}>
+                                          {optIdx + 1}
+                                        </span>
+                                        <span className="text-[11px] font-bold text-text-primary uppercase tracking-wide">
+                                          {optIdx === 0
+                                            ? 'Opción 1 (Solicitud)'
+                                            : optIdx === 1
+                                            ? 'Opción 2 (Tarifa APU / B)'
+                                            : 'Opción 3 (Alternativa C)'}
+                                        </span>
+                                      </div>
+                                      {isSelected && (
+                                        <span className="text-[10px] font-bold text-primary-900 bg-accent px-1.5 py-0.5 rounded shadow-2xs">
+                                          Adjudicada
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Botón rápido para fijar tarifa APU en Opción 2 */}
+                                    {optIdx === 1 && budgetAnalysis.budgetItem && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApplyApuPriceToOption(itemIdx, optIdx, budgetAnalysis.budgetItem!)}
+                                        className="w-full text-[10px] font-semibold py-1 px-2 rounded bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                      >
+                                        <RefreshCw className="w-3 h-3 text-accent" />
+                                        <span>Fijar Tarifa APU ({formatCOP(budgetAnalysis.budgetPrice)})</span>
+                                      </button>
+                                    )}
+
+                                    {/* Inputs de la opción */}
+                                    <div className="space-y-2 text-xs">
+                                      <div>
+                                        <label className="block text-[10px] font-semibold text-text-muted mb-0.5">Proveedor / Razón Social</label>
+                                        <input
+                                          type="text"
+                                          value={opt.supplier || ''}
+                                          onChange={(e) => handleUpdateOptionField(itemIdx, optIdx, 'supplier', e.target.value)}
+                                          placeholder="Nombre del proveedor"
+                                          className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                        />
+                                      </div>
+
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="block text-[10px] font-semibold text-text-muted mb-0.5">Marca / Ref.</label>
+                                          <input
+                                            type="text"
+                                            value={opt.brand || ''}
+                                            onChange={(e) => handleUpdateOptionField(itemIdx, optIdx, 'brand', e.target.value)}
+                                            placeholder="Marca"
+                                            className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-[10px] font-semibold text-text-muted mb-0.5">Días Entrega</label>
+                                          <input
+                                            type="text"
+                                            value={opt.delivery_days || ''}
+                                            onChange={(e) => handleUpdateOptionField(itemIdx, optIdx, 'delivery_days', e.target.value)}
+                                            placeholder="Ej: 2 días"
+                                            className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div>
+                                        <label className="block text-[10px] font-semibold text-text-muted mb-0.5">Valor Unitario (COP)</label>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="any"
+                                          value={opt.unit_price === '' ? '' : opt.unit_price}
+                                          onChange={(e) => handleUpdateOptionField(itemIdx, optIdx, 'unit_price', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                          placeholder="0"
+                                          className="w-full text-xs font-mono font-semibold rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                        />
+                                      </div>
+
+                                      <div className="p-2 rounded bg-white border border-border/80 flex items-center justify-between text-xs">
+                                        <span className="text-[10px] text-text-muted font-medium">Subtotal ({draftIt.quantity} {draftIt.unit}):</span>
+                                        <span className="font-mono font-bold text-text-primary">{formatCOP(optTotal)}</span>
+                                      </div>
+
+                                      <div>
+                                        <label className="block text-[10px] font-semibold text-text-muted mb-0.5">Notas / Condiciones</label>
+                                        <input
+                                          type="text"
+                                          value={opt.notes || ''}
+                                          onChange={(e) => handleUpdateOptionField(itemIdx, optIdx, 'notes', e.target.value)}
+                                          placeholder="Forma de pago, validez..."
+                                          className="w-full text-[11px] rounded border border-border bg-white px-2 py-1 text-text-secondary focus:ring-1 focus:ring-accent"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Botón de selección de la opción */}
+                                  <div className="pt-3 border-t border-border/60 mt-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSelectWinningOption(itemIdx, optIdx)}
+                                      className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-accent text-primary-900 shadow-sm ring-1 ring-accent'
+                                          : 'bg-white border border-border text-text-secondary hover:bg-slate-100 hover:text-text-primary'
+                                      }`}
+                                    >
+                                      {isSelected ? (
+                                        <>
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-900" />
+                                          <span>Seleccionada para OC</span>
+                                        </>
+                                      ) : (
+                                        <span>Seleccionar esta Opción</span>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Barra de consolidado y botón de guardado en BD */}
+                    <div className="bg-slate-900 text-white p-4 rounded-xl shadow-card space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Resumen Económico de Cotizaciones</span>
+                          <p className="text-xs text-slate-300">Valores consolidados según las opciones seleccionadas para la Orden de Compra.</p>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs font-mono">
+                          <div>
+                            <span className="text-[10px] text-slate-400 block">Total Solicitud:</span>
+                            <span className="text-slate-300 font-bold">{formatCOP(selectedRequest.total_amount || 0)}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] text-amber-400 block">Total Cotizado Confirmado:</span>
+                            <span className="text-amber-400 text-base font-bold">
+                              {formatCOP(
+                                quotationDraftItems.reduce((acc, it) => {
+                                  const selIdx = it.selected_quotation_index ?? 0;
+                                  const chosenOpt = (it.quotations || [])[selIdx];
+                                  const pr = chosenOpt ? Number(chosenOpt.unit_price) || 0 : Number(it.unit_price) || 0;
+                                  return acc + (Number(it.quantity) || 1) * pr;
+                                }, 0)
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+                        <div className="flex-1 max-w-lg">
+                          <input
+                            type="text"
+                            value={quotationChangeReason}
+                            onChange={(e) => setQuotationChangeReason(e.target.value)}
+                            placeholder="Justificación / Motivo del cambio de precios o negociación (opcional)..."
+                            className="w-full text-xs rounded-lg border border-slate-700 bg-slate-800/90 text-white px-3 py-1.5 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-accent"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveQuotationsToDb}
+                          disabled={isSavingQuotations}
+                          className="btn bg-accent text-primary-900 font-bold hover:bg-accent-400 px-4 py-2 rounded-lg flex items-center justify-center gap-2 shadow-sm text-xs shrink-0 cursor-pointer disabled:opacity-50"
+                        >
+                          {isSavingQuotations ? (
+                            <span>Guardando en Base de Datos...</span>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4 text-primary-900" />
+                              <span>Guardar Cotizaciones y Actualizar Precios</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {quotationSuccessMsg && (
+                        <div className="p-2.5 bg-emerald-950/80 border border-emerald-500 rounded-lg text-emerald-200 text-xs font-medium flex items-center gap-2 animate-fade-in">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>{quotationSuccessMsg}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : itemsViewMode === 'analysis' ? (
                   <div className="space-y-3">
                     {selectedRequest.items.map((it, idx) => {
                       const analysis = getItemBudgetAnalysis(it);
