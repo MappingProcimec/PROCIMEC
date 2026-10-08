@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
+import { createPurchaseOrderPdf } from '@/lib/purchasing/purchaseOrderPdfGenerator';
+import { sendPurchaseOrderEmail } from '@/lib/purchasing/purchaseOrderMailer';
 
 function formatDateTimeCO(d: Date = new Date()): string {
   return new Intl.DateTimeFormat('es-CO', {
@@ -42,6 +44,7 @@ export async function POST(req: NextRequest) {
       supplier_name,
       supplier_nit,
       supplier_contact,
+      supplier_email,
       supplier_id,
       items,
       total_amount,
@@ -49,11 +52,13 @@ export async function POST(req: NextRequest) {
       delivery_site,
       payment_terms,
       notes,
+      send_email_to_supplier,
     } = body as {
       request_id: string;
       supplier_name: string;
       supplier_nit?: string;
       supplier_contact?: string;
+      supplier_email?: string;
       supplier_id?: string;
       items: PurchaseOrderItemPayload[];
       total_amount: number;
@@ -61,6 +66,7 @@ export async function POST(req: NextRequest) {
       delivery_site?: string;
       payment_terms?: string;
       notes?: string;
+      send_email_to_supplier?: boolean;
     };
 
     if (!request_id?.trim()) {
@@ -81,10 +87,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Usuario no encontrado en la base de datos' }, { status: 404 });
     }
 
-    // Obtener solicitud
+    // Obtener solicitud y proyecto
     const { data: request, error: reqErr } = await supabase
       .from('purchase_requests')
-      .select('id, request_code, project_id, delivery_site, cost_center')
+      .select('id, request_code, project_id, delivery_site, cost_center, projects(id, name, cost_center, client)')
       .eq('id', request_id)
       .single();
 
@@ -114,13 +120,75 @@ export async function POST(req: NextRequest) {
     const nextCode = `OC-${currentYear}-${String(maxNum + 1).padStart(3, '0')}`;
 
     const timestampStr = formatDateTimeCO();
+    let trackingNote = `Orden de compra formalizada y emitida por ${dbUser.full_name || dbUser.email} para ${supplier_name}.`;
+
+    // Envío por correo electrónico si se seleccionó la casilla
+    let emailResult: { ok: boolean; message?: string } | null = null;
+    if (send_email_to_supplier && supplier_email && supplier_email.includes('@')) {
+      try {
+        const projData = request.projects as { id?: string; name?: string; cost_center?: string; client?: string } | null;
+        const pdfDoc = createPurchaseOrderPdf({
+          orderCode: nextCode,
+          requestCode: request.request_code,
+          createdDate: timestampStr,
+          supplierName: String(supplier_name).trim(),
+          supplierNit: supplier_nit,
+          supplierContact: supplier_contact,
+          supplierEmail: supplier_email,
+          projectName: projData?.name || request.cost_center || 'Operación General',
+          costCenter: projData?.cost_center || request.cost_center,
+          clientName: projData?.client,
+          buyerName: dbUser.full_name || dbUser.email,
+          deliveryDeadline: delivery_deadline,
+          deliverySite: delivery_site || request.delivery_site,
+          paymentTerms: payment_terms || 'Contado',
+          notes: notes,
+          items: (items || []).map((it) => ({
+            item_no: it.item_no,
+            description: it.description,
+            quantity: it.quantity,
+            unit: it.unit,
+            unit_price: it.unit_price,
+            total: it.total,
+            delivery_date: it.delivery_date,
+          })),
+          totalAmount: Number(total_amount) || 0,
+        });
+
+        const pdfBuffer = Buffer.from(pdfDoc.output('arraybuffer'));
+
+        emailResult = await sendPurchaseOrderEmail({
+          supplierEmail: supplier_email.trim(),
+          supplierName: String(supplier_name).trim(),
+          orderCode: nextCode,
+          projectName: projData?.name || request.cost_center || 'Operación General',
+          costCenter: projData?.cost_center || request.cost_center,
+          totalAmount: Number(total_amount) || 0,
+          deliveryDeadline: delivery_deadline,
+          deliverySite: delivery_site || request.delivery_site,
+          paymentTerms: payment_terms || 'Contado',
+          items: items || [],
+          notes: notes,
+          buyerName: dbUser.full_name || dbUser.email,
+          buyerEmail: dbUser.email,
+          pdfBuffer,
+        });
+
+        if (emailResult.ok) {
+          trackingNote += ` Enviada por correo al proveedor: ${supplier_email.trim()}.`;
+        }
+      } catch (mailErr) {
+        console.error('Error generando PDF o enviando correo de orden de compra:', mailErr);
+      }
+    }
+
     const initialTracking = [
       {
         status: 'issued',
         timestamp: new Date().toISOString(),
         formatted_date: timestampStr,
         user_name: dbUser.full_name || dbUser.email,
-        note: `Orden de compra formalizada y emitida por ${dbUser.full_name || dbUser.email} para ${supplier_name}.`,
+        note: trackingNote,
       },
     ];
 
@@ -181,10 +249,17 @@ export async function POST(req: NextRequest) {
       insertedOrder = insData;
     }
 
+    const emailNotice = emailResult?.ok
+      ? ` y enviada formalmente al correo del proveedor (${supplier_email?.trim()})`
+      : emailResult?.message
+      ? ` (${emailResult.message})`
+      : '';
+
     return NextResponse.json({
       success: true,
-      message: `Orden de compra ${nextCode} emitida exitosamente.`,
+      message: `Orden de compra ${nextCode} emitida exitosamente${emailNotice}.`,
       order: insertedOrder,
+      email_sent: Boolean(emailResult?.ok),
     });
   } catch (err: unknown) {
     console.error('Error al emitir orden de compra:', err);

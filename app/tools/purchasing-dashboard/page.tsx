@@ -38,12 +38,14 @@ import {
   Sparkles,
   RefreshCw,
   Save,
+  Mail,
 } from 'lucide-react';
 import {
   downloadPurchaseRequestPdf,
   PurchaseRequestPdfItem,
   PurchaseRequestPdfSignatures,
 } from '@/lib/purchasing/purchaseRequestPdfGenerator';
+import { createPurchaseOrderPdf } from '@/lib/purchasing/purchaseOrderPdfGenerator';
 
 export interface ItemQuotationOption {
   option_no: number;
@@ -344,6 +346,7 @@ export default function PurchasingDashboardPage() {
 
   // Estados para Emisión de Órdenes de Compra en Pestaña 6
   const [orderIssuingRequest, setOrderIssuingRequest] = useState<PurchaseRequest | null>(null);
+  const [downloadingOrderId, setDownloadingOrderId] = useState<string | null>(null);
   const [orderForms, setOrderForms] = useState<
     Record<
       string,
@@ -353,6 +356,8 @@ export default function PurchasingDashboardPage() {
         delivery_deadline: string;
         delivery_site: string;
         notes: string;
+        send_email_to_supplier?: boolean;
+        supplier_email?: string;
         isSubmitting?: boolean;
         successMsg?: string | null;
       }
@@ -709,12 +714,42 @@ export default function PurchasingDashboardPage() {
     });
   }, [dashboard?.requests, search, filterProject]);
 
-  // Solicitudes Aprobadas por Gerencia pero sin Orden de Compra emitida aún
+  // Helper para calcular cuántos ítems de una solicitud ya tienen Orden de Compra generada
+  const getManagedItemsCount = (req: PurchaseRequest) => {
+    const totalItems = req.items?.length || 0;
+    const reqOrders = (dashboard?.orders || []).filter((o) => o.purchase_request_id === req.id);
+    if (reqOrders.length === 0) return { count: 0, total: totalItems, isFullyManaged: false };
+
+    let count = 0;
+    const orderedItemKeys = new Set<string>();
+    reqOrders.forEach((o) => {
+      const oItems = Array.isArray(o.items_detail) ? o.items_detail : [];
+      oItems.forEach((it: any) => {
+        const key = `${it.item_no || ''}_${String(it.description || '').trim().toLowerCase()}`;
+        orderedItemKeys.add(key);
+      });
+    });
+
+    if (orderedItemKeys.size > 0 && totalItems > 0) {
+      count = (req.items || []).filter((it, idx) => {
+        const key = `${it.item_no || idx + 1}_${String(it.description || '').trim().toLowerCase()}`;
+        return orderedItemKeys.has(key) || orderedItemKeys.has(`${it.item_no || ''}_${String(it.description || '').trim().toLowerCase()}`);
+      }).length;
+    } else {
+      count = reqOrders.reduce((sum, o) => sum + (Array.isArray(o.items_detail) ? o.items_detail.length : 1), 0);
+    }
+
+    const finalCount = Math.min(count, totalItems || count);
+    const isFullyManaged = totalItems > 0 ? (finalCount >= totalItems) : (reqOrders.length > 0);
+    return { count: finalCount, total: totalItems, isFullyManaged };
+  };
+
+  // Solicitudes Aprobadas por Gerencia que aún tienen ítems pendientes de emitirles Orden de Compra
   const approvedWaitingOrders = useMemo(() => {
     if (!dashboard?.requests) return [];
     return dashboard.requests.filter((r) => {
       const isApproved = Boolean(r.signatures?.management) || r.status === 'approved';
-      const hasOrder = (dashboard.orders || []).some((o) => o.purchase_request_id === r.id);
+      const { isFullyManaged } = getManagedItemsCount(r);
       const matchSearch =
         search === '' ||
         (r.request_code || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -726,7 +761,7 @@ export default function PurchasingDashboardPage() {
         r.project_id === filterProject ||
         r.projects?.id === filterProject;
 
-      return isApproved && !hasOrder && matchSearch && matchProject;
+      return isApproved && !isFullyManaged && matchSearch && matchProject;
     });
   }, [dashboard?.requests, dashboard?.orders, search, filterProject]);
 
@@ -1082,6 +1117,57 @@ export default function PurchasingDashboardPage() {
     }
   }, [suppliersList.length]);
 
+  // Descargar PDF Oficial de la Orden de Compra (FOR-COM-002)
+  const handleDownloadOrderPdf = (o: PurchaseOrder) => {
+    try {
+      setDownloadingOrderId(o.id);
+      const items = (Array.isArray(o.items_detail) && o.items_detail.length > 0)
+        ? o.items_detail
+        : [{ description: 'Bienes e Insumos según Requerimiento', quantity: 1, unit: 'Glb', unit_price: Number(o.total_amount) || 0, total: Number(o.total_amount) || 0 }];
+
+      const supInfo = suppliersList.find(
+        (s) => s.company_name.toLowerCase().trim() === o.supplier_name.toLowerCase().trim()
+      );
+
+      const doc = createPurchaseOrderPdf({
+        orderCode: o.order_code,
+        createdDate: o.created_at ? new Date(o.created_at).toLocaleDateString('es-CO') : undefined,
+        supplierName: o.supplier_name,
+        supplierNit: o.supplier_nit || supInfo?.nit || undefined,
+        supplierContact: o.supplier_contact || supInfo?.contact_name || undefined,
+        supplierEmail: supInfo?.email || undefined,
+        supplierPhone: supInfo?.phone || undefined,
+        supplierCity: supInfo?.city || undefined,
+        supplierAddress: supInfo?.address || undefined,
+        projectName: o.projects?.name || undefined,
+        costCenter: o.projects?.cost_center || undefined,
+        clientName: o.projects?.client || undefined,
+        deliveryDeadline: o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : undefined,
+        deliverySite: o.delivery_site || undefined,
+        paymentTerms: o.payment_terms || undefined,
+        items: items.map((it: any, idx: number) => ({
+          item_no: it.item_no || idx + 1,
+          description: it.description || '',
+          quantity: it.quantity || 1,
+          unit: it.unit || 'Und',
+          unit_price: Number(it.unit_price) || 0,
+          total: Number(it.total) || 0,
+          delivery_date: it.delivery_date || undefined,
+        })),
+        totalAmount: Number(o.total_amount) || 0,
+        notes: o.notes || undefined,
+      });
+
+      const safeFilename = `${o.order_code}_${o.supplier_name.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+      doc.save(safeFilename);
+    } catch (err) {
+      console.error('Error generando PDF de orden de compra:', err);
+      alert('No se pudo generar el PDF de la orden de compra.');
+    } finally {
+      setDownloadingOrderId(null);
+    }
+  };
+
   // Apertura de ventana flotante especializada para Emisión de Órdenes de Compra (Pestaña 6)
   const handleOpenOrderIssuing = (r: PurchaseRequest) => {
     setOrderIssuingRequest(r);
@@ -1094,6 +1180,8 @@ export default function PurchasingDashboardPage() {
         delivery_deadline: string;
         delivery_site: string;
         notes: string;
+        send_email_to_supplier?: boolean;
+        supplier_email?: string;
       }
     > = {};
 
@@ -1112,12 +1200,16 @@ export default function PurchasingDashboardPage() {
         const code = `OC-${currentYear}-${String(nextNum).padStart(3, '0')}`;
         nextNum++;
 
+        const supEmail = supInfo?.email || '';
+
         groups[supName] = {
           order_code: code,
           payment_terms: supInfo?.payment_terms || 'Contado',
           delivery_deadline: selectedOpt?.delivery_date || r.delivery_date || r.required_date || '',
           delivery_site: r.delivery_site || '',
           notes: selectedOpt?.notes || '',
+          send_email_to_supplier: Boolean(supEmail),
+          supplier_email: supEmail,
         };
       }
     });
@@ -1138,6 +1230,8 @@ export default function PurchasingDashboardPage() {
       delivery_deadline: req.delivery_date || '',
       delivery_site: req.delivery_site || '',
       notes: '',
+      send_email_to_supplier: false,
+      supplier_email: '',
     };
 
     const supInfo = suppliersList.find(
@@ -1180,6 +1274,7 @@ export default function PurchasingDashboardPage() {
           supplier_name: supplierName,
           supplier_nit: supInfo?.nit || null,
           supplier_contact: supInfo?.contact_name || supInfo?.phone || null,
+          supplier_email: formVals.supplier_email || supInfo?.email || null,
           supplier_id: supInfo?.id || null,
           items: itemsPayload,
           total_amount: totalAmount,
@@ -1188,6 +1283,7 @@ export default function PurchasingDashboardPage() {
           payment_terms: formVals.payment_terms || 'Contado',
           notes: formVals.notes || null,
           order_code: formVals.order_code,
+          send_email_to_supplier: formVals.send_email_to_supplier,
         }),
       });
 
@@ -1201,7 +1297,9 @@ export default function PurchasingDashboardPage() {
         [supplierName]: {
           ...(prev[supplierName] || formVals),
           isSubmitting: false,
-          successMsg: `¡${json.order?.order_code || 'Orden'} emitida exitosamente!`,
+          successMsg: json.email_sent
+            ? `¡${json.order?.order_code || 'Orden'} emitida y enviada al correo del proveedor!`
+            : `¡${json.order?.order_code || 'Orden'} emitida exitosamente!`,
         },
       }));
 
@@ -2496,62 +2594,88 @@ export default function PurchasingDashboardPage() {
                         <th className="py-3 px-4">Proyecto / Cliente</th>
                         <th className="py-3 px-4">Solicitante</th>
                         <th className="py-3 px-4 text-right">Monto Aprobado</th>
+                        <th className="py-3 px-4 text-center">Ítems Gestionados</th>
                         <th className="py-3 px-4 text-center">Estado</th>
                         <th className="py-3 px-4 text-right">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {approvedWaitingOrders.map((r) => (
-                        <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-900 border border-emerald-300 block w-fit">
-                              {r.request_code || 'REQ'}
-                            </span>
-                            <span className="text-[10px] text-text-muted mt-0.5 block font-mono">
-                              {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 max-w-[200px]">
-                            <span className="font-semibold text-text-primary block truncate">
-                              {r.projects?.name || r.cost_center || 'General'}
-                            </span>
-                            <span className="text-[11px] text-text-secondary truncate block">
-                              {r.client_name || r.projects?.client || 'Cliente'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap font-medium text-text-primary">
-                            {r.applicant_name || r.users?.full_name || 'Solicitante'}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-extrabold text-sm text-emerald-700 whitespace-nowrap">
-                            {formatCOP(r.total_amount || 0)}
-                          </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                              Aprobada (Por Emitir OC)
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadPdf(r)}
-                              disabled={downloadingReqId === r.id}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
-                              title="Descargar PDF Oficial"
-                            >
-                              <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenOrderIssuing(r)}
-                              className="px-2.5 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
-                              title="Gestionar y emitir Órdenes de Compra a proveedores"
-                            >
-                              <Package className="w-3.5 h-3.5" />
-                              Emitir / Ver OC
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {approvedWaitingOrders.map((r) => {
+                        const { count: managedCount, total: totalItemCount } = getManagedItemsCount(r);
+                        return (
+                          <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-900 border border-emerald-300 block w-fit">
+                                {r.request_code || 'REQ'}
+                              </span>
+                              <span className="text-[10px] text-text-muted mt-0.5 block font-mono">
+                                {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 max-w-[200px]">
+                              <span className="font-semibold text-text-primary block truncate">
+                                {r.projects?.name || r.cost_center || 'General'}
+                              </span>
+                              <span className="text-[11px] text-text-secondary truncate block">
+                                {r.client_name || r.projects?.client || 'Cliente'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap font-medium text-text-primary">
+                              {r.applicant_name || r.users?.full_name || 'Solicitante'}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-extrabold text-sm text-emerald-700 whitespace-nowrap">
+                              {formatCOP(r.total_amount || 0)}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <div className="inline-flex flex-col items-center">
+                                <span
+                                  className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                                    managedCount === 0
+                                      ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                      : managedCount < totalItemCount
+                                      ? 'bg-blue-50 text-blue-900 border-blue-300'
+                                      : 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                                  }`}
+                                >
+                                  {managedCount} / {totalItemCount} ítems
+                                </span>
+                                <span className="text-[10px] text-text-muted mt-0.5 font-medium">
+                                  {managedCount === 0
+                                    ? '0 con OC emitida'
+                                    : managedCount < totalItemCount
+                                    ? `${totalItemCount - managedCount} pendiente${totalItemCount - managedCount > 1 ? 's' : ''}`
+                                    : '100% formalizado'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                Aprobada (Por Emitir OC)
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadPdf(r)}
+                                disabled={downloadingReqId === r.id}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
+                                title="Descargar PDF Oficial"
+                              >
+                                <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenOrderIssuing(r)}
+                                className="px-2.5 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                                title="Gestionar y emitir Órdenes de Compra a proveedores"
+                              >
+                                <Package className="w-3.5 h-3.5" />
+                                Emitir / Ver OC
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -2623,7 +2747,17 @@ export default function PurchasingDashboardPage() {
                                 {st.label}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadOrderPdf(o)}
+                                disabled={downloadingOrderId === o.id}
+                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors inline-flex items-center gap-1"
+                                title="Descargar Orden de Compra Oficial (PDF) para enviar al proveedor"
+                              >
+                                <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                                <span className="font-semibold text-[11px] text-text-primary">PDF</span>
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => setSelectedOrder(o)}
@@ -4319,18 +4453,29 @@ export default function PurchasingDashboardPage() {
                 </div>
               )}
 
-              <div className="pt-2 flex justify-between items-center">
-                {selectedOrder.attachment_url ? (
-                  <a
-                    href={selectedOrder.attachment_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary font-semibold flex items-center gap-1 hover:underline"
+              <div className="pt-2 flex justify-between items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadOrderPdf(selectedOrder)}
+                    disabled={downloadingOrderId === selectedOrder.id}
+                    className="btn bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs py-2 px-3.5 rounded-xl shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Ver soporte / Cotización
-                  </a>
-                ) : <span />}
+                    <Download className="w-3.5 h-3.5 text-primary-900 stroke-[2.5]" />
+                    Descargar Orden de Compra (PDF)
+                  </button>
+                  {selectedOrder.attachment_url && (
+                    <a
+                      href={selectedOrder.attachment_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary font-semibold flex items-center gap-1 hover:underline ml-2"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Ver soporte / Cotización
+                    </a>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setSelectedOrder(null)}
@@ -4512,6 +4657,16 @@ export default function PurchasingDashboardPage() {
                               }`}>
                                 {STATUS_ORDER_LABELS[existingOrder.status]?.label || existingOrder.status}
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadOrderPdf(existingOrder)}
+                                disabled={downloadingOrderId === existingOrder.id}
+                                className="btn bg-white hover:bg-gray-100 border border-border text-[11px] px-2.5 py-1 rounded-lg text-text-primary shadow-xs font-semibold inline-flex items-center gap-1 cursor-pointer ml-1"
+                                title="Descargar PDF Oficial de esta Orden"
+                              >
+                                <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                                PDF
+                              </button>
                             </div>
                           ) : (
                             <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300">
@@ -4824,6 +4979,62 @@ export default function PurchasingDashboardPage() {
                                   className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
                                 />
                               </div>
+                            </div>
+
+                            {/* Casilla de Enviar por Correo al Proveedor */}
+                            <div className="bg-white/90 p-3 rounded-xl border border-border space-y-2 shadow-2xs">
+                              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={formVals.send_email_to_supplier ?? Boolean(supDbInfo?.email)}
+                                  onChange={(e) =>
+                                    setOrderForms((prev) => ({
+                                      ...prev,
+                                      [sName]: {
+                                        ...(prev[sName] || formVals),
+                                        send_email_to_supplier: e.target.checked,
+                                      },
+                                    }))
+                                  }
+                                  className="w-4 h-4 rounded text-accent focus:ring-accent border-gray-300 cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                                  <Mail className="w-4 h-4 text-accent" />
+                                  Enviar Orden de Compra oficial por correo al proveedor una vez emitida
+                                </span>
+                              </label>
+
+                              {(formVals.send_email_to_supplier ?? Boolean(supDbInfo?.email)) && (
+                                <div className="pl-6.5 flex flex-col sm:flex-row sm:items-center gap-2 text-xs pt-1">
+                                  <span className="text-[11px] font-semibold text-text-muted whitespace-nowrap">
+                                    Correo destinatario:
+                                  </span>
+                                  <input
+                                    type="email"
+                                    value={formVals.supplier_email ?? supDbInfo?.email ?? ''}
+                                    onChange={(e) =>
+                                      setOrderForms((prev) => ({
+                                        ...prev,
+                                        [sName]: {
+                                          ...(prev[sName] || formVals),
+                                          supplier_email: e.target.value,
+                                        },
+                                      }))
+                                    }
+                                    placeholder="ejemplo@proveedor.com"
+                                    className="w-full sm:w-80 text-xs font-mono py-1 px-2.5 rounded-lg border border-border bg-white text-text-primary focus:ring-1 focus:ring-accent"
+                                  />
+                                  {supDbInfo?.email ? (
+                                    <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                      Registrado en directorio
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-amber-800 italic bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                      Ingresa el correo para notificación
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             {formVals.successMsg && (
