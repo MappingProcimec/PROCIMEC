@@ -35,11 +35,67 @@ export async function GET() {
     const currentYear = new Date().getFullYear();
     const nextCode = `PRE-${currentYear}-${String(nextNumber).padStart(3, '0')}`;
 
+    // 3. Consultar catálogo de descripciones previas para autocompletado typeahead y evitar duplicados
+    const historicalMap = new Map<string, { description: string; brand?: string; suggested_supplier?: string; unit?: string }>();
+
+    try {
+      const { data: recentBudgets } = await supabase
+        .from('commercial_budgets')
+        .select('items_detail')
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (recentBudgets) {
+        for (const b of recentBudgets) {
+          const arr = Array.isArray(b.items_detail) ? b.items_detail : [];
+          for (const it of arr) {
+            const desc = String((it as Record<string, unknown>).description || '').trim();
+            if (desc && !historicalMap.has(desc.toLowerCase())) {
+              historicalMap.set(desc.toLowerCase(), {
+                description: desc,
+                brand: String((it as Record<string, unknown>).brand || '').trim(),
+                suggested_supplier: String((it as Record<string, unknown>).suggested_supplier || '').trim(),
+                unit: String((it as Record<string, unknown>).unit || '').trim(),
+              });
+            }
+          }
+        }
+      }
+
+      const { data: recentRequests } = await supabase
+        .from('purchase_requests')
+        .select('items')
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (recentRequests) {
+        for (const r of recentRequests) {
+          const arr = Array.isArray(r.items) ? r.items : [];
+          for (const it of arr) {
+            const desc = String((it as Record<string, unknown>).description || '').trim();
+            if (desc && !historicalMap.has(desc.toLowerCase())) {
+              historicalMap.set(desc.toLowerCase(), {
+                description: desc,
+                brand: String((it as Record<string, unknown>).brand || '').trim(),
+                suggested_supplier: String((it as Record<string, unknown>).suggested_supplier || '').trim(),
+                unit: String((it as Record<string, unknown>).unit || '').trim(),
+              });
+            }
+          }
+        }
+      }
+    } catch (catErr) {
+      console.warn('Error consultando catálogo histórico para presupuesto:', catErr);
+    }
+
+    const historicalCatalog = Array.from(historicalMap.values()).slice(0, 100);
+
     return NextResponse.json({
       data: {
         opportunities: opps ?? [],
         nextCode,
         nextNumber,
+        historicalCatalog,
       },
     });
   } catch (err: unknown) {
@@ -111,6 +167,36 @@ export async function POST(request: NextRequest) {
   const creatorName = dbUser.full_name || session.user.name || 'Área Técnica';
   const creatorEmail = dbUser.email || session.user.email;
 
+  const nowIso = new Date().toISOString();
+  const rawItems = Array.isArray(items_detail) ? items_detail : [];
+  const sanitizedItems = rawItems.map((it: Record<string, unknown>, idx: number) => {
+    const desc = String(it.description || '').trim();
+    const normalizedKey = desc
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+
+    const qty = Number(it.quantity) || 1;
+    const unitPrice = Number(it.unit_cost) || 0;
+
+    return {
+      id: (it.id as string) || `item-${Date.now()}-${idx + 1}`,
+      category: (it.category as string) || 'materials',
+      description: desc,
+      normalized_key: normalizedKey,
+      brand: String(it.brand || '').trim(),
+      suggested_supplier: String(it.suggested_supplier || '').trim(),
+      unit: String(it.unit || 'Und').trim(),
+      quantity: qty,
+      unit_cost: unitPrice,
+      total_cost: qty * unitPrice,
+      recorded_at: (it.recorded_at as string) || nowIso,
+      client_name: String(client_name).trim(),
+      project_title: String(project_title).trim(),
+    };
+  });
+
   const insertPayload = {
     consecutive_number: consecutiveNum,
     budget_code: budgetCode,
@@ -128,7 +214,7 @@ export async function POST(request: NextRequest) {
     total_direct_cost: totalDirect,
     aiu_percentage: aiuPct,
     suggested_sale_price: suggestedSale,
-    items_detail: Array.isArray(items_detail) ? items_detail : [],
+    items_detail: sanitizedItems,
     status: status || 'draft',
     notes: notes ? String(notes).trim() : null,
   };

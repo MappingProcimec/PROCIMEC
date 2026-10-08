@@ -7,14 +7,19 @@ export interface PurchaseRequestItem {
   item_no: number;
   quantity: number;
   unit: string;
-  budget_rubro?: string;
-  budget_item_id?: string;
   description: string;
+  normalized_key?: string;
+  budget_item_id?: string;
+  budget_rubro?: string;
   client_quote_no?: string;
   brand: string;
   suggested_supplier: string;
   unit_price: number;
   total: number;
+  recorded_at?: string;
+  delivery_site?: string;
+  project_id?: string;
+  cost_center?: string;
 }
 
 function formatDateTimeCO(d: Date = new Date()): string {
@@ -270,6 +275,37 @@ export async function GET() {
     console.warn('Error obteniendo presupuestos de proyectos:', bErr);
   }
 
+  // 3c. Consultar catálogo de descripciones canónicas previas para autocompletado typeahead
+  const historicalMap = new Map<string, { description: string; brand?: string; suggested_supplier?: string; unit?: string }>();
+  try {
+    const { data: recentRequests } = await supabase
+      .from('purchase_requests')
+      .select('items')
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (recentRequests) {
+      for (const r of recentRequests) {
+        const arr = Array.isArray(r.items) ? r.items : [];
+        for (const it of arr) {
+          const desc = String((it as Record<string, unknown>).description || '').trim();
+          if (desc && !historicalMap.has(desc.toLowerCase())) {
+            historicalMap.set(desc.toLowerCase(), {
+              description: desc,
+              brand: String((it as Record<string, unknown>).brand || '').trim(),
+              suggested_supplier: String((it as Record<string, unknown>).suggested_supplier || '').trim(),
+              unit: String((it as Record<string, unknown>).unit || '').trim(),
+            });
+          }
+        }
+      }
+    }
+  } catch (cErr) {
+    console.warn('Error consultando catálogo previo en requerimiento-compra:', cErr);
+  }
+
+  const historicalCatalog = Array.from(historicalMap.values()).slice(0, 100);
+
   // 4. Calcular siguiente consecutivo automatizado con tolerancia de esquema
   let nextConsecutive = 1;
   try {
@@ -308,6 +344,7 @@ export async function GET() {
     projects,
     projectUsers,
     projectBudgets,
+    historicalCatalog,
     allApprovers,
     today: new Date().toISOString().split('T')[0],
   });
@@ -408,24 +445,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Debe agregar al menos un ítem al requerimiento.' }, { status: 400 });
   }
 
-  // Validar y normalizar ítems
+  // Validar y normalizar ítems con fecha inmutable y clave normalizada sin duplicar rubro
+  const nowIso = new Date().toISOString();
   const sanitizedItems: PurchaseRequestItem[] = rawItems.map((item, index) => {
     const qty = Number(item.quantity) || 1;
     const unitPrice = Number(item.unit_price) || 0;
     const total = qty * unitPrice;
-    const rubro = String(item.budget_rubro || item.client_quote_no || '').trim();
+    const desc = String(item.description || '').trim();
+    const normalizedKey = desc
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+
     return {
       item_no: index + 1,
       quantity: qty,
       unit: String(item.unit || 'Und').trim(),
-      budget_rubro: rubro,
+      description: desc,
+      normalized_key: normalizedKey,
       budget_item_id: item.budget_item_id ? String(item.budget_item_id).trim() : undefined,
-      description: String(item.description || '').trim(),
-      client_quote_no: rubro,
       brand: String(item.brand || '').trim(),
       suggested_supplier: String(item.suggested_supplier || '').trim(),
       unit_price: unitPrice,
       total,
+      recorded_at: nowIso,
+      delivery_site: String(delivery_site || '').trim(),
+      project_id: String(project_id || '').trim(),
+      cost_center: String(cost_center || '').trim(),
     };
   });
 

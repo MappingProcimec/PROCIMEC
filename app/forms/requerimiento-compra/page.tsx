@@ -130,6 +130,7 @@ export default function RequerimientoCompraPage() {
   const [projectUsers, setProjectUsers] = useState<Record<string, Array<{ id: string; full_name: string; email: string; role: string }>>>({});
   const [allApprovers, setAllApprovers] = useState<Array<{ id: string; full_name: string; email: string; role: string }>>([]);
   const [projectBudgets, setProjectBudgets] = useState<Record<string, ProjectBudgetData>>({});
+  const [historicalCatalog, setHistoricalCatalog] = useState<Array<{ description: string; brand?: string; suggested_supplier?: string; unit?: string }>>([]);
   const [deliveryDate, setDeliveryDate] = useState<string>('');
   const [deliverySite, setDeliverySite] = useState<string>('');
   const [contactPhone, setContactPhone] = useState<string>('');
@@ -184,6 +185,9 @@ export default function RequerimientoCompraPage() {
           }
           if (formData.projectBudgets) {
             setProjectBudgets(formData.projectBudgets);
+          }
+          if (formData.historicalCatalog) {
+            setHistoricalCatalog(formData.historicalCatalog);
           }
         } else if (session?.user?.name) {
           setApplicantName(session.user.name);
@@ -1088,9 +1092,23 @@ export default function RequerimientoCompraPage() {
                         <td className="py-2 px-2 border-r border-border">
                           <input
                             type="text"
+                            list="historical-purchase-items"
                             required
                             value={item.description}
-                            onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              handleItemChange(index, 'description', val);
+                              const matched = historicalCatalog.find(
+                                (h) => h.description.toLowerCase() === val.trim().toLowerCase()
+                              );
+                              if (matched) {
+                                if (matched.brand && !item.brand) handleItemChange(index, 'brand', matched.brand);
+                                if (matched.suggested_supplier && !item.suggested_supplier) {
+                                  handleItemChange(index, 'suggested_supplier', matched.suggested_supplier);
+                                }
+                                if (matched.unit && item.unit === 'Und') handleItemChange(index, 'unit', matched.unit);
+                              }
+                            }}
                             placeholder="Descripción detallada del bien o servicio..."
                             className="w-full text-xs rounded border border-border px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent text-text-primary"
                           />
@@ -1221,6 +1239,13 @@ export default function RequerimientoCompraPage() {
           </form>
         </>
         )}
+
+        {/* Catálogo de autocompletado typeahead para insumos previos */}
+        <datalist id="historical-purchase-items">
+          {historicalCatalog.map((h, i) => (
+            <option key={i} value={h.description} />
+          ))}
+        </datalist>
       </main>
     </div>
   );

@@ -198,6 +198,7 @@ export default function PresupuestoProyectoPage() {
   // AIU
   const [aiuPercentage, setAiuPercentage] = useState<number>(25.0);
   const [savedBudget, setSavedBudget] = useState<CommercialBudget | null>(null);
+  const [historicalCatalog, setHistoricalCatalog] = useState<Array<{ description: string; brand?: string; suggested_supplier?: string; unit?: string }>>([]);
 
   useEffect(() => {
     async function loadInitialData() {
@@ -209,6 +210,7 @@ export default function PresupuestoProyectoPage() {
           if (json.data) {
             setOpportunities(json.data.opportunities || []);
             if (json.data.nextCode) setNextBudgetCode(json.data.nextCode);
+            if (json.data.historicalCatalog) setHistoricalCatalog(json.data.historicalCatalog);
           }
         }
       } catch (err) {
@@ -621,8 +623,22 @@ export default function PresupuestoProyectoPage() {
                           <div className="col-span-12 sm:col-span-4">
                             <input
                               type="text"
+                              list="historical-budget-items"
                               value={it.description}
-                              onChange={(e) => handleUpdateItem(it.id, 'description', e.target.value)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                handleUpdateItem(it.id, 'description', val);
+                                const matched = historicalCatalog.find(
+                                  (h) => h.description.toLowerCase() === val.trim().toLowerCase()
+                                );
+                                if (matched) {
+                                  if (matched.brand && !it.brand) handleUpdateItem(it.id, 'brand', matched.brand);
+                                  if (matched.suggested_supplier && !it.suggested_supplier) {
+                                    handleUpdateItem(it.id, 'suggested_supplier', matched.suggested_supplier);
+                                  }
+                                  if (matched.unit && it.unit === 'Und') handleUpdateItem(it.id, 'unit', matched.unit);
+                                }
+                              }}
                               placeholder="Descripción detallada del material o servicio..."
                               className="input text-xs py-1.5"
                             />
@@ -781,6 +797,13 @@ export default function PresupuestoProyectoPage() {
             </button>
           </div>
         </form>
+
+        {/* Catálogo de autocompletado typeahead para descripciones estándar */}
+        <datalist id="historical-budget-items">
+          {historicalCatalog.map((h, i) => (
+            <option key={i} value={h.description} />
+          ))}
+        </datalist>
       </main>
     </div>
   );
