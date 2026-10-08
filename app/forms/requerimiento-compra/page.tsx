@@ -322,7 +322,7 @@ export default function RequerimientoCompraPage() {
 
       updated[index] = {
         ...currentRow,
-        budget_rubro: selectedValue === '__custom__' ? '' : selectedValue,
+        budget_rubro: selectedValue === '__custom__' ? 'No presupuestado' : selectedValue,
         budget_item_id: undefined,
       };
       return updated;
@@ -540,9 +540,9 @@ export default function RequerimientoCompraPage() {
           item_no: it.item_no,
           quantity: it.quantity,
           unit: it.unit,
-          budget_rubro: it.budget_rubro,
+          budget_rubro: (it.budget_rubro || '').trim() || 'No presupuestado',
           description: it.description,
-          client_quote_no: it.budget_rubro,
+          client_quote_no: (it.budget_rubro || it.client_quote_no || '').trim() || 'No presupuestado',
           brand: it.brand,
           suggested_supplier: it.suggested_supplier,
           unit_price: it.unit_price,

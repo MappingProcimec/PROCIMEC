@@ -376,14 +376,28 @@ export function generateBudgetPdf(budget: CommercialBudget): void {
       startY: itemsY,
       margin: { left: marginX, right: marginX },
       head: [['CATEGORÍA', 'DESCRIPCIÓN DEL ÍTEM', 'UND', 'CANT', 'VR. UNITARIO', 'SUBTOTAL']],
-      body: budget.items_detail.map((it) => [
-        it.category,
-        it.description,
-        it.unit,
-        String(it.quantity),
-        formatCOP(it.unit_cost),
-        formatCOP(it.total_cost),
-      ]),
+      body: budget.items_detail.map((it) => {
+        const catMap: Record<string, string> = {
+          materials: 'Materiales',
+          equipment: 'Equipos y Herramientas',
+          labor: 'Mano de Obra',
+          logistics: 'Logística',
+          subcontracts: 'Subcontratos',
+        };
+        const cat = catMap[String(it.category || '').toLowerCase()] || it.category || 'General';
+        const qty = Number(it.quantity) || 1;
+        const uCost = Number(it.unit_cost) || 0;
+        const tCost = it.total_cost !== undefined ? Number(it.total_cost) : qty * uCost;
+
+        return [
+          cat,
+          it.description || 'Ítem sin descripción',
+          it.unit || 'Und',
+          String(qty),
+          formatCOP(uCost),
+          formatCOP(tCost),
+        ];
+      }),
       theme: 'grid',
       headStyles: { fillColor: [...COLOR_CHARCOAL], textColor: [255, 255, 255], fontSize: 7.5 },
       bodyStyles: { fontSize: 7 },

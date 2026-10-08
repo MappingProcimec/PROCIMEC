@@ -412,7 +412,37 @@ export async function GET(req: NextRequest) {
         projObj?.client ||
         '';
 
-      const parsedItems = Array.isArray(itemsList) ? itemsList : [];
+      const rawParsed = Array.isArray(itemsList) ? itemsList : [];
+      const parsedItems = rawParsed.map((it: Record<string, unknown>, idx: number) => {
+        let rubro = String(it.budget_rubro || it.client_quote_no || '').trim();
+        const budgetItemId = it.budget_item_id as string | undefined;
+        const pId = String(r.project_id || '');
+        const pBudget = projectBudgets[pId];
+
+        if ((!rubro || rubro === '—') && pBudget && pBudget.items) {
+          const matchedItem = pBudget.items.find(
+            (b) =>
+              (budgetItemId && b.id === budgetItemId) ||
+              (b.description &&
+                String(it.description || '').trim() &&
+                b.description.toLowerCase().trim() === String(it.description || '').toLowerCase().trim())
+          );
+          if (matchedItem) {
+            rubro = matchedItem.description;
+          }
+        }
+
+        if (!rubro || rubro === '—') {
+          rubro = 'No presupuestado';
+        }
+
+        return {
+          ...it,
+          item_no: Number(it.item_no) || idx + 1,
+          budget_rubro: rubro,
+          client_quote_no: rubro,
+        };
+      });
       let totalAmount =
         Number(r.total_amount) ||
         Number(meta.total_amount) ||

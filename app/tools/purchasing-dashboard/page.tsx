@@ -777,18 +777,34 @@ export default function PurchasingDashboardPage() {
     try {
       setDownloadingReqId(r.id);
       setOpenDropdownId(null);
-      const itemsMapped: PurchaseRequestPdfItem[] = (r.items || []).map((it, idx) => ({
-        item_no: it.item_no || idx + 1,
-        quantity: it.quantity || 1,
-        unit: it.unit || 'Und',
-        description: it.description || it.item || 'Ítem sin descripción',
-        budget_rubro: it.budget_rubro || it.client_quote_no || '',
-        client_quote_no: it.budget_rubro || it.client_quote_no || '',
-        brand: it.brand || '',
-        suggested_supplier: it.suggested_supplier || '',
-        unit_price: it.unit_price || 0,
-        total: it.total !== undefined ? it.total : (Number(it.quantity) || 1) * (Number(it.unit_price) || 0),
-      }));
+      const pId = r.project_id || '';
+      const pBudget = pId && dashboard?.projectBudgets ? dashboard.projectBudgets[pId] : undefined;
+      const itemsMapped: PurchaseRequestPdfItem[] = (r.items || []).map((it, idx) => {
+        let rubro = (it.budget_rubro || it.client_quote_no || '').trim();
+        if (!rubro || rubro === '—') {
+          const matched = pBudget?.items?.find(
+            (b: BudgetAPUItem) =>
+              (it.budget_item_id && b.id === it.budget_item_id) ||
+              (Boolean(b.description) &&
+                Boolean(String(it.description || '').trim()) &&
+                b.description.toLowerCase().trim() === String(it.description || '').toLowerCase().trim())
+          );
+          rubro = matched?.description || 'No presupuestado';
+        }
+
+        return {
+          item_no: it.item_no || idx + 1,
+          quantity: it.quantity || 1,
+          unit: it.unit || 'Und',
+          description: it.description || it.item || 'Ítem sin descripción',
+          budget_rubro: rubro,
+          client_quote_no: rubro,
+          brand: it.brand || '',
+          suggested_supplier: it.suggested_supplier || '',
+          unit_price: it.unit_price || 0,
+          total: it.total !== undefined ? it.total : (Number(it.quantity) || 1) * (Number(it.unit_price) || 0),
+        };
+      });
 
       const totalAmt =
         r.total_amount !== undefined

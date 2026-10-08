@@ -276,11 +276,13 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
     const lineTotal = it.total !== undefined ? it.total : qty * unitPrice;
     calculatedGrandTotal += lineTotal;
 
+    const rubroVal = (it.budget_rubro || it.client_quote_no || '').trim();
+
     return [
       String(it.item_no || idx + 1),
       String(qty),
       it.unit || 'Und',
-      it.budget_rubro || it.client_quote_no || '—',
+      rubroVal || 'No presupuestado',
       it.description || 'Sin descripción',
       it.brand || '—',
       it.suggested_supplier || '—',
@@ -311,15 +313,15 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
       halign: 'center',
     },
     columnStyles: {
-      0: { cellWidth: 8, halign: 'center', fontStyle: 'bold' },
-      1: { cellWidth: 12, halign: 'center', font: 'courier' },
-      2: { cellWidth: 12, halign: 'center' },
-      3: { cellWidth: 32, halign: 'left' },
-      4: { cellWidth: 46, halign: 'left' },
-      5: { cellWidth: 20, halign: 'left' },
-      6: { cellWidth: 22, halign: 'left' },
-      7: { cellWidth: 14, halign: 'right', font: 'courier' },
-      8: { cellWidth: 14, halign: 'right', font: 'courier', fontStyle: 'bold' },
+      0: { cellWidth: 7, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: 11, halign: 'center', font: 'courier' },
+      2: { cellWidth: 10, halign: 'center' },
+      3: { cellWidth: 34, halign: 'left' },
+      4: { cellWidth: 47, halign: 'left' },
+      5: { cellWidth: 19, halign: 'left' },
+      6: { cellWidth: 20, halign: 'left' },
+      7: { cellWidth: 19, halign: 'right', font: 'courier', fontSize: 6.8 },
+      8: { cellWidth: 19, halign: 'right', font: 'courier', fontStyle: 'bold', fontSize: 6.8 },
     },
     head: [[
       '#',
@@ -350,8 +352,8 @@ export function createPurchaseRequestPdf(data: PurchaseRequestPdfData): jsPDF {
       lineColor: [...COLOR_BORDER],
     },
     columnStyles: {
-      0: { cellWidth: 156, halign: 'right', fontStyle: 'bold', fillColor: [...COLOR_CHARCOAL] },
-      1: { cellWidth: 30, halign: 'right', fontStyle: 'bold', fillColor: [...COLOR_AMBER], textColor: [...COLOR_CHARCOAL], font: 'courier' },
+      0: { cellWidth: 148, halign: 'right', fontStyle: 'bold', fillColor: [...COLOR_CHARCOAL] },
+      1: { cellWidth: 38, halign: 'right', fontStyle: 'bold', fillColor: [...COLOR_AMBER], textColor: [...COLOR_CHARCOAL], font: 'courier' },
     },
     body: [[
       'TOTAL GENERAL DEL REQUERIMIENTO:',

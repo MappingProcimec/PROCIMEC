@@ -458,12 +458,17 @@ export async function POST(req: NextRequest) {
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '');
 
+    const rawRubro = String(item.budget_rubro || item.client_quote_no || '').trim();
+    const finalRubro = rawRubro || (item.budget_item_id ? 'Presupuestado' : 'No presupuestado');
+
     return {
       item_no: index + 1,
       quantity: qty,
       unit: String(item.unit || 'Und').trim(),
       description: desc,
       normalized_key: normalizedKey,
+      budget_rubro: finalRubro,
+      client_quote_no: finalRubro,
       budget_item_id: item.budget_item_id ? String(item.budget_item_id).trim() : undefined,
       brand: String(item.brand || '').trim(),
       suggested_supplier: String(item.suggested_supplier || '').trim(),
