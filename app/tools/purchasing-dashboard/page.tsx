@@ -916,218 +916,245 @@ export default function PurchasingDashboardPage() {
         </div>
 
         {/* ────────────────────────────────────────────────────────────────────
-            PESTAÑA 1: CADENA DE TRAZABILIDAD ARTICULADA (TIMELINE VISUAL)
+            PESTAÑA 1: CADENA DE TRAZABILIDAD ARTICULADA (TABLA DE EXPEDIENTES)
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'timeline' && (
-          <div className="space-y-4">
-            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl">
-              <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1">
-                Mapa de Flujo de Compras y Articulación Integral
-              </h2>
-              <p className="text-xs text-text-secondary">
-                Visualización de expedientes conectados: Requerimiento &rarr; VB Técnico &rarr; Cotización Compras &rarr; Aprobación GG &rarr; Orden de Compra &rarr; Evaluación de Proveedor.
-              </p>
-            </div>
-
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             {isLoading ? (
-              <div className="card p-8 bg-white border border-border text-center text-text-muted text-sm">
-                Cargando mapa de trazabilidad...
-              </div>
+              <div className="p-8 text-center text-text-muted text-sm">Cargando cadena de trazabilidad...</div>
             ) : filteredRequests.length === 0 ? (
-              <div className="card p-8 bg-white border border-border text-center text-text-muted text-sm">
+              <div className="p-8 text-center text-text-muted text-sm">
                 No se encontraron expedientes de compras registrados para los filtros seleccionados.
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredRequests.map((r) => {
-                  const linkedOrder = dashboard?.orders?.find((o) => o.purchase_request_id === r.id);
-                  const linkedEval = linkedOrder
-                    ? dashboard?.evaluations?.find(
-                        (e) =>
-                          e.purchase_order_id === linkedOrder.id ||
-                          e.supplier_name.toLowerCase().trim() === linkedOrder.supplier_name.toLowerCase().trim()
-                      )
-                    : undefined;
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
+                    <tr>
+                      <th className="py-3 px-4">Código REQ</th>
+                      <th className="py-3 px-4">Proyecto / Cliente</th>
+                      <th className="py-3 px-4">Cadena de Trazabilidad (6 Pasos)</th>
+                      <th className="py-3 px-4 text-center">Etapa Actual</th>
+                      <th className="py-3 px-4 text-right">Monto Estimado</th>
+                      <th className="py-3 px-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredRequests.map((r) => {
+                      const linkedOrder = dashboard?.orders?.find((o) => o.purchase_request_id === r.id);
+                      const linkedEval = linkedOrder
+                        ? dashboard?.evaluations?.find(
+                            (e) =>
+                              e.purchase_order_id === linkedOrder.id ||
+                              e.supplier_name.toLowerCase().trim() === linkedOrder.supplier_name.toLowerCase().trim()
+                          )
+                        : undefined;
 
-                  const sigDirector = r.signatures?.director;
-                  const sigPurchasing = r.signatures?.purchasing;
-                  const sigManagement = r.signatures?.management;
+                      const sigDirector = r.signatures?.director;
+                      const sigPurchasing = r.signatures?.purchasing;
+                      const sigManagement = r.signatures?.management;
 
-                  return (
-                    <div
-                      key={r.id}
-                      className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/50 transition-all"
-                    >
-                      {/* Cabecera del Expediente */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm font-bold text-amber-700">
-                            {r.request_code || 'REQ-0001'}
-                          </span>
-                          <span className="text-text-muted text-xs">&bull;</span>
-                          <strong className="text-text-primary text-sm font-semibold truncate max-w-md">
-                            {r.projects?.name || r.cost_center || 'Operación'} — {r.title}
-                          </strong>
-                        </div>
+                      return (
+                        <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-mono font-bold text-amber-700 block">
+                              {r.request_code || 'REQ-0001'}
+                            </span>
+                            <span className="text-[10px] text-text-muted">
+                              {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
+                            </span>
+                          </td>
 
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-text-primary text-sm">
+                          <td className="py-3 px-4 max-w-[200px]">
+                            <span className="font-semibold text-text-primary block truncate">
+                              {r.projects?.name || r.cost_center || 'Operación'}
+                            </span>
+                            <span className="text-[11px] text-text-secondary truncate block">
+                              {r.client_name || r.projects?.client || 'Cliente Corporativo'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {/* 1. Requerimiento */}
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-blue-50 text-blue-900 border border-blue-200">
+                                <FileText className="w-3 h-3 text-blue-600" />
+                                {r.request_code || 'REQ'}
+                              </span>
+
+                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+
+                              {/* 2. VB Técnico */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                  sigDirector
+                                    ? sigDirector.rejected
+                                      ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : 'bg-amber-50 text-amber-900 border-amber-300'
+                                }`}
+                              >
+                                <ShieldCheck className="w-3 h-3 text-amber-600" />
+                                {sigDirector
+                                  ? sigDirector.rejected
+                                    ? 'VB Rechazado'
+                                    : 'VB Aprobado'
+                                  : 'Pendiente VB'}
+                              </span>
+
+                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+
+                              {/* 3. Cotización */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                  sigPurchasing
+                                    ? sigPurchasing.rejected
+                                      ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : sigDirector
+                                    ? 'bg-blue-50 text-blue-900 border-blue-200'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}
+                              >
+                                <ShoppingBag className="w-3 h-3 text-purple-600" />
+                                {sigPurchasing
+                                  ? sigPurchasing.rejected
+                                    ? 'Cotiz. Rechazada'
+                                    : 'Cotizado'
+                                  : sigDirector
+                                  ? 'En Cotización'
+                                  : 'En espera'}
+                              </span>
+
+                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+
+                              {/* 4. Aprobación GG */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                  sigManagement || r.status === 'approved'
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : r.status === 'rejected'
+                                    ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                    : sigPurchasing
+                                    ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                {sigManagement || r.status === 'approved'
+                                  ? 'Aprobada GG'
+                                  : r.status === 'rejected'
+                                  ? 'Rechazada GG'
+                                  : sigPurchasing
+                                  ? 'Pendiente GG'
+                                  : 'En espera'}
+                              </span>
+
+                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+
+                              {/* 5. Orden de Compra */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${
+                                  linkedOrder
+                                    ? linkedOrder.status === 'completed'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      : 'bg-blue-50 text-blue-800 border-blue-200'
+                                    : r.status === 'approved'
+                                    ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}
+                              >
+                                <Package className="w-3 h-3 text-blue-600" />
+                                {linkedOrder
+                                  ? linkedOrder.order_code
+                                  : r.status === 'approved'
+                                  ? 'Pendiente OC'
+                                  : 'Sin Emitir'}
+                              </span>
+
+                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+
+                              {/* 6. Evaluación Proveedor */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                  linkedEval
+                                    ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                    : linkedOrder
+                                    ? 'bg-slate-100 text-slate-700 border-slate-200'
+                                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                                }`}
+                              >
+                                <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                {linkedEval
+                                  ? `${Number(linkedEval.overall_rating).toFixed(1)} ★`
+                                  : linkedOrder
+                                  ? 'Pendiente'
+                                  : 'Sin Eval.'}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            {r.status === 'rejected' || sigDirector?.rejected || sigPurchasing?.rejected || sigManagement?.rejected ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100/80 text-rose-900 border border-rose-300 inline-block">
+                                Rechazado
+                              </span>
+                            ) : linkedEval ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100/80 text-emerald-900 border border-emerald-300 inline-block">
+                                Ciclo Completado
+                              </span>
+                            ) : linkedOrder ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100/80 text-blue-900 border border-blue-300 inline-block">
+                                OC en Proceso
+                              </span>
+                            ) : sigManagement || r.status === 'approved' ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100/80 text-emerald-900 border border-emerald-300 inline-block">
+                                Aprobada (Por Emitir OC)
+                              </span>
+                            ) : sigPurchasing ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-100/80 text-purple-900 border border-purple-300 inline-block">
+                                Pendiente Firma GG
+                              </span>
+                            ) : sigDirector ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100/80 text-blue-900 border border-blue-300 inline-block">
+                                En Cotización Compras
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100/80 text-amber-900 border border-amber-300 inline-block">
+                                Pendiente VB Técnico
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-right font-mono font-bold text-xs whitespace-nowrap text-text-primary">
                             {formatCOP(r.total_amount || 0)}
-                          </span>
+                          </td>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadPdf(r)}
-                            disabled={downloadingReqId === r.id}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary"
-                            title="Descargar PDF Oficial FOR-COM-001"
-                          >
-                            <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDetail(r)}
-                            className="px-2.5 py-1 rounded-lg bg-accent/15 hover:bg-accent/25 text-primary-900 font-bold text-xs flex items-center gap-1 border border-accent/30 transition-colors"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Ver Expediente</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Cadena de Nodos Visual de 6 Pasos Conectados */}
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        {/* 1. Nodo Requerimiento */}
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 font-semibold">
-                          <FileText className="w-3.5 h-3.5 text-blue-600" strokeWidth={1.75} />
-                          <span className="text-[11px] font-mono">{r.request_code || 'REQ'}</span>
-                          <span className="text-[10px] text-blue-700 bg-blue-100 px-1 rounded">Firmado</span>
-                        </div>
-
-                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
-
-                        {/* 2. Nodo VB Técnico */}
-                        <div
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
-                            sigDirector
-                              ? sigDirector.rejected
-                                ? 'bg-rose-50 border-rose-200 text-rose-800'
-                                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                              : 'bg-amber-50 border-amber-300 text-amber-900'
-                          }`}
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
-                          <span className="text-[11px]">
-                            {sigDirector
-                              ? sigDirector.rejected
-                                ? 'VB Rechazado'
-                                : 'VB Aprobado'
-                              : 'Pendiente VB'}
-                          </span>
-                        </div>
-
-                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
-
-                        {/* 3. Nodo Cotización (Compras) */}
-                        <div
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
-                            sigPurchasing
-                              ? sigPurchasing.rejected
-                                ? 'bg-rose-50 border-rose-200 text-rose-800'
-                                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                              : sigDirector
-                              ? 'bg-blue-50 border-blue-300 text-blue-900'
-                              : 'bg-slate-100 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          <ShoppingBag className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
-                          <span className="text-[11px]">
-                            {sigPurchasing
-                              ? sigPurchasing.rejected
-                                ? 'Cotiz. Rechazada'
-                                : 'Cotizado'
-                              : sigDirector
-                              ? 'En Cotización'
-                              : 'En espera'}
-                          </span>
-                        </div>
-
-                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
-
-                        {/* 4. Nodo Aprobación GG */}
-                        <div
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
-                            sigManagement || r.status === 'approved'
-                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                              : r.status === 'rejected'
-                              ? 'bg-rose-50 border-rose-200 text-rose-800'
-                              : sigPurchasing
-                              ? 'bg-amber-50 border-amber-300 text-amber-900'
-                              : 'bg-slate-100 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
-                          <span className="text-[11px]">
-                            {sigManagement || r.status === 'approved'
-                              ? 'Aprobada GG'
-                              : r.status === 'rejected'
-                              ? 'Rechazada GG'
-                              : sigPurchasing
-                              ? 'Pendiente GG'
-                              : 'En espera'}
-                          </span>
-                        </div>
-
-                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
-
-                        {/* 5. Nodo Orden de Compra (OC) */}
-                        <div
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
-                            linkedOrder
-                              ? linkedOrder.status === 'completed'
-                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                : 'bg-blue-50 border-blue-200 text-blue-800'
-                              : r.status === 'approved'
-                              ? 'bg-amber-50 border-amber-300 text-amber-900'
-                              : 'bg-slate-100 border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          <Package className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
-                          <span className="text-[11px] font-mono">
-                            {linkedOrder
-                              ? linkedOrder.order_code
-                              : r.status === 'approved'
-                              ? 'Pendiente OC'
-                              : 'Sin Emitir'}
-                          </span>
-                        </div>
-
-                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
-
-                        {/* 6. Nodo Evaluación de Proveedor */}
-                        <div
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
-                            linkedEval
-                              ? 'bg-amber-50 border-amber-300 text-amber-900'
-                              : linkedOrder
-                              ? 'bg-slate-100 border-slate-200 text-slate-700'
-                              : 'bg-slate-100 border-slate-200 text-slate-500'
-                          }`}
-                        >
-                          <Star className="w-3.5 h-3.5 shrink-0 text-amber-500 fill-amber-500" strokeWidth={1.75} />
-                          <span className="text-[11px]">
-                            {linkedEval
-                              ? `${Number(linkedEval.overall_rating).toFixed(1)} ★ (${linkedEval.supplier_name.slice(0, 10)})`
-                              : linkedOrder
-                              ? 'Pendiente Eval.'
-                              : 'Sin Evaluación'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                          <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadPdf(r)}
+                              disabled={downloadingReqId === r.id}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
+                              title="Descargar PDF Oficial (FOR-COM-001)"
+                            >
+                              <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDetail(r)}
+                              className="px-2.5 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                              title="Ver Expediente Completo"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Ver
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -1252,275 +1279,299 @@ export default function PurchasingDashboardPage() {
         )}
 
         {/* ────────────────────────────────────────────────────────────────────
-            PESTAÑA 3: BANDEJA DE VB TÉCNICO (DIRECTORES DE PROYECTO)
+            PESTAÑA 3: BANDEJA DE VB TÉCNICO (DIRECTORES DE PROYECTO) — TABLA
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'approvals' && canViewApprovals && (
-          <div className="space-y-4">
-            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1 flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-accent" />
-                  Bandeja de Visto Bueno Técnico de Directores
-                </h2>
-                <p className="text-xs text-text-secondary">
-                  Solicitudes radicadas pendientes de revisión técnica inicial para autorización hacia el área de compras.
-                </p>
-              </div>
-              <span className="px-3 py-1 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold rounded-lg self-start sm:self-auto font-mono">
-                {pendingApprovals.length} Pendientes
-              </span>
-            </div>
-
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             {pendingApprovals.length === 0 ? (
-              <div className="card p-12 bg-white border border-border text-center rounded-2xl shadow-card">
-                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                <h3 className="text-sm font-bold text-text-primary">¡Bandeja al día!</h3>
-                <p className="text-xs text-text-secondary mt-1">
-                  No hay requerimientos pendientes de visto bueno técnico en tus proyectos asignados.
+              <div className="p-12 text-center">
+                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                <h3 className="text-sm font-bold text-text-primary">Bandeja al día</h3>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  No hay requerimientos pendientes de visto bueno técnico en tus proyectos.
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {pendingApprovals.map((r) => (
-                  <div
-                    key={r.id}
-                    className="card p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/40 transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-border">
-                        <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">
-                          {r.request_code || 'REQ'}
-                        </span>
-                        <span className="text-xs font-bold font-mono text-text-primary">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
+                    <tr>
+                      <th className="py-3 px-4">Código REQ</th>
+                      <th className="py-3 px-4">Proyecto / Centro Costo</th>
+                      <th className="py-3 px-4">Solicitante</th>
+                      <th className="py-3 px-4">Justificación</th>
+                      <th className="py-3 px-4 text-center">Ítems</th>
+                      <th className="py-3 px-4 text-right">Valor Estimado</th>
+                      <th className="py-3 px-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {pendingApprovals.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 block w-fit">
+                            {r.request_code || 'REQ'}
+                          </span>
+                          <span className="text-[10px] text-text-muted mt-0.5 block">
+                            {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 max-w-[180px]">
+                          <span className="font-semibold text-text-primary block truncate">
+                            {r.projects?.name || r.cost_center || 'General'}
+                          </span>
+                          <span className="text-[11px] text-text-secondary truncate block">
+                            {r.client_name || r.projects?.client || 'Cliente'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap font-medium text-text-primary">
+                          {r.applicant_name || 'Ingeniero de Campo'}
+                        </td>
+                        <td className="py-3 px-4 max-w-[220px]">
+                          <p className="text-text-secondary truncate text-[11px]" title={r.justification}>
+                            {r.justification || 'Sin justificación registrada'}
+                          </p>
+                        </td>
+                        <td className="py-3 px-4 text-center font-mono font-semibold">
+                          {r.items?.length || 0}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-text-primary whitespace-nowrap">
                           {formatCOP(r.total_amount || 0)}
-                        </span>
-                      </div>
-
-                      <h3 className="font-bold text-text-primary text-sm mb-1">{r.title}</h3>
-                      <p className="text-xs text-text-secondary mb-3">
-                        <strong className="text-text-primary">Proyecto:</strong> {r.projects?.name || r.cost_center || 'General'} &bull;{' '}
-                        <strong className="text-text-primary">Solicita:</strong> {r.applicant_name || 'Ingeniero de Campo'}
-                      </p>
-
-                      {r.justification && (
-                        <div className="p-3 bg-slate-50 border border-border rounded-lg text-xs text-text-secondary line-clamp-3 mb-4">
-                          {r.justification}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDetail(r)}
-                        className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold"
-                      >
-                        Ver Ítems ({r.items?.length || 0})
-                      </button>
-
-                      {canSignDirector && (
-                        <div className="flex items-center gap-2">
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
                           <button
                             type="button"
-                            onClick={() => handleOpenDirectSign(r, 'director', 'reject')}
-                            className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-semibold text-xs"
+                            onClick={() => handleOpenDetail(r)}
+                            className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold transition-colors"
                           >
-                            Rechazar
+                            Ver Ítems
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDirectSign(r, 'director', 'approve')}
-                            className="px-3.5 py-1.5 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs flex items-center gap-1.5 shadow-sm"
-                          >
-                            <PenTool className="w-3.5 h-3.5 text-primary-900" />
-                            Aprobar y Firmar
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                          {canSignDirector && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDirectSign(r, 'director', 'reject')}
+                                className="px-2.5 py-1 rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-semibold text-xs transition-colors"
+                              >
+                                Rechazar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDirectSign(r, 'director', 'approve')}
+                                className="px-3 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                              >
+                                <PenTool className="w-3.5 h-3.5 text-primary-900" />
+                                Aprobar
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
         )}
 
         {/* ────────────────────────────────────────────────────────────────────
-            PESTAÑA 4: BANDEJA DE COTIZACIÓN (ÁREA DE COMPRAS)
+            PESTAÑA 4: BANDEJA DE COTIZACIÓN (ÁREA DE COMPRAS) — TABLA
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'quotations' && canViewQuotations && (
-          <div className="space-y-4">
-            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1 flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-accent" />
-                  Bandeja de Gestión de Cotizaciones (Área de Compras)
-                </h2>
-                <p className="text-xs text-text-secondary">
-                  Requerimientos con visto bueno técnico aprobados, listos para cotización con proveedores e ingreso de valores finales.
-                </p>
-              </div>
-              <span className="px-3 py-1 bg-blue-50 text-blue-900 border border-blue-200 text-xs font-bold rounded-lg self-start sm:self-auto font-mono">
-                {inQuotationRequests.length} en Cotización
-              </span>
-            </div>
-
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             {inQuotationRequests.length === 0 ? (
-              <div className="card p-12 bg-white border border-border text-center rounded-2xl shadow-card">
-                <CheckCircle2 className="w-12 h-12 text-blue-500 mx-auto mb-3" />
+              <div className="p-12 text-center">
+                <CheckCircle2 className="w-10 h-10 text-blue-500 mx-auto mb-2" />
                 <h3 className="text-sm font-bold text-text-primary">Sin cotizaciones pendientes</h3>
-                <p className="text-xs text-text-secondary mt-1">
-                  Todas las solicitudes cuentan con cotización registrada o están a la espera de aprobación técnica.
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Todas las solicitudes cuentan con cotización registrada o están a la espera de visto bueno técnico.
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {inQuotationRequests.map((r) => (
-                  <div
-                    key={r.id}
-                    className="card p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/40 transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-border">
-                        <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200">
-                          {r.request_code || 'REQ'}
-                        </span>
-                        <span className="text-xs font-bold font-mono text-text-primary">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
+                    <tr>
+                      <th className="py-3 px-4">Código REQ</th>
+                      <th className="py-3 px-4">Proyecto Destino</th>
+                      <th className="py-3 px-4">Aprobado VB por</th>
+                      <th className="py-3 px-4">Insumos y Proveedores Sugeridos</th>
+                      <th className="py-3 px-4 text-right">Valor Estimado</th>
+                      <th className="py-3 px-4 text-center">Estado</th>
+                      <th className="py-3 px-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {inQuotationRequests.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200 block w-fit">
+                            {r.request_code || 'REQ'}
+                          </span>
+                          <span className="text-[10px] text-text-muted mt-0.5 block">
+                            {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 max-w-[180px]">
+                          <span className="font-semibold text-text-primary block truncate">
+                            {r.projects?.name || r.cost_center || 'General'}
+                          </span>
+                          <span className="text-[11px] text-text-secondary truncate block">
+                            {r.client_name || r.projects?.client || 'Cliente'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="font-medium text-text-primary block">
+                            {r.signatures?.director?.name || r.approver_name || 'Director'}
+                          </span>
+                          <span className="text-[10px] text-emerald-700 font-mono">
+                            {r.signatures?.director?.date_time ? `VB: ${r.signatures.director.date_time}` : 'Aprobado'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 max-w-[240px]">
+                          <p className="text-text-secondary truncate text-[11px]">
+                            {(r.items || []).map((it) => `${it.description || it.item} (${it.quantity} ${it.unit})`).join(' · ') || 'Sin ítems'}
+                          </p>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-text-primary whitespace-nowrap">
                           {formatCOP(r.total_amount || 0)}
-                        </span>
-                      </div>
-
-                      <h3 className="font-bold text-text-primary text-sm mb-1">{r.title}</h3>
-                      <p className="text-xs text-text-secondary mb-2">
-                        <strong className="text-text-primary">Proyecto:</strong> {r.projects?.name || r.cost_center || 'General'} &bull;{' '}
-                        <strong className="text-text-primary">Aprobó VB:</strong> {r.signatures?.director?.name || r.approver_name || 'Director'}
-                      </p>
-
-                      <div className="p-3 bg-slate-50 border border-border rounded-lg text-xs space-y-1 mb-4">
-                        <p className="font-semibold text-text-primary">Insumos y Proveedores sugeridos:</p>
-                        <p className="text-text-secondary truncate">
-                          {(r.items || []).map((it) => `${it.description || it.item} (${it.quantity} ${it.unit})`).join(' · ') || 'Sin ítems'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDetail(r)}
-                        className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold"
-                      >
-                        Ver Detalle & Ítems
-                      </button>
-
-                      {isPurchasing && (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDirectSign(r, 'purchasing', 'approve')}
-                          className="px-3.5 py-1.5 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs flex items-center gap-1.5 shadow-sm"
-                        >
-                          <PenTool className="w-3.5 h-3.5 text-primary-900" />
-                          Firmar Cotización de Compras
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                            En Cotización
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDetail(r)}
+                            className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold transition-colors"
+                          >
+                            Ver Ítems
+                          </button>
+                          {isPurchasing && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDirectSign(r, 'purchasing', 'approve')}
+                              className="px-3 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                            >
+                              <PenTool className="w-3.5 h-3.5 text-primary-900" />
+                              Firmar Cotización
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
         )}
 
         {/* ────────────────────────────────────────────────────────────────────
-            PESTAÑA 5: BANDEJA DE APROBACIÓN GG (GERENCIA GENERAL)
+            PESTAÑA 5: BANDEJA DE APROBACIÓN GG (GERENCIA GENERAL) — TABLA
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'management_approval' && canViewManagementApproval && (
-          <div className="space-y-4">
-            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  Bandeja de Aprobación Final y Desembolso (Gerencia General)
-                </h2>
-                <p className="text-xs text-text-secondary">
-                  Requerimientos cotizados formalmente por compras en espera de autorización legal y financiera de la alta gerencia.
-                </p>
-              </div>
-              <span className="px-3 py-1 bg-purple-50 text-purple-900 border border-purple-200 text-xs font-bold rounded-lg self-start sm:self-auto font-mono">
-                {managementPendingRequests.length} Por Autorizar
-              </span>
-            </div>
-
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             {managementPendingRequests.length === 0 ? (
-              <div className="card p-12 bg-white border border-border text-center rounded-2xl shadow-card">
-                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+              <div className="p-12 text-center">
+                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
                 <h3 className="text-sm font-bold text-text-primary">Sin compras pendientes de gerencia</h3>
-                <p className="text-xs text-text-secondary mt-1">
+                <p className="text-xs text-text-secondary mt-0.5">
                   Todas las compras cotizadas han sido aprobadas formalmente o se encuentran en etapas previas.
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {managementPendingRequests.map((r) => (
-                  <div
-                    key={r.id}
-                    className="card p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/40 transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-border">
-                        <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200">
-                          {r.request_code || 'REQ'}
-                        </span>
-                        <span className="text-sm font-extrabold font-mono text-emerald-700">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
+                    <tr>
+                      <th className="py-3 px-4">Código REQ</th>
+                      <th className="py-3 px-4">Proyecto / Cliente</th>
+                      <th className="py-3 px-4">Cotizado por Compras</th>
+                      <th className="py-3 px-4">Sitio de Entrega</th>
+                      <th className="py-3 px-4 text-right">Monto Final Cotizado</th>
+                      <th className="py-3 px-4 text-center">Estado</th>
+                      <th className="py-3 px-4 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {managementPendingRequests.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200 block w-fit">
+                            {r.request_code || 'REQ'}
+                          </span>
+                          <span className="text-[10px] text-text-muted mt-0.5 block">
+                            {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 max-w-[180px]">
+                          <span className="font-semibold text-text-primary block truncate">
+                            {r.projects?.name || r.cost_center || 'General'}
+                          </span>
+                          <span className="text-[11px] text-text-secondary truncate block">
+                            {r.client_name || r.projects?.client || 'Cliente'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="font-medium text-text-primary block">
+                            {r.signatures?.purchasing?.name || 'Compras'}
+                          </span>
+                          <span className="text-[10px] text-blue-700 font-mono">
+                            {r.signatures?.purchasing?.date_time ? `Cotiz: ${r.signatures.purchasing.date_time}` : 'Cotizado'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 max-w-[180px]">
+                          <span className="text-text-secondary truncate text-[11px] block">
+                            {r.delivery_site || 'Dirección de obra'}
+                          </span>
+                          <span className="text-[10px] text-text-muted">
+                            Tel: {r.contact_phone || '—'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-extrabold text-sm text-emerald-700 whitespace-nowrap">
                           {formatCOP(r.total_amount || 0)}
-                        </span>
-                      </div>
-
-                      <h3 className="font-bold text-text-primary text-sm mb-1">{r.title}</h3>
-                      <p className="text-xs text-text-secondary mb-2">
-                        <strong className="text-text-primary">Proyecto:</strong> {r.projects?.name || r.cost_center || 'General'} &bull;{' '}
-                        <strong className="text-text-primary">Cotizó:</strong> {r.signatures?.purchasing?.name || 'Compras'}
-                      </p>
-
-                      <div className="p-3 bg-slate-50 border border-border rounded-lg text-xs space-y-1 mb-4">
-                        <p className="font-semibold text-text-primary">Desglose de Cotización:</p>
-                        <p className="text-text-secondary text-[11px] truncate">
-                          {(r.items || []).length} ítems &bull; Sitio de Entrega: {r.delivery_site || 'Obra'} &bull; Tel: {r.contact_phone || '—'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDetail(r)}
-                        className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold"
-                      >
-                        Ver Expediente
-                      </button>
-
-                      {isManagement && (
-                        <div className="flex items-center gap-2">
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                            Pendiente GG
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
                           <button
                             type="button"
-                            onClick={() => handleOpenDirectSign(r, 'management', 'reject')}
-                            className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-semibold text-xs"
+                            onClick={() => handleOpenDetail(r)}
+                            className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold transition-colors"
                           >
-                            Rechazar
+                            Ver Expediente
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDirectSign(r, 'management', 'approve')}
-                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 active:scale-[0.98] transition-all text-xs flex items-center gap-1.5 shadow-sm"
-                          >
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                            Aprobar Compra Final (GG)
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                          {isManagement && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDirectSign(r, 'management', 'reject')}
+                                className="px-2.5 py-1 rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-semibold text-xs transition-colors"
+                              >
+                                Rechazar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDirectSign(r, 'management', 'approve')}
+                                className="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                              >
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                Aprobar Compra
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -1600,85 +1651,77 @@ export default function PurchasingDashboardPage() {
         )}
 
         {/* ────────────────────────────────────────────────────────────────────
-            PESTAÑA 7: EVALUACIÓN DE PROVEEDORES (ISO 9001 / SIG)
+            PESTAÑA 7: EVALUACIÓN DE PROVEEDORES (ISO 9001 / SIG) — TABLA
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'evaluations' && canViewEvaluations && (
-          <div className="space-y-4">
-            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1 flex items-center gap-2">
-                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-                  Gobernanza de Calidad y Evaluación de Proveedores
-                </h2>
-                <p className="text-xs text-text-secondary">
-                  Histórico de desempeño técnico, cumplimiento de tiempos y nivel de servicio de aliados estratégicos según norma ISO 9001.
-                </p>
-              </div>
-              <span className="px-3 py-1 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold rounded-lg self-start sm:self-auto font-mono">
-                {filteredSuppliers.length} Evaluados
-              </span>
-            </div>
-
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
             {filteredSuppliers.length === 0 ? (
-              <div className="card p-12 bg-white border border-border text-center rounded-2xl shadow-card">
-                <Star className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+              <div className="p-12 text-center">
+                <Star className="w-10 h-10 text-amber-400 mx-auto mb-2" />
                 <h3 className="text-sm font-bold text-text-primary">Sin evaluaciones registradas</h3>
-                <p className="text-xs text-text-secondary mt-1">
+                <p className="text-xs text-text-secondary mt-0.5">
                   Aún no se han completado encuestas de desempeño de proveedores en el sistema.
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredSuppliers.map((ev) => (
-                  <div key={ev.id} className="card p-5 bg-white border border-border shadow-card rounded-xl space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-bold text-text-primary text-sm">{ev.supplier_name}</h4>
-                        <p className="text-[11px] text-text-muted">
-                          Evaluado el {new Date(ev.created_at).toLocaleDateString('es-CO')}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-amber-800 text-xs font-bold font-mono">
-                        <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                        {Number(ev.overall_rating).toFixed(1)} / 5
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-gray-50 rounded-lg border border-border">
-                      <div>
-                        <span className="text-text-muted block text-[10px] uppercase font-semibold">Calidad</span>
-                        <span className="font-bold text-text-primary font-mono">{ev.quality_score}/5</span>
-                      </div>
-                      <div>
-                        <span className="text-text-muted block text-[10px] uppercase font-semibold">Tiempos</span>
-                        <span className="font-bold text-text-primary font-mono">{ev.delivery_time_score}/5</span>
-                      </div>
-                      <div>
-                        <span className="text-text-muted block text-[10px] uppercase font-semibold">Servicio</span>
-                        <span className="font-bold text-text-primary font-mono">{ev.service_score}/5</span>
-                      </div>
-                    </div>
-
-                    {ev.comments && (
-                      <p className="text-xs text-text-secondary italic line-clamp-2">
-                        &quot;{ev.comments}&quot;
-                      </p>
-                    )}
-
-                    <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
-                      <span className="text-text-muted">Recomendado:</span>
-                      {ev.recommend_supplier ? (
-                        <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Sí
-                        </span>
-                      ) : (
-                        <span className="text-red-700 font-semibold flex items-center gap-1">
-                          <AlertTriangle className="w-3.5 h-3.5" /> No
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
+                    <tr>
+                      <th className="py-3 px-4">Proveedor</th>
+                      <th className="py-3 px-4 text-center">Calificación General</th>
+                      <th className="py-3 px-4 text-center">Calidad</th>
+                      <th className="py-3 px-4 text-center">Tiempos</th>
+                      <th className="py-3 px-4 text-center">Servicio</th>
+                      <th className="py-3 px-4 text-center">Recomendado</th>
+                      <th className="py-3 px-4">Comentarios</th>
+                      <th className="py-3 px-4">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredSuppliers.map((ev) => (
+                      <tr key={ev.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4 font-bold text-text-primary whitespace-nowrap">
+                          {ev.supplier_name}
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-amber-800 text-xs font-bold font-mono">
+                            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                            {Number(ev.overall_rating).toFixed(1)} / 5
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
+                          {ev.quality_score}/5
+                        </td>
+                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
+                          {ev.delivery_time_score}/5
+                        </td>
+                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
+                          {ev.service_score}/5
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          {ev.recommend_supplier ? (
+                            <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 text-[11px]">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Sí
+                            </span>
+                          ) : (
+                            <span className="text-rose-700 bg-rose-50 border border-rose-200 font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 text-[11px]">
+                              <AlertTriangle className="w-3 h-3 text-rose-600" /> No
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 max-w-[240px]">
+                          <p className="text-text-secondary italic truncate text-[11px]" title={ev.comments || ''}>
+                            {ev.comments ? `"${ev.comments}"` : '—'}
+                          </p>
+                        </td>
+                        <td className="py-3 px-4 text-text-muted font-mono whitespace-nowrap text-[11px]">
+                          {new Date(ev.created_at).toLocaleDateString('es-CO')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

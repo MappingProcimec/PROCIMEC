@@ -30,6 +30,7 @@ import {
   Lock,
   PenTool,
   RotateCw,
+  FolderKanban,
 } from 'lucide-react';
 import {
   CommercialOpportunity,
@@ -531,145 +532,172 @@ export default function CommercialPipelinePage() {
         </div>
 
         {/* ────────────────────────────────────────────────────────────────────
-            PESTAÑA 1: CADENA DE TRAZABILIDAD ARTICULADA (TIMELINE)
+            PESTAÑA 1: CADENA DE TRAZABILIDAD ARTICULADA (TABLA DE EXPEDIENTES)
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'timeline' && (
-          <div className="space-y-4">
-            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl">
-              <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1">
-                Mapa de Flujo Comercial y Articulación Integral
-              </h2>
-              <p className="text-xs text-text-secondary">
-                Visualización de expedientes conectados. Cada fase opera de forma 100% autónoma y permite vinculación retroactiva.
-              </p>
-            </div>
+          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
+                  <tr>
+                    <th className="py-3 px-4">Expediente / Cotización</th>
+                    <th className="py-3 px-4">Cliente / Alcance</th>
+                    <th className="py-3 px-4">Cadena de Trazabilidad (5 Fases)</th>
+                    <th className="py-3 px-4 text-center">Etapa Actual</th>
+                    <th className="py-3 px-4 text-right">Monto Ofertado / Cierre</th>
+                    <th className="py-3 px-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredProposals.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-8 text-text-muted italic">
+                        No se encontraron expedientes comerciales en la cadena de trazabilidad.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredProposals.map((prop) => {
+                      const linkedBudget = dashboard?.budgets.find((b) => b.id === prop.budget_id);
+                      const linkedOpp = dashboard?.opportunities.find((o) => o.id === prop.opportunity_id);
+                      const linkedClosing = dashboard?.closings.find(
+                        (c) => c.proposal_id === prop.id || c.commercial_proposals?.quote_code === prop.quote_code
+                      );
+                      const linkedProject =
+                        dashboard?.projects.find((pr) => pr.id === prop.project_id) ||
+                        dashboard?.projects.find((pr) => pr.commercial_proposal?.quote_code === prop.quote_code);
 
-            {/* Listado de expedientes conectados por Cotización */}
-            <div className="space-y-3">
-              {(dashboard?.proposals || []).slice(0, 25).map((prop) => {
-                const linkedBudget = dashboard?.budgets.find((b) => b.id === prop.budget_id);
-                const linkedOpp = dashboard?.opportunities.find((o) => o.id === prop.opportunity_id);
-                const linkedClosing = dashboard?.closings.find(
-                  (c) => c.proposal_id === prop.id || c.commercial_proposals?.quote_code === prop.quote_code
-                );
-                const linkedProject =
-                  dashboard?.projects.find((pr) => pr.id === prop.project_id) ||
-                  dashboard?.projects.find((pr) => pr.commercial_proposal?.quote_code === prop.quote_code);
+                      const displayAmount =
+                        linkedClosing?.result === 'won' && linkedClosing.final_contract_value
+                          ? linkedClosing.final_contract_value
+                          : prop.total_amount;
 
-                return (
-                  <div
-                    key={prop.id}
-                    className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/50 transition-all"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border mb-3">
-                      <div>
-                        <span className="font-mono text-sm font-bold text-amber-700 mr-2">
-                          {prop.quote_code}
-                        </span>
-                        <strong className="text-text-primary text-sm font-semibold">{prop.client_name}</strong>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {linkedClosing?.result === 'won' && linkedClosing.final_contract_value ? (
-                          <div className="flex flex-col items-end">
-                            <span className="font-mono font-bold text-emerald-700 text-sm">
-                              {formatCOP(linkedClosing.final_contract_value)}
+                      return (
+                        <tr key={prop.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-mono font-bold text-amber-700 block">{prop.quote_code}</span>
+                            <span className="text-[10px] text-text-muted">{formatDate(prop.created_at)}</span>
+                          </td>
+                          <td className="py-3 px-4 max-w-[200px]">
+                            <span className="font-semibold text-text-primary block truncate">{prop.client_name}</span>
+                            <span className="text-[11px] text-text-secondary truncate block" title={prop.scope_description}>
+                              {prop.scope_description}
                             </span>
-                            {linkedClosing.final_contract_value !== prop.total_amount && (
-                              <span className="text-[10px] text-text-muted font-mono line-through">
-                                Inicial: {formatCOP(prop.total_amount)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {/* 1. Oportunidad */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${
+                                  linkedOpp ? 'bg-blue-50 text-blue-800 border-blue-200' : 'bg-slate-50 text-slate-500 border-slate-200'
+                                }`}
+                                title={linkedOpp ? `Oportunidad: ${linkedOpp.opportunity_title}` : 'Sin oportunidad previa'}
+                              >
+                                <Briefcase className="w-3 h-3 text-blue-600" />
+                                {linkedOpp?.opportunity_code || 'Sin OPP'}
+                              </span>
+
+                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+
+                              {/* 2. APU */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${
+                                  linkedBudget ? 'bg-purple-50 text-purple-800 border-purple-200' : 'bg-slate-50 text-slate-500 border-slate-200'
+                                }`}
+                                title={linkedBudget ? `APU: ${linkedBudget.project_title}` : 'Cotización directa sin APU'}
+                              >
+                                <Calculator className="w-3 h-3 text-purple-600" />
+                                {linkedBudget?.budget_code || 'Sin APU'}
+                              </span>
+
+                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+
+                              {/* 3. Cotización */}
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-amber-50 text-amber-900 border border-amber-300">
+                                <FileCheck2 className="w-3 h-3 text-amber-600" />
+                                {prop.quote_code}
+                              </span>
+
+                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+
+                              {/* 4. Cierre */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                  linkedClosing?.result === 'won'
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    : linkedClosing?.result === 'lost'
+                                    ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}
+                              >
+                                <Trophy className="w-3 h-3 text-amber-500" />
+                                {linkedClosing?.result === 'won'
+                                  ? 'Ganada'
+                                  : linkedClosing?.result === 'lost'
+                                  ? 'Perdida'
+                                  : 'En Estudio'}
+                              </span>
+
+                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
+
+                              {/* 5. Proyecto */}
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${
+                                  linkedProject ? 'bg-emerald-50 text-emerald-900 border-emerald-300' : 'bg-slate-50 text-slate-500 border-slate-200'
+                                }`}
+                              >
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                {linkedProject ? linkedProject.cost_center || linkedProject.name : 'Sin Proyecto'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            {linkedProject ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100/80 text-emerald-900 border border-emerald-300 inline-block">
+                                Proyecto Oficial Activo
+                              </span>
+                            ) : linkedClosing?.result === 'won' ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100/80 text-amber-900 border border-amber-300 inline-block">
+                                Adjudicada (Apertura Pendiente)
+                              </span>
+                            ) : linkedClosing?.result === 'lost' ? (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100/80 text-rose-900 border border-rose-300 inline-block">
+                                No Adjudicada
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100/80 text-blue-900 border border-blue-300 inline-block">
+                                En Negociación Comercial
                               </span>
                             )}
-                          </div>
-                        ) : (
-                          <span className="font-mono font-bold text-text-primary text-sm">
-                            {formatCOP(prop.total_amount)}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => generateProposalPdf(prop)}
-                          className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-text-secondary"
-                          title="Descargar PDF Cotización"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Cadena de Nodos Visual */}
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      {/* Nodo Oportunidad */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 font-semibold">
-                        <Briefcase className="w-3.5 h-3.5 text-blue-600" strokeWidth={1.75} />
-                        <span className="text-[11px] font-mono">
-                          {linkedOpp?.opportunity_code || 'Sin Oportunidad'}
-                        </span>
-                      </div>
-
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />
-
-                      {/* Nodo Presupuesto APU */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-900 font-semibold">
-                        <Calculator className="w-3.5 h-3.5 text-purple-600" strokeWidth={1.75} />
-                        <span className="text-[11px] font-mono">
-                          {linkedBudget?.budget_code || 'Directo (Sin APU)'}
-                        </span>
-                      </div>
-
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />
-
-                      {/* Nodo Cotización */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 font-semibold">
-                        <FileCheck2 className="w-3.5 h-3.5 text-amber-600" strokeWidth={1.75} />
-                        <span className="text-[11px] font-mono">{prop.quote_code}</span>
-                      </div>
-
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />
-
-                      {/* Nodo Cierre */}
-                      <div
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
-                          linkedClosing?.result === 'won'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                            : linkedClosing?.result === 'lost'
-                            ? 'bg-rose-50 border-rose-200 text-rose-800'
-                            : 'bg-slate-100 border-slate-200 text-slate-600'
-                        }`}
-                      >
-                        <Trophy className="w-3.5 h-3.5" strokeWidth={1.75} />
-                        <span className="text-[11px]">
-                          {linkedClosing
-                            ? linkedClosing.result === 'won'
-                              ? 'Ganada / Adjudicada'
-                              : 'No Adjudicada'
-                            : 'En Estudio'}
-                        </span>
-                      </div>
-
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.75} />
-
-                      {/* Nodo Proyecto */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200">
-                        <ShieldCheck className="w-3.5 h-3.5 text-amber-600" strokeWidth={1.75} />
-                        {linkedProject ? (
-                          <span className="text-[11px] text-text-primary font-mono font-bold">
-                            {linkedProject.code || linkedProject.cost_center}: {linkedProject.name}
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setLinkProposalModal(prop)}
-                            className="text-[11px] text-amber-700 font-bold hover:underline flex items-center gap-1"
-                          >
-                            <LinkIcon className="w-3 h-3" strokeWidth={2} />
-                            + Vincular a Proyecto
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-extrabold text-sm whitespace-nowrap text-text-primary">
+                            {formatCOP(displayAmount)}
+                          </td>
+                          <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => generateProposalPdf(prop)}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
+                              title="Descargar PDF Cotización"
+                            >
+                              <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
+                            </button>
+                            {!linkedProject && (
+                              <button
+                                type="button"
+                                onClick={() => setLinkProposalModal(prop)}
+                                className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold border border-amber-200 transition-colors"
+                                title="Vincular a Proyecto Oficial"
+                              >
+                                Vincular
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -991,7 +1019,7 @@ export default function CommercialPipelinePage() {
                             <span className="font-mono font-bold text-text-primary block">
                               {c.commercial_proposals?.quote_code || 'Directa'}
                             </span>
-                            <span className="text-[11px] text-text-secondary">
+                            <span className="text-[11px] text-text-secondary block">
                               {c.commercial_proposals?.client_name || 'N/A'}
                             </span>
                           </td>
@@ -1027,16 +1055,59 @@ export default function CommercialPipelinePage() {
                             >
                               <Download className="w-3.5 h-3.5" strokeWidth={1.75} />
                             </button>
-                            {isWon && (
-                              <Link
-                                href={`/admin/projects?create_from_closing=${c.id}&client=${encodeURIComponent(c.commercial_proposals?.client_name || '')}&contract_value=${c.final_contract_value || c.final_value}&contract_number=${encodeURIComponent(c.contract_number || '')}`}
-                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1 transition-all text-xs"
-                                title="Aperturar Proyecto Oficial en Sistema"
-                              >
-                                <ShieldCheck className="w-3.5 h-3.5" />
-                                Crear Proyecto
-                              </Link>
-                            )}
+                            {(() => {
+                              const quoteCode = c.commercial_proposals?.quote_code;
+                              const propMatch = dashboard?.proposals.find(
+                                (p) =>
+                                  (c.proposal_id && p.id === c.proposal_id) ||
+                                  (quoteCode && p.quote_code.toUpperCase() === quoteCode.toUpperCase())
+                              );
+
+                              const cProjId = c.project_id || c.projects?.id;
+                              const linkedProject =
+                                (cProjId ? dashboard?.projects.find((pr) => pr.id === cProjId) : null) ||
+                                (propMatch?.project_id ? dashboard?.projects.find((pr) => pr.id === propMatch.project_id) : null) ||
+                                dashboard?.projects.find((pr) => pr.commercial_closing_id === c.id) ||
+                                (c.proposal_id ? dashboard?.projects.find((pr) => pr.commercial_proposal_id === c.proposal_id) : null) ||
+                                (propMatch?.id ? dashboard?.projects.find((pr) => pr.commercial_proposal_id === propMatch.id) : null) ||
+                                (quoteCode
+                                  ? dashboard?.projects.find(
+                                      (pr) =>
+                                        pr.commercial_proposal?.quote_code?.toUpperCase() === quoteCode.toUpperCase()
+                                    )
+                                  : null) ||
+                                (c.projects?.id
+                                  ? { id: c.projects.id, cost_center: c.projects.cost_center || '', name: c.projects.name || '' }
+                                  : null);
+
+                              if (linkedProject) {
+                                return (
+                                  <Link
+                                    href={`/admin/projects?project_id=${linkedProject.id}`}
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold inline-flex items-center gap-1.5 transition-all text-xs"
+                                    title={`Proyecto Oficial Vinculado: ${linkedProject.cost_center ? `[${linkedProject.cost_center}] ` : ''}${linkedProject.name}`}
+                                  >
+                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span className="font-mono">{linkedProject.cost_center || linkedProject.name || 'Ver Proyecto'}</span>
+                                  </Link>
+                                );
+                              }
+
+                              if (isWon) {
+                                return (
+                                  <Link
+                                    href={`/admin/projects?create_from_closing=${c.id}&client=${encodeURIComponent(c.commercial_proposals?.client_name || '')}&contract_value=${c.final_contract_value || c.final_value || ''}&contract_number=${encodeURIComponent(c.contract_number || '')}&commercial_proposal_id=${encodeURIComponent(c.proposal_id || propMatch?.id || '')}`}
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold inline-flex items-center gap-1 transition-all text-xs"
+                                    title="Aperturar Proyecto Oficial en Sistema"
+                                  >
+                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                    Crear Proyecto
+                                  </Link>
+                                );
+                              }
+
+                              return null;
+                            })()}
                           </td>
                         </tr>
                       );

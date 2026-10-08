@@ -161,6 +161,7 @@ export async function GET() {
           opportunity_id,
           proposal_id,
           budget_id,
+          project_id,
           user_id,
           created_by_name,
           created_by_email,
@@ -171,7 +172,8 @@ export async function GET() {
           closing_notes,
           created_at,
           users(id, full_name, email),
-          commercial_proposals(quote_code, client_name, total_amount)
+          commercial_proposals(quote_code, client_name, total_amount),
+          projects:project_id(id, cost_center, name, client)
         `)
         .order('created_at', { ascending: false }),
 

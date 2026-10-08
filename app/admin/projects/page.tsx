@@ -294,6 +294,20 @@ export default function AdminProjectsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && projects.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const pId = params.get('project_id');
+      const pCostCenter = params.get('cost_center');
+      if (pId) {
+        const match = projects.find((p) => p.id === pId);
+        if (match) setSelectedProject(match);
+      } else if (pCostCenter) {
+        setFilterCostCenter(pCostCenter);
+      }
+    }
+  }, [projects]);
+
   const createMutation = useMutation({
     mutationFn: async (data: typeof form) => {
       const res = await fetch('/api/admin/projects', {

@@ -447,13 +447,19 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Sincronizar bidireccionalmente el proyecto en la propuesta si se seleccionó una
+  // Sincronizar bidireccionalmente el proyecto en la propuesta y cierre si se seleccionó una
   if (data?.id && body.commercial_proposal_id) {
     try {
-      await supabase
-        .from('commercial_proposals')
-        .update({ project_id: data.id })
-        .eq('id', body.commercial_proposal_id);
+      await Promise.all([
+        supabase
+          .from('commercial_proposals')
+          .update({ project_id: data.id })
+          .eq('id', body.commercial_proposal_id),
+        supabase
+          .from('commercial_closings')
+          .update({ project_id: data.id })
+          .eq('proposal_id', body.commercial_proposal_id),
+      ]);
     } catch {}
   }
 
