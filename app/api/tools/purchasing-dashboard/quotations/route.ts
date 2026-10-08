@@ -23,6 +23,7 @@ export interface QuotationOptionInput {
   brand?: string;
   unit_price: number;
   total?: number;
+  delivery_date?: string;
   delivery_days?: number | string;
   notes?: string;
   is_selected?: boolean;
@@ -212,7 +213,8 @@ export async function POST(req: NextRequest) {
           brand: String(opt.brand || '').trim(),
           unit_price: Number(opt.unit_price) || 0,
           total: qty * (Number(opt.unit_price) || 0),
-          delivery_days: opt.delivery_days || 'Inmediata',
+          delivery_date: String(opt.delivery_date || opt.delivery_days || '').trim(),
+          delivery_days: String(opt.delivery_date || opt.delivery_days || '').trim(),
           notes: String(opt.notes || '').trim(),
           is_selected: optIdx === selectedIndex,
         })),

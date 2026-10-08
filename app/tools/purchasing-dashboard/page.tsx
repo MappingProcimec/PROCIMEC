@@ -52,6 +52,7 @@ export interface ItemQuotationOption {
   brand?: string;
   unit_price: number | '';
   total?: number;
+  delivery_date?: string;
   delivery_days?: number | string;
   notes?: string;
   is_selected?: boolean;
@@ -752,9 +753,31 @@ export default function PurchasingDashboardPage() {
     // Inicializar borrador de cotizaciones con las 3 opciones por ítem
     const pId = r.project_id || '';
     const pBudget = pId && dashboard?.projectBudgets ? dashboard.projectBudgets[pId] : undefined;
+    const defaultDeliveryDate =
+      r.delivery_date && /^\d{4}-\d{2}-\d{2}$/.test(r.delivery_date)
+        ? r.delivery_date
+        : r.required_date && /^\d{4}-\d{2}-\d{2}$/.test(r.required_date)
+        ? r.required_date
+        : new Date().toISOString().split('T')[0];
+
     const initialDraftItems: PurchaseRequestItemData[] = (r.items || []).map((it) => {
       if (it.quotations && it.quotations.length > 0) {
-        return { ...it };
+        const sanitizedOpts = it.quotations.map((q) => {
+          let dDate = q.delivery_date;
+          if (!dDate || !/^\d{4}-\d{2}-\d{2}$/.test(dDate)) {
+            if (q.delivery_days && /^\d{4}-\d{2}-\d{2}$/.test(String(q.delivery_days))) {
+              dDate = String(q.delivery_days);
+            } else {
+              dDate = defaultDeliveryDate;
+            }
+          }
+          return {
+            ...q,
+            delivery_date: dDate,
+            delivery_days: dDate,
+          };
+        });
+        return { ...it, quotations: sanitizedOpts };
       }
 
       const budgetItem = pBudget?.items?.find(
@@ -777,7 +800,8 @@ export default function PurchasingDashboardPage() {
           brand: it.brand || 'Marca Solicitada',
           unit_price: opt1Price,
           total: qty * opt1Price,
-          delivery_days: 'Según Solicitud',
+          delivery_date: defaultDeliveryDate,
+          delivery_days: defaultDeliveryDate,
           notes: 'Sugerido en solicitud de campo',
           is_selected: true,
         },
@@ -788,7 +812,8 @@ export default function PurchasingDashboardPage() {
           brand: budgetItem?.brand || (budgetItem ? 'Estándar APU' : ''),
           unit_price: opt2Price,
           total: qty * opt2Price,
-          delivery_days: 'Inmediata',
+          delivery_date: defaultDeliveryDate,
+          delivery_days: defaultDeliveryDate,
           notes: budgetItem ? `Tarifa contractual APU (${budgetItem.description})` : 'Proveedor alternativo B',
           is_selected: false,
         },
@@ -799,7 +824,8 @@ export default function PurchasingDashboardPage() {
           brand: '',
           unit_price: '',
           total: 0,
-          delivery_days: '',
+          delivery_date: defaultDeliveryDate,
+          delivery_days: defaultDeliveryDate,
           notes: '',
           is_selected: false,
         },
@@ -2698,7 +2724,8 @@ export default function PurchasingDashboardPage() {
                                 brand: '',
                                 unit_price: '',
                                 total: 0,
-                                delivery_days: '',
+                                delivery_date: selectedRequest?.delivery_date || '',
+                                delivery_days: selectedRequest?.delivery_date || '',
                                 notes: '',
                               };
                               const isSelected = selOptIdx === optIdx;
@@ -2774,13 +2801,22 @@ export default function PurchasingDashboardPage() {
                                           />
                                         </div>
                                         <div>
-                                          <label className="block text-[10px] font-semibold text-text-muted mb-0.5">Días Entrega</label>
+                                          <label className="block text-[10px] font-semibold text-text-muted mb-0.5">Fecha Entrega</label>
                                           <input
-                                            type="text"
-                                            value={opt.delivery_days || ''}
-                                            onChange={(e) => handleUpdateOptionField(itemIdx, optIdx, 'delivery_days', e.target.value)}
-                                            placeholder="Ej: 2 días"
-                                            className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                            type="date"
+                                            value={
+                                              opt.delivery_date && /^\d{4}-\d{2}-\d{2}$/.test(opt.delivery_date)
+                                                ? opt.delivery_date
+                                                : opt.delivery_days && /^\d{4}-\d{2}-\d{2}$/.test(String(opt.delivery_days))
+                                                ? String(opt.delivery_days)
+                                                : selectedRequest?.delivery_date || ''
+                                            }
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              handleUpdateOptionField(itemIdx, optIdx, 'delivery_date', val);
+                                              handleUpdateOptionField(itemIdx, optIdx, 'delivery_days', val);
+                                            }}
+                                            className="w-full text-xs font-mono rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
                                           />
                                         </div>
                                       </div>
