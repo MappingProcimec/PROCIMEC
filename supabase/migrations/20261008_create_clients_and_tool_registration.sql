@@ -8,8 +8,8 @@
 -- 1. TABLA MAESTRA DE CLIENTES INSTITUCIONALES (clients)
 CREATE TABLE IF NOT EXISTS public.clients (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_name TEXT NOT NULL,
-  nit TEXT UNIQUE,
+  company_name TEXT NOT NULL UNIQUE,
+  nit TEXT,
   contact_name TEXT,
   contact_role TEXT,
   email TEXT,
@@ -25,6 +25,19 @@ CREATE TABLE IF NOT EXISTS public.clients (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Asegurar constraint UNIQUE en company_name si la tabla fue creada previamente sin él
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'clients_company_name_key'
+  ) THEN
+    ALTER TABLE public.clients ADD CONSTRAINT clients_company_name_key UNIQUE (company_name);
+  END IF;
+EXCEPTION
+  WHEN OTHERS THEN
+    NULL;
+END $$;
 
 -- Índices de búsqueda ágil
 CREATE INDEX IF NOT EXISTS idx_clients_company_name ON public.clients(company_name);
@@ -51,7 +64,7 @@ CREATE POLICY "clients_write_auth"
 -- 2. POBLAR CLIENTES INICIALES DESDE OPORTUNIDADES Y PROYECTOS EXISTENTES
 DO $$
 BEGIN
-  -- Insertar desde commercial_opportunities si no existen
+  -- Insertar desde commercial_opportunities si existen
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'commercial_opportunities') THEN
     INSERT INTO public.clients (company_name, contact_name, email, phone, status, notes)
     SELECT DISTINCT ON (TRIM(LOWER(co.client_name)))
@@ -63,10 +76,12 @@ BEGIN
       'Cliente migrado automáticamente desde Oportunidades Comerciales.'
     FROM public.commercial_opportunities co
     WHERE co.client_name IS NOT NULL AND TRIM(co.client_name) <> ''
-    ON CONFLICT (company_name) DO NOTHING;
+      AND NOT EXISTS (
+        SELECT 1 FROM public.clients c WHERE LOWER(TRIM(c.company_name)) = LOWER(TRIM(co.client_name))
+      );
   END IF;
 
-  -- Insertar desde projects si no existen
+  -- Insertar desde projects si existen
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects') THEN
     INSERT INTO public.clients (company_name, status, notes)
     SELECT DISTINCT ON (TRIM(LOWER(p.client)))
@@ -75,7 +90,9 @@ BEGIN
       'Cliente migrado automáticamente desde Proyectos Operativos.'
     FROM public.projects p
     WHERE p.client IS NOT NULL AND TRIM(p.client) <> ''
-    ON CONFLICT (company_name) DO NOTHING;
+      AND NOT EXISTS (
+        SELECT 1 FROM public.clients c WHERE LOWER(TRIM(c.company_name)) = LOWER(TRIM(p.client))
+      );
   END IF;
 EXCEPTION
   WHEN OTHERS THEN
@@ -84,13 +101,17 @@ END $$;
 
 -- Clientes base de referencia si la tabla quedó vacía
 INSERT INTO public.clients (company_name, nit, contact_name, contact_role, email, phone, city, economic_sector, payment_terms, status)
-VALUES
+SELECT v.company_name, v.nit, v.contact_name, v.contact_role, v.email, v.phone, v.city, v.economic_sector, v.payment_terms, v.status
+FROM (VALUES
   ('Consorcio Vías del Norte', '901.456.789-1', 'Ing. Carlos Mendoza', 'Director de Obra', 'cmendoza@viasdelnorte.com', '3104567890', 'Barranquilla', 'Infraestructura Vial', 'Crédito 30 días', 'active'),
   ('Constructora Bolívar S.A.', '860.052.123-4', 'Arq. Marcela Gómez', 'Gerente de Proyectos', 'mgomez@constructora-bolivar.co', '3157891234', 'Bogotá', 'Edificación y Vivienda', 'Crédito 45 días', 'active'),
   ('Ecopetrol S.A.', '899.999.068-1', 'Ing. Fernando Ruiz', 'Líder Geofísica & Subsuelo', 'fruiz@ecopetrol.com.co', '3001234567', 'Nacional', 'Petróleo y Gas', 'Crédito 60 días', 'active'),
   ('Triple A S.A. E.S.P.', '800.123.456-7', 'Ing. Roberto Silva', 'Jefe Redes Acueducto', 'rsilva@aaa.com.co', '3019876543', 'Barranquilla', 'Servicios Públicos', 'Crédito 30 días', 'active'),
   ('Argos Concretos S.A.S.', '890.900.266-3', 'Dra. Patricia Peña', 'Compras y Contratación', 'ppena@argos.com.co', '3187654321', 'Medellín', 'Materiales y Concretos', 'Contado', 'active')
-ON CONFLICT (company_name) DO NOTHING;
+) AS v(company_name, nit, contact_name, contact_role, email, phone, city, economic_sector, payment_terms, status)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.clients c WHERE LOWER(TRIM(c.company_name)) = LOWER(TRIM(v.company_name))
+);
 
 -- 3. REGISTRAR LAS 2 NUEVAS HERRAMIENTAS EN public.tools (CAPA 3)
 INSERT INTO public.tools (slug, name, description, category, is_universal)
@@ -122,7 +143,10 @@ FROM public.roles r
 CROSS JOIN public.tools t
 WHERE (LOWER(r.name) IN ('comercial', 'commercial', 'admin', 'gerencia') OR r.name ILIKE '%comercial%')
   AND t.slug = 'commercial-clients'
-ON CONFLICT DO NOTHING;
+  AND NOT EXISTS (
+    SELECT 1 FROM public.role_tools rt
+    WHERE rt.role_id = r.id AND rt.tool_id = t.id
+  );
 
 -- 5. VINCULAR HERRAMIENTA COMPRAS A ROLES CORRESPONDIENTES (role_tools)
 INSERT INTO public.role_tools (role_id, tool_id)
@@ -131,4 +155,7 @@ FROM public.roles r
 CROSS JOIN public.tools t
 WHERE (LOWER(r.name) IN ('compras', 'purchasing', 'admin', 'gerencia') OR r.name ILIKE '%compra%')
   AND t.slug = 'purchasing-suppliers'
-ON CONFLICT DO NOTHING;
+  AND NOT EXISTS (
+    SELECT 1 FROM public.role_tools rt
+    WHERE rt.role_id = r.id AND rt.tool_id = t.id
+  );
