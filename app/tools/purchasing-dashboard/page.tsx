@@ -207,6 +207,23 @@ interface PurchaseOrder {
   users?: { id: string; full_name: string; email: string } | null;
 }
 
+export interface GroupedRequestOrders {
+  requestId: string;
+  requestCode: string;
+  createdAt?: string;
+  projectName: string;
+  costCenter: string;
+  clientName?: string;
+  applicantName: string;
+  totalAmount: number;
+  ordersCount: number;
+  deliveredCount: number;
+  inTransitCount: number;
+  confirmedCount: number;
+  orders: PurchaseOrder[];
+  request?: PurchaseRequest | null;
+}
+
 interface SupplierEvaluation {
   id: string;
   purchase_order_id?: string | null;
@@ -346,6 +363,7 @@ export default function PurchasingDashboardPage() {
 
   // Estados para Emisión de Órdenes de Compra en Pestaña 6
   const [orderIssuingRequest, setOrderIssuingRequest] = useState<PurchaseRequest | null>(null);
+  const [selectedRequestGroupId, setSelectedRequestGroupId] = useState<string | null>(null);
   const [downloadingOrderId, setDownloadingOrderId] = useState<string | null>(null);
   const [orderForms, setOrderForms] = useState<
     Record<
@@ -785,6 +803,99 @@ export default function PurchasingDashboardPage() {
       return matchSearch && matchStatus && matchProject;
     });
   }, [dashboard?.orders, search, filterStatus, filterProject]);
+
+  // Agrupación de órdenes de compra formalizadas por requerimiento con conteo de emitidas vs entregadas
+  const groupedOrdersByRequest = useMemo<GroupedRequestOrders[]>(() => {
+    if (!dashboard?.orders || dashboard.orders.length === 0) return [];
+
+    const requestsMap = new Map<string, PurchaseRequest>();
+    (dashboard.requests || []).forEach((r) => {
+      requestsMap.set(r.id, r);
+    });
+
+    const groupsMap = new Map<string, PurchaseOrder[]>();
+    dashboard.orders.forEach((o) => {
+      const key = o.purchase_request_id || `unlinked_${o.project_id || 'general'}`;
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, []);
+      }
+      groupsMap.get(key)!.push(o);
+    });
+
+    const list: GroupedRequestOrders[] = [];
+
+    groupsMap.forEach((orders, reqKey) => {
+      const req = requestsMap.get(reqKey) || null;
+      const firstOrder = orders[0];
+
+      const requestCode = req?.request_code || (reqKey.startsWith('unlinked_') ? 'SIN-REQ' : reqKey);
+      const createdAt = req?.created_at || firstOrder?.created_at || '';
+      const projectName = req?.projects?.name || firstOrder?.projects?.name || 'Administración / General';
+      const costCenter = req?.cost_center || req?.projects?.cost_center || firstOrder?.projects?.cost_center || 'General';
+      const clientName = req?.projects?.client || firstOrder?.projects?.client || '';
+      const applicantName = req?.applicant_name || firstOrder?.users?.full_name || 'Personal Operativo';
+
+      const totalAmount = orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+      const ordersCount = orders.length;
+      const deliveredCount = orders.filter((o) => o.status === 'completed').length;
+      const inTransitCount = orders.filter((o) => o.status === 'in_transit').length;
+      const confirmedCount = orders.filter((o) => o.status === 'confirmed').length;
+
+      // Filtrado por search
+      const query = search.trim().toLowerCase();
+      const matchSearch =
+        query === '' ||
+        requestCode.toLowerCase().includes(query) ||
+        projectName.toLowerCase().includes(query) ||
+        applicantName.toLowerCase().includes(query) ||
+        costCenter.toLowerCase().includes(query) ||
+        orders.some(
+          (o) =>
+            o.order_code.toLowerCase().includes(query) ||
+            o.supplier_name.toLowerCase().includes(query) ||
+            (o.supplier_nit || '').toLowerCase().includes(query)
+        );
+
+      // Filtrado por proyecto
+      const matchProject =
+        filterProject === 'all' ||
+        req?.project_id === filterProject ||
+        req?.projects?.id === filterProject ||
+        orders.some((o) => o.project_id === filterProject || o.projects?.id === filterProject);
+
+      // Filtrado por estado
+      const matchStatus =
+        filterStatus === 'all' ||
+        orders.some((o) => o.status === filterStatus) ||
+        (filterStatus === 'completed' && deliveredCount === ordersCount);
+
+      if (matchSearch && matchProject && matchStatus) {
+        list.push({
+          requestId: reqKey,
+          requestCode,
+          createdAt,
+          projectName,
+          costCenter,
+          clientName,
+          applicantName,
+          totalAmount,
+          ordersCount,
+          deliveredCount,
+          inTransitCount,
+          confirmedCount,
+          orders,
+          request: req,
+        });
+      }
+    });
+
+    return list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [dashboard?.orders, dashboard?.requests, search, filterProject, filterStatus]);
+
+  const activeGroupOrders = useMemo(() => {
+    if (!selectedRequestGroupId) return null;
+    return groupedOrdersByRequest.find((g) => g.requestId === selectedRequestGroupId) || null;
+  }, [selectedRequestGroupId, groupedOrdersByRequest]);
 
   // Filtrado de proveedores evaluados
   const filteredSuppliers = useMemo(() => {
@@ -2682,23 +2793,28 @@ export default function PurchasingDashboardPage() {
               </div>
             )}
 
-            {/* Tabla Principal: Órdenes de Compra formalizadas */}
+            {/* Tabla Principal: Órdenes de Compra formalizadas agrupadas por Requerimiento */}
             <div className="card border border-border bg-white rounded-xl shadow-card overflow-hidden">
-              <div className="p-4 bg-slate-50/60 border-b border-border flex items-center justify-between">
+              <div className="p-4 bg-slate-50/60 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
                     <Package className="w-4 h-4 text-primary-900" />
                     Órdenes de Compra Formalizadas (Emitidas)
                   </h3>
                   <p className="text-[11px] text-text-muted mt-0.5">
-                    Registro de órdenes de compra con código consecutivo y proveedor contratado.
+                    Expedientes agrupados por requerimiento con control de órdenes emitidas vs órdenes entregadas.
                   </p>
+                </div>
+                <div className="text-[11px] font-semibold text-text-muted flex items-center gap-3">
+                  <span>Requerimientos con OCs: <strong className="text-text-primary font-mono">{groupedOrdersByRequest.length}</strong></span>
+                  <span>·</span>
+                  <span>Total OCs: <strong className="text-text-primary font-mono">{dashboard?.orders?.length || 0}</strong></span>
                 </div>
               </div>
 
               {isLoading ? (
                 <div className="p-8 text-center text-text-muted text-sm">Cargando órdenes de compra...</div>
-              ) : filteredOrders.length === 0 ? (
+              ) : groupedOrdersByRequest.length === 0 ? (
                 <div className="p-8 text-center text-text-muted text-sm">
                   No se encontraron órdenes de compra formalizadas emitidas aún.
                 </div>
@@ -2707,63 +2823,104 @@ export default function PurchasingDashboardPage() {
                   <table className="w-full text-left text-xs sm:text-sm">
                     <thead className="bg-gray-50 border-b border-border text-text-secondary uppercase tracking-wider text-[11px] font-semibold">
                       <tr>
-                        <th className="py-3 px-4">Código</th>
-                        <th className="py-3 px-4">Proveedor</th>
-                        <th className="py-3 px-4">Proyecto</th>
-                        <th className="py-3 px-4">Monto Total</th>
-                        <th className="py-3 px-4">Plazo Entrega</th>
-                        <th className="py-3 px-4 text-center">Estado</th>
+                        <th className="py-3 px-4">Código Req</th>
+                        <th className="py-3 px-4">Proyecto / Cliente</th>
+                        <th className="py-3 px-4">Solicitante</th>
+                        <th className="py-3 px-4">Monto Total OCs</th>
+                        <th className="py-3 px-4 text-center">Órdenes (Emitidas vs Entregadas)</th>
+                        <th className="py-3 px-4 text-center">Estado Entregas</th>
                         <th className="py-3 px-4 text-right">Acción</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {filteredOrders.map((o) => {
-                        const st = STATUS_ORDER_LABELS[o.status] ?? { label: o.status, badge: 'badge-outline' };
+                      {groupedOrdersByRequest.map((group) => {
+                        const isAllDelivered = group.ordersCount > 0 && group.deliveredCount === group.ordersCount;
+                        const isPartial = group.deliveredCount > 0 && group.deliveredCount < group.ordersCount;
+                        const hasInTransit = group.inTransitCount > 0;
+
                         return (
-                          <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="py-3 px-4 font-mono font-bold text-xs text-primary whitespace-nowrap">
-                              {o.order_code}
+                          <tr
+                            key={group.requestId}
+                            onClick={() => setSelectedRequestGroupId(group.requestId)}
+                            className="hover:bg-amber-50/40 transition-colors cursor-pointer group"
+                          >
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className="font-mono font-bold text-xs text-primary group-hover:text-accent transition-colors block">
+                                {group.requestCode}
+                              </span>
+                              <span className="font-mono text-[10px] text-text-muted">
+                                {group.createdAt ? new Date(group.createdAt).toLocaleDateString('es-CO') : '—'}
+                              </span>
                             </td>
                             <td className="py-3 px-4">
-                              <p className="font-semibold text-text-primary">{o.supplier_name}</p>
-                              <p className="text-xs text-text-muted">{o.supplier_nit ? `NIT: ${o.supplier_nit}` : 'Sin NIT'}</p>
-                            </td>
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <span className="font-mono text-xs font-semibold text-primary">
-                                {o.projects?.cost_center || 'General'}
+                              <span className="font-mono text-xs font-semibold text-primary block">
+                                {group.projectName}
                               </span>
-                              <p className="text-xs text-text-muted truncate max-w-[140px]">
-                                {o.projects?.name || 'Administración'}
-                              </p>
+                              <span className="text-[11px] text-text-muted block truncate max-w-[200px]">
+                                {group.clientName || `CC: ${group.costCenter}`}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-xs font-medium text-text-primary whitespace-nowrap">
+                              {group.applicantName}
                             </td>
                             <td className="py-3 px-4 font-mono font-bold text-text-primary text-xs whitespace-nowrap">
-                              {formatCOP(Number(o.total_amount) || 0)}
+                              {formatCOP(group.totalAmount)}
                             </td>
-                            <td className="py-3 px-4 font-mono text-xs text-text-muted whitespace-nowrap">
-                              {o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : 'Inmediata'}
+                            <td className="py-3 px-4 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <div className="inline-flex flex-col items-center">
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <span className={`font-mono font-bold ${isAllDelivered ? 'text-emerald-700' : 'text-primary-900'}`}>
+                                    {group.ordersCount} emitidas
+                                  </span>
+                                  <span className="text-text-muted text-[11px]">vs</span>
+                                  <span className={`font-mono font-bold ${group.deliveredCount > 0 ? 'text-emerald-700' : 'text-text-muted'}`}>
+                                    {group.deliveredCount} entregadas
+                                  </span>
+                                </div>
+                                <div className="w-28 bg-gray-200 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-1.5 rounded-full transition-all ${
+                                      isAllDelivered
+                                        ? 'bg-emerald-500'
+                                        : isPartial
+                                        ? 'bg-amber-500'
+                                        : 'bg-blue-500'
+                                    }`}
+                                    style={{
+                                      width: `${group.ordersCount > 0 ? (group.deliveredCount / group.ordersCount) * 100 : 0}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
                             </td>
                             <td className="py-3 px-4 text-center whitespace-nowrap">
-                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${st.badge}`}>
-                                {st.label}
-                              </span>
+                              {isAllDelivered ? (
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                  Completado (100% Entregado)
+                                </span>
+                              ) : isPartial ? (
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                  Entrega Parcial ({group.deliveredCount}/{group.ordersCount})
+                                </span>
+                              ) : hasInTransit ? (
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+                                  En Tránsito / Despacho
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                                  Emitida (Pendiente Entrega)
+                                </span>
+                              )}
                             </td>
-                            <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <button
                                 type="button"
-                                onClick={() => handleDownloadOrderPdf(o)}
-                                disabled={downloadingOrderId === o.id}
-                                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors inline-flex items-center gap-1"
-                                title="Descargar Orden de Compra Oficial (PDF) para enviar al proveedor"
+                                onClick={() => setSelectedRequestGroupId(group.requestId)}
+                                className="btn bg-white hover:bg-amber-50 border border-border text-xs px-3 py-1.5 rounded-lg text-primary-900 shadow-2xs font-bold inline-flex items-center gap-1.5 cursor-pointer hover:border-amber-400 transition-all"
+                                title="Ver órdenes de compra formalizadas de este requerimiento"
                               >
-                                <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
-                                <span className="font-semibold text-[11px] text-text-primary">PDF</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setSelectedOrder(o)}
-                                className="btn bg-white hover:bg-gray-50 border border-border text-xs px-2.5 py-1.5 rounded-lg text-text-primary shadow-xs font-semibold"
-                              >
-                                Ver Orden
+                                <Eye className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                                Ver Órdenes ({group.ordersCount})
                               </button>
                             </td>
                           </tr>
@@ -4257,7 +4414,7 @@ export default function PurchasingDashboardPage() {
         };
 
         return (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[60] animate-fade-in overflow-y-auto">
             <div className="bg-surface rounded-2xl border border-border max-w-2xl w-full p-6 space-y-4 shadow-2xl my-auto max-h-[92vh] overflow-y-auto">
               <div className="flex items-start justify-between border-b border-border pb-3">
                 <div>
@@ -5099,6 +5256,197 @@ export default function PurchasingDashboardPage() {
           </div>
         );
       })()}
+
+      {/* ────────────────────────────────────────────────────────────────────
+          MODAL FLOTANTE: ÓRDENES DE COMPRA FORMALIZADAS DEL REQUERIMIENTO
+         ──────────────────────────────────────────────────────────────────── */}
+      {activeGroupOrders && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in overflow-y-auto">
+          <div className="bg-surface rounded-2xl border border-border max-w-5xl w-full p-4 sm:p-6 space-y-4 shadow-2xl my-auto max-h-[92vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-border pb-3.5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-300">
+                    {activeGroupOrders.requestCode}
+                  </span>
+                  <span className="text-xs text-text-muted uppercase font-bold tracking-wider">
+                    Órdenes de Compra Formalizadas (Emitidas)
+                  </span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-text-primary mt-1">
+                  {activeGroupOrders.projectName}
+                </h3>
+                <p className="text-xs text-text-muted mt-0.5">
+                  {activeGroupOrders.clientName ? `Cliente: ${activeGroupOrders.clientName} · ` : ''}
+                  Centro de Costo: <span className="font-mono">{activeGroupOrders.costCenter}</span> · Solicitante: {activeGroupOrders.applicantName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRequestGroupId(null)}
+                className="text-text-muted hover:text-text-primary p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                title="Cerrar ventana"
+              >
+                <X className="w-5 h-5" strokeWidth={2} />
+              </button>
+            </div>
+
+            {/* Resumen y métricas del requerimiento */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-border rounded-xl p-3.5 text-xs">
+              <div>
+                <span className="text-text-muted block text-[11px]">Órdenes Emitidas:</span>
+                <span className="font-mono font-bold text-sm text-text-primary mt-0.5 block">
+                  {activeGroupOrders.ordersCount} emitidas
+                </span>
+              </div>
+              <div>
+                <span className="text-text-muted block text-[11px]">Órdenes Entregadas:</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`font-mono font-bold text-sm ${activeGroupOrders.deliveredCount === activeGroupOrders.ordersCount ? 'text-emerald-700' : 'text-primary-900'}`}>
+                    {activeGroupOrders.deliveredCount} de {activeGroupOrders.ordersCount}
+                  </span>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    activeGroupOrders.deliveredCount === activeGroupOrders.ordersCount
+                      ? 'bg-emerald-100 text-emerald-900'
+                      : activeGroupOrders.deliveredCount > 0
+                      ? 'bg-amber-100 text-amber-900'
+                      : 'bg-slate-200 text-slate-800'
+                  }`}>
+                    {activeGroupOrders.ordersCount > 0 ? Math.round((activeGroupOrders.deliveredCount / activeGroupOrders.ordersCount) * 100) : 0}%
+                  </span>
+                </div>
+              </div>
+              <div>
+                <span className="text-text-muted block text-[11px]">Monto Total OCs:</span>
+                <span className="font-mono font-extrabold text-sm text-primary-900 mt-0.5 block">
+                  {formatCOP(activeGroupOrders.totalAmount)}
+                </span>
+              </div>
+              <div>
+                <span className="text-text-muted block text-[11px]">Estado General:</span>
+                <span className="mt-1 inline-block">
+                  {activeGroupOrders.ordersCount > 0 && activeGroupOrders.deliveredCount === activeGroupOrders.ordersCount ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      100% Entregado
+                    </span>
+                  ) : activeGroupOrders.deliveredCount > 0 ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                      Entrega Parcial ({activeGroupOrders.deliveredCount}/{activeGroupOrders.ordersCount})
+                    </span>
+                  ) : activeGroupOrders.inTransitCount > 0 ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+                      En Tránsito / Despacho
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                      Emitida (Pendiente Entrega)
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {/* Tabla Detallada de Órdenes de Compra Formalizadas */}
+            <div className="overflow-x-auto border border-border rounded-xl">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-gray-50 border-b border-border text-text-secondary uppercase tracking-wider text-[11px] font-semibold">
+                  <tr>
+                    <th className="py-3 px-4">Código</th>
+                    <th className="py-3 px-4">Proveedor</th>
+                    <th className="py-3 px-4">Proyecto</th>
+                    <th className="py-3 px-4">Monto Total</th>
+                    <th className="py-3 px-4">Plazo Entrega</th>
+                    <th className="py-3 px-4 text-center">Estado</th>
+                    <th className="py-3 px-4 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {activeGroupOrders.orders.map((o) => {
+                    const st = STATUS_ORDER_LABELS[o.status] ?? { label: o.status, badge: 'badge-outline' };
+                    return (
+                      <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-xs text-primary whitespace-nowrap">
+                          {o.order_code}
+                        </td>
+                        <td className="py-3 px-4">
+                          <p className="font-semibold text-text-primary">{o.supplier_name}</p>
+                          <p className="text-xs text-text-muted">{o.supplier_nit ? `NIT: ${o.supplier_nit}` : 'Sin NIT'}</p>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="font-mono text-xs font-semibold text-primary">
+                            {o.projects?.cost_center || activeGroupOrders.costCenter || 'General'}
+                          </span>
+                          <p className="text-xs text-text-muted truncate max-w-[140px]">
+                            {o.projects?.name || activeGroupOrders.projectName || 'Administración'}
+                          </p>
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold text-text-primary text-xs whitespace-nowrap">
+                          {formatCOP(Number(o.total_amount) || 0)}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-xs text-text-muted whitespace-nowrap">
+                          {o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : 'Inmediata'}
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${st.badge}`}>
+                            {st.label}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadOrderPdf(o)}
+                            disabled={downloadingOrderId === o.id}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors inline-flex items-center gap-1 cursor-pointer"
+                            title="Descargar Orden de Compra Oficial (PDF) para enviar al proveedor"
+                          >
+                            <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                            <span className="font-semibold text-[11px] text-text-primary">PDF</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrder(o)}
+                            className="btn bg-white hover:bg-gray-50 border border-border text-xs px-2.5 py-1.5 rounded-lg text-text-primary shadow-xs font-semibold cursor-pointer"
+                          >
+                            Ver Orden
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div>
+                {activeGroupOrders.request && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (activeGroupOrders.request) {
+                        handleOpenDetail(activeGroupOrders.request);
+                      }
+                    }}
+                    className="text-primary-900 font-bold hover:underline inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-accent" />
+                    Ver Expediente Completo de Solicitud ({activeGroupOrders.requestCode})
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRequestGroupId(null)}
+                className="px-5 py-2 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-text-primary transition-colors cursor-pointer self-end"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ────────────────────────────────────────────────────────────────────
           MODAL RÁPIDO: REGISTRO DE PROVEEDOR EN CATÁLOGO
