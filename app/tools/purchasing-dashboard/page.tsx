@@ -386,6 +386,16 @@ export default function PurchasingDashboardPage() {
   const [trackingStatusForm, setTrackingStatusForm] = useState<Record<string, { status: string; note: string; isSubmitting?: boolean }>>({});
   const [expandedTrackingOrderIds, setExpandedTrackingOrderIds] = useState<Record<string, boolean>>({});
 
+  // Estados para evaluación de proveedores ISO 9001 (Pestaña 7)
+  const [evaluatingOrder, setEvaluatingOrder] = useState<PurchaseOrder | null>(null);
+  const [evalQuality, setEvalQuality] = useState(5);
+  const [evalDelivery, setEvalDelivery] = useState(5);
+  const [evalService, setEvalService] = useState(5);
+  const [evalRecommend, setEvalRecommend] = useState(true);
+  const [evalComments, setEvalComments] = useState('');
+  const [isSubmittingEval, setIsSubmittingEval] = useState(false);
+  const [evalSuccessMsg, setEvalSuccessMsg] = useState<string | null>(null);
+
   const { data, isLoading, isFetching, error, refetch } = useQuery<{ data: PurchasingDashboardData }>({
     queryKey: ['purchasing-dashboard'],
     queryFn: async () => {
@@ -908,6 +918,32 @@ export default function PurchasingDashboardPage() {
       );
     });
   }, [dashboard?.evaluations, search]);
+
+  // Órdenes de compra completadas / entregadas que aún no tienen evaluación de proveedor registrada (ISO 9001)
+  const pendingEvaluationOrders = useMemo(() => {
+    if (!dashboard?.orders) return [];
+    const evaluatedOrderIds = new Set(
+      (dashboard.evaluations || [])
+        .map((ev) => ev.purchase_order_id)
+        .filter(Boolean)
+    );
+    return dashboard.orders.filter((o) => {
+      const isCompleted = o.status === 'completed';
+      const notEvaluated = !evaluatedOrderIds.has(o.id);
+      const matchSearch =
+        search === '' ||
+        o.order_code.toLowerCase().includes(search.toLowerCase()) ||
+        o.supplier_name.toLowerCase().includes(search.toLowerCase()) ||
+        (o.supplier_nit || '').toLowerCase().includes(search.toLowerCase()) ||
+        (o.projects?.name || '').toLowerCase().includes(search.toLowerCase());
+      const matchProject =
+        filterProject === 'all' ||
+        o.project_id === filterProject ||
+        o.projects?.id === filterProject;
+
+      return isCompleted && notEvaluated && matchSearch && matchProject;
+    });
+  }, [dashboard?.orders, dashboard?.evaluations, search, filterProject]);
 
   const formatCOP = (val: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -1484,6 +1520,59 @@ export default function PurchasingDashboardPage() {
     }
   };
 
+  // Apertura de modal de evaluación de proveedor ISO 9001 (Pestaña 7)
+  const handleOpenEvaluationModal = (order: PurchaseOrder) => {
+    setEvaluatingOrder(order);
+    setEvalQuality(5);
+    setEvalDelivery(5);
+    setEvalService(5);
+    setEvalRecommend(true);
+    setEvalComments('');
+    setEvalSuccessMsg(null);
+  };
+
+  // Enviar evaluación de desempeño del proveedor
+  const handleSubmitEvaluation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!evaluatingOrder) return;
+
+    setIsSubmittingEval(true);
+    try {
+      const res = await fetch('/api/tools/purchasing-dashboard/evaluations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purchase_order_id: evaluatingOrder.id,
+          supplier_name: evaluatingOrder.supplier_name,
+          quality_score: evalQuality,
+          delivery_time_score: evalDelivery,
+          service_score: evalService,
+          recommend_supplier: evalRecommend,
+          comments: evalComments,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Error al guardar la evaluación');
+      }
+
+      setEvalSuccessMsg('Evaluación registrada exitosamente.');
+      await queryClient.invalidateQueries({ queryKey: ['purchasing-dashboard'] });
+      await refetch();
+      setTimeout(() => {
+        setEvaluatingOrder(null);
+        setEvalSuccessMsg(null);
+      }, 1200);
+    } catch (err: unknown) {
+      console.error('Error guardando evaluación:', err);
+      const msg = err instanceof Error ? err.message : 'Error al registrar evaluación';
+      alert(msg);
+    } finally {
+      setIsSubmittingEval(false);
+    }
+  };
+
   // Registro rápido de proveedor desde modal emergente
   const handleSaveQuickSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1999,7 +2088,12 @@ export default function PurchasingDashboardPage() {
               }`}
             >
               <Star className="w-4 h-4" strokeWidth={1.75} />
-              7. Evaluación Proveedores ({dashboard?.evaluations?.length ?? 0})
+              <span>7. Evaluación Proveedores ({dashboard?.evaluations?.length ?? 0})</span>
+              {pendingEvaluationOrders.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-950 border border-amber-300">
+                  {pendingEvaluationOrders.length} pendiente{pendingEvaluationOrders.length > 1 ? 's' : ''}
+                </span>
+              )}
             </button>
           )}
         </div>
@@ -2943,93 +3037,201 @@ export default function PurchasingDashboardPage() {
         {/* ────────────────────────────────────────────────────────────────────
             PESTAÑA 7: EVALUACIÓN DE PROVEEDORES (ISO 9001 / SIG) — TABLA
            ──────────────────────────────────────────────────────────────────── */}
+        {/* ────────────────────────────────────────────────────────────────────
+            PESTAÑA 7: EVALUACIÓN DE PROVEEDORES (ISO 9001 / SIG) — TABLA
+           ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'evaluations' && canViewEvaluations && (
-          <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
-            {filteredSuppliers.length === 0 ? (
-              <div className="p-12 text-center">
-                <Star className="w-10 h-10 text-amber-400 mx-auto mb-2" />
-                <h3 className="text-sm font-bold text-text-primary">Sin evaluaciones registradas</h3>
-                <p className="text-xs text-text-secondary mt-0.5">
-                  Aún no se han completado encuestas de desempeño de proveedores en el sistema.
-                </p>
+          <div className="space-y-6 animate-fade-in">
+            {/* 1. Panel de Órdenes Entregadas Pendientes de Evaluación */}
+            <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
+              <div className="p-4 bg-slate-50/70 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-accent" />
+                      Órdenes Entregadas Pendientes por Evaluar ({pendingEvaluationOrders.length})
+                    </h3>
+                    {pendingEvaluationOrders.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                        Acción Requerida ISO 9001
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    Evaluación de desempeño obligatoria tras la entrega y recepción a satisfacción de bienes y servicios.
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
-                    <tr>
-                      <th className="py-3 px-4">Proveedor</th>
-                      <th className="py-3 px-4 text-center">Calificación General</th>
-                      <th className="py-3 px-4 text-center">Calidad</th>
-                      <th className="py-3 px-4 text-center">Tiempos</th>
-                      <th className="py-3 px-4 text-center">Servicio</th>
-                      <th className="py-3 px-4 text-center">Recomendado</th>
-                      <th className="py-3 px-4">Comentarios</th>
-                      <th className="py-3 px-4 text-center">Estado</th>
-                      <th className="py-3 px-4">Fecha</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {filteredSuppliers.map((ev) => (
-                      <tr key={ev.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3 px-4 font-bold text-text-primary whitespace-nowrap">
-                          {ev.supplier_name}
-                        </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-amber-800 text-xs font-bold font-mono">
-                            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-                            {Number(ev.overall_rating).toFixed(1)} / 5
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
-                          {ev.quality_score}/5
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
-                          {ev.delivery_time_score}/5
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
-                          {ev.service_score}/5
-                        </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          {ev.recommend_supplier ? (
-                            <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 text-[11px]">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Sí
-                            </span>
-                          ) : (
-                            <span className="text-rose-700 bg-rose-50 border border-rose-200 font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 text-[11px]">
-                              <AlertTriangle className="w-3 h-3 text-rose-600" /> No
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 max-w-[240px]">
-                          <p className="text-text-secondary italic truncate text-[11px]" title={ev.comments || ''}>
-                            {ev.comments ? `"${ev.comments}"` : '—'}
-                          </p>
-                        </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          {Number(ev.overall_rating) >= 4.0 ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                              Proveedor Conforme
-                            </span>
-                          ) : Number(ev.overall_rating) >= 3.0 ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                              Desempeño Regular
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
-                              No Conforme
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-text-muted font-mono whitespace-nowrap text-[11px]">
-                          {new Date(ev.created_at).toLocaleDateString('es-CO')}
-                        </td>
+
+              {pendingEvaluationOrders.length === 0 ? (
+                <div className="p-6 text-center text-xs text-text-secondary flex items-center justify-center gap-2 bg-emerald-50/30">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span className="font-semibold text-emerald-900">
+                    Al día: Todas las órdenes de compra entregadas cuentan con evaluación de desempeño registrada.
+                  </span>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 border-b border-border text-text-secondary uppercase tracking-wider text-[11px] font-semibold">
+                      <tr>
+                        <th className="py-3 px-4">Código OC</th>
+                        <th className="py-3 px-4">Proveedor</th>
+                        <th className="py-3 px-4">Proyecto</th>
+                        <th className="py-3 px-4">Monto Total</th>
+                        <th className="py-3 px-4">Fecha Entrega</th>
+                        <th className="py-3 px-4 text-center">Estado</th>
+                        <th className="py-3 px-4 text-right">Acción</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {pendingEvaluationOrders.map((o) => (
+                        <tr key={o.id} className="hover:bg-amber-50/30 transition-colors">
+                          <td className="py-3 px-4 font-mono font-bold text-xs text-primary whitespace-nowrap">
+                            {o.order_code}
+                          </td>
+                          <td className="py-3 px-4">
+                            <p className="font-bold text-text-primary">{o.supplier_name}</p>
+                            <p className="text-[11px] text-text-muted">{o.supplier_nit ? `NIT: ${o.supplier_nit}` : 'Sin NIT'}</p>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-mono text-xs font-semibold text-primary block">
+                              {o.projects?.cost_center || 'General'}
+                            </span>
+                            <span className="text-[11px] text-text-muted truncate max-w-[150px] block">
+                              {o.projects?.name || 'Administración'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-mono font-bold text-text-primary whitespace-nowrap">
+                            {formatCOP(Number(o.total_amount) || 0)}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-text-muted whitespace-nowrap">
+                            {o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : 'Inmediata'}
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              Pendiente Evaluación
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEvaluationModal(o)}
+                              className="btn bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs px-3 py-1.5 rounded-lg shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                              title="Calificar desempeño del proveedor"
+                            >
+                              <Star className="w-3.5 h-3.5 fill-primary-900 text-primary-900" />
+                              Evaluar Proveedor
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Registro Histórico de Evaluaciones */}
+            <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
+              <div className="p-4 bg-slate-50/70 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-1.5">
+                    <Star className="w-4 h-4 text-accent" />
+                    Histórico de Evaluaciones Registradas ({filteredSuppliers.length})
+                  </h3>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    Calificaciones consolidadas de calidad, tiempos de entrega y atención comercial.
+                  </p>
+                </div>
               </div>
-            )}
+
+              {filteredSuppliers.length === 0 ? (
+                <div className="p-12 text-center">
+                  <Star className="w-10 h-10 text-amber-400 mx-auto mb-2" />
+                  <h3 className="text-sm font-bold text-text-primary">Sin evaluaciones registradas</h3>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    Aún no se han completado encuestas de desempeño de proveedores en el sistema.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
+                      <tr>
+                        <th className="py-3 px-4">Proveedor</th>
+                        <th className="py-3 px-4 text-center">Calificación General</th>
+                        <th className="py-3 px-4 text-center">Calidad</th>
+                        <th className="py-3 px-4 text-center">Tiempos</th>
+                        <th className="py-3 px-4 text-center">Servicio</th>
+                        <th className="py-3 px-4 text-center">Recomendado</th>
+                        <th className="py-3 px-4">Comentarios</th>
+                        <th className="py-3 px-4 text-center">Estado</th>
+                        <th className="py-3 px-4">Fecha</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {filteredSuppliers.map((ev) => (
+                        <tr key={ev.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 px-4 font-bold text-text-primary whitespace-nowrap">
+                            {ev.supplier_name}
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-amber-800 text-xs font-bold font-mono">
+                              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                              {Number(ev.overall_rating).toFixed(1)} / 5
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
+                            {ev.quality_score}/5
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
+                            {ev.delivery_time_score}/5
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono font-bold text-text-primary">
+                            {ev.service_score}/5
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            {ev.recommend_supplier ? (
+                              <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 text-[11px]">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Sí
+                              </span>
+                            ) : (
+                              <span className="text-rose-700 bg-rose-50 border border-rose-200 font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 text-[11px]">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" /> No
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 max-w-[240px]">
+                            <p className="text-text-secondary italic truncate text-[11px]" title={ev.comments || ''}>
+                              {ev.comments ? `"${ev.comments}"` : '—'}
+                            </p>
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            {Number(ev.overall_rating) >= 4.0 ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                Proveedor Conforme
+                              </span>
+                            ) : Number(ev.overall_rating) >= 3.0 ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                Desempeño Regular
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
+                                No Conforme
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-text-muted font-mono whitespace-nowrap text-[11px]">
+                            {new Date(ev.created_at).toLocaleDateString('es-CO')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
@@ -4607,14 +4809,47 @@ export default function PurchasingDashboardPage() {
                 )}
               </div>
 
-              {selectedOrder.notes && (
-                <div className="space-y-1 text-xs">
-                  <p className="text-text-muted">Observaciones y Términos</p>
-                  <div className="p-3 bg-gray-50 rounded-xl border border-border text-text-secondary leading-relaxed">
-                    {selectedOrder.notes}
+              {/* Acceso a Evaluación de Proveedor si la orden ya está completada */}
+              {selectedOrder.status === 'completed' && (() => {
+                const isAlreadyEvaluated = (dashboard?.evaluations || []).some(
+                  (ev) => ev.purchase_order_id === selectedOrder.id
+                );
+                return (
+                  <div className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                    isAlreadyEvaluated
+                      ? 'bg-emerald-50/70 border-emerald-200'
+                      : 'bg-amber-50 border-amber-300'
+                  }`}>
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
+                        isAlreadyEvaluated ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-200 text-amber-900'
+                      }`}>
+                        <Star className={`w-4 h-4 ${isAlreadyEvaluated ? 'fill-emerald-600 text-emerald-600' : 'fill-amber-500 text-amber-600'}`} />
+                      </div>
+                      <div>
+                        <p className={`text-xs font-bold ${isAlreadyEvaluated ? 'text-emerald-950' : 'text-amber-950'}`}>
+                          {isAlreadyEvaluated ? 'Evaluación de Desempeño Registrada' : 'Orden Entregada — Calificación Pendiente'}
+                        </p>
+                        <p className={`text-[11px] ${isAlreadyEvaluated ? 'text-emerald-800' : 'text-amber-800'}`}>
+                          {isAlreadyEvaluated
+                            ? 'Este proveedor cuenta con encuesta de cumplimiento y calidad bajo ISO 9001.'
+                            : `Registra la evaluación de calidad, tiempos y servicio de ${selectedOrder.supplier_name}.`}
+                        </p>
+                      </div>
+                    </div>
+                    {!isAlreadyEvaluated && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEvaluationModal(selectedOrder)}
+                        className="btn bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs px-3.5 py-1.5 rounded-lg shadow-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap self-end sm:self-center"
+                      >
+                        <Star className="w-3.5 h-3.5 fill-primary-900 text-primary-900" />
+                        Evaluar Proveedor
+                      </button>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               <div className="pt-2 flex justify-between items-center gap-2">
                 <div className="flex items-center gap-2">
@@ -5596,6 +5831,240 @@ export default function PurchasingDashboardPage() {
                     {isSavingQuickSupplier ? 'Guardando...' : 'Guardar Proveedor'}
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ────────────────────────────────────────────────────────────────────
+          MODAL: EVALUACIÓN DE DESEMPEÑO DE PROVEEDOR (ISO 9001 / SIG)
+         ──────────────────────────────────────────────────────────────────── */}
+      {evaluatingOrder && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[70] animate-fade-in overflow-y-auto">
+          <div className="bg-surface rounded-2xl border border-border max-w-xl w-full p-6 space-y-4 shadow-2xl my-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-border pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-accent/20 text-primary-900 border border-accent/40">
+                    {evaluatingOrder.order_code}
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+                    Evaluación ISO 9001 / FOR-COM-005
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-text-primary mt-1">
+                  Calificación de Desempeño: {evaluatingOrder.supplier_name}
+                </h3>
+                <p className="text-xs text-text-muted mt-0.5">
+                  Proyecto: {evaluatingOrder.projects?.name || 'Operación General'} · Monto OC: {formatCOP(Number(evaluatingOrder.total_amount) || 0)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEvaluatingOrder(null)}
+                className="text-text-muted hover:text-text-primary p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" strokeWidth={2} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitEvaluation} className="space-y-4 text-xs">
+              {/* Criterio 1: Calidad */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="font-bold text-text-primary text-xs block">
+                      1. Calidad de los Bienes e Insumos
+                    </label>
+                    <span className="text-[11px] text-text-muted">
+                      Conformidad técnica, empaque y estado físico recibido.
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-sm text-accent">
+                    {evalQuality} / 5
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setEvalQuality(val)}
+                      className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                        evalQuality === val
+                          ? 'bg-accent text-primary-900 ring-2 ring-accent shadow-xs'
+                          : 'bg-white border border-border text-text-secondary hover:bg-gray-100'
+                      }`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Criterio 2: Tiempos de Entrega */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="font-bold text-text-primary text-xs block">
+                      2. Puntualidad en Tiempos de Entrega
+                    </label>
+                    <span className="text-[11px] text-text-muted">
+                      Cumplimiento de la fecha y hora pactada en la orden.
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-sm text-accent">
+                    {evalDelivery} / 5
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setEvalDelivery(val)}
+                      className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                        evalDelivery === val
+                          ? 'bg-accent text-primary-900 ring-2 ring-accent shadow-xs'
+                          : 'bg-white border border-border text-text-secondary hover:bg-gray-100'
+                      }`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Criterio 3: Servicio y Atención */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="font-bold text-text-primary text-xs block">
+                      3. Servicio, Garantía y Soporte Comercial
+                    </label>
+                    <span className="text-[11px] text-text-muted">
+                      Disposición del asesor, resolución de dudas y respuesta.
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-sm text-accent">
+                    {evalService} / 5
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setEvalService(val)}
+                      className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                        evalService === val
+                          ? 'bg-accent text-primary-900 ring-2 ring-accent shadow-xs'
+                          : 'bg-white border border-border text-text-secondary hover:bg-gray-100'
+                      }`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Promedio General */}
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] font-bold uppercase text-amber-900 block">
+                    Calificación General Ponderada
+                  </span>
+                  <span className="text-xs text-amber-800">
+                    {((evalQuality + evalDelivery + evalService) / 3) >= 4.0
+                      ? 'Proveedor Conforme (Recomendado)'
+                      : ((evalQuality + evalDelivery + evalService) / 3) >= 3.0
+                      ? 'Desempeño Aceptable con Observaciones'
+                      : 'No Conforme (Requiere Plan de Acción)'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
+                  <span className="font-mono font-extrabold text-lg text-amber-950">
+                    {(((evalQuality + evalDelivery + evalService) / 3)).toFixed(1)} / 5
+                  </span>
+                </div>
+              </div>
+
+              {/* Recomendación */}
+              <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-border">
+                <span className="font-semibold text-text-primary text-xs">
+                  ¿Recomienda a este proveedor para futuras adquisiciones?
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEvalRecommend(true)}
+                    className={`px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                      evalRecommend
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-gray-100 text-text-muted hover:bg-gray-200'
+                    }`}
+                  >
+                    Sí
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEvalRecommend(false)}
+                    className={`px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                      !evalRecommend
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'bg-gray-100 text-text-muted hover:bg-gray-200'
+                    }`}
+                  >
+                    No
+                  </button>
+                </div>
+              </div>
+
+              {/* Comentarios */}
+              <div>
+                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                  Observaciones y Comentarios de Auditoría HSEQ / Almacén
+                </label>
+                <textarea
+                  rows={2}
+                  value={evalComments}
+                  onChange={(e) => setEvalComments(e.target.value)}
+                  placeholder="Detalles de la entrega, novedades o recomendaciones..."
+                  className="w-full text-xs rounded-lg border border-border bg-white px-3 py-2 text-text-primary focus:ring-1 focus:ring-accent"
+                />
+              </div>
+
+              {evalSuccessMsg && (
+                <p className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 p-2.5 rounded-lg text-center">
+                  {evalSuccessMsg}
+                </p>
+              )}
+
+              {/* Acciones */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setEvaluatingOrder(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-text-primary transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingEval}
+                  className="btn bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs px-5 py-2 rounded-xl shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  {isSubmittingEval ? (
+                    <span>Guardando...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Registrar Evaluación</span>
+                    </>
+                  )}
+                </button>
               </div>
             </form>
           </div>
