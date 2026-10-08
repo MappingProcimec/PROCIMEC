@@ -320,34 +320,42 @@ export default function PurchasingDashboardPage() {
     });
   }, [dashboard?.requests, search, filterStatus, filterProject]);
 
-  // Bandeja 3: Pendientes VB Técnico (Directores de Proyecto)
-  const pendingApprovals = useMemo(() => {
+  // Bandeja 3: Solicitudes en etapa de VB Técnico (Directores de Proyecto)
+  const approvalsRequests = useMemo(() => {
     if (!dashboard?.requests) return [];
     return dashboard.requests.filter((r) => {
-      const isPendingVB = !r.signatures?.director && r.status === 'pending';
       const matchSearch =
         search === '' ||
         (r.request_code || '').toLowerCase().includes(search.toLowerCase()) ||
         r.title.toLowerCase().includes(search.toLowerCase()) ||
         (r.projects?.name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (r.applicant_name || '').toLowerCase().includes(search.toLowerCase());
+        (r.applicant_name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (r.justification || '').toLowerCase().includes(search.toLowerCase());
       const matchProject =
         filterProject === 'all' ||
         r.project_id === filterProject ||
         r.projects?.id === filterProject;
 
-      return isPendingVB && matchSearch && matchProject;
+      return matchSearch && matchProject;
     });
   }, [dashboard?.requests, search, filterProject]);
 
-  // Bandeja 4: En Cotización (Área de Compras)
+  const pendingApprovalsCount = useMemo(() => {
+    if (!dashboard?.requests) return 0;
+    return dashboard.requests.filter((r) => !r.signatures?.director && r.status === 'pending').length;
+  }, [dashboard?.requests]);
+
+  // Bandeja 4: En Cotización (Área de Compras) - incluye todas las que han alcanzado fase de cotización
   const inQuotationRequests = useMemo(() => {
     if (!dashboard?.requests) return [];
     return dashboard.requests.filter((r) => {
-      const isInQuote =
-        Boolean(r.signatures?.director) &&
-        !r.signatures?.purchasing &&
-        r.status !== 'rejected';
+      const hasReachedQuote =
+        Boolean(r.signatures?.director) ||
+        r.status === 'in_quotation' ||
+        r.status === 'quoted' ||
+        Boolean(r.signatures?.purchasing) ||
+        r.status === 'approved';
+
       const matchSearch =
         search === '' ||
         (r.request_code || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -359,18 +367,20 @@ export default function PurchasingDashboardPage() {
         r.project_id === filterProject ||
         r.projects?.id === filterProject;
 
-      return isInQuote && matchSearch && matchProject;
+      return hasReachedQuote && matchSearch && matchProject;
     });
   }, [dashboard?.requests, search, filterProject]);
 
-  // Bandeja 5: Aprobación GG (Gerencia General)
-  const managementPendingRequests = useMemo(() => {
+  // Bandeja 5: Aprobación GG (Gerencia General) - incluye todas las que han alcanzado fase de gerencia
+  const managementRequests = useMemo(() => {
     if (!dashboard?.requests) return [];
     return dashboard.requests.filter((r) => {
-      const isPendingGG =
-        Boolean(r.signatures?.purchasing) &&
-        !r.signatures?.management &&
-        r.status !== 'rejected';
+      const hasReachedGG =
+        Boolean(r.signatures?.purchasing) ||
+        r.status === 'quoted' ||
+        r.status === 'approved' ||
+        Boolean(r.signatures?.management);
+
       const matchSearch =
         search === '' ||
         (r.request_code || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -382,9 +392,30 @@ export default function PurchasingDashboardPage() {
         r.project_id === filterProject ||
         r.projects?.id === filterProject;
 
-      return isPendingGG && matchSearch && matchProject;
+      return hasReachedGG && matchSearch && matchProject;
     });
   }, [dashboard?.requests, search, filterProject]);
+
+  // Solicitudes Aprobadas por Gerencia pero sin Orden de Compra emitida aún
+  const approvedWaitingOrders = useMemo(() => {
+    if (!dashboard?.requests) return [];
+    return dashboard.requests.filter((r) => {
+      const isApproved = Boolean(r.signatures?.management) || r.status === 'approved';
+      const hasOrder = (dashboard.orders || []).some((o) => o.purchase_request_id === r.id);
+      const matchSearch =
+        search === '' ||
+        (r.request_code || '').toLowerCase().includes(search.toLowerCase()) ||
+        r.title.toLowerCase().includes(search.toLowerCase()) ||
+        (r.projects?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (r.applicant_name || '').toLowerCase().includes(search.toLowerCase());
+      const matchProject =
+        filterProject === 'all' ||
+        r.project_id === filterProject ||
+        r.projects?.id === filterProject;
+
+      return isApproved && !hasOrder && matchSearch && matchProject;
+    });
+  }, [dashboard?.requests, dashboard?.orders, search, filterProject]);
 
   // Filtrado de órdenes de compra
   const filteredOrders = useMemo(() => {
@@ -711,7 +742,7 @@ export default function PurchasingDashboardPage() {
               <ShieldCheck className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
             </div>
             <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono">
-              {pendingApprovals.length}
+              {pendingApprovalsCount}
             </p>
             <p className="text-[11px] text-text-muted mt-0.5">En revisión de directores</p>
           </div>
@@ -722,7 +753,7 @@ export default function PurchasingDashboardPage() {
               <ShoppingBag className="w-4 h-4 text-purple-600" strokeWidth={1.75} />
             </div>
             <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono">
-              {inQuotationRequests.length + managementPendingRequests.length}
+              {inQuotationRequests.length + managementRequests.length}
             </p>
             <p className="text-[11px] text-text-muted mt-0.5">En compras o gerencia</p>
           </div>
@@ -733,7 +764,7 @@ export default function PurchasingDashboardPage() {
               <Star className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
             </div>
             <p className="text-lg sm:text-xl font-extrabold text-emerald-700 font-mono truncate">
-              {dashboard?.orders?.length ?? 0} OC / {dashboard?.evaluations?.length ?? 0} Prov.
+              {(dashboard?.orders?.length || approvedWaitingOrders.length)} OC / {dashboard?.evaluations?.length ?? 0} Prov.
             </p>
             <p className="text-[11px] text-text-muted mt-0.5">Calificaciones registradas</p>
           </div>
@@ -850,7 +881,7 @@ export default function PurchasingDashboardPage() {
               }`}
             >
               <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />
-              3. VB Técnico ({pendingApprovals.length})
+              3. VB Técnico ({approvalsRequests.length})
             </button>
           )}
 
@@ -880,7 +911,7 @@ export default function PurchasingDashboardPage() {
               }`}
             >
               <CheckCircle2 className="w-4 h-4" strokeWidth={1.75} />
-              5. Aprobación GG ({managementPendingRequests.length})
+              5. Aprobación GG ({managementRequests.length})
             </button>
           )}
 
@@ -895,7 +926,7 @@ export default function PurchasingDashboardPage() {
               }`}
             >
               <Package className="w-4 h-4" strokeWidth={1.75} />
-              6. Órdenes de Compra ({dashboard?.orders?.length ?? 0})
+              6. Órdenes de Compra ({(dashboard?.orders?.length || approvedWaitingOrders.length)})
             </button>
           )}
 
@@ -1231,42 +1262,25 @@ export default function PurchasingDashboardPage() {
                               {st.label}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right whitespace-nowrap">
-                            <div className="relative inline-block text-left dropdown-action-container">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenDropdownId(openDropdownId === r.id ? null : r.id);
-                                }}
-                                className="btn bg-white hover:bg-gray-50 border border-border text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-text-primary shadow-xs font-semibold"
-                              >
-                                <span>Acciones</span>
-                                <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
-                              </button>
-
-                              {openDropdownId === r.id && (
-                                <div className="absolute right-0 mt-1 w-44 rounded-xl bg-white border border-border shadow-lg py-1 z-30 animate-fade-in text-left">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenDetail(r)}
-                                    className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium"
-                                  >
-                                    <Eye className="w-3.5 h-3.5 text-primary" />
-                                    Ver detalle
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDownloadPdf(r)}
-                                    disabled={downloadingReqId === r.id}
-                                    className="w-full text-left px-3 py-2 text-xs text-text-primary hover:bg-gray-50 flex items-center gap-2 font-medium border-t border-border"
-                                  >
-                                    <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
-                                    {downloadingReqId === r.id ? 'Generando PDF...' : 'Descargar PDF Oficial'}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
+                          <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadPdf(r)}
+                              disabled={downloadingReqId === r.id}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
+                              title="Descargar PDF Oficial (FOR-COM-001)"
+                            >
+                              <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDetail(r)}
+                              className="px-2.5 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                              title="Ver Detalle"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Ver Detalle
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1283,12 +1297,12 @@ export default function PurchasingDashboardPage() {
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'approvals' && canViewApprovals && (
           <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
-            {pendingApprovals.length === 0 ? (
+            {approvalsRequests.length === 0 ? (
               <div className="p-12 text-center">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
                 <h3 className="text-sm font-bold text-text-primary">Bandeja al día</h3>
                 <p className="text-xs text-text-secondary mt-0.5">
-                  No hay requerimientos pendientes de visto bueno técnico en tus proyectos.
+                  No hay requerimientos en etapa de visto bueno técnico para tus proyectos.
                 </p>
               </div>
             ) : (
@@ -1302,17 +1316,18 @@ export default function PurchasingDashboardPage() {
                       <th className="py-3 px-4">Justificación</th>
                       <th className="py-3 px-4 text-center">Ítems</th>
                       <th className="py-3 px-4 text-right">Valor Estimado</th>
+                      <th className="py-3 px-4 text-center">Estado</th>
                       <th className="py-3 px-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {pendingApprovals.map((r) => (
+                    {approvalsRequests.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3 px-4 whitespace-nowrap">
                           <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200 block w-fit">
                             {r.request_code || 'REQ'}
                           </span>
-                          <span className="text-[10px] text-text-muted mt-0.5 block">
+                          <span className="text-[10px] text-text-muted mt-0.5 block font-mono">
                             {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
                           </span>
                         </td>
@@ -1338,33 +1353,40 @@ export default function PurchasingDashboardPage() {
                         <td className="py-3 px-4 text-right font-mono font-bold text-text-primary whitespace-nowrap">
                           {formatCOP(r.total_amount || 0)}
                         </td>
-                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          {r.status === 'rejected' || r.signatures?.director?.rejected ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
+                              Rechazado
+                            </span>
+                          ) : r.signatures?.director ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                              VB Aprobado
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              Pendiente VB
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPdf(r)}
+                            disabled={downloadingReqId === r.id}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
+                            title="Descargar PDF Oficial"
+                          >
+                            <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleOpenDetail(r)}
-                            className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold transition-colors"
+                            className="px-2.5 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                            title="Ver Detalle"
                           >
-                            Ver Ítems
+                            <Eye className="w-3.5 h-3.5" />
+                            Ver Detalle
                           </button>
-                          {canSignDirector && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDirectSign(r, 'director', 'reject')}
-                                className="px-2.5 py-1 rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-semibold text-xs transition-colors"
-                              >
-                                Rechazar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDirectSign(r, 'director', 'approve')}
-                                className="px-3 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
-                              >
-                                <PenTool className="w-3.5 h-3.5 text-primary-900" />
-                                Aprobar
-                              </button>
-                            </>
-                          )}
                         </td>
                       </tr>
                     ))}
@@ -1383,9 +1405,9 @@ export default function PurchasingDashboardPage() {
             {inQuotationRequests.length === 0 ? (
               <div className="p-12 text-center">
                 <CheckCircle2 className="w-10 h-10 text-blue-500 mx-auto mb-2" />
-                <h3 className="text-sm font-bold text-text-primary">Sin cotizaciones pendientes</h3>
+                <h3 className="text-sm font-bold text-text-primary">Sin cotizaciones registradas</h3>
                 <p className="text-xs text-text-secondary mt-0.5">
-                  Todas las solicitudes cuentan con cotización registrada o están a la espera de visto bueno técnico.
+                  No hay requerimientos en etapa de cotización para los filtros seleccionados.
                 </p>
               </div>
             ) : (
@@ -1409,7 +1431,7 @@ export default function PurchasingDashboardPage() {
                           <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200 block w-fit">
                             {r.request_code || 'REQ'}
                           </span>
-                          <span className="text-[10px] text-text-muted mt-0.5 block">
+                          <span className="text-[10px] text-text-muted mt-0.5 block font-mono">
                             {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
                           </span>
                         </td>
@@ -1438,28 +1460,35 @@ export default function PurchasingDashboardPage() {
                           {formatCOP(r.total_amount || 0)}
                         </td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
-                            En Cotización
-                          </span>
+                          {r.signatures?.purchasing || r.status === 'quoted' || r.status === 'approved' ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                              Cotizada
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
+                              Pendiente Cotización
+                            </span>
+                          )}
                         </td>
-                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                        <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPdf(r)}
+                            disabled={downloadingReqId === r.id}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
+                            title="Descargar PDF Oficial"
+                          >
+                            <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleOpenDetail(r)}
-                            className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold transition-colors"
+                            className="px-2.5 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                            title="Ver Detalle"
                           >
-                            Ver Ítems
+                            <Eye className="w-3.5 h-3.5" />
+                            Ver Detalle
                           </button>
-                          {isPurchasing && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenDirectSign(r, 'purchasing', 'approve')}
-                              className="px-3 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
-                            >
-                              <PenTool className="w-3.5 h-3.5 text-primary-900" />
-                              Firmar Cotización
-                            </button>
-                          )}
                         </td>
                       </tr>
                     ))}
@@ -1475,12 +1504,12 @@ export default function PurchasingDashboardPage() {
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'management_approval' && canViewManagementApproval && (
           <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
-            {managementPendingRequests.length === 0 ? (
+            {managementRequests.length === 0 ? (
               <div className="p-12 text-center">
                 <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-                <h3 className="text-sm font-bold text-text-primary">Sin compras pendientes de gerencia</h3>
+                <h3 className="text-sm font-bold text-text-primary">Sin compras en gerencia</h3>
                 <p className="text-xs text-text-secondary mt-0.5">
-                  Todas las compras cotizadas han sido aprobadas formalmente o se encuentran en etapas previas.
+                  No hay requerimientos en gestión de Gerencia General para los filtros seleccionados.
                 </p>
               </div>
             ) : (
@@ -1498,13 +1527,13 @@ export default function PurchasingDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {managementPendingRequests.map((r) => (
+                    {managementRequests.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3 px-4 whitespace-nowrap">
                           <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200 block w-fit">
                             {r.request_code || 'REQ'}
                           </span>
-                          <span className="text-[10px] text-text-muted mt-0.5 block">
+                          <span className="text-[10px] text-text-muted mt-0.5 block font-mono">
                             {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
                           </span>
                         </td>
@@ -1536,37 +1565,39 @@ export default function PurchasingDashboardPage() {
                           {formatCOP(r.total_amount || 0)}
                         </td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
-                            Pendiente GG
-                          </span>
+                          {r.signatures?.management?.rejected || (r.status === 'rejected' && r.signatures?.management) ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
+                              Rechazada por GG
+                            </span>
+                          ) : r.signatures?.management || r.status === 'approved' ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                              Aprobada por GG
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                              Pendiente Aprobación GG
+                            </span>
+                          )}
                         </td>
-                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                        <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPdf(r)}
+                            disabled={downloadingReqId === r.id}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
+                            title="Descargar PDF Oficial"
+                          >
+                            <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleOpenDetail(r)}
-                            className="px-2.5 py-1 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold transition-colors"
+                            className="px-2.5 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                            title="Ver Detalle"
                           >
-                            Ver Expediente
+                            <Eye className="w-3.5 h-3.5" />
+                            Ver Detalle
                           </button>
-                          {isManagement && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDirectSign(r, 'management', 'reject')}
-                                className="px-2.5 py-1 rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-semibold text-xs transition-colors"
-                              >
-                                Rechazar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDirectSign(r, 'management', 'approve')}
-                                className="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
-                              >
-                                <ShieldCheck className="w-3.5 h-3.5" />
-                                Aprobar Compra
-                              </button>
-                            </>
-                          )}
                         </td>
                       </tr>
                     ))}
@@ -1581,72 +1612,175 @@ export default function PurchasingDashboardPage() {
             PESTAÑA 6: ÓRDENES DE COMPRA (OC)
            ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'orders' && canViewOrders && (
-          <div className="card border border-border bg-white rounded-xl shadow-card overflow-hidden">
-            {isLoading ? (
-              <div className="p-8 text-center text-text-muted text-sm">Cargando órdenes de compra...</div>
-            ) : filteredOrders.length === 0 ? (
-              <div className="p-8 text-center text-text-muted text-sm">No se encontraron órdenes de compra registradas.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
-                  <thead className="bg-gray-50 border-b border-border text-text-secondary uppercase tracking-wider text-[11px] font-semibold">
-                    <tr>
-                      <th className="py-3 px-4">Código</th>
-                      <th className="py-3 px-4">Proveedor</th>
-                      <th className="py-3 px-4">Proyecto</th>
-                      <th className="py-3 px-4">Monto Total</th>
-                      <th className="py-3 px-4">Plazo Entrega</th>
-                      <th className="py-3 px-4">Estado</th>
-                      <th className="py-3 px-4 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {filteredOrders.map((o) => {
-                      const st = STATUS_ORDER_LABELS[o.status] ?? { label: o.status, badge: 'badge-outline' };
-                      return (
-                        <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="py-3 px-4 font-mono font-bold text-xs text-primary whitespace-nowrap">
-                            {o.order_code}
-                          </td>
-                          <td className="py-3 px-4">
-                            <p className="font-semibold text-text-primary">{o.supplier_name}</p>
-                            <p className="text-xs text-text-muted">{o.supplier_nit ? `NIT: ${o.supplier_nit}` : 'Sin NIT'}</p>
-                          </td>
+          <div className="space-y-6">
+            {/* Sub-tabla: Solicitudes aprobadas por gerencia listas para emitir orden */}
+            {approvedWaitingOrders.length > 0 && (
+              <div className="card bg-white border border-border shadow-card rounded-2xl overflow-hidden">
+                <div className="p-4 bg-amber-50/40 border-b border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                        Solicitudes Aprobadas por Gerencia — Listas para Emitir Orden de Compra ({approvedWaitingOrders.length})
+                      </h3>
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        Expedientes con visto bueno y aprobación de Gerencia General listos para formalizar su OC institucional.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-text-secondary uppercase tracking-wider text-[11px] font-bold border-b border-border">
+                      <tr>
+                        <th className="py-3 px-4">Código REQ</th>
+                        <th className="py-3 px-4">Proyecto / Cliente</th>
+                        <th className="py-3 px-4">Solicitante</th>
+                        <th className="py-3 px-4 text-right">Monto Aprobado</th>
+                        <th className="py-3 px-4 text-center">Estado</th>
+                        <th className="py-3 px-4 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {approvedWaitingOrders.map((r) => (
+                        <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-3 px-4 whitespace-nowrap">
-                            <span className="font-mono text-xs font-semibold text-primary">
-                              {o.projects?.cost_center || 'General'}
+                            <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-emerald-50 text-emerald-900 border border-emerald-300 block w-fit">
+                              {r.request_code || 'REQ'}
                             </span>
-                            <p className="text-xs text-text-muted truncate max-w-[140px]">
-                              {o.projects?.name || 'Administración'}
-                            </p>
-                          </td>
-                          <td className="py-3 px-4 font-mono font-bold text-text-primary text-xs whitespace-nowrap">
-                            {formatCOP(Number(o.total_amount) || 0)}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-xs text-text-muted whitespace-nowrap">
-                            {o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : 'Inmediata'}
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${st.badge}`}>
-                              {st.label}
+                            <span className="text-[10px] text-text-muted mt-0.5 block font-mono">
+                              {r.created_at ? new Date(r.created_at).toLocaleDateString('es-CO') : '—'}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <td className="py-3 px-4 max-w-[200px]">
+                            <span className="font-semibold text-text-primary block truncate">
+                              {r.projects?.name || r.cost_center || 'General'}
+                            </span>
+                            <span className="text-[11px] text-text-secondary truncate block">
+                              {r.client_name || r.projects?.client || 'Cliente'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap font-medium text-text-primary">
+                            {r.applicant_name || r.users?.full_name || 'Solicitante'}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-extrabold text-sm text-emerald-700 whitespace-nowrap">
+                            {formatCOP(r.total_amount || 0)}
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                              Aprobada (Por Emitir OC)
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right space-x-1 whitespace-nowrap">
                             <button
                               type="button"
-                              onClick={() => setSelectedOrder(o)}
-                              className="btn bg-white hover:bg-gray-50 border border-border text-xs px-2.5 py-1.5 rounded-lg text-text-primary shadow-xs font-semibold"
+                              onClick={() => handleDownloadPdf(r)}
+                              disabled={downloadingReqId === r.id}
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary transition-colors"
+                              title="Descargar PDF Oficial"
                             >
-                              Ver Orden
+                              <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenDetail(r)}
+                              className="px-2.5 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
+                              title="Ver Detalle"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Ver Detalle
                             </button>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
+
+            {/* Tabla Principal: Órdenes de Compra formalizadas */}
+            <div className="card border border-border bg-white rounded-xl shadow-card overflow-hidden">
+              <div className="p-4 bg-slate-50/60 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                    <Package className="w-4 h-4 text-primary-900" />
+                    Órdenes de Compra Formalizadas (Emitidas)
+                  </h3>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    Registro de órdenes de compra con código consecutivo y proveedor contratado.
+                  </p>
+                </div>
+              </div>
+
+              {isLoading ? (
+                <div className="p-8 text-center text-text-muted text-sm">Cargando órdenes de compra...</div>
+              ) : filteredOrders.length === 0 ? (
+                <div className="p-8 text-center text-text-muted text-sm">
+                  No se encontraron órdenes de compra formalizadas emitidas aún.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs sm:text-sm">
+                    <thead className="bg-gray-50 border-b border-border text-text-secondary uppercase tracking-wider text-[11px] font-semibold">
+                      <tr>
+                        <th className="py-3 px-4">Código</th>
+                        <th className="py-3 px-4">Proveedor</th>
+                        <th className="py-3 px-4">Proyecto</th>
+                        <th className="py-3 px-4">Monto Total</th>
+                        <th className="py-3 px-4">Plazo Entrega</th>
+                        <th className="py-3 px-4 text-center">Estado</th>
+                        <th className="py-3 px-4 text-right">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {filteredOrders.map((o) => {
+                        const st = STATUS_ORDER_LABELS[o.status] ?? { label: o.status, badge: 'badge-outline' };
+                        return (
+                          <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="py-3 px-4 font-mono font-bold text-xs text-primary whitespace-nowrap">
+                              {o.order_code}
+                            </td>
+                            <td className="py-3 px-4">
+                              <p className="font-semibold text-text-primary">{o.supplier_name}</p>
+                              <p className="text-xs text-text-muted">{o.supplier_nit ? `NIT: ${o.supplier_nit}` : 'Sin NIT'}</p>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className="font-mono text-xs font-semibold text-primary">
+                                {o.projects?.cost_center || 'General'}
+                              </span>
+                              <p className="text-xs text-text-muted truncate max-w-[140px]">
+                                {o.projects?.name || 'Administración'}
+                              </p>
+                            </td>
+                            <td className="py-3 px-4 font-mono font-bold text-text-primary text-xs whitespace-nowrap">
+                              {formatCOP(Number(o.total_amount) || 0)}
+                            </td>
+                            <td className="py-3 px-4 font-mono text-xs text-text-muted whitespace-nowrap">
+                              {o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : 'Inmediata'}
+                            </td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${st.badge}`}>
+                                {st.label}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedOrder(o)}
+                                className="btn bg-white hover:bg-gray-50 border border-border text-xs px-2.5 py-1.5 rounded-lg text-text-primary shadow-xs font-semibold"
+                              >
+                                Ver Orden
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1675,6 +1809,7 @@ export default function PurchasingDashboardPage() {
                       <th className="py-3 px-4 text-center">Servicio</th>
                       <th className="py-3 px-4 text-center">Recomendado</th>
                       <th className="py-3 px-4">Comentarios</th>
+                      <th className="py-3 px-4 text-center">Estado</th>
                       <th className="py-3 px-4">Fecha</th>
                     </tr>
                   </thead>
@@ -1714,6 +1849,21 @@ export default function PurchasingDashboardPage() {
                           <p className="text-text-secondary italic truncate text-[11px]" title={ev.comments || ''}>
                             {ev.comments ? `"${ev.comments}"` : '—'}
                           </p>
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          {Number(ev.overall_rating) >= 4.0 ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                              Proveedor Conforme
+                            </span>
+                          ) : Number(ev.overall_rating) >= 3.0 ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              Desempeño Regular
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
+                              No Conforme
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-text-muted font-mono whitespace-nowrap text-[11px]">
                           {new Date(ev.created_at).toLocaleDateString('es-CO')}
