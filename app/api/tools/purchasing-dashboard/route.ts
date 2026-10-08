@@ -213,7 +213,7 @@ export async function GET(req: NextRequest) {
       ordersQuery = ordersQuery.in('project_id', assignedProjectIds);
     }
 
-    const [requestsRes, ordersRes, evaluationsRes] = await Promise.all([
+    const [requestsRes, ordersRes, evaluationsRes, budgetsRes, prjBudgetsRes, propBudgetsRes] = await Promise.all([
       requestsQuery,
       ordersQuery,
       supabase
@@ -233,11 +233,125 @@ export async function GET(req: NextRequest) {
           users(id, full_name, email)
         `)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('commercial_budgets')
+        .select('id, budget_code, project_title, client_name, items_detail'),
+      supabase
+        .from('projects')
+        .select('id, commercial_budget_id, commercial_proposal_id'),
+      supabase
+        .from('commercial_proposals')
+        .select('project_id, budget_id')
+        .not('project_id', 'is', null)
+        .not('budget_id', 'is', null),
     ]);
 
     const rawRequests = requestsRes.data ?? [];
     const orders = ordersRes.data ?? [];
     const evaluations = evaluationsRes.data ?? [];
+
+    // Mapear presupuestos de proyectos para análisis comparativo de ítems
+    const projectBudgets: Record<
+      string,
+      {
+        budget_id: string;
+        budget_code: string;
+        project_title: string;
+        items: Array<{
+          id: string;
+          category?: string;
+          description: string;
+          brand?: string;
+          suggested_supplier?: string;
+          unit: string;
+          quantity: number;
+          unit_cost: number;
+        }>;
+      }
+    > = {};
+
+    const allBudgets = budgetsRes?.data || [];
+    const budgetMap = new Map<string, typeof allBudgets[0]>();
+    allBudgets.forEach((b) => budgetMap.set(b.id, b));
+
+    const prjBudgets = prjBudgetsRes?.data || [];
+    for (const p of prjBudgets) {
+      const bId = p.commercial_budget_id as string | undefined;
+      if (bId && budgetMap.has(bId)) {
+        const b = budgetMap.get(bId)!;
+        const rawItems = Array.isArray(b.items_detail) ? b.items_detail : [];
+        projectBudgets[p.id as string] = {
+          budget_id: b.id,
+          budget_code: b.budget_code,
+          project_title: b.project_title,
+          items: rawItems
+            .map((it: Record<string, unknown>) => ({
+              id: (it.id as string) || String(Math.random()),
+              category: (it.category as string) || 'materials',
+              description: String(it.description || '').trim(),
+              brand: String(it.brand || '').trim(),
+              suggested_supplier: String(it.suggested_supplier || '').trim(),
+              unit: String(it.unit || 'Und').trim(),
+              quantity: Number(it.quantity) || 1,
+              unit_cost: Number(it.unit_cost) || 0,
+            }))
+            .filter((it: { description: string }) => Boolean(it.description)),
+        };
+      }
+    }
+
+    const propBudgets = propBudgetsRes?.data || [];
+    for (const pr of propBudgets) {
+      if (pr.project_id && pr.budget_id && !projectBudgets[pr.project_id] && budgetMap.has(pr.budget_id)) {
+        const b = budgetMap.get(pr.budget_id)!;
+        const rawItems = Array.isArray(b.items_detail) ? b.items_detail : [];
+        projectBudgets[pr.project_id] = {
+          budget_id: b.id,
+          budget_code: b.budget_code,
+          project_title: b.project_title,
+          items: rawItems
+            .map((it: Record<string, unknown>) => ({
+              id: (it.id as string) || String(Math.random()),
+              category: (it.category as string) || 'materials',
+              description: String(it.description || '').trim(),
+              brand: String(it.brand || '').trim(),
+              suggested_supplier: String(it.suggested_supplier || '').trim(),
+              unit: String(it.unit || 'Und').trim(),
+              quantity: Number(it.quantity) || 1,
+              unit_cost: Number(it.unit_cost) || 0,
+            }))
+            .filter((it: { description: string }) => Boolean(it.description)),
+        };
+      }
+    }
+
+    // Fallback: vincular presupuestos a proyectos por coincidencia de nombre si aún no están vinculados
+    for (const p of availableProjects) {
+      if (!projectBudgets[p.id]) {
+        const pName = p.name.toLowerCase().trim();
+        const b = allBudgets.find((bg) => bg.project_title && bg.project_title.toLowerCase().trim() === pName);
+        if (b) {
+          const rawItems = Array.isArray(b.items_detail) ? b.items_detail : [];
+          projectBudgets[p.id] = {
+            budget_id: b.id,
+            budget_code: b.budget_code,
+            project_title: b.project_title,
+            items: rawItems
+              .map((it: Record<string, unknown>) => ({
+                id: (it.id as string) || String(Math.random()),
+                category: (it.category as string) || 'materials',
+                description: String(it.description || '').trim(),
+                brand: String(it.brand || '').trim(),
+                suggested_supplier: String(it.suggested_supplier || '').trim(),
+                unit: String(it.unit || 'Und').trim(),
+                quantity: Number(it.quantity) || 1,
+                unit_cost: Number(it.unit_cost) || 0,
+              }))
+              .filter((it: { description: string }) => Boolean(it.description)),
+          };
+        }
+      }
+    }
 
     // Normalizar solicitudes para garantizar compatibilidad con esquema extendido y fallback
     const requests = rawRequests.map((r: Record<string, unknown>) => {
@@ -375,6 +489,7 @@ export async function GET(req: NextRequest) {
         orders,
         evaluations,
         projects: availableProjects,
+        projectBudgets,
         currentUser: {
           id: dbUser.id,
           name: dbUser.full_name || session.user.name || '',

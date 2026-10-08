@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Download,
   ChevronDown,
+  ChevronRight,
   Eye,
   PenTool,
   ShieldCheck,
@@ -30,6 +31,10 @@ import {
   ArrowRight,
   Plus,
   RotateCw,
+  TrendingUp,
+  TrendingDown,
+  HelpCircle,
+  Calculator,
 } from 'lucide-react';
 import {
   downloadPurchaseRequestPdf,
@@ -150,6 +155,24 @@ interface ProjectOption {
   client: string;
 }
 
+export interface BudgetAPUItem {
+  id: string;
+  category?: string;
+  description: string;
+  brand?: string;
+  suggested_supplier?: string;
+  unit: string;
+  quantity: number;
+  unit_cost: number;
+}
+
+export interface ProjectBudgetData {
+  budget_id: string;
+  budget_code: string;
+  project_title: string;
+  items: BudgetAPUItem[];
+}
+
 interface PurchasingDashboardData {
   stats: {
     pendingRequests: number;
@@ -161,6 +184,7 @@ interface PurchasingDashboardData {
   orders: PurchaseOrder[];
   evaluations: SupplierEvaluation[];
   projects?: ProjectOption[];
+  projectBudgets?: Record<string, ProjectBudgetData>;
   currentUser?: {
     id: string;
     name: string;
@@ -222,6 +246,12 @@ export default function PurchasingDashboardPage() {
   const [isSubmittingSignature, setIsSubmittingSignature] = useState(false);
   const [signingSuccessMsg, setSigningSuccessMsg] = useState<string | null>(null);
   const [showAuditDetails, setShowAuditDetails] = useState(false);
+
+  // Estados de control para secciones colapsables y modo de análisis en modal de requerimiento
+  const [expandProjectDetails, setExpandProjectDetails] = useState(true);
+  const [expandJustification, setExpandJustification] = useState(true);
+  const [expandSignaturesFlow, setExpandSignaturesFlow] = useState(true);
+  const [itemsViewMode, setItemsViewMode] = useState<'standard' | 'analysis'>('standard');
 
   const { data, isLoading, isFetching, error, refetch } = useQuery<{ data: PurchasingDashboardData }>({
     queryKey: ['purchasing-dashboard'],
@@ -297,6 +327,179 @@ export default function PurchasingDashboardPage() {
     : false;
 
   const canSignDirector = isAdmin || isManagement || isDesignatedApprover || userRole.includes('director');
+
+  // Presupuesto APU asociado al proyecto de la solicitud seleccionada
+  const selectedProjectBudget = useMemo(() => {
+    if (!selectedRequest || !dashboard?.projectBudgets) return null;
+    const reqProjectId = selectedRequest.project_id || selectedRequest.projects?.id;
+    if (reqProjectId && dashboard.projectBudgets[reqProjectId]) {
+      return dashboard.projectBudgets[reqProjectId];
+    }
+    const reqProjectName = (selectedRequest.projects?.name || selectedRequest.cost_center || '').toLowerCase().trim();
+    if (reqProjectName) {
+      const match = Object.values(dashboard.projectBudgets).find(
+        (b) => b.project_title?.toLowerCase().trim() === reqProjectName
+      );
+      if (match) return match;
+    }
+    if (selectedRequest.title) {
+      const reqTitleLower = selectedRequest.title.toLowerCase();
+      const match = Object.values(dashboard.projectBudgets).find(
+        (b) => b.project_title && (reqTitleLower.includes(b.project_title.toLowerCase()) || b.project_title.toLowerCase().includes(reqTitleLower))
+      );
+      if (match) return match;
+    }
+    return null;
+  }, [selectedRequest, dashboard?.projectBudgets]);
+
+  // Análisis individual de ítem contra el presupuesto APU
+  const getItemBudgetAnalysis = (it: PurchaseRequestItemData) => {
+    const rubroRaw = (it.budget_rubro || it.client_quote_no || '').trim();
+    const isExplicitlyUnbudgeted =
+      rubroRaw.toLowerCase() === 'no presupuestado' ||
+      rubroRaw.toLowerCase() === 'ítem adicional' ||
+      rubroRaw.toLowerCase() === 'item adicional' ||
+      rubroRaw.toLowerCase() === '__custom__';
+
+    const reqQty = Number(it.quantity) || 1;
+    const reqPrice = Number(it.unit_price) || 0;
+    const reqTotal = it.total !== undefined ? Number(it.total) : reqQty * reqPrice;
+
+    if (!selectedProjectBudget) {
+      return {
+        hasBudget: false,
+        isUnbudgeted: true,
+        rubroName: rubroRaw || null,
+        budgetItem: null,
+        budgetCode: null,
+        reqQty,
+        reqPrice,
+        reqTotal,
+        budgetQty: 0,
+        budgetPrice: 0,
+        budgetTotal: 0,
+        unitDiff: 0,
+        unitPct: 0,
+        totalDiff: 0,
+        status: 'no_budget_linked' as const,
+        label: rubroRaw ? `Rubro Solicitado: ${rubroRaw} (Sin APU vinculado)` : 'Sin Presupuesto APU Vinculado',
+        badgeClass: 'bg-slate-100 text-slate-800 border-slate-300',
+      };
+    }
+
+    if (isExplicitlyUnbudgeted) {
+      return {
+        hasBudget: true,
+        isUnbudgeted: true,
+        rubroName: 'No presupuestado (Adicional)',
+        budgetItem: null,
+        budgetCode: selectedProjectBudget.budget_code,
+        reqQty,
+        reqPrice,
+        reqTotal,
+        budgetQty: 0,
+        budgetPrice: 0,
+        budgetTotal: 0,
+        unitDiff: 0,
+        unitPct: 0,
+        totalDiff: 0,
+        status: 'unbudgeted' as const,
+        label: 'Ítem Adicional / No Presupuestado',
+        badgeClass: 'bg-amber-100/90 text-amber-900 border-amber-300',
+      };
+    }
+
+    // Buscar coincidencia en el APU
+    const budgetItem = selectedProjectBudget.items.find((b) => {
+      if (it.budget_item_id && b.id === it.budget_item_id) return true;
+      if (rubroRaw && b.description.toLowerCase().trim() === rubroRaw.toLowerCase()) return true;
+      if (it.description && b.description.toLowerCase().trim() === it.description.toLowerCase().trim()) return true;
+      if (
+        it.description &&
+        b.description &&
+        (it.description.toLowerCase().trim().includes(b.description.toLowerCase().trim()) ||
+          b.description.toLowerCase().trim().includes(it.description.toLowerCase().trim()))
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (!budgetItem) {
+      return {
+        hasBudget: true,
+        isUnbudgeted: true,
+        rubroName: rubroRaw || null,
+        budgetItem: null,
+        budgetCode: selectedProjectBudget.budget_code,
+        reqQty,
+        reqPrice,
+        reqTotal,
+        budgetQty: 0,
+        budgetPrice: 0,
+        budgetTotal: 0,
+        unitDiff: 0,
+        unitPct: 0,
+        totalDiff: 0,
+        status: 'unbudgeted' as const,
+        label: rubroRaw ? `Rubro Solicitado: ${rubroRaw}` : 'Ítem No Presupuestado / Adicional',
+        badgeClass: 'bg-amber-100/90 text-amber-900 border-amber-300',
+      };
+    }
+
+    const budgetQty = Number(budgetItem.quantity) || 0;
+    const budgetPrice = Number(budgetItem.unit_cost) || 0;
+    const budgetTotal = budgetQty * budgetPrice;
+
+    const unitDiff = reqPrice - budgetPrice;
+    const unitPct = budgetPrice > 0 ? (unitDiff / budgetPrice) * 100 : 0;
+    const totalDiff = reqTotal - reqQty * budgetPrice;
+
+    let status: 'within_budget' | 'exceeds_budget' | 'exact_budget' | 'zero_cost' = 'within_budget';
+    let label = 'Dentro del Presupuesto APU';
+    let badgeClass = 'bg-emerald-100/90 text-emerald-900 border-emerald-300';
+
+    if (budgetPrice === 0 && reqPrice === 0) {
+      status = 'zero_cost';
+      label = 'Rubro APU Vinculado ($0 parametrizado)';
+      badgeClass = 'bg-slate-100 text-slate-700 border-slate-300';
+    } else if (unitDiff > 0) {
+      status = 'exceeds_budget';
+      label = `Excede Presupuesto por +${unitPct.toFixed(1)}%`;
+      badgeClass =
+        unitPct > 20
+          ? 'bg-rose-100 text-rose-900 border-rose-300'
+          : 'bg-amber-100 text-amber-900 border-amber-300';
+    } else if (unitDiff === 0) {
+      status = 'exact_budget';
+      label = 'Tarifa Exacta APU (0% desviación)';
+      badgeClass = 'bg-blue-100 text-blue-900 border-blue-300';
+    } else {
+      status = 'within_budget';
+      label = `Ahorro de ${Math.abs(unitPct).toFixed(1)}% vs APU`;
+      badgeClass = 'bg-emerald-100 text-emerald-900 border-emerald-300';
+    }
+
+    return {
+      hasBudget: true,
+      isUnbudgeted: false,
+      rubroName: budgetItem.description,
+      budgetItem,
+      budgetCode: selectedProjectBudget.budget_code,
+      reqQty,
+      reqPrice,
+      reqTotal,
+      budgetQty,
+      budgetPrice,
+      budgetTotal,
+      unitDiff,
+      unitPct,
+      totalDiff,
+      status,
+      label,
+      badgeClass,
+    };
+  };
 
   // Filtrado general de requerimientos
   const filteredRequests = useMemo(() => {
@@ -485,6 +688,15 @@ export default function PurchasingDashboardPage() {
     setSignerCedula('');
     setSignerNotes('');
     setOpenDropdownId(null);
+
+    // Para pestaña 3. VB Técnico (approvals), iniciar contraídas las secciones de metadatos, justificación y firmas,
+    // enfocando toda la atención en la sección de Bienes e Insumos Solicitados con su respectivo Análisis Presupuestal APU.
+    // Para otras pestañas (1. Cadena de Trazabilidad, 2. Requerimientos, etc.), mostrar tal cual está (expandido y tabular).
+    const isApprovalsTab = activeTab === 'approvals';
+    setExpandProjectDetails(!isApprovalsTab);
+    setExpandJustification(!isApprovalsTab);
+    setExpandSignaturesFlow(!isApprovalsTab);
+    setItemsViewMode(isApprovalsTab ? 'analysis' : 'standard');
 
     fetch('/api/tools/purchasing-dashboard/view', {
       method: 'POST',
@@ -1883,7 +2095,7 @@ export default function PurchasingDashboardPage() {
          ──────────────────────────────────────────────────────────────────── */}
       {selectedRequest && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-surface rounded-2xl border border-border max-w-2xl w-full p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface rounded-2xl border border-border max-w-3xl w-full p-5 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-border pb-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -1893,6 +2105,11 @@ export default function PurchasingDashboardPage() {
                   <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
                     Detalle de Solicitud
                   </span>
+                  {activeTab === 'approvals' && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                      Revisión VB Técnico
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-lg font-bold text-text-primary mt-1">{selectedRequest.title}</h3>
               </div>
@@ -1906,135 +2123,480 @@ export default function PurchasingDashboardPage() {
               </button>
             </div>
 
-            {/* Metadatos técnicos */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-surface-secondary p-3.5 rounded-xl border border-border">
-              <div>
-                <p className="text-text-muted">Proyecto Destino</p>
-                <p className="font-semibold text-text-primary mt-0.5">
-                  {selectedRequest.projects?.name || selectedRequest.cost_center || 'General'}
-                </p>
-              </div>
-              <div>
-                <p className="text-text-muted">Centro de Costo</p>
-                <p className="font-mono font-semibold text-text-primary mt-0.5">
-                  {selectedRequest.cost_center || selectedRequest.projects?.cost_center || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-text-muted">Cliente</p>
-                <p className="font-semibold text-text-primary mt-0.5">
-                  {selectedRequest.client_name || selectedRequest.projects?.client || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-text-muted">Solicitante (Firmante)</p>
-                <p className="font-semibold text-text-primary mt-0.5">
-                  {selectedRequest.applicant_name || selectedRequest.users?.full_name || '—'}
-                </p>
-                {selectedRequest.applicant_cedula && (
-                  <span className="text-[10px] text-text-muted font-mono block">
-                    C.C. {selectedRequest.applicant_cedula}
+            {/* 1. Sección: Detalles del Proyecto y Solicitud (Colapsable con flecha) */}
+            <div className="bg-surface-secondary border border-border rounded-xl overflow-hidden transition-all">
+              <button
+                type="button"
+                onClick={() => setExpandProjectDetails((v) => !v)}
+                className="w-full p-3 flex items-center justify-between text-left hover:bg-gray-100/70 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-6 h-6 rounded-lg bg-surface flex items-center justify-center border border-border shrink-0">
+                    <Building2 className="w-3.5 h-3.5 text-text-secondary" strokeWidth={1.75} />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-text-primary block truncate">
+                      Detalles del Proyecto y Solicitud
+                    </span>
+                    <span className="text-[11px] text-text-muted truncate block">
+                      {selectedRequest.projects?.name || selectedRequest.cost_center || 'General'} &bull; CC: <span className="font-mono font-semibold text-text-primary">{selectedRequest.cost_center || selectedRequest.projects?.cost_center || '—'}</span> &bull; Total: <span className="font-mono font-bold text-accent-800">{formatCOP(selectedRequest.total_amount || 0)}</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <span className="text-[10px] text-text-muted font-medium hidden sm:inline">
+                    {expandProjectDetails ? 'Contraer' : 'Expandir'}
                   </span>
-                )}
-              </div>
-              <div>
-                <p className="text-text-muted">Quien Aprueba</p>
-                <p className="font-semibold text-text-primary mt-0.5">
-                  {selectedRequest.approver_name || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-text-muted">Fecha y Hora de Firma</p>
-                <p className="font-mono text-text-primary mt-0.5 text-[11px]">
-                  {formatDateTimeCO(selectedRequest.created_at) || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-text-muted">Fecha Requerida</p>
-                <p className="font-mono text-text-primary mt-0.5">
-                  {selectedRequest.delivery_date || selectedRequest.required_date || 'No especificada'}
-                </p>
-              </div>
-              <div>
-                <p className="text-text-muted">Sitio de Entrega</p>
-                <p className="font-semibold text-text-primary mt-0.5 truncate">
-                  {selectedRequest.delivery_site || 'Dirección de obra'}
-                </p>
-              </div>
-              <div>
-                <p className="text-text-muted">Teléfono Contacto</p>
-                <p className="font-mono text-text-primary mt-0.5">
-                  {selectedRequest.contact_phone || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-text-muted">Valor Total Estimado</p>
-                <p className="font-mono font-bold text-accent-800 text-sm mt-0.5">
-                  {formatCOP(selectedRequest.total_amount || 0)}
-                </p>
-              </div>
+                  {expandProjectDetails ? (
+                    <ChevronDown className="w-4 h-4 text-text-muted" strokeWidth={2} />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-muted" strokeWidth={2} />
+                  )}
+                </div>
+              </button>
+
+              {expandProjectDetails && (
+                <div className="p-3.5 pt-0 border-t border-border/60">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-white p-3 rounded-lg border border-border/80 mt-2">
+                    <div>
+                      <p className="text-text-muted">Proyecto Destino</p>
+                      <p className="font-semibold text-text-primary mt-0.5">
+                        {selectedRequest.projects?.name || selectedRequest.cost_center || 'General'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Centro de Costo</p>
+                      <p className="font-mono font-semibold text-text-primary mt-0.5">
+                        {selectedRequest.cost_center || selectedRequest.projects?.cost_center || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Cliente</p>
+                      <p className="font-semibold text-text-primary mt-0.5">
+                        {selectedRequest.client_name || selectedRequest.projects?.client || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Solicitante (Firmante)</p>
+                      <p className="font-semibold text-text-primary mt-0.5">
+                        {selectedRequest.applicant_name || selectedRequest.users?.full_name || '—'}
+                      </p>
+                      {selectedRequest.applicant_cedula && (
+                        <span className="text-[10px] text-text-muted font-mono block">
+                          C.C. {selectedRequest.applicant_cedula}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Quien Aprueba</p>
+                      <p className="font-semibold text-text-primary mt-0.5">
+                        {selectedRequest.approver_name || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Fecha y Hora de Firma</p>
+                      <p className="font-mono text-text-primary mt-0.5 text-[11px]">
+                        {formatDateTimeCO(selectedRequest.created_at) || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Fecha Requerida</p>
+                      <p className="font-mono text-text-primary mt-0.5">
+                        {selectedRequest.delivery_date || selectedRequest.required_date || 'No especificada'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Sitio de Entrega</p>
+                      <p className="font-semibold text-text-primary mt-0.5 truncate">
+                        {selectedRequest.delivery_site || 'Dirección de obra'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Teléfono Contacto</p>
+                      <p className="font-mono text-text-primary mt-0.5">
+                        {selectedRequest.contact_phone || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted">Valor Total Estimado</p>
+                      <p className="font-mono font-bold text-accent-800 text-sm mt-0.5">
+                        {formatCOP(selectedRequest.total_amount || 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Justificación */}
+            {/* 2. Sección: Justificación y Ubicación (Colapsable con flecha) */}
             {selectedRequest.justification && (
-              <div className="space-y-1 text-xs">
-                <p className="text-text-muted font-semibold">Justificación y Ubicación</p>
-                <div className="p-3 bg-gray-50 rounded-xl border border-border text-text-secondary leading-relaxed">
-                  {selectedRequest.justification}
-                </div>
+              <div className="border border-border rounded-xl overflow-hidden bg-white transition-all">
+                <button
+                  type="button"
+                  onClick={() => setExpandJustification((v) => !v)}
+                  className="w-full p-2.5 px-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="w-3.5 h-3.5 text-text-secondary shrink-0" strokeWidth={1.75} />
+                    <span className="text-xs font-semibold text-text-primary">
+                      Justificación y Ubicación
+                    </span>
+                    {!expandJustification && (
+                      <span className="text-[11px] text-text-muted truncate max-w-sm hidden sm:inline">
+                        — {selectedRequest.justification}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <span className="text-[10px] text-text-muted font-medium hidden sm:inline">
+                      {expandJustification ? 'Contraer' : 'Expandir'}
+                    </span>
+                    {expandJustification ? (
+                      <ChevronDown className="w-4 h-4 text-text-muted" strokeWidth={2} />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-text-muted" strokeWidth={2} />
+                    )}
+                  </div>
+                </button>
+                {expandJustification && (
+                  <div className="p-3 pt-0 text-xs text-text-secondary leading-relaxed border-t border-border/60">
+                    <div className="p-2.5 bg-gray-50 rounded-lg border border-border/80 mt-2">
+                      {selectedRequest.justification}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Tabla de Ítems Solicitados */}
+            {/* 3. Sección: Bienes e Insumos Solicitados (Enfoque Total y Análisis APU) */}
             {selectedRequest.items && selectedRequest.items.length > 0 && (
-              <div className="space-y-1.5 text-xs">
-                <p className="text-text-muted font-semibold">Bienes e Insumos Solicitados ({selectedRequest.items.length})</p>
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-gray-100 text-text-secondary font-semibold border-b border-border">
-                      <tr>
-                        <th className="p-2 text-center w-8">#</th>
-                        <th className="p-2">Descripción</th>
-                        <th className="p-2 text-center">Cant.</th>
-                        <th className="p-2">Marca / Prov.</th>
-                        <th className="p-2 text-right">Vlr. Unitario</th>
-                        <th className="p-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {selectedRequest.items.map((it, idx) => {
-                        const qty = Number(it.quantity) || 1;
-                        const price = Number(it.unit_price) || 0;
-                        const lineTotal = it.total !== undefined ? it.total : qty * price;
-                        return (
-                          <tr key={idx} className="hover:bg-gray-50/50">
-                            <td className="p-2 text-center font-mono text-text-muted">{it.item_no || idx + 1}</td>
-                            <td className="p-2 font-medium text-text-primary">
-                              {it.description || it.item || 'Ítem'}
-                              {(it.budget_rubro || it.client_quote_no) && (
-                                <span className="block text-[10px] text-amber-700 font-mono font-semibold">
-                                  APU: {it.budget_rubro || it.client_quote_no}
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2 text-center font-mono text-text-muted">
-                              {qty} {it.unit || 'Und'}
-                            </td>
-                            <td className="p-2 text-text-muted text-[11px]">
-                              {it.brand || it.suggested_supplier || '—'}
-                            </td>
-                            <td className="p-2 text-right font-mono text-text-muted">
-                              {formatCOP(price)}
-                            </td>
-                            <td className="p-2 text-right font-mono font-bold text-text-primary">
-                              {formatCOP(lineTotal)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              <div
+                className={`rounded-xl p-3.5 space-y-3 transition-all ${
+                  activeTab === 'approvals'
+                    ? 'bg-amber-500/5 border-2 border-accent/40 shadow-xs'
+                    : 'border border-border bg-surface'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-accent/15 flex items-center justify-center border border-accent/30 text-accent-800">
+                      <Package className="w-3.5 h-3.5" strokeWidth={2} />
+                    </div>
+                    <span className="font-bold text-text-primary text-xs sm:text-sm">
+                      Bienes e Insumos Solicitados ({selectedRequest.items.length})
+                    </span>
+                    {activeTab === 'approvals' && (
+                      <span className="px-2 py-0.5 rounded bg-accent text-primary-900 border border-accent-400 font-bold text-[10px] uppercase tracking-wider">
+                        Revisión Técnica APU
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Switch de modo de visualización: Tabla compacta vs Análisis Presupuestal APU */}
+                  <div className="flex items-center gap-1 bg-surface-secondary p-0.5 rounded-lg border border-border text-[11px] self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setItemsViewMode('standard')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
+                        itemsViewMode === 'standard'
+                          ? 'bg-white shadow-2xs font-bold text-text-primary'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                    >
+                      Vista Tabular
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setItemsViewMode('analysis')}
+                      className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                        itemsViewMode === 'analysis'
+                          ? 'bg-white shadow-2xs font-bold text-accent-800'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                    >
+                      <Calculator className="w-3 h-3 text-accent" strokeWidth={2} />
+                      Análisis Presupuestal APU
+                    </button>
+                  </div>
                 </div>
+
+                {/* Resumen de Presupuesto Vinculado en caso de existir */}
+                {selectedProjectBudget && (
+                  <div className="p-2 bg-white rounded-lg border border-border/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 text-text-secondary">
+                      <Layers className="w-3.5 h-3.5 text-accent" strokeWidth={1.75} />
+                      <span>Presupuesto APU de Referencia:</span>
+                      <span className="font-mono font-bold text-text-primary">{selectedProjectBudget.budget_code}</span>
+                      <span className="text-text-muted">({selectedProjectBudget.project_title})</span>
+                    </div>
+                    <span className="text-[11px] text-text-muted font-mono">
+                      {selectedProjectBudget.items.length} rubros parametrizados
+                    </span>
+                  </div>
+                )}
+
+                {/* Vista 1: Análisis Presupuestal APU Individual (Ficha técnica por ítem) */}
+                {itemsViewMode === 'analysis' ? (
+                  <div className="space-y-3">
+                    {selectedRequest.items.map((it, idx) => {
+                      const analysis = getItemBudgetAnalysis(it);
+                      return (
+                        <div
+                          key={idx}
+                          className="bg-white rounded-xl border border-border p-3.5 space-y-3 shadow-2xs hover:border-accent/40 transition-colors"
+                        >
+                          {/* Encabezado del ítem */}
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-border/70 pb-2.5">
+                            <div className="flex items-start gap-2.5 min-w-0">
+                              <span className="w-6 h-6 rounded-md bg-surface-secondary text-text-muted font-mono font-bold text-xs flex items-center justify-center border border-border shrink-0 mt-0.5">
+                                {it.item_no || idx + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <h4 className="font-bold text-text-primary text-xs sm:text-sm leading-snug">
+                                  {it.description || it.item || 'Ítem Solicitado'}
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-muted mt-1">
+                                  <span>
+                                    Unidad: <span className="font-mono font-semibold text-text-primary">{it.unit || 'Und'}</span>
+                                  </span>
+                                  {(it.brand || it.suggested_supplier) && (
+                                    <span>
+                                      Marca / Prov.: <span className="text-text-primary font-medium">{it.brand || it.suggested_supplier}</span>
+                                    </span>
+                                  )}
+                                  {analysis.budgetCode && (
+                                    <span className="font-mono text-accent-800 font-semibold">
+                                      APU: {analysis.budgetCode}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="shrink-0 flex items-center">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${analysis.badgeClass}`}>
+                                {analysis.status === 'within_budget' || analysis.status === 'exact_budget' ? (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" strokeWidth={2} />
+                                ) : analysis.status === 'exceeds_budget' ? (
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" strokeWidth={2} />
+                                ) : (
+                                  <HelpCircle className="w-3.5 h-3.5 text-text-muted shrink-0" strokeWidth={2} />
+                                )}
+                                {analysis.label}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Contenido del análisis individual */}
+                          {analysis.budgetItem ? (
+                            <div className="space-y-2.5">
+                              {/* Grid de 3 cajas comparativas */}
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                                {/* Caja 1: Solicitud Actual */}
+                                <div className="bg-slate-50/90 rounded-lg p-2.5 border border-border space-y-1">
+                                  <div className="flex items-center justify-between text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                                    <span>En Solicitud</span>
+                                    <span className="font-mono">{analysis.reqQty} {it.unit || 'Und'}</span>
+                                  </div>
+                                  <div className="pt-0.5">
+                                    <span className="text-[10px] text-text-muted block">Vlr. Unitario:</span>
+                                    <span className="font-mono font-semibold text-text-primary text-xs">{formatCOP(analysis.reqPrice)}</span>
+                                  </div>
+                                  <div className="pt-0.5 border-t border-border/60 flex items-center justify-between">
+                                    <span className="text-[11px] text-text-muted">Total Solicitud:</span>
+                                    <span className="font-mono font-bold text-text-primary">{formatCOP(analysis.reqTotal)}</span>
+                                  </div>
+                                </div>
+
+                                {/* Caja 2: Presupuesto APU Contractual */}
+                                <div className="bg-amber-50/40 rounded-lg p-2.5 border border-amber-200/80 space-y-1">
+                                  <div className="flex items-center justify-between text-[10px] font-bold text-amber-900 uppercase tracking-wider">
+                                    <span>En Presupuesto APU</span>
+                                    <span className="font-mono">{analysis.budgetQty} {analysis.budgetItem.unit}</span>
+                                  </div>
+                                  <div className="pt-0.5">
+                                    <span className="text-[10px] text-amber-900/80 block">Tarifa Unitaria APU:</span>
+                                    <span className="font-mono font-semibold text-amber-950 text-xs">{formatCOP(analysis.budgetPrice)}</span>
+                                  </div>
+                                  <div className="pt-0.5 border-t border-amber-200/60 flex items-center justify-between">
+                                    <span className="text-[11px] text-amber-900">Total Proyectado:</span>
+                                    <span className="font-mono font-bold text-amber-950">{formatCOP(analysis.budgetTotal)}</span>
+                                  </div>
+                                </div>
+
+                                {/* Caja 3: Variación y Margen */}
+                                <div
+                                  className={`rounded-lg p-2.5 border space-y-1 ${
+                                    analysis.unitDiff > 0
+                                      ? 'bg-rose-50/60 border-rose-200'
+                                      : analysis.unitDiff < 0
+                                      ? 'bg-emerald-50/60 border-emerald-200'
+                                      : 'bg-blue-50/60 border-blue-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                                    <span
+                                      className={
+                                        analysis.unitDiff > 0
+                                          ? 'text-rose-900'
+                                          : analysis.unitDiff < 0
+                                          ? 'text-emerald-900'
+                                          : 'text-blue-900'
+                                      }
+                                    >
+                                      Variación Unitaria
+                                    </span>
+                                    <span className="font-mono font-bold">
+                                      {analysis.unitDiff > 0
+                                        ? `+${analysis.unitPct.toFixed(1)}%`
+                                        : analysis.unitDiff < 0
+                                        ? `${analysis.unitPct.toFixed(1)}%`
+                                        : '0%'}
+                                    </span>
+                                  </div>
+                                  <div className="pt-0.5">
+                                    <span className="text-[10px] text-text-muted block">Diferencia x Unidad:</span>
+                                    <span
+                                      className={`font-mono font-bold text-xs ${
+                                        analysis.unitDiff > 0
+                                          ? 'text-rose-700'
+                                          : analysis.unitDiff < 0
+                                          ? 'text-emerald-700'
+                                          : 'text-blue-700'
+                                      }`}
+                                    >
+                                      {analysis.unitDiff > 0
+                                        ? `+${formatCOP(analysis.unitDiff)}`
+                                        : analysis.unitDiff < 0
+                                        ? `-${formatCOP(Math.abs(analysis.unitDiff))}`
+                                        : '$ 0 (Exacto)'}
+                                    </span>
+                                  </div>
+                                  <div className="pt-0.5 border-t border-border/60 flex items-center justify-between">
+                                    <span className="text-[11px] text-text-muted">Impacto Total:</span>
+                                    <span
+                                      className={`font-mono font-bold ${
+                                        analysis.totalDiff > 0
+                                          ? 'text-rose-700'
+                                          : analysis.totalDiff < 0
+                                          ? 'text-emerald-700'
+                                          : 'text-text-primary'
+                                      }`}
+                                    >
+                                      {analysis.totalDiff > 0
+                                        ? `+${formatCOP(analysis.totalDiff)}`
+                                        : analysis.totalDiff < 0
+                                        ? `-${formatCOP(Math.abs(analysis.totalDiff))}`
+                                        : '$ 0'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Detalle del rubro contractual vinculado */}
+                              <div className="text-[11px] text-text-muted bg-gray-50/90 rounded-lg p-2 border border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                                <div>
+                                  <span className="font-semibold text-text-primary">Rubro APU Contractual: </span>
+                                  <span>{analysis.budgetItem.description}</span>
+                                </div>
+                                {analysis.budgetItem.category && (
+                                  <span className="font-medium text-text-secondary capitalize">
+                                    Categoría: {analysis.budgetItem.category}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Alerta de cantidad si la solicitud pide más unidades de las proyectadas en el APU */}
+                              {analysis.budgetQty > 0 && analysis.reqQty > analysis.budgetQty && (
+                                <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-amber-900 text-[11px] flex items-center gap-2">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" strokeWidth={2} />
+                                  <span>
+                                    <strong>Atención Técnica:</strong> La cantidad solicitada (
+                                    <span className="font-mono font-bold">{analysis.reqQty}</span>) excede la proyectada en el presupuesto APU (
+                                    <span className="font-mono font-bold">{analysis.budgetQty}</span>) en{' '}
+                                    <span className="font-mono font-bold">+{analysis.reqQty - analysis.budgetQty}</span> unidades.
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            /* Ítem no presupuestado o adicional */
+                            <div className="bg-amber-50/40 rounded-lg p-3 border border-amber-200/80 space-y-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs">
+                                <div>
+                                  <span className="font-semibold text-amber-950">Insumo Adicional Directo: </span>
+                                  <span className="text-amber-900">No vinculado a un rubro del presupuesto contractual base.</span>
+                                </div>
+                                <div className="flex items-center gap-3 font-mono text-xs">
+                                  <span>
+                                    Cant: <strong>{analysis.reqQty} {it.unit || 'Und'}</strong>
+                                  </span>
+                                  <span>
+                                    Vlr. Unit: <strong>{formatCOP(analysis.reqPrice)}</strong>
+                                  </span>
+                                  <span>
+                                    Total: <strong className="text-accent-800">{formatCOP(analysis.reqTotal)}</strong>
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="text-[11px] text-amber-900/80 leading-normal">
+                                Este ítem fue formulado como insumo imprevisto o adicional de obra fuera de los rubros APU contractuales. Requiere validación y visto bueno técnico para autorizar compra fuera de presupuesto contractual.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Vista 2: Tabla Estándar (Compacta) */
+                  <div className="border border-border rounded-xl overflow-hidden bg-white">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-gray-100 text-text-secondary font-semibold border-b border-border">
+                        <tr>
+                          <th className="p-2 text-center w-8">#</th>
+                          <th className="p-2">Descripción</th>
+                          <th className="p-2 text-center">Cant.</th>
+                          <th className="p-2">Marca / Prov.</th>
+                          <th className="p-2 text-right">Vlr. Unitario</th>
+                          <th className="p-2 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {selectedRequest.items.map((it, idx) => {
+                          const qty = Number(it.quantity) || 1;
+                          const price = Number(it.unit_price) || 0;
+                          const lineTotal = it.total !== undefined ? it.total : qty * price;
+                          return (
+                            <tr key={idx} className="hover:bg-gray-50/50">
+                              <td className="p-2 text-center font-mono text-text-muted">{it.item_no || idx + 1}</td>
+                              <td className="p-2 font-medium text-text-primary">
+                                {it.description || it.item || 'Ítem'}
+                                {(it.budget_rubro || it.client_quote_no) && (
+                                  <span className="block text-[10px] text-amber-700 font-mono font-semibold">
+                                    APU: {it.budget_rubro || it.client_quote_no}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2 text-center font-mono text-text-muted">
+                                {qty} {it.unit || 'Und'}
+                              </td>
+                              <td className="p-2 text-text-muted text-[11px]">
+                                {it.brand || it.suggested_supplier || '—'}
+                              </td>
+                              <td className="p-2 text-right font-mono text-text-muted">
+                                {formatCOP(price)}
+                              </td>
+                              <td className="p-2 text-right font-mono font-bold text-text-primary">
+                                {formatCOP(lineTotal)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2086,16 +2648,51 @@ export default function PurchasingDashboardPage() {
               };
 
               return (
-                <div className="bg-slate-50/80 border border-border rounded-xl p-3.5 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-text-primary flex items-center gap-1.5">
-                      <PenTool className="w-3.5 h-3.5 text-accent" />
-                      Flujo de Firmas y Trazabilidad (4 Pasos)
-                    </span>
-                    <span className="text-[11px] text-text-muted hidden sm:inline">
-                      Firmas completas y sellos en PDF oficial
-                    </span>
-                  </div>
+                <div className="bg-slate-50/80 border border-border rounded-xl overflow-hidden transition-all">
+                  <button
+                    type="button"
+                    onClick={() => setExpandSignaturesFlow((v) => !v)}
+                    className="w-full p-3 flex items-center justify-between text-left hover:bg-slate-100/70 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <PenTool className="w-3.5 h-3.5 text-accent shrink-0" strokeWidth={1.75} />
+                      <span className="text-xs font-bold text-text-primary">
+                        Flujo de Firmas y Trazabilidad (4 Pasos)
+                      </span>
+                      {!expandSignaturesFlow && (
+                        <span className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-medium hidden sm:inline">
+                          {sigManagement
+                            ? 'Aprobada por Gerencia'
+                            : sigPurchasing
+                            ? 'Paso 3: Cotización Registrada'
+                            : sigDirector
+                            ? (sigDirector.rejected ? 'Paso 2: VB Técnico Rechazado' : 'Paso 2: VB Técnico Aprobado')
+                            : 'Paso 2: Pendiente VB Técnico'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <span className="text-[10px] text-text-muted font-medium hidden sm:inline">
+                        {expandSignaturesFlow ? 'Contraer' : 'Expandir'}
+                      </span>
+                      {expandSignaturesFlow ? (
+                        <ChevronDown className="w-4 h-4 text-text-muted" strokeWidth={2} />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-text-muted" strokeWidth={2} />
+                      )}
+                    </div>
+                  </button>
+
+                  {expandSignaturesFlow && (
+                    <div className="p-3.5 pt-0 border-t border-border/60 space-y-2.5">
+                      <div className="flex items-center justify-between pt-2">
+                        <span className="text-[11px] text-text-muted">
+                          Firmas electrónicas con validez probatoria y auditoría de visualización:
+                        </span>
+                        <span className="text-[11px] text-text-muted hidden sm:inline">
+                          Firmas completas y sellos en PDF oficial
+                        </span>
+                      </div>
 
                   {/* Grid de 4 Pasos compactos */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -2324,7 +2921,9 @@ export default function PurchasingDashboardPage() {
                     )}
                   </div>
                 </div>
-              );
+              )}
+            </div>
+          );
             })()}
 
             {/* Formulario de Firma o Mensaje de Éxito */}
