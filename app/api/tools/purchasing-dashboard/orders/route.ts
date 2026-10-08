@@ -130,6 +130,9 @@ export async function POST(req: NextRequest) {
         const pdfDoc = createPurchaseOrderPdf({
           orderCode: nextCode,
           requestCode: request.request_code,
+          code: 'FOR-COM-002',
+          version: '01',
+          effectiveDate: '08/10/2026',
           createdDate: timestampStr,
           supplierName: String(supplier_name).trim(),
           supplierNit: supplier_nit,

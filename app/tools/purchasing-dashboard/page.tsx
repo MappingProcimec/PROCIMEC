@@ -1240,8 +1240,14 @@ export default function PurchasingDashboardPage() {
         (s) => s.company_name.toLowerCase().trim() === o.supplier_name.toLowerCase().trim()
       );
 
+      const reqInfo = dashboard?.requests?.find((r) => r.id === o.purchase_request_id);
+
       const doc = createPurchaseOrderPdf({
         orderCode: o.order_code,
+        requestCode: reqInfo?.request_code || undefined,
+        code: 'FOR-COM-002',
+        version: '01',
+        effectiveDate: '08/10/2026',
         createdDate: o.created_at ? new Date(o.created_at).toLocaleDateString('es-CO') : undefined,
         supplierName: o.supplier_name,
         supplierNit: o.supplier_nit || supInfo?.nit || undefined,
@@ -1250,11 +1256,11 @@ export default function PurchasingDashboardPage() {
         supplierPhone: supInfo?.phone || undefined,
         supplierCity: supInfo?.city || undefined,
         supplierAddress: supInfo?.address || undefined,
-        projectName: o.projects?.name || undefined,
-        costCenter: o.projects?.cost_center || undefined,
-        clientName: o.projects?.client || undefined,
+        projectName: o.projects?.name || reqInfo?.projects?.name || undefined,
+        costCenter: o.projects?.cost_center || reqInfo?.cost_center || reqInfo?.projects?.cost_center || undefined,
+        clientName: o.projects?.client || reqInfo?.projects?.client || undefined,
         deliveryDeadline: o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : undefined,
-        deliverySite: o.delivery_site || undefined,
+        deliverySite: o.delivery_site || reqInfo?.delivery_site || undefined,
         paymentTerms: o.payment_terms || undefined,
         items: items.map((it: any, idx: number) => ({
           item_no: it.item_no || idx + 1,

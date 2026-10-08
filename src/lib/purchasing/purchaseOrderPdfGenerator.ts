@@ -16,6 +16,9 @@ export interface PurchaseOrderPdfItem {
 export interface PurchaseOrderPdfData {
   orderCode: string;
   requestCode?: string | null;
+  code?: string | null;
+  version?: string | null;
+  effectiveDate?: string | null;
   createdDate?: string | null;
   // Proveedor
   supplierName: string;
@@ -89,36 +92,47 @@ export function createPurchaseOrderPdf(data: PurchaseOrderPdfData): jsPDF {
   doc.setTextColor(...COLOR_CHARCOAL);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('PROCIMEC INGENIERÍA S.A.S.', marginX + 44, curY + 3);
+  doc.text('PROCIMEC INGENIERÍA S.A.S.', marginX + 44, curY + 2.5);
 
+  doc.setTextColor(...COLOR_AMBER);
+  doc.setFontSize(8.5);
+  doc.text('PCM CLOUD — GESTIÓN DE COMPRAS Y CADENA DE SUMINISTRO', marginX + 44, curY + 6.8);
+
+  doc.setTextColor(...COLOR_MUTED);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.setTextColor(...COLOR_MUTED);
-  doc.text('NIT: 901.385.500-1  ·  SISTEMA INTEGRADO DE GESTIÓN HSEQ & COMPRAS', marginX + 44, curY + 7);
-  doc.text('Proceso: Gestión de Compras y Cadena de Suministro', marginX + 44, curY + 11);
+  doc.text('FORMATO OFICIAL: ORDEN DE COMPRA', marginX + 44, curY + 11);
 
-  // Cuadro Código Consecutivo Oficial
-  const codeBoxW = 48;
-  const codeBoxX = pageWidth - marginX - codeBoxW;
-  doc.setFillColor(...COLOR_BG_LIGHT);
+  // Recuadro de Control Documental Institucional SIG (ISO 9001 / AGENTS.md Ley 8)
+  const badgeWidth = 48;
+  const badgeHeight = 15;
+  const badgeX = pageWidth - marginX - badgeWidth;
+  const badgeY = curY - 2;
+
+  const docCode = data.code || 'FOR-COM-002';
+  const docVer = data.version || '01';
+  const docEffDate = data.effectiveDate || '08/10/2026';
+
+  doc.setFillColor(...COLOR_CHARCOAL);
+  doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 1.5, 1.5, 'F');
   doc.setDrawColor(...COLOR_AMBER);
   doc.setLineWidth(0.6);
-  doc.roundedRect(codeBoxX, curY - 2, codeBoxW, 15, 2, 2, 'FD');
+  doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 1.5, 1.5, 'D');
 
+  doc.setTextColor(...COLOR_AMBER);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.setTextColor(...COLOR_GRAPHITE);
-  doc.text('ORDEN DE COMPRA OFICIAL', codeBoxX + 4, curY + 2);
+  doc.setFontSize(6.8);
+  doc.text(`CÓDIGO: ${docCode}`, badgeX + badgeWidth / 2, badgeY + 4.2, { align: 'center' });
 
+  doc.setTextColor(255, 255, 255);
   doc.setFont('courier', 'bold');
-  doc.setFontSize(10.5);
-  doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(data.orderCode || 'OC-2026-000', codeBoxX + 4, curY + 7);
+  doc.setFontSize(9.5);
+  doc.text(`VERSIÓN: ${docVer}`, badgeX + badgeWidth / 2, badgeY + 8.8, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.2);
   doc.setTextColor(...COLOR_MUTED);
-  doc.text('Código: FOR-COM-002  ·  Versión: 01', codeBoxX + 4, curY + 11);
+  doc.text(`FECHA VERSIÓN: ${docEffDate}`, badgeX + badgeWidth / 2, badgeY + 12.8, { align: 'center' });
 
   curY += 18;
 
@@ -129,12 +143,13 @@ export function createPurchaseOrderPdf(data: PurchaseOrderPdfData): jsPDF {
 
   // 2. BLOQUE DUAL: PROVEEDOR Y CONDICIONES DE LA ORDEN
   const colW = (contentWidth - 4) / 2;
+  const boxH = 40;
 
   // Columna Izquierda: Datos del Proveedor Adjudicado
   doc.setFillColor(...COLOR_BG_LIGHT);
   doc.setDrawColor(...COLOR_BORDER);
   doc.setLineWidth(0.3);
-  doc.roundedRect(marginX, curY, colW, 35, 1.5, 1.5, 'FD');
+  doc.roundedRect(marginX, curY, colW, boxH, 1.5, 1.5, 'FD');
 
   doc.setFillColor(...COLOR_GRAPHITE);
   doc.roundedRect(marginX, curY, colW, 5.5, 1.5, 1.5, 'F');
@@ -143,7 +158,7 @@ export function createPurchaseOrderPdf(data: PurchaseOrderPdfData): jsPDF {
   doc.setTextColor(255, 255, 255);
   doc.text('1. INFORMACIÓN DEL PROVEEDOR ADJUDICADO', marginX + 3, curY + 4);
 
-  let supY = curY + 9;
+  let supY = curY + 9.5;
   doc.setFontSize(7.5);
 
   doc.setFont('helvetica', 'bold');
@@ -151,45 +166,45 @@ export function createPurchaseOrderPdf(data: PurchaseOrderPdfData): jsPDF {
   doc.text('Razón Social:', marginX + 3, supY);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(data.supplierName || 'Proveedor General', marginX + 26, supY);
+  doc.text(data.supplierName || 'Proveedor General', marginX + 30, supY);
 
-  supY += 5;
+  supY += 5.2;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_MUTED);
   doc.text('NIT / Cédula:', marginX + 3, supY);
   doc.setFont('courier', 'bold');
   doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(data.supplierNit || 'No registrado', marginX + 26, supY);
+  doc.text(data.supplierNit || 'No registrado', marginX + 30, supY);
 
-  supY += 5;
+  supY += 5.2;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_MUTED);
   doc.text('Contacto / Tel:', marginX + 3, supY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(`${data.supplierContact || '—'}  /  ${data.supplierPhone || '—'}`, marginX + 26, supY);
+  doc.text(`${data.supplierContact || '—'}  /  ${data.supplierPhone || '—'}`, marginX + 30, supY);
 
-  supY += 5;
+  supY += 5.2;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_MUTED);
   doc.text('Correo Electrónico:', marginX + 3, supY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(data.supplierEmail || '—', marginX + 26, supY);
+  doc.text(data.supplierEmail || '—', marginX + 30, supY);
 
-  supY += 5;
+  supY += 5.2;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_MUTED);
   doc.text('Ciudad / Dir:', marginX + 3, supY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(`${data.supplierCity || 'Colombia'}  ${data.supplierAddress ? `· ${data.supplierAddress}` : ''}`, marginX + 26, supY);
+  doc.text(`${data.supplierCity || 'Colombia'}  ${data.supplierAddress ? `· ${data.supplierAddress}` : ''}`, marginX + 30, supY);
 
   // Columna Derecha: Condiciones Comerciales y Entrega
   const rightColX = marginX + colW + 4;
   doc.setFillColor(...COLOR_BG_LIGHT);
   doc.setDrawColor(...COLOR_BORDER);
-  doc.roundedRect(rightColX, curY, colW, 35, 1.5, 1.5, 'FD');
+  doc.roundedRect(rightColX, curY, colW, boxH, 1.5, 1.5, 'FD');
 
   doc.setFillColor(...COLOR_GRAPHITE);
   doc.roundedRect(rightColX, curY, colW, 5.5, 1.5, 1.5, 'F');
@@ -198,47 +213,60 @@ export function createPurchaseOrderPdf(data: PurchaseOrderPdfData): jsPDF {
   doc.setTextColor(255, 255, 255);
   doc.text('2. CONDICIONES COMERCIALES Y ENTREGA', rightColX + 3, curY + 4);
 
-  let condY = curY + 9;
+  let condY = curY + 9.5;
+  doc.setFontSize(7.5);
+
+  // Consecutivo oficial de la Orden de Compra en el cuerpo de condiciones
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...COLOR_MUTED);
+  doc.text('Consecutivo OC:', rightColX + 3, condY);
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...COLOR_CHARCOAL);
+  doc.text(data.orderCode || 'OC-2026-000', rightColX + 30, condY);
+
+  condY += 5.2;
+  doc.setFontSize(7.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_MUTED);
   doc.text('Proyecto / C.C.:', rightColX + 3, condY);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(`${data.costCenter ? `[${data.costCenter}] ` : ''}${data.projectName || 'Operación General'}`, rightColX + 28, condY);
+  doc.text(`${data.costCenter ? `[${data.costCenter}] ` : ''}${data.projectName || 'Operación General'}`, rightColX + 30, condY);
 
-  condY += 5;
+  condY += 5.2;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_MUTED);
   doc.text('Solicitud Origen:', rightColX + 3, condY);
   doc.setFont('courier', 'bold');
   doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(data.requestCode || 'REQ-ORIGEN', rightColX + 28, condY);
+  doc.text(data.requestCode || 'REQ-ORIGEN', rightColX + 30, condY);
 
-  condY += 5;
+  condY += 5.2;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_MUTED);
   doc.text('Plazo de Entrega:', rightColX + 3, condY);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_AMBER);
-  doc.text(data.deliveryDeadline || 'Entrega Inmediata pactada', rightColX + 28, condY);
+  doc.text(data.deliveryDeadline || 'Entrega Inmediata pactada', rightColX + 30, condY);
 
-  condY += 5;
+  condY += 5.2;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_MUTED);
   doc.text('Lugar de Entrega:', rightColX + 3, condY);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(data.deliverySite || 'Almacén Central / Obra asignada', rightColX + 28, condY);
+  doc.text(data.deliverySite || 'Almacén Central / Obra asignada', rightColX + 30, condY);
 
-  condY += 5;
+  condY += 5.2;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_MUTED);
   doc.text('Forma de Pago:', rightColX + 3, condY);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...COLOR_CHARCOAL);
-  doc.text(data.paymentTerms || 'Contado', rightColX + 28, condY);
+  doc.text(data.paymentTerms || 'Contado', rightColX + 30, condY);
 
-  curY += 39;
+  curY += boxH + 4;
 
   // 3. TABLA DE ÍTEMS Y BIENES SOLICITADOS
   const tableData = (data.items || []).map((it, idx) => {
@@ -369,6 +397,8 @@ export function createPurchaseOrderPdf(data: PurchaseOrderPdfData): jsPDF {
 
   // Firma 2: Aprobación Gerencia
   const sig2X = marginX + sigBoxW + 3;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...COLOR_BORDER);
   doc.roundedRect(sig2X, curY, sigBoxW, sigBoxH, 1.5, 1.5, 'FD');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
@@ -386,6 +416,8 @@ export function createPurchaseOrderPdf(data: PurchaseOrderPdfData): jsPDF {
 
   // Firma 3: Aceptación Proveedor
   const sig3X = sig2X + sigBoxW + 3;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...COLOR_BORDER);
   doc.roundedRect(sig3X, curY, sigBoxW, sigBoxH, 1.5, 1.5, 'FD');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
