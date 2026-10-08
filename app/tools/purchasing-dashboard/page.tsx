@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import {
@@ -24,6 +26,10 @@ import {
   ShieldCheck,
   Check,
   X,
+  Layers,
+  ArrowRight,
+  Plus,
+  RotateCw,
 } from 'lucide-react';
 import {
   downloadPurchaseRequestPdf,
@@ -125,6 +131,7 @@ interface PurchaseOrder {
 
 interface SupplierEvaluation {
   id: string;
+  purchase_order_id?: string | null;
   supplier_name: string;
   quality_score: number;
   delivery_time_score: number;
@@ -185,8 +192,20 @@ const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
   baja: { label: 'Baja', color: 'text-slate-700 bg-slate-50 border-slate-200' },
 };
 
+type PurchasingTab =
+  | 'timeline'
+  | 'requests'
+  | 'approvals'
+  | 'quotations'
+  | 'management_approval'
+  | 'orders'
+  | 'evaluations';
+
 export default function PurchasingDashboardPage() {
-  const [activeTab, setActiveTab] = useState<'requests' | 'orders' | 'suppliers'>('requests');
+  const { data: session } = useSession();
+  const queryClient = useQueryClient();
+
+  const [activeTab, setActiveTab] = useState<PurchasingTab>('timeline');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterProject, setFilterProject] = useState<string>('all');
@@ -204,7 +223,7 @@ export default function PurchasingDashboardPage() {
   const [signingSuccessMsg, setSigningSuccessMsg] = useState<string | null>(null);
   const [showAuditDetails, setShowAuditDetails] = useState(false);
 
-  const { data, isLoading, error, refetch } = useQuery<{ data: PurchasingDashboardData }>({
+  const { data, isLoading, isFetching, error, refetch } = useQuery<{ data: PurchasingDashboardData }>({
     queryKey: ['purchasing-dashboard'],
     queryFn: async () => {
       const res = await fetch('/api/tools/purchasing-dashboard');
@@ -214,7 +233,48 @@ export default function PurchasingDashboardPage() {
       }
       return res.json();
     },
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: false,
   });
+
+  const dashboard = data?.data;
+
+  // Gobernanza de Roles y Permisos RBAC
+  const currentUser = dashboard?.currentUser;
+  const userRole = (currentUser?.role || session?.user?.role || 'pending').toLowerCase();
+  const currentUserId = currentUser?.id || session?.user?.id || '';
+  const currentUserName = (currentUser?.name || session?.user?.name || '').toLowerCase().trim();
+
+  const isAdmin = userRole === 'admin';
+  const isManagement = isAdmin || ['management', 'gerencia'].includes(userRole);
+  const isPurchasing = isAdmin || isManagement || ['purchasing', 'compras'].includes(userRole);
+  const isWarehouse = isAdmin || isManagement || isPurchasing || ['warehouse', 'almacen'].includes(userRole);
+  const isQualityOrHseq = isAdmin || isManagement || isPurchasing || ['hseq'].includes(userRole);
+
+  // Verificación de si el usuario tiene requerimientos pendientes por aprobar como director
+  const hasAssignedApprovals = useMemo(() => {
+    if (!dashboard?.requests) return false;
+    return dashboard.requests.some((r) => {
+      const matchName = r.approver_name && r.approver_name.toLowerCase().trim() === currentUserName;
+      const matchId = r.approver_user_id && r.approver_user_id === currentUserId;
+      return matchName || matchId;
+    });
+  }, [dashboard?.requests, currentUserName, currentUserId]);
+
+  const canViewApprovals = isManagement || hasAssignedApprovals || userRole.includes('director');
+  const canViewQuotations = isPurchasing;
+  const canViewManagementApproval = isManagement;
+  const canViewOrders = isWarehouse;
+  const canViewEvaluations = isQualityOrHseq;
+
+  // Fallback seguro si la pestaña actual deja de estar autorizada
+  useEffect(() => {
+    if (activeTab === 'approvals' && !canViewApprovals) setActiveTab('timeline');
+    if (activeTab === 'quotations' && !canViewQuotations) setActiveTab('timeline');
+    if (activeTab === 'management_approval' && !canViewManagementApproval) setActiveTab('timeline');
+    if (activeTab === 'orders' && !canViewOrders) setActiveTab('timeline');
+    if (activeTab === 'evaluations' && !canViewEvaluations) setActiveTab('timeline');
+  }, [activeTab, canViewApprovals, canViewQuotations, canViewManagementApproval, canViewOrders, canViewEvaluations]);
 
   // Cerrar desplegables al hacer clic fuera
   useEffect(() => {
@@ -228,18 +288,7 @@ export default function PurchasingDashboardPage() {
     return () => document.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  const dashboard = data?.data;
-
-  const currentUser = dashboard?.currentUser;
-  const currentRole = (currentUser?.role || '').toLowerCase();
-  const currentUserId = currentUser?.id || '';
-  const currentUserName = (currentUser?.name || '').toLowerCase().trim();
-
-  const isAdmin = currentRole === 'admin';
-  const isManagement = isAdmin || currentRole === 'management' || currentRole === 'gerencia';
-  const isPurchasing = isAdmin || currentRole === 'purchasing' || currentRole === 'compras';
-
-  // Verificar si el usuario conectado es el aprobador asignado en la solicitud seleccionada
+  // Verificar si el usuario conectado puede firmar como Director en la solicitud seleccionada
   const isDesignatedApprover = selectedRequest
     ? (Boolean(selectedRequest.approver_name) &&
         Boolean(currentUserName) &&
@@ -247,9 +296,9 @@ export default function PurchasingDashboardPage() {
       (Boolean(selectedRequest.approver_user_id) && selectedRequest.approver_user_id === currentUserId)
     : false;
 
-  const canSignDirector = isAdmin || isManagement || isDesignatedApprover;
+  const canSignDirector = isAdmin || isManagement || isDesignatedApprover || userRole.includes('director');
 
-  // Filtrado de requerimientos
+  // Filtrado general de requerimientos
   const filteredRequests = useMemo(() => {
     if (!dashboard?.requests) return [];
     return dashboard.requests.filter((r) => {
@@ -271,7 +320,73 @@ export default function PurchasingDashboardPage() {
     });
   }, [dashboard?.requests, search, filterStatus, filterProject]);
 
-  // Filtrado de órdenes
+  // Bandeja 3: Pendientes VB Técnico (Directores de Proyecto)
+  const pendingApprovals = useMemo(() => {
+    if (!dashboard?.requests) return [];
+    return dashboard.requests.filter((r) => {
+      const isPendingVB = !r.signatures?.director && r.status === 'pending';
+      const matchSearch =
+        search === '' ||
+        (r.request_code || '').toLowerCase().includes(search.toLowerCase()) ||
+        r.title.toLowerCase().includes(search.toLowerCase()) ||
+        (r.projects?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (r.applicant_name || '').toLowerCase().includes(search.toLowerCase());
+      const matchProject =
+        filterProject === 'all' ||
+        r.project_id === filterProject ||
+        r.projects?.id === filterProject;
+
+      return isPendingVB && matchSearch && matchProject;
+    });
+  }, [dashboard?.requests, search, filterProject]);
+
+  // Bandeja 4: En Cotización (Área de Compras)
+  const inQuotationRequests = useMemo(() => {
+    if (!dashboard?.requests) return [];
+    return dashboard.requests.filter((r) => {
+      const isInQuote =
+        Boolean(r.signatures?.director) &&
+        !r.signatures?.purchasing &&
+        r.status !== 'rejected';
+      const matchSearch =
+        search === '' ||
+        (r.request_code || '').toLowerCase().includes(search.toLowerCase()) ||
+        r.title.toLowerCase().includes(search.toLowerCase()) ||
+        (r.projects?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (r.applicant_name || '').toLowerCase().includes(search.toLowerCase());
+      const matchProject =
+        filterProject === 'all' ||
+        r.project_id === filterProject ||
+        r.projects?.id === filterProject;
+
+      return isInQuote && matchSearch && matchProject;
+    });
+  }, [dashboard?.requests, search, filterProject]);
+
+  // Bandeja 5: Aprobación GG (Gerencia General)
+  const managementPendingRequests = useMemo(() => {
+    if (!dashboard?.requests) return [];
+    return dashboard.requests.filter((r) => {
+      const isPendingGG =
+        Boolean(r.signatures?.purchasing) &&
+        !r.signatures?.management &&
+        r.status !== 'rejected';
+      const matchSearch =
+        search === '' ||
+        (r.request_code || '').toLowerCase().includes(search.toLowerCase()) ||
+        r.title.toLowerCase().includes(search.toLowerCase()) ||
+        (r.projects?.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (r.applicant_name || '').toLowerCase().includes(search.toLowerCase());
+      const matchProject =
+        filterProject === 'all' ||
+        r.project_id === filterProject ||
+        r.projects?.id === filterProject;
+
+      return isPendingGG && matchSearch && matchProject;
+    });
+  }, [dashboard?.requests, search, filterProject]);
+
+  // Filtrado de órdenes de compra
   const filteredOrders = useMemo(() => {
     if (!dashboard?.orders) return [];
     return dashboard.orders.filter((o) => {
@@ -292,7 +407,7 @@ export default function PurchasingDashboardPage() {
     });
   }, [dashboard?.orders, search, filterStatus, filterProject]);
 
-  // Filtrado de proveedores
+  // Filtrado de proveedores evaluados
   const filteredSuppliers = useMemo(() => {
     if (!dashboard?.evaluations) return [];
     return dashboard.evaluations.filter((ev) => {
@@ -331,7 +446,7 @@ export default function PurchasingDashboardPage() {
     }
   };
 
-  // Abrir detalle con registro silencioso de visualización ("Visto por")
+  // Abrir detalle con registro silencioso de auditoría ("Visto por")
   const handleOpenDetail = (r: PurchaseRequest) => {
     setSelectedRequest(r);
     setSigningStep(null);
@@ -340,7 +455,6 @@ export default function PurchasingDashboardPage() {
     setSignerNotes('');
     setOpenDropdownId(null);
 
-    // Registro silencioso de auditoría de visualización
     fetch('/api/tools/purchasing-dashboard/view', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -352,14 +466,25 @@ export default function PurchasingDashboardPage() {
           setSelectedRequest((prev) => (prev && prev.id === r.id ? { ...prev, viewed_by: resJson.viewed_by } : prev));
         }
       })
-      .catch((err) => console.warn('Advertencia registrando vista:', err));
+      .catch((err) => console.warn('Advertencia registrando vista silenciosa:', err));
+  };
+
+  // Acceso directo a firma desde bandejas operativas
+  const handleOpenDirectSign = (
+    r: PurchaseRequest,
+    step: 'director' | 'purchasing' | 'management',
+    action: 'approve' | 'reject'
+  ) => {
+    handleOpenDetail(r);
+    setSigningStep(step);
+    setSigningAction(action);
   };
 
   // Procesar firma electrónica y cambio de estado
   const handleSignSubmit = async () => {
     if (!selectedRequest || !signingStep) return;
     if (signingAction === 'approve' && !signerCedula.trim()) {
-      alert('Debes ingresar tu número de cédula para registrar la firma electrónica.');
+      alert('Debes ingresar tu número de cédula para estampar la firma electrónica legal.');
       return;
     }
 
@@ -382,7 +507,6 @@ export default function PurchasingDashboardPage() {
         throw new Error(resJson.error || 'Error al registrar la firma electrónica');
       }
 
-      // Actualizar request seleccionado
       setSelectedRequest((prev) => {
         if (!prev) return null;
         return {
@@ -396,6 +520,7 @@ export default function PurchasingDashboardPage() {
 
       setSigningSuccessMsg(resJson.message || 'Firma electrónica registrada con éxito.');
       setSigningStep(null);
+      queryClient.invalidateQueries({ queryKey: ['purchasing-dashboard'] });
       refetch();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error al registrar la firma');
@@ -404,7 +529,7 @@ export default function PurchasingDashboardPage() {
     }
   };
 
-  // Descargar PDF de requerimiento
+  // Descargar PDF de requerimiento FOR-COM-001
   const handleDownloadPdf = (r: PurchaseRequest) => {
     try {
       setDownloadingReqId(r.id);
@@ -428,7 +553,6 @@ export default function PurchasingDashboardPage() {
           : itemsMapped.reduce((acc, it) => acc + (Number(it.total) || 0), 0);
 
       const submissionFormatted = formatDateTimeCO(r.created_at);
-
       const existingSigs = r.signatures || {};
       const finalSignatures: PurchaseRequestPdfSignatures = {
         ...existingSigs,
@@ -472,8 +596,8 @@ export default function PurchasingDashboardPage() {
     return (
       <div className="min-h-[100dvh] bg-surface flex flex-col">
         <Navbar />
-        <div className="page-hero">
-          <div className="max-w-6xl mx-auto">
+        <section className="page-hero">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <BackButton href="/dashboard" label="Volver a Mi Panel" />
             <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
               <ShoppingBag className="w-7 h-7 text-accent" strokeWidth={1.75} />
@@ -483,10 +607,10 @@ export default function PurchasingDashboardPage() {
               Monitoreo centralizado de requerimientos, órdenes emitidas y evaluación de proveedores
             </p>
           </div>
-        </div>
+        </section>
 
         <main className="flex-1 max-w-xl mx-auto px-4 py-16 text-center w-full">
-          <div className="bg-card border border-border rounded-xl p-8 shadow-card">
+          <div className="bg-white border border-border rounded-xl p-8 shadow-card">
             <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-8 h-8" />
             </div>
@@ -502,150 +626,147 @@ export default function PurchasingDashboardPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-surface">
+    <div className="min-h-[100dvh] bg-surface flex flex-col">
       <Navbar />
 
-      {/* Hero Canónico Sobrio PROCIMEC */}
-      <div className="page-hero">
-        <div className="max-w-6xl mx-auto">
-          <BackButton href="/dashboard" label="Volver a Mi Panel" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
-            <ShoppingBag className="w-7 h-7 text-accent" strokeWidth={1.75} />
-            Gestión y Control de Compras
-          </h1>
-          <p className="text-white/70 text-sm mt-1">
-            Monitoreo centralizado de requerimientos, órdenes emitidas y evaluación de proveedores
-          </p>
+      {/* Hero Institucional Oscuro Carbón (Estándar PCM CLOUD) */}
+      <section className="page-hero">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="mb-3">
+            <BackButton href="/dashboard" label="Volver a Mi Panel" />
+          </div>
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-accent/20 text-accent font-mono">
+                  PCM CLOUD &bull; HERRAMIENTA TÉCNICA
+                </span>
+                <span className="text-white/60 text-xs">Gestión & Control de Compras</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-3">
+                <ShoppingBag className="w-8 h-8 text-accent shrink-0" strokeWidth={1.75} />
+                Gestión y Control de Compras
+              </h1>
+              <p className="text-white/70 text-xs sm:text-sm mt-1 max-w-2xl">
+                Trazabilidad articulada de Requerimientos, Aprobaciones Técnicas, Cotizaciones, Aprobación GG, Órdenes de Compra y Evaluación de Proveedores.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ['purchasing-dashboard'] });
+                  refetch();
+                }}
+                className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 border border-white/15 transition-all shadow-xs"
+                title="Recargar datos del servidor"
+              >
+                <RotateCw className={`w-3.5 h-3.5 text-accent ${isFetching ? 'animate-spin' : ''}`} />
+                <span>Actualizar</span>
+              </button>
+
+              <Link
+                href="/forms/requerimiento-compra"
+                className="px-4 py-2.5 rounded-xl bg-accent text-primary-900 font-extrabold text-xs flex items-center gap-2 hover:brightness-105 active:scale-[0.98] transition-all shadow-md"
+              >
+                <Plus className="w-4 h-4 text-primary-900" strokeWidth={2.5} />
+                Nuevo Requerimiento
+              </Link>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="max-w-6xl mx-auto px-4 -mt-6 pb-20 space-y-6">
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="card p-4 sm:p-5 border border-border">
-            <div className="flex items-center justify-between text-text-muted mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Requerimientos Pendientes</span>
-              <Clock className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
+      {/* Contenedor Principal en Superficie Clara */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full flex-1">
+        {/* Resumen Ejecutivo KPI (5 Tarjetas Adaptadas) */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Inversión Comprometida</span>
+              <DollarSign className="w-4 h-4 text-emerald-600" strokeWidth={1.75} />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-text-primary font-mono">
-              {dashboard?.stats.pendingRequests ?? 0}
-            </p>
-            <p className="text-xs text-text-muted mt-1">En espera o en cotización</p>
-          </div>
-
-          <div className="card p-4 sm:p-5 border border-border">
-            <div className="flex items-center justify-between text-text-muted mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Órdenes en Tránsito</span>
-              <Package className="w-4 h-4 text-blue-500" strokeWidth={1.75} />
-            </div>
-            <p className="text-2xl sm:text-3xl font-bold text-text-primary font-mono">
-              {dashboard?.stats.activeOrders ?? 0}
-            </p>
-            <p className="text-xs text-text-muted mt-1">Emitidas o recibidas parcial</p>
-          </div>
-
-          <div className="card p-4 sm:p-5 border border-border">
-            <div className="flex items-center justify-between text-text-muted mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Inversión Comprometida</span>
-              <DollarSign className="w-4 h-4 text-emerald-500" strokeWidth={1.75} />
-            </div>
-            <p className="text-xl sm:text-2xl font-bold text-text-primary font-mono truncate">
+            <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono truncate">
               {formatCOP(dashboard?.stats.totalCommittedCOP ?? 0)}
             </p>
-            <p className="text-xs text-text-muted mt-1">Acumulado en órdenes de compra</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Acumulado en órdenes de compra</p>
           </div>
 
-          <div className="card p-4 sm:p-5 border border-border">
-            <div className="flex items-center justify-between text-text-muted mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Proveedores Evaluados</span>
-              <Star className="w-4 h-4 text-purple-500" strokeWidth={1.75} />
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Requerimientos</span>
+              <FileText className="w-4 h-4 text-blue-600" strokeWidth={1.75} />
             </div>
-            <p className="text-2xl sm:text-3xl font-bold text-text-primary font-mono">
-              {dashboard?.stats.evaluatedSuppliers ?? 0}
+            <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono">
+              {dashboard?.requests?.length ?? 0}
             </p>
-            <p className="text-xs text-text-muted mt-1">Calificaciones registradas</p>
+            <p className="text-[11px] text-text-muted mt-0.5">Solicitudes registradas</p>
+          </div>
+
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Pendientes VB</span>
+              <ShieldCheck className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
+            </div>
+            <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono">
+              {pendingApprovals.length}
+            </p>
+            <p className="text-[11px] text-text-muted mt-0.5">En revisión de directores</p>
+          </div>
+
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Cotización / GG</span>
+              <ShoppingBag className="w-4 h-4 text-purple-600" strokeWidth={1.75} />
+            </div>
+            <p className="text-lg sm:text-xl font-extrabold text-text-primary font-mono">
+              {inQuotationRequests.length + managementPendingRequests.length}
+            </p>
+            <p className="text-[11px] text-text-muted mt-0.5">En compras o gerencia</p>
+          </div>
+
+          <div className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl col-span-2 lg:col-span-1">
+            <div className="flex items-center justify-between text-text-secondary mb-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider">Órdenes / Calidad</span>
+              <Star className="w-4 h-4 text-amber-500" strokeWidth={1.75} />
+            </div>
+            <p className="text-lg sm:text-xl font-extrabold text-emerald-700 font-mono truncate">
+              {dashboard?.orders?.length ?? 0} OC / {dashboard?.evaluations?.length ?? 0} Prov.
+            </p>
+            <p className="text-[11px] text-text-muted mt-0.5">Calificaciones registradas</p>
           </div>
         </div>
 
-        {/* Tab Selector */}
-        <div className="flex items-center gap-2 border-b border-border pb-2 overflow-x-auto">
-          <button
-            type="button"
-            onClick={() => { setActiveTab('requests'); setFilterStatus('all'); }}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'requests'
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-text-secondary hover:text-text-primary hover:bg-gray-100'
-            }`}
-          >
-            <FileText className="w-4 h-4" strokeWidth={1.75} />
-            Requerimientos
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
-              {dashboard?.requests.length ?? 0}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveTab('orders'); setFilterStatus('all'); }}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'orders'
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-text-secondary hover:text-text-primary hover:bg-gray-100'
-            }`}
-          >
-            <Package className="w-4 h-4" strokeWidth={1.75} />
-            Órdenes de Compra
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
-              {dashboard?.orders.length ?? 0}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setActiveTab('suppliers'); setFilterStatus('all'); }}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'suppliers'
-                ? 'bg-primary text-white shadow-sm'
-                : 'text-text-secondary hover:text-text-primary hover:bg-gray-100'
-            }`}
-          >
-            <Star className="w-4 h-4" strokeWidth={1.75} />
-            Evaluación de Proveedores
-            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
-              {dashboard?.evaluations.length ?? 0}
-            </span>
-          </button>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="card p-3 sm:p-4 border border-border flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" strokeWidth={1.75} />
+        {/* Barra de Filtros y Búsqueda */}
+        <div className="card p-3.5 bg-white border border-border shadow-card rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 mb-5">
+          <div className="relative w-full sm:w-80">
+            <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
             <input
               type="text"
-              placeholder={
-                activeTab === 'requests'
-                  ? 'Buscar por código REQ, título, solicitante o proyecto...'
-                  : activeTab === 'orders'
-                  ? 'Buscar por código, proveedor, NIT...'
-                  : 'Buscar por nombre de proveedor...'
-              }
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-accent bg-surface"
+              placeholder={
+                activeTab === 'orders'
+                  ? 'Buscar por código OC, proveedor, NIT...'
+                  : activeTab === 'evaluations'
+                  ? 'Buscar por proveedor o comentarios...'
+                  : 'Buscar por código REQ, título, solicitante o proyecto...'
+              }
+              className="input w-full pl-9 py-2 text-xs bg-white text-text-primary border-border focus:ring-accent"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             {/* Filtro por Proyecto Asignado */}
-            {dashboard?.projects && dashboard.projects.length > 0 && activeTab !== 'suppliers' && (
-              <div className="flex items-center gap-1.5">
+            {dashboard?.projects && dashboard.projects.length > 0 && activeTab !== 'evaluations' && (
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
                 <Building2 className="w-4 h-4 text-text-muted" strokeWidth={1.75} />
                 <select
                   value={filterProject}
                   onChange={(e) => setFilterProject(e.target.value)}
-                  className="text-xs sm:text-sm py-1.5 px-2.5 rounded-lg border border-border bg-surface text-text-primary focus:outline-none focus:ring-1 focus:ring-accent max-w-[210px] truncate"
+                  className="input py-1.5 text-xs bg-white text-text-primary border-border focus:ring-accent max-w-[210px] truncate"
                 >
                   <option value="all">Todos los proyectos ({dashboard.projects.length})</option>
                   {dashboard.projects.map((p) => (
@@ -657,14 +778,14 @@ export default function PurchasingDashboardPage() {
               </div>
             )}
 
-            {/* Filtro por Estado */}
-            {activeTab !== 'suppliers' && (
-              <div className="flex items-center gap-1.5">
+            {/* Filtro por Estado (en pestañas de Requerimientos y Órdenes) */}
+            {(activeTab === 'requests' || activeTab === 'orders') && (
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
                 <Filter className="w-4 h-4 text-text-muted" strokeWidth={1.75} />
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="text-xs sm:text-sm py-1.5 px-2.5 rounded-lg border border-border bg-surface text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                  className="input py-1.5 text-xs bg-white text-text-primary border-border focus:ring-accent"
                 >
                   <option value="all">Todos los estados</option>
                   {activeTab === 'requests' ? (
@@ -690,9 +811,333 @@ export default function PurchasingDashboardPage() {
           </div>
         </div>
 
-        {/* Tab 1: Requests */}
+        {/* Navegador de Pestañas con Estándar PCM CLOUD y RBAC Estricto */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab('timeline')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'timeline'
+                ? 'bg-accent text-primary-900 shadow-sm'
+                : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
+            }`}
+          >
+            <Layers className="w-4 h-4" strokeWidth={1.75} />
+            1. Cadena de Trazabilidad
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setActiveTab('requests'); setFilterStatus('all'); }}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'requests'
+                ? 'bg-accent text-primary-900 shadow-sm'
+                : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
+            }`}
+          >
+            <FileText className="w-4 h-4" strokeWidth={1.75} />
+            2. Requerimientos ({dashboard?.requests?.length ?? 0})
+          </button>
+
+          {canViewApprovals && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('approvals')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'approvals'
+                  ? 'bg-accent text-primary-900 shadow-sm'
+                  : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />
+              3. VB Técnico ({pendingApprovals.length})
+            </button>
+          )}
+
+          {canViewQuotations && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('quotations')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'quotations'
+                  ? 'bg-accent text-primary-900 shadow-sm'
+                  : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
+              }`}
+            >
+              <ShoppingBag className="w-4 h-4" strokeWidth={1.75} />
+              4. En Cotización ({inQuotationRequests.length})
+            </button>
+          )}
+
+          {canViewManagementApproval && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('management_approval')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'management_approval'
+                  ? 'bg-accent text-primary-900 shadow-sm'
+                  : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4" strokeWidth={1.75} />
+              5. Aprobación GG ({managementPendingRequests.length})
+            </button>
+          )}
+
+          {canViewOrders && (
+            <button
+              type="button"
+              onClick={() => { setActiveTab('orders'); setFilterStatus('all'); }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'orders'
+                  ? 'bg-accent text-primary-900 shadow-sm'
+                  : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
+              }`}
+            >
+              <Package className="w-4 h-4" strokeWidth={1.75} />
+              6. Órdenes de Compra ({dashboard?.orders?.length ?? 0})
+            </button>
+          )}
+
+          {canViewEvaluations && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('evaluations')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === 'evaluations'
+                  ? 'bg-accent text-primary-900 shadow-sm'
+                  : 'bg-white border border-border text-text-secondary hover:text-text-primary hover:bg-slate-50'
+              }`}
+            >
+              <Star className="w-4 h-4" strokeWidth={1.75} />
+              7. Evaluación Proveedores ({dashboard?.evaluations?.length ?? 0})
+            </button>
+          )}
+        </div>
+
+        {/* ────────────────────────────────────────────────────────────────────
+            PESTAÑA 1: CADENA DE TRAZABILIDAD ARTICULADA (TIMELINE VISUAL)
+           ──────────────────────────────────────────────────────────────────── */}
+        {activeTab === 'timeline' && (
+          <div className="space-y-4">
+            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl">
+              <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1">
+                Mapa de Flujo de Compras y Articulación Integral
+              </h2>
+              <p className="text-xs text-text-secondary">
+                Visualización de expedientes conectados: Requerimiento &rarr; VB Técnico &rarr; Cotización Compras &rarr; Aprobación GG &rarr; Orden de Compra &rarr; Evaluación de Proveedor.
+              </p>
+            </div>
+
+            {isLoading ? (
+              <div className="card p-8 bg-white border border-border text-center text-text-muted text-sm">
+                Cargando mapa de trazabilidad...
+              </div>
+            ) : filteredRequests.length === 0 ? (
+              <div className="card p-8 bg-white border border-border text-center text-text-muted text-sm">
+                No se encontraron expedientes de compras registrados para los filtros seleccionados.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredRequests.map((r) => {
+                  const linkedOrder = dashboard?.orders?.find((o) => o.purchase_request_id === r.id);
+                  const linkedEval = linkedOrder
+                    ? dashboard?.evaluations?.find(
+                        (e) =>
+                          e.purchase_order_id === linkedOrder.id ||
+                          e.supplier_name.toLowerCase().trim() === linkedOrder.supplier_name.toLowerCase().trim()
+                      )
+                    : undefined;
+
+                  const sigDirector = r.signatures?.director;
+                  const sigPurchasing = r.signatures?.purchasing;
+                  const sigManagement = r.signatures?.management;
+
+                  return (
+                    <div
+                      key={r.id}
+                      className="card p-4 sm:p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/50 transition-all"
+                    >
+                      {/* Cabecera del Expediente */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-bold text-amber-700">
+                            {r.request_code || 'REQ-0001'}
+                          </span>
+                          <span className="text-text-muted text-xs">&bull;</span>
+                          <strong className="text-text-primary text-sm font-semibold truncate max-w-md">
+                            {r.projects?.name || r.cost_center || 'Operación'} — {r.title}
+                          </strong>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-text-primary text-sm">
+                            {formatCOP(r.total_amount || 0)}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadPdf(r)}
+                            disabled={downloadingReqId === r.id}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-text-secondary"
+                            title="Descargar PDF Oficial FOR-COM-001"
+                          >
+                            <Download className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDetail(r)}
+                            className="px-2.5 py-1 rounded-lg bg-accent/15 hover:bg-accent/25 text-primary-900 font-bold text-xs flex items-center gap-1 border border-accent/30 transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Ver Expediente</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Cadena de Nodos Visual de 6 Pasos Conectados */}
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        {/* 1. Nodo Requerimiento */}
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-900 font-semibold">
+                          <FileText className="w-3.5 h-3.5 text-blue-600" strokeWidth={1.75} />
+                          <span className="text-[11px] font-mono">{r.request_code || 'REQ'}</span>
+                          <span className="text-[10px] text-blue-700 bg-blue-100 px-1 rounded">Firmado</span>
+                        </div>
+
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
+
+                        {/* 2. Nodo VB Técnico */}
+                        <div
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
+                            sigDirector
+                              ? sigDirector.rejected
+                                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : 'bg-amber-50 border-amber-300 text-amber-900'
+                          }`}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                          <span className="text-[11px]">
+                            {sigDirector
+                              ? sigDirector.rejected
+                                ? 'VB Rechazado'
+                                : 'VB Aprobado'
+                              : 'Pendiente VB'}
+                          </span>
+                        </div>
+
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
+
+                        {/* 3. Nodo Cotización (Compras) */}
+                        <div
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
+                            sigPurchasing
+                              ? sigPurchasing.rejected
+                                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : sigDirector
+                              ? 'bg-blue-50 border-blue-300 text-blue-900'
+                              : 'bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          <ShoppingBag className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                          <span className="text-[11px]">
+                            {sigPurchasing
+                              ? sigPurchasing.rejected
+                                ? 'Cotiz. Rechazada'
+                                : 'Cotizado'
+                              : sigDirector
+                              ? 'En Cotización'
+                              : 'En espera'}
+                          </span>
+                        </div>
+
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
+
+                        {/* 4. Nodo Aprobación GG */}
+                        <div
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
+                            sigManagement || r.status === 'approved'
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : r.status === 'rejected'
+                              ? 'bg-rose-50 border-rose-200 text-rose-800'
+                              : sigPurchasing
+                              ? 'bg-amber-50 border-amber-300 text-amber-900'
+                              : 'bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                          <span className="text-[11px]">
+                            {sigManagement || r.status === 'approved'
+                              ? 'Aprobada GG'
+                              : r.status === 'rejected'
+                              ? 'Rechazada GG'
+                              : sigPurchasing
+                              ? 'Pendiente GG'
+                              : 'En espera'}
+                          </span>
+                        </div>
+
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
+
+                        {/* 5. Nodo Orden de Compra (OC) */}
+                        <div
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
+                            linkedOrder
+                              ? linkedOrder.status === 'completed'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                : 'bg-blue-50 border-blue-200 text-blue-800'
+                              : r.status === 'approved'
+                              ? 'bg-amber-50 border-amber-300 text-amber-900'
+                              : 'bg-slate-100 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          <Package className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                          <span className="text-[11px] font-mono">
+                            {linkedOrder
+                              ? linkedOrder.order_code
+                              : r.status === 'approved'
+                              ? 'Pendiente OC'
+                              : 'Sin Emitir'}
+                          </span>
+                        </div>
+
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 shrink-0" strokeWidth={1.75} />
+
+                        {/* 6. Nodo Evaluación de Proveedor */}
+                        <div
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold ${
+                            linkedEval
+                              ? 'bg-amber-50 border-amber-300 text-amber-900'
+                              : linkedOrder
+                              ? 'bg-slate-100 border-slate-200 text-slate-700'
+                              : 'bg-slate-100 border-slate-200 text-slate-500'
+                          }`}
+                        >
+                          <Star className="w-3.5 h-3.5 shrink-0 text-amber-500 fill-amber-500" strokeWidth={1.75} />
+                          <span className="text-[11px]">
+                            {linkedEval
+                              ? `${Number(linkedEval.overall_rating).toFixed(1)} ★ (${linkedEval.supplier_name.slice(0, 10)})`
+                              : linkedOrder
+                              ? 'Pendiente Eval.'
+                              : 'Sin Evaluación'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ────────────────────────────────────────────────────────────────────
+            PESTAÑA 2: CATÁLOGO Y HISTÓRICO DE REQUERIMIENTOS
+           ──────────────────────────────────────────────────────────────────── */}
         {activeTab === 'requests' && (
-          <div className="card border border-border overflow-hidden">
+          <div className="card border border-border bg-white rounded-xl shadow-card overflow-hidden">
             {isLoading ? (
               <div className="p-8 text-center text-text-muted text-sm">Cargando requerimientos...</div>
             ) : filteredRequests.length === 0 ? (
@@ -806,9 +1251,286 @@ export default function PurchasingDashboardPage() {
           </div>
         )}
 
-        {/* Tab 2: Orders */}
-        {activeTab === 'orders' && (
-          <div className="card border border-border overflow-hidden">
+        {/* ────────────────────────────────────────────────────────────────────
+            PESTAÑA 3: BANDEJA DE VB TÉCNICO (DIRECTORES DE PROYECTO)
+           ──────────────────────────────────────────────────────────────────── */}
+        {activeTab === 'approvals' && canViewApprovals && (
+          <div className="space-y-4">
+            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-accent" />
+                  Bandeja de Visto Bueno Técnico de Directores
+                </h2>
+                <p className="text-xs text-text-secondary">
+                  Solicitudes radicadas pendientes de revisión técnica inicial para autorización hacia el área de compras.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold rounded-lg self-start sm:self-auto font-mono">
+                {pendingApprovals.length} Pendientes
+              </span>
+            </div>
+
+            {pendingApprovals.length === 0 ? (
+              <div className="card p-12 bg-white border border-border text-center rounded-2xl shadow-card">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-text-primary">¡Bandeja al día!</h3>
+                <p className="text-xs text-text-secondary mt-1">
+                  No hay requerimientos pendientes de visto bueno técnico en tus proyectos asignados.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingApprovals.map((r) => (
+                  <div
+                    key={r.id}
+                    className="card p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/40 transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-border">
+                        <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-200">
+                          {r.request_code || 'REQ'}
+                        </span>
+                        <span className="text-xs font-bold font-mono text-text-primary">
+                          {formatCOP(r.total_amount || 0)}
+                        </span>
+                      </div>
+
+                      <h3 className="font-bold text-text-primary text-sm mb-1">{r.title}</h3>
+                      <p className="text-xs text-text-secondary mb-3">
+                        <strong className="text-text-primary">Proyecto:</strong> {r.projects?.name || r.cost_center || 'General'} &bull;{' '}
+                        <strong className="text-text-primary">Solicita:</strong> {r.applicant_name || 'Ingeniero de Campo'}
+                      </p>
+
+                      {r.justification && (
+                        <div className="p-3 bg-slate-50 border border-border rounded-lg text-xs text-text-secondary line-clamp-3 mb-4">
+                          {r.justification}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetail(r)}
+                        className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold"
+                      >
+                        Ver Ítems ({r.items?.length || 0})
+                      </button>
+
+                      {canSignDirector && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDirectSign(r, 'director', 'reject')}
+                            className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-semibold text-xs"
+                          >
+                            Rechazar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDirectSign(r, 'director', 'approve')}
+                            className="px-3.5 py-1.5 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs flex items-center gap-1.5 shadow-sm"
+                          >
+                            <PenTool className="w-3.5 h-3.5 text-primary-900" />
+                            Aprobar y Firmar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ────────────────────────────────────────────────────────────────────
+            PESTAÑA 4: BANDEJA DE COTIZACIÓN (ÁREA DE COMPRAS)
+           ──────────────────────────────────────────────────────────────────── */}
+        {activeTab === 'quotations' && canViewQuotations && (
+          <div className="space-y-4">
+            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1 flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-accent" />
+                  Bandeja de Gestión de Cotizaciones (Área de Compras)
+                </h2>
+                <p className="text-xs text-text-secondary">
+                  Requerimientos con visto bueno técnico aprobados, listos para cotización con proveedores e ingreso de valores finales.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-blue-50 text-blue-900 border border-blue-200 text-xs font-bold rounded-lg self-start sm:self-auto font-mono">
+                {inQuotationRequests.length} en Cotización
+              </span>
+            </div>
+
+            {inQuotationRequests.length === 0 ? (
+              <div className="card p-12 bg-white border border-border text-center rounded-2xl shadow-card">
+                <CheckCircle2 className="w-12 h-12 text-blue-500 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-text-primary">Sin cotizaciones pendientes</h3>
+                <p className="text-xs text-text-secondary mt-1">
+                  Todas las solicitudes cuentan con cotización registrada o están a la espera de aprobación técnica.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {inQuotationRequests.map((r) => (
+                  <div
+                    key={r.id}
+                    className="card p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/40 transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-border">
+                        <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200">
+                          {r.request_code || 'REQ'}
+                        </span>
+                        <span className="text-xs font-bold font-mono text-text-primary">
+                          {formatCOP(r.total_amount || 0)}
+                        </span>
+                      </div>
+
+                      <h3 className="font-bold text-text-primary text-sm mb-1">{r.title}</h3>
+                      <p className="text-xs text-text-secondary mb-2">
+                        <strong className="text-text-primary">Proyecto:</strong> {r.projects?.name || r.cost_center || 'General'} &bull;{' '}
+                        <strong className="text-text-primary">Aprobó VB:</strong> {r.signatures?.director?.name || r.approver_name || 'Director'}
+                      </p>
+
+                      <div className="p-3 bg-slate-50 border border-border rounded-lg text-xs space-y-1 mb-4">
+                        <p className="font-semibold text-text-primary">Insumos y Proveedores sugeridos:</p>
+                        <p className="text-text-secondary truncate">
+                          {(r.items || []).map((it) => `${it.description || it.item} (${it.quantity} ${it.unit})`).join(' · ') || 'Sin ítems'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetail(r)}
+                        className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold"
+                      >
+                        Ver Detalle & Ítems
+                      </button>
+
+                      {isPurchasing && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDirectSign(r, 'purchasing', 'approve')}
+                          className="px-3.5 py-1.5 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs flex items-center gap-1.5 shadow-sm"
+                        >
+                          <PenTool className="w-3.5 h-3.5 text-primary-900" />
+                          Firmar Cotización de Compras
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ────────────────────────────────────────────────────────────────────
+            PESTAÑA 5: BANDEJA DE APROBACIÓN GG (GERENCIA GENERAL)
+           ──────────────────────────────────────────────────────────────────── */}
+        {activeTab === 'management_approval' && canViewManagementApproval && (
+          <div className="space-y-4">
+            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  Bandeja de Aprobación Final y Desembolso (Gerencia General)
+                </h2>
+                <p className="text-xs text-text-secondary">
+                  Requerimientos cotizados formalmente por compras en espera de autorización legal y financiera de la alta gerencia.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-purple-50 text-purple-900 border border-purple-200 text-xs font-bold rounded-lg self-start sm:self-auto font-mono">
+                {managementPendingRequests.length} Por Autorizar
+              </span>
+            </div>
+
+            {managementPendingRequests.length === 0 ? (
+              <div className="card p-12 bg-white border border-border text-center rounded-2xl shadow-card">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-text-primary">Sin compras pendientes de gerencia</h3>
+                <p className="text-xs text-text-secondary mt-1">
+                  Todas las compras cotizadas han sido aprobadas formalmente o se encuentran en etapas previas.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {managementPendingRequests.map((r) => (
+                  <div
+                    key={r.id}
+                    className="card p-5 bg-white border border-border shadow-card rounded-xl hover:border-accent/40 transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-border">
+                        <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-purple-50 text-purple-900 border border-purple-200">
+                          {r.request_code || 'REQ'}
+                        </span>
+                        <span className="text-sm font-extrabold font-mono text-emerald-700">
+                          {formatCOP(r.total_amount || 0)}
+                        </span>
+                      </div>
+
+                      <h3 className="font-bold text-text-primary text-sm mb-1">{r.title}</h3>
+                      <p className="text-xs text-text-secondary mb-2">
+                        <strong className="text-text-primary">Proyecto:</strong> {r.projects?.name || r.cost_center || 'General'} &bull;{' '}
+                        <strong className="text-text-primary">Cotizó:</strong> {r.signatures?.purchasing?.name || 'Compras'}
+                      </p>
+
+                      <div className="p-3 bg-slate-50 border border-border rounded-lg text-xs space-y-1 mb-4">
+                        <p className="font-semibold text-text-primary">Desglose de Cotización:</p>
+                        <p className="text-text-secondary text-[11px] truncate">
+                          {(r.items || []).length} ítems &bull; Sitio de Entrega: {r.delivery_site || 'Obra'} &bull; Tel: {r.contact_phone || '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetail(r)}
+                        className="px-3 py-1.5 rounded-lg border border-border text-xs text-text-primary hover:bg-slate-50 font-semibold"
+                      >
+                        Ver Expediente
+                      </button>
+
+                      {isManagement && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDirectSign(r, 'management', 'reject')}
+                            className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 font-semibold text-xs"
+                          >
+                            Rechazar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDirectSign(r, 'management', 'approve')}
+                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 active:scale-[0.98] transition-all text-xs flex items-center gap-1.5 shadow-sm"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            Aprobar Compra Final (GG)
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ────────────────────────────────────────────────────────────────────
+            PESTAÑA 6: ÓRDENES DE COMPRA (OC)
+           ──────────────────────────────────────────────────────────────────── */}
+        {activeTab === 'orders' && canViewOrders && (
+          <div className="card border border-border bg-white rounded-xl shadow-card overflow-hidden">
             {isLoading ? (
               <div className="p-8 text-center text-text-muted text-sm">Cargando órdenes de compra...</div>
             ) : filteredOrders.length === 0 ? (
@@ -862,9 +1584,9 @@ export default function PurchasingDashboardPage() {
                             <button
                               type="button"
                               onClick={() => setSelectedOrder(o)}
-                              className="text-xs text-primary font-semibold hover:underline"
+                              className="btn bg-white hover:bg-gray-50 border border-border text-xs px-2.5 py-1.5 rounded-lg text-text-primary shadow-xs font-semibold"
                             >
-                              Ver detalle →
+                              Ver Orden
                             </button>
                           </td>
                         </tr>
@@ -877,24 +1599,43 @@ export default function PurchasingDashboardPage() {
           </div>
         )}
 
-        {/* Tab 3: Suppliers */}
-        {activeTab === 'suppliers' && (
+        {/* ────────────────────────────────────────────────────────────────────
+            PESTAÑA 7: EVALUACIÓN DE PROVEEDORES (ISO 9001 / SIG)
+           ──────────────────────────────────────────────────────────────────── */}
+        {activeTab === 'evaluations' && canViewEvaluations && (
           <div className="space-y-4">
-            {isLoading ? (
-              <div className="card p-8 border border-border text-center text-text-muted text-sm">Cargando evaluaciones...</div>
-            ) : filteredSuppliers.length === 0 ? (
-              <div className="card p-8 border border-border text-center text-text-muted text-sm">
-                No se encontraron proveedores evaluados.
+            <div className="card p-5 bg-white border border-border shadow-card rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  Gobernanza de Calidad y Evaluación de Proveedores
+                </h2>
+                <p className="text-xs text-text-secondary">
+                  Histórico de desempeño técnico, cumplimiento de tiempos y nivel de servicio de aliados estratégicos según norma ISO 9001.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold rounded-lg self-start sm:self-auto font-mono">
+                {filteredSuppliers.length} Evaluados
+              </span>
+            </div>
+
+            {filteredSuppliers.length === 0 ? (
+              <div className="card p-12 bg-white border border-border text-center rounded-2xl shadow-card">
+                <Star className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-text-primary">Sin evaluaciones registradas</h3>
+                <p className="text-xs text-text-secondary mt-1">
+                  Aún no se han completado encuestas de desempeño de proveedores en el sistema.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredSuppliers.map((ev) => (
-                  <div key={ev.id} className="card p-5 border border-border space-y-3">
+                  <div key={ev.id} className="card p-5 bg-white border border-border shadow-card rounded-xl space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h4 className="font-bold text-text-primary text-sm sm:text-base">{ev.supplier_name}</h4>
-                        <p className="text-xs text-text-muted mt-0.5">
-                          {ev.created_at ? new Date(ev.created_at).toLocaleDateString('es-CO') : 'Reciente'}
+                        <h4 className="font-bold text-text-primary text-sm">{ev.supplier_name}</h4>
+                        <p className="text-[11px] text-text-muted">
+                          Evaluado el {new Date(ev.created_at).toLocaleDateString('es-CO')}
                         </p>
                       </div>
                       <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-amber-800 text-xs font-bold font-mono">
@@ -942,9 +1683,11 @@ export default function PurchasingDashboardPage() {
             )}
           </div>
         )}
-      </div>
+      </main>
 
-      {/* Modal Detalle Requerimiento */}
+      {/* ────────────────────────────────────────────────────────────────────
+          MODAL DETALLE DE REQUERIMIENTO (FLUJO COMPLETO DE FIRMAS & AUDITORÍA)
+         ──────────────────────────────────────────────────────────────────── */}
       {selectedRequest && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-surface rounded-2xl border border-border max-w-2xl w-full p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
@@ -1323,7 +2066,7 @@ export default function PurchasingDashboardPage() {
                     </div>
                   </div>
 
-                  {/* Acordeón opcional de detalles de auditoría técnica */}
+                  {/* Acordeón de detalles de auditoría técnica */}
                   <div className="pt-0.5">
                     <button
                       type="button"
@@ -1339,7 +2082,7 @@ export default function PurchasingDashboardPage() {
                         {sigApplicant && (
                           <div className="pt-1 first:pt-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5">
                             <span className="font-semibold text-text-primary">1. Solicitante: {sigApplicant.name}</span>
-                            <span className="font-mono text-[10px]">Firma: C.C. {sigApplicant.cedula || '—'} · {sigApplicant.date_time || 'Registrado'}</span>
+                            <span className="font-mono text-[10px]">Firma: C.C. {sigApplicant.cedula || '—'} &bull; {sigApplicant.date_time || 'Registrado'}</span>
                           </div>
                         )}
                         <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
@@ -1353,7 +2096,7 @@ export default function PurchasingDashboardPage() {
                             )}
                           </div>
                           <span className="font-mono text-[10px]">
-                            {sigDirector ? `Firma: C.C. ${sigDirector.cedula || '—'} · ${sigDirector.date_time || '—'}` : 'Sin firma'}
+                            {sigDirector ? `Firma: C.C. ${sigDirector.cedula || '—'} &bull; ${sigDirector.date_time || '—'}` : 'Sin firma'}
                           </span>
                         </div>
                         <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
@@ -1367,7 +2110,7 @@ export default function PurchasingDashboardPage() {
                             )}
                           </div>
                           <span className="font-mono text-[10px]">
-                            {sigPurchasing ? `Firma: C.C. ${sigPurchasing.cedula || '—'} · ${sigPurchasing.date_time || '—'}` : 'Sin firma'}
+                            {sigPurchasing ? `Firma: C.C. ${sigPurchasing.cedula || '—'} &bull; ${sigPurchasing.date_time || '—'}` : 'Sin firma'}
                           </span>
                         </div>
                         <div className="pt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
@@ -1381,7 +2124,7 @@ export default function PurchasingDashboardPage() {
                             )}
                           </div>
                           <span className="font-mono text-[10px]">
-                            {sigManagement ? `Firma: C.C. ${sigManagement.cedula || '—'} · ${sigManagement.date_time || '—'}` : 'Sin firma'}
+                            {sigManagement ? `Firma: C.C. ${sigManagement.cedula || '—'} &bull; ${sigManagement.date_time || '—'}` : 'Sin firma'}
                           </span>
                         </div>
                       </div>
@@ -1407,7 +2150,7 @@ export default function PurchasingDashboardPage() {
                     {signingStep === 'director'
                       ? 'Dirección de Proyecto (VB Técnico)'
                       : signingStep === 'purchasing'
-                      ? 'Área de Compras (Validación Precios)'
+                      ? 'Área de Compras (Validación de Precios)'
                       : 'Gerencia General (Aprobación Final)'}
                   </p>
                   <button
@@ -1444,7 +2187,7 @@ export default function PurchasingDashboardPage() {
                     rows={2}
                     value={signerNotes}
                     onChange={(e) => setSignerNotes(e.target.value)}
-                    placeholder={signingAction === 'reject' ? 'Explica por qué se rechaza la solicitud...' : 'Notas para compras o gerencia...'}
+                    placeholder={signingAction === 'reject' ? 'Explica detalladamente por qué se rechaza la solicitud...' : 'Notas para compras o gerencia...'}
                     className="w-full text-xs rounded-lg border border-border bg-white px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
@@ -1479,7 +2222,7 @@ export default function PurchasingDashboardPage() {
               <div className="p-3 bg-surface-secondary rounded-xl border border-border flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="text-text-muted font-medium">Gestión y Firmas de Solicitud:</span>
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Opción 1: Aprobación del Proyecto (si está pendiente de VB inicial) */}
+                  {/* Opción 1: VB Técnico del Proyecto */}
                   {(!selectedRequest.signatures?.director && selectedRequest.status === 'pending') && (
                     canSignDirector ? (
                       <>
@@ -1506,7 +2249,7 @@ export default function PurchasingDashboardPage() {
                     )
                   )}
 
-                  {/* Opción 2: Cotización de Compras (si ya tiene VB de proyecto y está en cotización) */}
+                  {/* Opción 2: Cotización de Compras */}
                   {(selectedRequest.signatures?.director && !selectedRequest.signatures?.purchasing && selectedRequest.status !== 'rejected') && (
                     isPurchasing ? (
                       <button
@@ -1524,7 +2267,7 @@ export default function PurchasingDashboardPage() {
                     )
                   )}
 
-                  {/* Opción 3: Aprobación Final de Gerencia (si ya fue cotizada y está pendiente de firma final) */}
+                  {/* Opción 3: Aprobación Final de Gerencia */}
                   {(selectedRequest.signatures?.purchasing && !selectedRequest.signatures?.management && selectedRequest.status !== 'rejected') && (
                     isManagement ? (
                       <>
@@ -1586,7 +2329,9 @@ export default function PurchasingDashboardPage() {
         </div>
       )}
 
-      {/* Modal Detalle Orden de Compra */}
+      {/* ────────────────────────────────────────────────────────────────────
+          MODAL DETALLE DE ORDEN DE COMPRA
+         ──────────────────────────────────────────────────────────────────── */}
       {selectedOrder && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-surface rounded-2xl border border-border max-w-lg w-full p-6 space-y-4 shadow-xl">
