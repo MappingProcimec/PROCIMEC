@@ -159,41 +159,7 @@ export default function PresupuestoProyectoPage() {
   const [notes, setNotes] = useState<string>('');
 
   // Items Detail
-  const [items, setItems] = useState<BudgetItem[]>([
-    {
-      id: 'item-1',
-      category: 'materials',
-      description: 'Concreto MR 4.2 / 3000 PSI para losa de planta',
-      brand: 'Argos',
-      suggested_supplier: 'Concretos del Norte',
-      unit: 'M3',
-      quantity: 12,
-      unit_cost: 450000,
-      total_cost: 5400000,
-    },
-    {
-      id: 'item-2',
-      category: 'equipment',
-      description: 'Andamios multidireccionales certificados (Días)',
-      brand: 'Layher',
-      suggested_supplier: 'Alquileres Andinos',
-      unit: 'Dia',
-      quantity: 5,
-      unit_cost: 180000,
-      total_cost: 900000,
-    },
-    {
-      id: 'item-3',
-      category: 'labor',
-      description: 'Cuadrilla civil: Oficial de obra + 2 Ayudantes de planta',
-      brand: 'In-House',
-      suggested_supplier: 'PROCIMEC Operaciones',
-      unit: 'Dia',
-      quantity: 5,
-      unit_cost: 380000,
-      total_cost: 1900000,
-    },
-  ]);
+  const [items, setItems] = useState<BudgetItem[]>([]);
 
   // AIU
   const [aiuPercentage, setAiuPercentage] = useState<number>(25.0);
