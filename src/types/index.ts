@@ -319,7 +319,9 @@ export type ToolSlug =
   | 'elaboracion-cartas'
   | 'warehouse-inventory'
   | 'purchasing-dashboard'
+  | 'purchasing-suppliers'
   | 'commercial-pipeline'
+  | 'commercial-clients'
   | 'finance-expenses-board'
   | 'accounting-invoices-board';
 
@@ -770,6 +772,56 @@ export interface CommercialPipelineData {
   proposals: CommercialProposal[];
   closings: CommercialClosing[];
   projects: Project[];
+}
+
+// ─── Directorio de Clientes (Comercial) ──────────────────────────────
+export interface Client {
+  id: string;
+  company_name: string;
+  nit?: string | null;
+  contact_name?: string | null;
+  contact_role?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  client_type?: 'corporativo' | 'publico' | 'contratista' | 'particular';
+  economic_sector?: string | null;
+  payment_terms?: string | null;
+  status: 'active' | 'prospect' | 'inactive' | 'blocked';
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at?: string;
+  // Campos calculados / agregados
+  opportunities_count?: number;
+  projects_count?: number;
+  active_quotes_count?: number;
+}
+
+// ─── Directorio de Proveedores (Compras) ─────────────────────────────
+export interface Supplier {
+  id: string;
+  company_name: string;
+  nit: string;
+  contact_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  category?: string | null;
+  payment_terms?: string | null;
+  bank_name?: string | null;
+  bank_account_type?: string | null;
+  bank_account_number?: string | null;
+  notes?: string | null;
+  status: 'active' | 'inactive' | 'blocked';
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  // Campos calculados / agregados
+  purchase_orders_count?: number;
+  evaluations_count?: number;
 }
 
 

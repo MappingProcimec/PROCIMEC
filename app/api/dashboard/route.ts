@@ -176,7 +176,13 @@ export async function GET(req: NextRequest) {
         tools.push({ id: 'warehouse-inventory', slug: 'warehouse-inventory', name: 'Kárdex e Inventario Activo de Bodega', category: 'warehouse' });
       }
       if (!toolSlugs.has('forms-audit')) {
-        tools.push({ id: 'forms-audit', slug: 'forms-audit', name: 'Auditoría General de Formularios', category: 'management' });
+        tools.push({ id: 'forms-audit', slug: 'forms-audit', name: 'Auditoría General de Formularios', category: 'universal' as any });
+      }
+      if (!toolSlugs.has('commercial-clients')) {
+        tools.push({ id: 'commercial-clients', slug: 'commercial-clients', name: 'Directorio y Gestión de Clientes', category: 'commercial' });
+      }
+      if (!toolSlugs.has('purchasing-suppliers')) {
+        tools.push({ id: 'purchasing-suppliers', slug: 'purchasing-suppliers', name: 'Directorio y Gestión de Proveedores', category: 'purchasing' });
       }
 
       const formSlugs = new Set(forms.map((f) => f.slug));
@@ -250,12 +256,20 @@ export async function GET(req: NextRequest) {
         forms.push({ id: 'registro-equipo', slug: 'registro-equipo', name: 'Movimientos y Registro de Almacén' });
       }
     } else if (dbUser.role === 'purchasing') {
+      const toolSlugs = new Set(tools.map((t) => t.slug));
+      if (!toolSlugs.has('purchasing-suppliers')) {
+        tools.push({ id: 'purchasing-suppliers', slug: 'purchasing-suppliers', name: 'Directorio y Gestión de Proveedores', category: 'purchasing', is_universal: false } as any);
+      }
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('requerimiento-compra')) forms.push({ id: 'requerimiento-compra', slug: 'requerimiento-compra', name: 'Solicitud de Requerimiento' });
       if (!formSlugs.has('orden-compra')) forms.push({ id: 'orden-compra', slug: 'orden-compra', name: 'Orden de Compra y Adjudicación' });
       if (!formSlugs.has('evaluacion-proveedor')) forms.push({ id: 'evaluacion-proveedor', slug: 'evaluacion-proveedor', name: 'Evaluación y Recepción de Proveedor' });
       if (!formSlugs.has('registro-proveedor')) forms.push({ id: 'registro-proveedor', slug: 'registro-proveedor', name: 'Registro y Homologación de Proveedores' });
     } else if (dbUser.role === 'commercial') {
+      const toolSlugs = new Set(tools.map((t) => t.slug));
+      if (!toolSlugs.has('commercial-clients')) {
+        tools.push({ id: 'commercial-clients', slug: 'commercial-clients', name: 'Directorio y Gestión de Clientes', category: 'commercial', is_universal: false } as any);
+      }
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('registro-oportunidad')) forms.push({ id: 'registro-oportunidad', slug: 'registro-oportunidad', name: 'Registro de Oportunidad / Licitación' });
       if (!formSlugs.has('presupuesto-proyecto')) forms.push({ id: 'presupuesto-proyecto', slug: 'presupuesto-proyecto', name: 'Presupuesto Operativo y APU' });

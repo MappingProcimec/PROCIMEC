@@ -74,6 +74,26 @@ export async function GET() {
     });
   }
 
+  if (!slugs.has('commercial-clients')) {
+    tools.push({
+      id: 'commercial-clients-synthetic',
+      slug: 'commercial-clients',
+      name: 'Directorio y Gestión de Clientes',
+      category: 'commercial',
+      is_universal: false,
+    });
+  }
+
+  if (!slugs.has('purchasing-suppliers')) {
+    tools.push({
+      id: 'purchasing-suppliers-synthetic',
+      slug: 'purchasing-suppliers',
+      name: 'Directorio y Gestión de Proveedores',
+      category: 'purchasing',
+      is_universal: false,
+    });
+  }
+
   // Normalizar categorías canónicas
   const normalizedTools = tools.map((t) => {
     if (t.slug === 'cartas-audit') {

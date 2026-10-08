@@ -134,10 +134,20 @@ const TOOL_META: Record<string, { description: string; tag: string; path?: strin
     tag: 'Compras',
     path: '/tools/purchasing-dashboard',
   },
+  'purchasing-suppliers': {
+    description: 'Directorio maestro, homologación técnica, condiciones comerciales, cuentas bancarias e historial de órdenes de proveedores.',
+    tag: 'Compras',
+    path: '/tools/purchasing-suppliers',
+  },
   'commercial-pipeline': {
     description: 'Seguimiento integral del embudo comercial, licitaciones activas, cotizaciones emitidas a clientes y control de cierres de negocio.',
     tag: 'Comercial',
     path: '/tools/commercial-pipeline',
+  },
+  'commercial-clients': {
+    description: 'Directorio corporativo, seguimiento de cuentas, sectores económicos, condiciones comerciales y ficha técnica de clientes.',
+    tag: 'Comercial',
+    path: '/tools/commercial-clients',
   },
   'finance-expenses-board': {
     description: 'Administración y fiscalización de anticipos de viáticos, liquidación de gastos de campo y comprobantes de egreso.',
@@ -196,8 +206,10 @@ function renderToolIcon(slug: string) {
     case 'warehouse-inventory':
       return <Boxes {...props} />;
     case 'purchasing-dashboard':
+    case 'purchasing-suppliers':
       return <ShoppingBag {...props} />;
     case 'commercial-pipeline':
+    case 'commercial-clients':
       return <Briefcase {...props} />;
     case 'finance-expenses-board':
       return <Wallet {...props} />;
