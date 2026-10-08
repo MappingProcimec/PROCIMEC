@@ -38,6 +38,7 @@ export const COMMON_SYSTEM_FORMS = [
   { slug: 'requerimiento-compra', label: 'FOR-COM-001 — Requerimiento de Compras y Suministros' },
   { slug: 'orden-compra', label: 'FOR-COM-002 — Orden de Compra Oficial' },
   { slug: 'evaluacion-proveedor', label: 'FOR-COM-003 — Evaluación y Reevaluación de Proveedores' },
+  { slug: 'registro-proveedor', label: 'FOR-COM-004 — Registro y Homologación de Proveedores' },
   { slug: 'despacho-equipo', label: 'FOR-ALM-001 — Control de Salida / Despacho de Equipos' },
   { slug: 'retorno-equipo', label: 'FOR-ALM-002 — Control de Retorno / Ingreso de Equipos' },
   { slug: 'registro-equipo', label: 'FOR-ALM-003 — Registro e Inventario de Equipos' },

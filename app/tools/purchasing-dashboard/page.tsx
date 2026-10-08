@@ -147,6 +147,39 @@ interface PurchaseRequest {
   viewed_by?: RequestViewLogData[];
 }
 
+export interface OrderTrackingEvent {
+  status: string;
+  timestamp: string;
+  formatted_date?: string;
+  user_name: string;
+  note: string;
+}
+
+export interface PurchaseOrderItemDetail {
+  item_no?: number;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  total: number;
+  delivery_date?: string;
+  notes?: string;
+}
+
+export interface SupplierItem {
+  id: string;
+  company_name: string;
+  nit: string;
+  contact_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  city?: string | null;
+  category?: string | null;
+  payment_terms?: string | null;
+  notes?: string | null;
+}
+
 interface PurchaseOrder {
   id: string;
   purchase_request_id?: string | null;
@@ -156,14 +189,18 @@ interface PurchaseOrder {
   supplier_name: string;
   supplier_nit: string | null;
   supplier_contact: string | null;
+  supplier_id?: string | null;
   total_amount: number;
   currency: string;
   delivery_deadline: string | null;
+  delivery_site?: string | null;
   payment_terms: string | null;
   attachment_url: string | null;
   notes: string | null;
   status: string;
   created_at: string;
+  items_detail?: PurchaseOrderItemDetail[];
+  tracking_history?: OrderTrackingEvent[];
   projects?: { id: string; name: string; cost_center?: string; client?: string } | null;
   users?: { id: string; full_name: string; email: string } | null;
 }
@@ -217,6 +254,7 @@ interface PurchasingDashboardData {
   requests: PurchaseRequest[];
   orders: PurchaseOrder[];
   evaluations: SupplierEvaluation[];
+  suppliers?: SupplierItem[];
   projects?: ProjectOption[];
   projectBudgets?: Record<string, ProjectBudgetData>;
   currentUser?: {
@@ -238,8 +276,10 @@ const STATUS_REQ_LABELS: Record<string, { label: string; badge: string }> = {
 
 const STATUS_ORDER_LABELS: Record<string, { label: string; badge: string }> = {
   issued: { label: 'Emitida', badge: 'bg-blue-100/80 text-blue-900 border border-blue-300' },
-  partially_received: { label: 'Recibida Parcial', badge: 'bg-amber-100/80 text-amber-900 border border-amber-300' },
-  completed: { label: 'Completada', badge: 'bg-emerald-100/80 text-emerald-900 border border-emerald-300' },
+  confirmed: { label: 'Confirmada Proveedor', badge: 'bg-indigo-100/80 text-indigo-900 border border-indigo-300' },
+  in_transit: { label: 'En Despacho / Tránsito', badge: 'bg-amber-100/80 text-amber-900 border border-amber-300' },
+  partially_received: { label: 'Recibida Parcial', badge: 'bg-orange-100/80 text-orange-900 border border-orange-300' },
+  completed: { label: 'Completada / Entregada', badge: 'bg-emerald-100/80 text-emerald-900 border border-emerald-300' },
   cancelled: { label: 'Cancelada', badge: 'bg-red-100/80 text-red-900 border border-red-300' },
 };
 
@@ -290,6 +330,38 @@ export default function PurchasingDashboardPage() {
   const [quotationChangeReason, setQuotationChangeReason] = useState<string>('');
   const [isSavingQuotations, setIsSavingQuotations] = useState<boolean>(false);
   const [quotationSuccessMsg, setQuotationSuccessMsg] = useState<string | null>(null);
+
+  // Estados para proveedores y emisión de órdenes de compra
+  const [suppliersList, setSuppliersList] = useState<SupplierItem[]>([]);
+  const [showQuickSupplierModal, setShowQuickSupplierModal] = useState(false);
+  const [quickSupplierName, setQuickSupplierName] = useState('');
+  const [quickSupplierNit, setQuickSupplierNit] = useState('');
+  const [quickSupplierPhone, setQuickSupplierPhone] = useState('');
+  const [quickSupplierContact, setQuickSupplierContact] = useState('');
+  const [quickSupplierCategory, setQuickSupplierCategory] = useState('Materiales Pétreos y Áridos');
+  const [quickSupplierPayment, setQuickSupplierPayment] = useState('Contado');
+  const [isSavingQuickSupplier, setIsSavingQuickSupplier] = useState(false);
+
+  // Estados para Emisión de Órdenes de Compra en Pestaña 6
+  const [orderIssuingRequest, setOrderIssuingRequest] = useState<PurchaseRequest | null>(null);
+  const [orderForms, setOrderForms] = useState<
+    Record<
+      string,
+      {
+        order_code: string;
+        payment_terms: string;
+        delivery_deadline: string;
+        delivery_site: string;
+        notes: string;
+        isSubmitting?: boolean;
+        successMsg?: string | null;
+      }
+    >
+  >({});
+
+  // Estados para actualización de seguimiento de orden (Tracking)
+  const [trackingStatusForm, setTrackingStatusForm] = useState<Record<string, { status: string; note: string; isSubmitting?: boolean }>>({});
+  const [expandedTrackingOrderIds, setExpandedTrackingOrderIds] = useState<Record<string, boolean>>({});
 
   const { data, isLoading, isFetching, error, refetch } = useQuery<{ data: PurchasingDashboardData }>({
     queryKey: ['purchasing-dashboard'],
@@ -984,6 +1056,267 @@ export default function PurchasingDashboardPage() {
     }
   };
 
+  // Sincronización de proveedores de catálogo
+  useEffect(() => {
+    if (dashboard?.suppliers && dashboard.suppliers.length > 0) {
+      setSuppliersList(dashboard.suppliers);
+    }
+  }, [dashboard?.suppliers]);
+
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const res = await fetch('/api/suppliers');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.suppliers && json.suppliers.length > 0) {
+            setSuppliersList(json.suppliers);
+          }
+        }
+      } catch (e) {
+        console.error('Error cargando catálogo de proveedores:', e);
+      }
+    };
+    if (suppliersList.length === 0) {
+      fetchSuppliers();
+    }
+  }, [suppliersList.length]);
+
+  // Apertura de ventana flotante especializada para Emisión de Órdenes de Compra (Pestaña 6)
+  const handleOpenOrderIssuing = (r: PurchaseRequest) => {
+    setOrderIssuingRequest(r);
+
+    const groups: Record<
+      string,
+      {
+        order_code: string;
+        payment_terms: string;
+        delivery_deadline: string;
+        delivery_site: string;
+        notes: string;
+      }
+    > = {};
+
+    const currentYear = new Date().getFullYear();
+    const existingOrdersCount = (dashboard?.orders || []).length;
+    let nextNum = existingOrdersCount + 1;
+
+    (r.items || []).forEach((it) => {
+      const selectedOpt = it.quotations?.find((q) => q.is_selected) || it.quotations?.[0];
+      const supName = selectedOpt?.supplier?.trim() || it.suggested_supplier?.trim() || 'Proveedor General';
+
+      if (!groups[supName]) {
+        const supInfo = suppliersList.find(
+          (s) => s.company_name.toLowerCase().trim() === supName.toLowerCase().trim()
+        );
+        const code = `OC-${currentYear}-${String(nextNum).padStart(3, '0')}`;
+        nextNum++;
+
+        groups[supName] = {
+          order_code: code,
+          payment_terms: supInfo?.payment_terms || 'Contado',
+          delivery_deadline: selectedOpt?.delivery_date || r.delivery_date || r.required_date || '',
+          delivery_site: r.delivery_site || '',
+          notes: selectedOpt?.notes || '',
+        };
+      }
+    });
+
+    setOrderForms(groups);
+  };
+
+  // Emisión formal de orden de compra para un proveedor específico
+  const handleIssueOrderForSupplier = async (
+    req: PurchaseRequest,
+    supplierName: string,
+    itemsToInclude: PurchaseRequestItemData[],
+    totalAmount: number
+  ) => {
+    const formVals = orderForms[supplierName] || {
+      order_code: `OC-${new Date().getFullYear()}-001`,
+      payment_terms: 'Contado',
+      delivery_deadline: req.delivery_date || '',
+      delivery_site: req.delivery_site || '',
+      notes: '',
+    };
+
+    const supInfo = suppliersList.find(
+      (s) => s.company_name.toLowerCase().trim() === supplierName.toLowerCase().trim()
+    );
+
+    setOrderForms((prev) => ({
+      ...prev,
+      [supplierName]: {
+        ...(prev[supplierName] || formVals),
+        isSubmitting: true,
+      },
+    }));
+
+    try {
+      const itemsPayload = itemsToInclude.map((it, idx) => {
+        const selOpt = it.quotations?.find((q) => q.is_selected) || it.quotations?.[0];
+        const unitPrice =
+          typeof selOpt?.unit_price === 'number'
+            ? selOpt.unit_price
+            : Number(selOpt?.unit_price) || Number(it.unit_price) || 0;
+        const qty = Number(it.quantity) || 1;
+        return {
+          item_no: it.item_no || idx + 1,
+          description: it.description || '',
+          quantity: qty,
+          unit: it.unit || 'Und',
+          unit_price: unitPrice,
+          total: qty * unitPrice,
+          delivery_date: selOpt?.delivery_date || req.delivery_date || '',
+          notes: selOpt?.notes || '',
+        };
+      });
+
+      const res = await fetch('/api/tools/purchasing-dashboard/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          request_id: req.id,
+          supplier_name: supplierName,
+          supplier_nit: supInfo?.nit || null,
+          supplier_contact: supInfo?.contact_name || supInfo?.phone || null,
+          supplier_id: supInfo?.id || null,
+          items: itemsPayload,
+          total_amount: totalAmount,
+          delivery_deadline: formVals.delivery_deadline || null,
+          delivery_site: formVals.delivery_site || null,
+          payment_terms: formVals.payment_terms || 'Contado',
+          notes: formVals.notes || null,
+          order_code: formVals.order_code,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'No se pudo emitir la orden de compra.');
+      }
+
+      setOrderForms((prev) => ({
+        ...prev,
+        [supplierName]: {
+          ...(prev[supplierName] || formVals),
+          isSubmitting: false,
+          successMsg: `¡${json.order?.order_code || 'Orden'} emitida exitosamente!`,
+        },
+      }));
+
+      await queryClient.invalidateQueries({ queryKey: ['purchasing-dashboard'] });
+      await refetch();
+    } catch (err: unknown) {
+      console.error('Error emitiendo orden:', err);
+      const msg = err instanceof Error ? err.message : 'Error al emitir orden';
+      alert(`Error: ${msg}`);
+      setOrderForms((prev) => ({
+        ...prev,
+        [supplierName]: {
+          ...(prev[supplierName] || formVals),
+          isSubmitting: false,
+        },
+      }));
+    }
+  };
+
+  // Actualización de estado de entrega de una orden (Tracking)
+  const handleUpdateOrderStatus = async (orderId: string) => {
+    const form = trackingStatusForm[orderId];
+    if (!form || !form.status) return;
+
+    setTrackingStatusForm((prev) => ({
+      ...prev,
+      [orderId]: { ...form, isSubmitting: true },
+    }));
+
+    try {
+      const res = await fetch('/api/tools/purchasing-dashboard/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: orderId,
+          new_status: form.status,
+          note: form.note || undefined,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Error al actualizar estado.');
+      }
+
+      setTrackingStatusForm((prev) => ({
+        ...prev,
+        [orderId]: { status: form.status, note: '', isSubmitting: false },
+      }));
+
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder(json.order);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['purchasing-dashboard'] });
+      await refetch();
+    } catch (err: unknown) {
+      console.error('Error actualizando seguimiento:', err);
+      const msg = err instanceof Error ? err.message : 'Error';
+      alert(`Error: ${msg}`);
+      setTrackingStatusForm((prev) => ({
+        ...prev,
+        [orderId]: { ...form, isSubmitting: false },
+      }));
+    }
+  };
+
+  // Registro rápido de proveedor desde modal emergente
+  const handleSaveQuickSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickSupplierName.trim() || !quickSupplierNit.trim()) {
+      alert('Razón social y NIT son obligatorios.');
+      return;
+    }
+
+    setIsSavingQuickSupplier(true);
+    try {
+      const res = await fetch('/api/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company_name: quickSupplierName.trim(),
+          nit: quickSupplierNit.trim(),
+          phone: quickSupplierPhone.trim() || null,
+          contact_name: quickSupplierContact.trim() || null,
+          category: quickSupplierCategory,
+          payment_terms: quickSupplierPayment,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Error al guardar proveedor.');
+      }
+
+      const newSup: SupplierItem = data.supplier;
+      setSuppliersList((prev) => {
+        const filtered = prev.filter((s) => s.nit !== newSup.nit);
+        return [...filtered, newSup].sort((a, b) => a.company_name.localeCompare(b.company_name));
+      });
+
+      setShowQuickSupplierModal(false);
+      setQuickSupplierName('');
+      setQuickSupplierNit('');
+      setQuickSupplierPhone('');
+      setQuickSupplierContact('');
+    } catch (err: unknown) {
+      console.error('Error guardando proveedor rápido:', err);
+      const msg = err instanceof Error ? err.message : 'Error';
+      alert(`Error al registrar proveedor: ${msg}`);
+    } finally {
+      setIsSavingQuickSupplier(false);
+    }
+  };
+
   // Acceso directo a firma desde bandejas operativas
   const handleOpenDirectSign = (
     r: PurchaseRequest,
@@ -1339,6 +1672,16 @@ export default function PurchasingDashboardPage() {
                 </select>
               </div>
             )}
+
+            {/* Acceso a Registro de Proveedores */}
+            <Link
+              href="/forms/registro-proveedor"
+              className="btn bg-white hover:bg-slate-50 border border-border text-xs px-3 py-1.5 rounded-lg text-text-primary shadow-2xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+              title="Registrar nuevo proveedor en catálogo institucional (FOR-COM-004)"
+            >
+              <Building2 className="w-3.5 h-3.5 text-accent stroke-[2.2]" />
+              <span>+ Registrar Proveedor</span>
+            </Link>
           </div>
         </div>
 
@@ -2199,12 +2542,12 @@ export default function PurchasingDashboardPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleOpenDetail(r)}
+                              onClick={() => handleOpenOrderIssuing(r)}
                               className="px-2.5 py-1 rounded-lg bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs inline-flex items-center gap-1 shadow-xs"
-                              title="Ver Detalle"
+                              title="Gestionar y emitir Órdenes de Compra a proveedores"
                             >
-                              <Eye className="w-3.5 h-3.5" />
-                              Ver Detalle
+                              <Package className="w-3.5 h-3.5" />
+                              Emitir / Ver OC
                             </button>
                           </td>
                         </tr>
@@ -2779,14 +3122,51 @@ export default function PurchasingDashboardPage() {
                                     {/* Inputs de la opción */}
                                     <div className="space-y-2 text-xs">
                                       <div>
-                                        <label className="block text-[10px] font-semibold text-text-muted mb-0.5">Proveedor / Razón Social</label>
-                                        <input
-                                          type="text"
-                                          value={opt.supplier || ''}
-                                          onChange={(e) => handleUpdateOptionField(itemIdx, optIdx, 'supplier', e.target.value)}
-                                          placeholder="Nombre del proveedor"
-                                          className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
-                                        />
+                                        <div className="flex items-center justify-between mb-0.5">
+                                          <label className="block text-[10px] font-semibold text-text-muted">Proveedor / Razón Social</label>
+                                          <button
+                                            type="button"
+                                            onClick={() => setShowQuickSupplierModal(true)}
+                                            className="text-[9px] font-bold text-accent hover:underline inline-flex items-center gap-0.5 cursor-pointer"
+                                            title="Registrar nuevo proveedor en catálogo"
+                                          >
+                                            <Plus className="w-2.5 h-2.5" />
+                                            + Nuevo
+                                          </button>
+                                        </div>
+                                        <select
+                                          value={
+                                            suppliersList.some((s) => s.company_name.toLowerCase().trim() === (opt.supplier || '').toLowerCase().trim())
+                                              ? suppliersList.find((s) => s.company_name.toLowerCase().trim() === (opt.supplier || '').toLowerCase().trim())?.company_name
+                                              : opt.supplier || ''
+                                          }
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val === '__NEW__') {
+                                              setShowQuickSupplierModal(true);
+                                              return;
+                                            }
+                                            handleUpdateOptionField(itemIdx, optIdx, 'supplier', val);
+                                            const found = suppliersList.find((s) => s.company_name === val);
+                                            if (found && !opt.notes) {
+                                              handleUpdateOptionField(itemIdx, optIdx, 'notes', `${found.category || 'Proveedor'} - ${found.payment_terms || 'Contado'}`);
+                                            }
+                                          }}
+                                          className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent font-medium truncate"
+                                        >
+                                          <option value="">-- Seleccionar de BD Proveedores --</option>
+                                          {suppliersList.map((sup) => (
+                                            <option key={sup.id || sup.nit} value={sup.company_name}>
+                                              {sup.company_name} ({sup.nit})
+                                            </option>
+                                          ))}
+                                          {opt.supplier && !suppliersList.some((s) => s.company_name.toLowerCase().trim() === opt.supplier.toLowerCase().trim()) && (
+                                            <option value={opt.supplier}>{opt.supplier} (Registrado en Solicitud)</option>
+                                          )}
+                                          <option value="__NEW__" className="text-amber-800 font-bold bg-amber-50">
+                                            + Registrar Nuevo Proveedor...
+                                          </option>
+                                        </select>
                                       </div>
 
                                       <div className="grid grid-cols-2 gap-2">
@@ -3733,80 +4113,926 @@ export default function PurchasingDashboardPage() {
       {/* ────────────────────────────────────────────────────────────────────
           MODAL DETALLE DE ORDEN DE COMPRA
          ──────────────────────────────────────────────────────────────────── */}
-      {selectedOrder && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-surface rounded-2xl border border-border max-w-lg w-full p-6 space-y-4 shadow-xl">
-            <div className="flex items-start justify-between border-b border-border pb-3">
-              <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted font-mono">{selectedOrder.order_code}</span>
-                <h3 className="text-lg font-bold text-text-primary mt-0.5">{selectedOrder.supplier_name}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="text-text-muted hover:text-text-primary p-1 rounded-lg hover:bg-gray-100 transition-colors"
-                title="Cerrar"
-              >
-                <X className="w-5 h-5" strokeWidth={2} />
-              </button>
-            </div>
+      {/* ────────────────────────────────────────────────────────────────────
+          MODAL DETALLE Y SEGUIMIENTO DE ORDEN DE COMPRA FORMALIZADA
+         ──────────────────────────────────────────────────────────────────── */}
+      {selectedOrder && (() => {
+        const trackingForm = trackingStatusForm[selectedOrder.id] || {
+          status: selectedOrder.status || 'issued',
+          note: '',
+        };
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <p className="text-text-muted">NIT / Identificación</p>
-                <p className="font-mono font-semibold text-text-primary mt-0.5">{selectedOrder.supplier_nit || 'No registrado'}</p>
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in overflow-y-auto">
+            <div className="bg-surface rounded-2xl border border-border max-w-2xl w-full p-6 space-y-4 shadow-2xl my-auto max-h-[92vh] overflow-y-auto">
+              <div className="flex items-start justify-between border-b border-border pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted font-mono bg-slate-100 px-2 py-0.5 rounded border border-border">
+                      {selectedOrder.order_code}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      STATUS_ORDER_LABELS[selectedOrder.status]?.badge || 'bg-blue-100 text-blue-900'
+                    }`}>
+                      {STATUS_ORDER_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-text-primary mt-1">{selectedOrder.supplier_name}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrder(null)}
+                  className="text-text-muted hover:text-text-primary p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  title="Cerrar"
+                >
+                  <X className="w-5 h-5" strokeWidth={2} />
+                </button>
               </div>
-              <div>
-                <p className="text-text-muted">Contacto Proveedor</p>
-                <p className="font-semibold text-text-primary mt-0.5">{selectedOrder.supplier_contact || '—'}</p>
-              </div>
-              <div>
-                <p className="text-text-muted">Monto Total</p>
-                <p className="font-mono font-bold text-base text-primary mt-0.5">{formatCOP(Number(selectedOrder.total_amount) || 0)}</p>
-              </div>
-              <div>
-                <p className="text-text-muted">Condiciones de Pago</p>
-                <p className="font-semibold text-text-primary mt-0.5">{selectedOrder.payment_terms || 'Contado'}</p>
-              </div>
-              <div>
-                <p className="text-text-muted">Fecha Límite Entrega</p>
-                <p className="font-mono text-text-primary mt-0.5">{selectedOrder.delivery_deadline || 'Inmediata'}</p>
-              </div>
-              <div>
-                <p className="text-text-muted">Proyecto Asignado</p>
-                <p className="font-semibold text-text-primary mt-0.5">{selectedOrder.projects?.name || 'Administración'}</p>
-              </div>
-            </div>
 
-            {selectedOrder.notes && (
-              <div className="space-y-1 text-xs">
-                <p className="text-text-muted">Observaciones y Términos</p>
-                <div className="p-3 bg-gray-50 rounded-xl border border-border text-text-secondary leading-relaxed">
-                  {selectedOrder.notes}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-slate-50 p-3.5 rounded-xl border border-border">
+                <div>
+                  <p className="text-text-muted">NIT / Identificación</p>
+                  <p className="font-mono font-semibold text-text-primary mt-0.5">{selectedOrder.supplier_nit || 'No registrado'}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted">Contacto Proveedor</p>
+                  <p className="font-semibold text-text-primary mt-0.5">{selectedOrder.supplier_contact || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted">Monto Total</p>
+                  <p className="font-mono font-bold text-base text-emerald-700 mt-0.5">{formatCOP(Number(selectedOrder.total_amount) || 0)}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted">Condiciones de Pago</p>
+                  <p className="font-semibold text-text-primary mt-0.5">{selectedOrder.payment_terms || 'Contado'}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted">Fecha Límite Entrega</p>
+                  <p className="font-mono text-text-primary mt-0.5">{selectedOrder.delivery_deadline || 'Inmediata'}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted">Proyecto Asignado</p>
+                  <p className="font-semibold text-text-primary mt-0.5">{selectedOrder.projects?.name || 'Administración'}</p>
                 </div>
               </div>
-            )}
 
-            <div className="pt-2 flex justify-between items-center">
-              {selectedOrder.attachment_url ? (
-                <a
-                  href={selectedOrder.attachment_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-primary font-semibold flex items-center gap-1 hover:underline"
+              {/* Ítems incluidos en la orden si están disponibles */}
+              {Array.isArray(selectedOrder.items_detail) && selectedOrder.items_detail.length > 0 && (
+                <div className="space-y-1.5 text-xs">
+                  <p className="font-bold text-text-primary flex items-center gap-1.5">
+                    <Package className="w-3.5 h-3.5 text-accent" />
+                    Ítems de la Orden de Compra ({selectedOrder.items_detail.length})
+                  </p>
+                  <div className="overflow-x-auto border border-border rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-[10px] uppercase font-bold text-text-muted border-b border-border">
+                        <tr>
+                          <th className="py-1.5 px-3">#</th>
+                          <th className="py-1.5 px-3">Descripción</th>
+                          <th className="py-1.5 px-3 text-center">Cant.</th>
+                          <th className="py-1.5 px-3 text-right">Vlr. Unitario</th>
+                          <th className="py-1.5 px-3 text-right">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {selectedOrder.items_detail.map((it: any, idx: number) => (
+                          <tr key={idx}>
+                            <td className="py-1.5 px-3 font-mono text-[10px] text-text-muted">{it.item_no || idx + 1}</td>
+                            <td className="py-1.5 px-3 font-medium text-text-primary">{it.description}</td>
+                            <td className="py-1.5 px-3 text-center font-mono">{it.quantity} {it.unit || 'Und'}</td>
+                            <td className="py-1.5 px-3 text-right font-mono text-text-muted">{formatCOP(it.unit_price)}</td>
+                            <td className="py-1.5 px-3 text-right font-mono font-bold text-text-primary">{formatCOP(it.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Módulo de seguimiento de entrega */}
+              <div className="bg-slate-50/80 p-3.5 rounded-xl border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <h6 className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-accent" />
+                    Control y Actualización de Seguimiento
+                  </h6>
+                  <span className="text-[10px] text-text-muted">
+                    Rastreo del estado del pedido hasta la entrega en campo
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                  <div className="sm:col-span-5">
+                    <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                      Estado Actual del Pedido
+                    </label>
+                    <select
+                      value={trackingForm.status}
+                      onChange={(e) =>
+                        setTrackingStatusForm((prev) => ({
+                          ...prev,
+                          [selectedOrder.id]: {
+                            ...trackingForm,
+                            status: e.target.value,
+                          },
+                        }))
+                      }
+                      className="w-full text-xs rounded border border-border bg-white px-2 py-1.5 text-text-primary font-semibold focus:ring-1 focus:ring-accent"
+                    >
+                      <option value="issued">Emitida (Enviada a proveedor)</option>
+                      <option value="confirmed">Confirmada por proveedor</option>
+                      <option value="in_transit">En despacho / Tránsito a obra</option>
+                      <option value="partially_received">Entrega parcial recibida</option>
+                      <option value="completed">Entregada y recibida a satisfacción</option>
+                      <option value="cancelled">Anulada / Cancelada</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-4">
+                    <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                      Nota / Guía de despacho
+                    </label>
+                    <input
+                      type="text"
+                      value={trackingForm.note}
+                      onChange={(e) =>
+                        setTrackingStatusForm((prev) => ({
+                          ...prev,
+                          [selectedOrder.id]: {
+                            ...trackingForm,
+                            note: e.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="Ej: Guía Servientrega 109283"
+                      className="w-full text-xs rounded border border-border bg-white px-2 py-1.5 text-text-primary focus:ring-1 focus:ring-accent"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateOrderStatus(selectedOrder.id)}
+                      disabled={trackingForm.isSubmitting}
+                      className="w-full btn bg-primary-900 text-white hover:bg-black font-bold text-xs py-1.5 px-3 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs"
+                    >
+                      {trackingForm.isSubmitting ? (
+                        <span>Guardando...</span>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-accent" />
+                          <span>Actualizar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Historial de eventos */}
+                {Array.isArray(selectedOrder.tracking_history) && selectedOrder.tracking_history.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-border/60">
+                    <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1.5">
+                      Bitácora de Trazabilidad ({selectedOrder.tracking_history.length})
+                    </p>
+                    <div className="space-y-1 text-xs max-h-32 overflow-y-auto pl-2 border-l-2 border-accent">
+                      {selectedOrder.tracking_history.map((ev, evIdx) => (
+                        <div key={evIdx} className="bg-white p-2 rounded border border-border/60 text-[11px]">
+                          <div className="flex items-center justify-between text-[10px] text-text-muted">
+                            <span className="font-bold text-text-primary">{ev.user_name}</span>
+                            <span className="font-mono">{ev.formatted_date || ev.timestamp}</span>
+                          </div>
+                          <p className="text-text-secondary mt-0.5">{ev.note}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {selectedOrder.notes && (
+                <div className="space-y-1 text-xs">
+                  <p className="text-text-muted">Observaciones y Términos</p>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-border text-text-secondary leading-relaxed">
+                    {selectedOrder.notes}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 flex justify-between items-center">
+                {selectedOrder.attachment_url ? (
+                  <a
+                    href={selectedOrder.attachment_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary font-semibold flex items-center gap-1 hover:underline"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Ver soporte / Cotización
+                  </a>
+                ) : <span />}
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrder(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-text-primary transition-colors cursor-pointer"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Ver soporte / Cotización
-                </a>
-              ) : <span />}
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ────────────────────────────────────────────────────────────────────
+          MODAL ESPECIALIZADO: EMISIÓN Y SEGUIMIENTO DE ÓRDENES DE COMPRA (TAB 6)
+         ──────────────────────────────────────────────────────────────────── */}
+      {orderIssuingRequest && (() => {
+        // Agrupar ítems adjudicados por proveedor
+        const supplierGroups: Record<
+          string,
+          {
+            supplierName: string;
+            items: PurchaseRequestItemData[];
+            totalAmount: number;
+          }
+        > = {};
+
+        (orderIssuingRequest.items || []).forEach((it) => {
+          const selOpt = it.quotations?.find((q) => q.is_selected) || it.quotations?.[0];
+          const supName = selOpt?.supplier?.trim() || it.suggested_supplier?.trim() || 'Proveedor Sin Asignar';
+          const unitPrice =
+            typeof selOpt?.unit_price === 'number'
+              ? selOpt.unit_price
+              : Number(selOpt?.unit_price) || Number(it.unit_price) || 0;
+          const qty = Number(it.quantity) || 1;
+          const subtotal = qty * unitPrice;
+
+          if (!supplierGroups[supName]) {
+            supplierGroups[supName] = {
+              supplierName: supName,
+              items: [],
+              totalAmount: 0,
+            };
+          }
+          supplierGroups[supName].items.push(it);
+          supplierGroups[supName].totalAmount += subtotal;
+        });
+
+        const groupsList = Object.values(supplierGroups);
+
+        return (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in overflow-y-auto">
+            <div className="bg-surface rounded-2xl border border-border max-w-4xl w-full p-4 sm:p-6 space-y-5 shadow-2xl my-auto max-h-[92vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-start justify-between border-b border-border pb-3.5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-300">
+                      {orderIssuingRequest.request_code}
+                    </span>
+                    <span className="text-xs text-text-muted uppercase font-bold tracking-wider">
+                      Emisión y Seguimiento de Órdenes de Compra
+                    </span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-bold text-text-primary mt-1">
+                    Formalización de OC — {orderIssuingRequest.projects?.name || orderIssuingRequest.cost_center || 'Proyecto Asignado'}
+                  </h3>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Generación de órdenes de compra agrupadas por proveedor adjudicado con control de entregas.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOrderIssuingRequest(null)}
+                  className="text-text-muted hover:text-text-primary p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  title="Cerrar ventana"
+                >
+                  <X className="w-5 h-5" strokeWidth={2} />
+                </button>
+              </div>
+
+              {/* Resumen del expediente */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-border rounded-xl p-3.5 text-xs">
+                <div>
+                  <span className="text-text-muted block">Centro de Costo:</span>
+                  <span className="font-mono font-bold text-text-primary">
+                    {orderIssuingRequest.cost_center || orderIssuingRequest.projects?.cost_center || 'General'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-text-muted block">Solicitante:</span>
+                  <span className="font-semibold text-text-primary truncate block">
+                    {orderIssuingRequest.applicant_name || 'Personal Operativo'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-text-muted block">Aprobado Por:</span>
+                  <span className="font-semibold text-emerald-800 truncate block">
+                    {orderIssuingRequest.approver_name || 'Gerencia General'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-text-muted block">Monto Aprobado:</span>
+                  <span className="font-mono font-extrabold text-emerald-700 text-sm">
+                    {formatCOP(orderIssuingRequest.total_amount || 0)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Lista de Grupos por Proveedor Adjudicado */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-1.5">
+                    <Package className="w-4 h-4 text-accent" />
+                    Proveedores Adjudicados ({groupsList.length})
+                  </h4>
+                  <span className="text-[11px] text-text-muted">
+                    Los insumos se agrupan por el proveedor seleccionado en la cotización.
+                  </span>
+                </div>
+
+                {groupsList.map((group) => {
+                  const sName = group.supplierName;
+                  const supDbInfo = suppliersList.find(
+                    (s) => s.company_name.toLowerCase().trim() === sName.toLowerCase().trim()
+                  );
+
+                  // Verificar si ya existe orden emitida para este requerimiento y proveedor
+                  const existingOrder = (dashboard?.orders || []).find(
+                    (o) =>
+                      o.purchase_request_id === orderIssuingRequest.id &&
+                      o.supplier_name.toLowerCase().trim() === sName.toLowerCase().trim()
+                  );
+
+                  const formVals = orderForms[sName] || {
+                    order_code: `OC-${new Date().getFullYear()}-001`,
+                    payment_terms: supDbInfo?.payment_terms || 'Contado',
+                    delivery_deadline: orderIssuingRequest.delivery_date || '',
+                    delivery_site: orderIssuingRequest.delivery_site || '',
+                    notes: '',
+                  };
+
+                  const trackingForm = trackingStatusForm[existingOrder?.id || ''] || {
+                    status: existingOrder?.status || 'issued',
+                    note: '',
+                  };
+
+                  return (
+                    <div
+                      key={sName}
+                      className="rounded-2xl border border-border bg-white shadow-xs overflow-hidden transition-all"
+                    >
+                      {/* Cabecera del proveedor */}
+                      <div className="p-4 bg-slate-50/70 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h5 className="text-sm font-bold text-text-primary">{sName}</h5>
+                            {supDbInfo?.nit && (
+                              <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-gray-200/80 text-text-secondary font-semibold">
+                                NIT: {supDbInfo.nit}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-text-muted mt-0.5">
+                            {supDbInfo?.contact_name ? `Contacto: ${supDbInfo.contact_name} · ` : ''}
+                            {supDbInfo?.phone ? `Tel: ${supDbInfo.phone} · ` : ''}
+                            Categoría: {supDbInfo?.category || 'General'}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          {existingOrder ? (
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-xs px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-950 border border-emerald-300">
+                                {existingOrder.order_code}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                STATUS_ORDER_LABELS[existingOrder.status]?.badge || 'bg-blue-100 text-blue-900'
+                              }`}>
+                                {STATUS_ORDER_LABELS[existingOrder.status]?.label || existingOrder.status}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300">
+                              Pendiente por Emitir OC
+                            </span>
+                          )}
+                          <span className="font-mono font-extrabold text-sm text-text-primary">
+                            {formatCOP(existingOrder ? Number(existingOrder.total_amount) : group.totalAmount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Tabla de ítems de este proveedor */}
+                      <div className="p-4 space-y-3">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead className="text-[10px] uppercase font-bold text-text-muted border-b border-border bg-slate-50/50">
+                              <tr>
+                                <th className="py-2 px-3">#</th>
+                                <th className="py-2 px-3">Descripción</th>
+                                <th className="py-2 px-3 text-center">Cant.</th>
+                                <th className="py-2 px-3 text-right">Vlr. Unitario</th>
+                                <th className="py-2 px-3 text-right">Subtotal</th>
+                                <th className="py-2 px-3 text-center">Fecha Entrega</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/60">
+                              {group.items.map((it, idx) => {
+                                const selOpt = it.quotations?.find((q) => q.is_selected) || it.quotations?.[0];
+                                const uPrice =
+                                  typeof selOpt?.unit_price === 'number'
+                                    ? selOpt.unit_price
+                                    : Number(selOpt?.unit_price) || Number(it.unit_price) || 0;
+                                const qty = Number(it.quantity) || 1;
+                                const sub = qty * uPrice;
+                                return (
+                                  <tr key={idx} className="hover:bg-slate-50/50">
+                                    <td className="py-2 px-3 font-mono text-[11px] text-text-muted">{it.item_no || idx + 1}</td>
+                                    <td className="py-2 px-3 font-medium text-text-primary">{it.description}</td>
+                                    <td className="py-2 px-3 text-center font-mono whitespace-nowrap">
+                                      {qty} {it.unit || 'Und'}
+                                    </td>
+                                    <td className="py-2 px-3 text-right font-mono text-text-secondary whitespace-nowrap">
+                                      {formatCOP(uPrice)}
+                                    </td>
+                                    <td className="py-2 px-3 text-right font-mono font-bold text-text-primary whitespace-nowrap">
+                                      {formatCOP(sub)}
+                                    </td>
+                                    <td className="py-2 px-3 text-center font-mono text-[11px] text-text-muted whitespace-nowrap">
+                                      {selOpt?.delivery_date || orderIssuingRequest.delivery_date || '—'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* CASO 1: ORDEN YA FORMALIZADA — GESTIÓN DE SEGUIMIENTO HASTA LA ENTREGA */}
+                        {existingOrder ? (
+                          <div className="mt-3 pt-3 border-t border-border bg-slate-50/60 rounded-xl p-3.5 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div>
+                                <h6 className="text-xs font-bold text-text-primary flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-accent" />
+                                  Seguimiento de Entrega ({existingOrder.order_code})
+                                </h6>
+                                <p className="text-[11px] text-text-muted mt-0.5">
+                                  Plazo de Entrega: <strong className="font-mono text-text-primary">{existingOrder.delivery_deadline || 'No fijado'}</strong> ·
+                                  Condiciones: <span className="font-medium">{existingOrder.payment_terms || 'Contado'}</span>
+                                </p>
+                              </div>
+
+                              {/* Barra de progreso de etapas */}
+                              <div className="flex items-center gap-1 text-[10px] font-bold">
+                                {['issued', 'confirmed', 'in_transit', 'completed'].map((stKey, sIdx) => {
+                                  const stageNames: Record<string, string> = {
+                                    issued: '1. Emitida',
+                                    confirmed: '2. Confirmada',
+                                    in_transit: '3. En Despacho',
+                                    completed: '4. Recibida',
+                                  };
+                                  const isCurrent = existingOrder.status === stKey;
+                                  const isPast =
+                                    ['issued', 'confirmed', 'in_transit', 'completed'].indexOf(existingOrder.status) >= sIdx;
+                                  return (
+                                    <span
+                                      key={stKey}
+                                      className={`px-2 py-0.5 rounded-full border ${
+                                        isCurrent
+                                          ? 'bg-accent text-primary-900 border-accent font-extrabold shadow-2xs'
+                                          : isPast
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                          : 'bg-gray-100 text-gray-400 border-gray-200'
+                                      }`}
+                                    >
+                                      {stageNames[stKey]}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Controles interactivos para cambiar estado de entrega */}
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1 items-end">
+                              <div className="sm:col-span-4">
+                                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                                  Cambiar Estado de Entrega
+                                </label>
+                                <select
+                                  value={trackingForm.status}
+                                  onChange={(e) =>
+                                    setTrackingStatusForm((prev) => ({
+                                      ...prev,
+                                      [existingOrder.id]: {
+                                        ...trackingForm,
+                                        status: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                  className="w-full text-xs rounded border border-border bg-white px-2.5 py-1.5 text-text-primary font-semibold focus:ring-1 focus:ring-accent"
+                                >
+                                  <option value="issued">Emitida (Esperando confirmación)</option>
+                                  <option value="confirmed">Confirmada por Proveedor / En Preparación</option>
+                                  <option value="in_transit">En Tránsito / Despachada a Obra</option>
+                                  <option value="partially_received">Entrega Parcial Recibida</option>
+                                  <option value="completed">Entregada y Recibida a Satisfacción</option>
+                                  <option value="cancelled">Orden Anulada / Cancelada</option>
+                                </select>
+                              </div>
+
+                              <div className="sm:col-span-5">
+                                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                                  Nota de Entrega / Guía de Transporte
+                                </label>
+                                <input
+                                  type="text"
+                                  value={trackingForm.note}
+                                  onChange={(e) =>
+                                    setTrackingStatusForm((prev) => ({
+                                      ...prev,
+                                      [existingOrder.id]: {
+                                        ...trackingForm,
+                                        note: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                  placeholder="Ej: Guía Servientrega 109283 - Camión NPR"
+                                  className="w-full text-xs rounded border border-border bg-white px-2.5 py-1.5 text-text-primary focus:ring-1 focus:ring-accent"
+                                />
+                              </div>
+
+                              <div className="sm:col-span-3">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateOrderStatus(existingOrder.id)}
+                                  disabled={trackingForm.isSubmitting}
+                                  className="w-full btn bg-primary-900 text-white hover:bg-black font-bold text-xs py-1.5 px-3 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs"
+                                >
+                                  {trackingForm.isSubmitting ? (
+                                    <span>Actualizando...</span>
+                                  ) : (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 text-accent" />
+                                      <span>Actualizar Estado</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Historial de Trazabilidad */}
+                            {Array.isArray(existingOrder.tracking_history) && existingOrder.tracking_history.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-border/60">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedTrackingOrderIds((prev) => ({
+                                      ...prev,
+                                      [existingOrder.id]: !prev[existingOrder.id],
+                                    }))
+                                  }
+                                  className="text-[11px] font-semibold text-text-secondary hover:text-text-primary flex items-center gap-1 cursor-pointer"
+                                >
+                                  {expandedTrackingOrderIds[existingOrder.id] ? (
+                                    <ChevronDown className="w-3 h-3 text-accent" />
+                                  ) : (
+                                    <ChevronRight className="w-3 h-3 text-accent" />
+                                  )}
+                                  <span>Historial de Seguimiento ({existingOrder.tracking_history.length} eventos)</span>
+                                </button>
+
+                                {expandedTrackingOrderIds[existingOrder.id] && (
+                                  <div className="mt-2 space-y-1.5 text-[11px] pl-3 border-l-2 border-accent">
+                                    {existingOrder.tracking_history.map((ev, evIdx) => (
+                                      <div key={evIdx} className="bg-white p-2 rounded border border-border/60">
+                                        <div className="flex items-center justify-between text-[10px] text-text-muted">
+                                          <span className="font-bold text-text-primary">{ev.user_name}</span>
+                                          <span className="font-mono">{ev.formatted_date || ev.timestamp}</span>
+                                        </div>
+                                        <p className="text-text-secondary mt-0.5">{ev.note}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          /* CASO 2: FORMULARIO PARA EMITIR LA ORDEN DE COMPRA */
+                          <div className="mt-3 pt-3 border-t border-border bg-amber-50/30 rounded-xl p-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h6 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                                <Building2 className="w-3.5 h-3.5 text-accent" />
+                                Parámetros Comerciales para Emitir OC
+                              </h6>
+                              <span className="text-[10px] text-text-muted">
+                                Consecutivo Sugerido: <strong className="font-mono text-primary">{formVals.order_code}</strong>
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs">
+                              <div>
+                                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                                  Código de OC
+                                </label>
+                                <input
+                                  type="text"
+                                  value={formVals.order_code}
+                                  onChange={(e) =>
+                                    setOrderForms((prev) => ({
+                                      ...prev,
+                                      [sName]: { ...formVals, order_code: e.target.value },
+                                    }))
+                                  }
+                                  className="w-full text-xs font-mono font-bold rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                                  Condiciones de Pago
+                                </label>
+                                <select
+                                  value={formVals.payment_terms}
+                                  onChange={(e) =>
+                                    setOrderForms((prev) => ({
+                                      ...prev,
+                                      [sName]: { ...formVals, payment_terms: e.target.value },
+                                    }))
+                                  }
+                                  className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                >
+                                  <option value="Contado">Contado contra Entrega</option>
+                                  <option value="Crédito 15 días">Crédito a 15 días</option>
+                                  <option value="Crédito 30 días">Crédito a 30 días</option>
+                                  <option value="Anticipo 50% - Saldo contra Entrega">50% Anticipo - 50% Saldo</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                                  Fecha Pactada de Entrega
+                                </label>
+                                <input
+                                  type="date"
+                                  value={formVals.delivery_deadline}
+                                  onChange={(e) =>
+                                    setOrderForms((prev) => ({
+                                      ...prev,
+                                      [sName]: { ...formVals, delivery_deadline: e.target.value },
+                                    }))
+                                  }
+                                  className="w-full text-xs font-mono rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                                  Lugar de Entrega
+                                </label>
+                                <input
+                                  type="text"
+                                  value={formVals.delivery_site}
+                                  onChange={(e) =>
+                                    setOrderForms((prev) => ({
+                                      ...prev,
+                                      [sName]: { ...formVals, delivery_site: e.target.value },
+                                    }))
+                                  }
+                                  placeholder="Bodega / Frente de obra"
+                                  className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                />
+                              </div>
+
+                              <div className="sm:col-span-4">
+                                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                                  Observaciones y Términos de Garantía
+                                </label>
+                                <input
+                                  type="text"
+                                  value={formVals.notes}
+                                  onChange={(e) =>
+                                    setOrderForms((prev) => ({
+                                      ...prev,
+                                      [sName]: { ...formVals, notes: e.target.value },
+                                    }))
+                                  }
+                                  placeholder="Garantía, persona que recibe en obra, especificaciones de descargue..."
+                                  className="w-full text-xs rounded border border-border bg-white px-2 py-1 text-text-primary focus:ring-1 focus:ring-accent"
+                                />
+                              </div>
+                            </div>
+
+                            {formVals.successMsg && (
+                              <p className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 p-2 rounded-lg">
+                                {formVals.successMsg}
+                              </p>
+                            )}
+
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-xs font-semibold text-text-muted">
+                                Monto total de esta OC:{' '}
+                                <strong className="font-mono text-sm text-primary-900 font-extrabold">
+                                  {formatCOP(group.totalAmount)}
+                                </strong>
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleIssueOrderForSupplier(
+                                    orderIssuingRequest,
+                                    sName,
+                                    group.items,
+                                    group.totalAmount
+                                  )
+                                }
+                                disabled={formVals.isSubmitting}
+                                className="btn bg-accent text-primary-900 font-bold hover:brightness-105 active:scale-[0.98] transition-all text-xs px-4 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+                              >
+                                {formVals.isSubmitting ? (
+                                  <>
+                                    <div className="w-3.5 h-3.5 border-2 border-primary-900 border-t-transparent rounded-full animate-spin" />
+                                    <span>Emitiendo Orden...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    <span>Emitir Orden de Compra para {sName}</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Botón de cierre */}
+              <div className="pt-3 border-t border-border flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setOrderIssuingRequest(null)}
+                  className="px-5 py-2 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-text-primary transition-colors cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ────────────────────────────────────────────────────────────────────
+          MODAL RÁPIDO: REGISTRO DE PROVEEDOR EN CATÁLOGO
+         ──────────────────────────────────────────────────────────────────── */}
+      {showQuickSupplierModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-surface rounded-2xl border border-border max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-start justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-accent text-primary-900 flex items-center justify-center font-bold">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-text-primary">Registrar Nuevo Proveedor</h3>
+                  <p className="text-[11px] text-text-muted">Inscripción rápida para cotización y compras</p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-text-primary transition-colors"
+                onClick={() => setShowQuickSupplierModal(false)}
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
               >
-                Cerrar
+                <X className="w-4 h-4" />
               </button>
             </div>
+
+            <form onSubmit={handleSaveQuickSupplier} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                  Razón Social / Nombre Comercial <span className="text-accent">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={quickSupplierName}
+                  onChange={(e) => setQuickSupplierName(e.target.value)}
+                  placeholder="Ej: Cantera del Norte SAS"
+                  className="w-full text-xs rounded border border-border bg-white px-2.5 py-1.5 text-text-primary focus:ring-1 focus:ring-accent"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                    NIT / RUT <span className="text-accent">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={quickSupplierNit}
+                    onChange={(e) => setQuickSupplierNit(e.target.value)}
+                    placeholder="900.123.456-1"
+                    className="w-full text-xs font-mono rounded border border-border bg-white px-2.5 py-1.5 text-text-primary focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                    Teléfono / Celular
+                  </label>
+                  <input
+                    type="text"
+                    value={quickSupplierPhone}
+                    onChange={(e) => setQuickSupplierPhone(e.target.value)}
+                    placeholder="300 123 4567"
+                    className="w-full text-xs font-mono rounded border border-border bg-white px-2.5 py-1.5 text-text-primary focus:ring-1 focus:ring-accent"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                  Persona de Contacto
+                </label>
+                <input
+                  type="text"
+                  value={quickSupplierContact}
+                  onChange={(e) => setQuickSupplierContact(e.target.value)}
+                  placeholder="Ej: Ing. Pedro Gómez"
+                  className="w-full text-xs rounded border border-border bg-white px-2.5 py-1.5 text-text-primary focus:ring-1 focus:ring-accent"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                    Categoría
+                  </label>
+                  <select
+                    value={quickSupplierCategory}
+                    onChange={(e) => setQuickSupplierCategory(e.target.value)}
+                    className="w-full text-xs rounded border border-border bg-white px-2 py-1.5 text-text-primary focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="Materiales Pétreos y Áridos">Materiales Pétreos</option>
+                    <option value="Cementos y Concretos">Cementos y Concretos</option>
+                    <option value="Ferretería y Tornillería">Ferretería</option>
+                    <option value="Equipos y Andamiaje">Equipos y Andamiaje</option>
+                    <option value="Transporte y Logística">Transporte</option>
+                    <option value="Servicios Especializados">Servicios Especializados</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-semibold text-text-muted mb-0.5">
+                    Condiciones de Pago
+                  </label>
+                  <select
+                    value={quickSupplierPayment}
+                    onChange={(e) => setQuickSupplierPayment(e.target.value)}
+                    className="w-full text-xs rounded border border-border bg-white px-2 py-1.5 text-text-primary focus:ring-1 focus:ring-accent"
+                  >
+                    <option value="Contado">Contado</option>
+                    <option value="Crédito 15 días">Crédito 15 días</option>
+                    <option value="Crédito 30 días">Crédito 30 días</option>
+                    <option value="Anticipo 50% - Saldo">50% Anticipo - 50% Saldo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <Link
+                  href="/forms/registro-proveedor"
+                  className="text-[11px] text-accent font-semibold hover:underline"
+                  target="_blank"
+                >
+                  Formulario Completo (FOR-COM-004) →
+                </Link>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickSupplierModal(false)}
+                    className="px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:bg-gray-50 text-xs font-semibold cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingQuickSupplier}
+                    className="btn bg-accent text-primary-900 font-bold hover:brightness-105 text-xs px-4 py-1.5 rounded-lg shadow-xs cursor-pointer"
+                  >
+                    {isSavingQuickSupplier ? 'Guardando...' : 'Guardar Proveedor'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

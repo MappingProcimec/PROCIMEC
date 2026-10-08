@@ -179,22 +179,7 @@ export async function GET(req: NextRequest) {
     let ordersQuery = supabase
       .from('purchase_orders')
       .select(`
-        id,
-        purchase_request_id,
-        project_id,
-        user_id,
-        order_code,
-        supplier_name,
-        supplier_nit,
-        supplier_contact,
-        total_amount,
-        currency,
-        delivery_deadline,
-        payment_terms,
-        attachment_url,
-        notes,
-        status,
-        created_at,
+        *,
         projects(id, name, cost_center, client),
         users(id, full_name, email)
       `)
@@ -213,7 +198,7 @@ export async function GET(req: NextRequest) {
       ordersQuery = ordersQuery.in('project_id', assignedProjectIds);
     }
 
-    const [requestsRes, ordersRes, evaluationsRes, budgetsRes, prjBudgetsRes, propBudgetsRes] = await Promise.all([
+    const [requestsRes, ordersRes, evaluationsRes, budgetsRes, prjBudgetsRes, propBudgetsRes, suppliersRes] = await Promise.all([
       requestsQuery,
       ordersQuery,
       supabase
@@ -244,11 +229,23 @@ export async function GET(req: NextRequest) {
         .select('project_id, budget_id')
         .not('project_id', 'is', null)
         .not('budget_id', 'is', null),
+      supabase
+        .from('suppliers')
+        .select('*')
+        .eq('status', 'active')
+        .order('company_name', { ascending: true }),
     ]);
 
     const rawRequests = requestsRes.data ?? [];
     const orders = ordersRes.data ?? [];
     const evaluations = evaluationsRes.data ?? [];
+    const rawSuppliers = suppliersRes?.data && suppliersRes.data.length > 0 ? suppliersRes.data : [
+      { id: 'sup-1', company_name: 'Cantera Arenas', nit: '900.123.456-1', phone: '3001234567', category: 'Materiales Pétreos', payment_terms: 'Contado' },
+      { id: 'sup-2', company_name: 'Homecenter / Sodimac Colombia', nit: '800.242.106-2', phone: '018000127373', category: 'Ferretería y Herramientas', payment_terms: 'Contado' },
+      { id: 'sup-3', company_name: 'Lahyer Colombia SAS', nit: '900.567.890-3', phone: '3157890123', category: 'Equipos y Andamios', payment_terms: 'Crédito 30 días' },
+      { id: 'sup-4', company_name: 'Ultracem SAS', nit: '900.345.678-4', phone: '3104567890', category: 'Cementos y Concretos', payment_terms: 'Crédito 15 días' },
+      { id: 'sup-5', company_name: 'Ferretería El Tornillo', nit: '900.987.654-5', phone: '3019876543', category: 'Ferretería y Tornillería', payment_terms: 'Contado' },
+    ];
 
     // Mapear presupuestos de proyectos para análisis comparativo de ítems
     const projectBudgets: Record<
@@ -518,6 +515,7 @@ export async function GET(req: NextRequest) {
         requests,
         orders,
         evaluations,
+        suppliers: rawSuppliers,
         projects: availableProjects,
         projectBudgets,
         currentUser: {

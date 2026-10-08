@@ -31,6 +31,7 @@ import ElaboracionCartasForm from '@/components/forms/ElaboracionCartasForm';
 import RegistroEquipoFormPage from '@/app/forms/registro-equipo/page';
 import SigManagementChangeFormPage from '@/app/forms/analisis-planificacion-cambios-sig/page';
 import PresupuestoProyectoPage from '@/app/forms/presupuesto-proyecto/page';
+import RegistroProveedorPage from '@/app/forms/registro-proveedor/page';
 
 // --- Form catalog configurations ---
 const FORM_CONFIGS: Record<string, FormConfig> = {
@@ -615,6 +616,14 @@ export default function FormPage({ params }: { params: { formSlug: string } }) {
     params.formSlug === 'apu'
   ) {
     return <PresupuestoProyectoPage />;
+  }
+
+  if (
+    params.formSlug === 'registro-proveedor' ||
+    params.formSlug === 'proveedores' ||
+    params.formSlug === 'proveedor'
+  ) {
+    return <RegistroProveedorPage />;
   }
 
   return (
