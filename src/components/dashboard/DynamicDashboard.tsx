@@ -193,6 +193,7 @@ const FORM_CATEGORY_MAP: Record<string, string> = {
   'requerimiento-compra': 'purchasing',
   'orden-compra': 'purchasing',
   'evaluacion-proveedor': 'purchasing',
+  'registro-proveedor': 'purchasing',
   // Comercial
   'registro-oportunidad': 'commercial',
   'presupuesto-proyecto': 'commercial',

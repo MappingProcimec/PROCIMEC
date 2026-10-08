@@ -19,6 +19,7 @@ import {
   Radio,
   PenTool,
   ClipboardList,
+  Building2,
   LucideIcon,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -498,6 +499,7 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
     'requerimiento-compra': ShoppingCart,
     'orden-compra': FileCheck2,
     'evaluacion-proveedor': Award,
+    'registro-proveedor': Building2,
     'registro-oportunidad': Target,
     'cotizacion-comercial': FileSpreadsheet,
     'cierre-comercial': CheckCircle2,

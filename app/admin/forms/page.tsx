@@ -31,6 +31,7 @@ import {
   ChevronDown,
   X,
   Calculator,
+  Building2,
 } from 'lucide-react';
 
 interface Form {
@@ -60,6 +61,7 @@ const FORM_CATEGORY: Record<string, string> = {
   'requerimiento-compra': 'purchasing',
   'orden-compra': 'purchasing',
   'evaluacion-proveedor': 'purchasing',
+  'registro-proveedor': 'purchasing',
   'registro-oportunidad': 'commercial',
   'presupuesto-proyecto': 'commercial',
   'cotizacion-comercial': 'commercial',
@@ -120,6 +122,8 @@ function renderFormIcon(slug: string) {
       return <FileText {...props} />;
     case 'evaluacion-proveedor':
       return <Star {...props} />;
+    case 'registro-proveedor':
+      return <Building2 {...props} />;
     case 'registro-oportunidad':
       return <Target {...props} />;
     case 'presupuesto-proyecto':

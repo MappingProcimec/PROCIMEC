@@ -115,6 +115,17 @@ export async function GET() {
       created_at: new Date().toISOString(),
     });
   }
+  if (!formSlugs.has('registro-proveedor')) {
+    normalized.push({
+      id: 'registro-proveedor-synthetic',
+      slug: 'registro-proveedor',
+      name: 'Registro y Homologación de Proveedores',
+      description: 'Ficha técnica, datos tributarios, bancarios y comerciales de proveedores para compras.',
+      steps_count: 2,
+      has_attachments: false,
+      created_at: new Date().toISOString(),
+    });
+  }
 
   // Comercial
   if (!formSlugs.has('registro-oportunidad')) {

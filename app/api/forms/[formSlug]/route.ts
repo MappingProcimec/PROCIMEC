@@ -67,8 +67,8 @@ export async function POST(
     // 2. Si no tiene asignación individual, verificar matriz de roles canónicos
     if (!isAuthorized) {
       const ROLE_ALLOWED_FORMS: Record<string, string[]> = {
-        purchasing: ['requerimiento-compra', 'orden-compra', 'evaluacion-proveedor'],
-        compras: ['requerimiento-compra', 'orden-compra', 'evaluacion-proveedor'],
+        purchasing: ['requerimiento-compra', 'orden-compra', 'evaluacion-proveedor', 'registro-proveedor'],
+        compras: ['requerimiento-compra', 'orden-compra', 'evaluacion-proveedor', 'registro-proveedor'],
         commercial: ['registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial'],
         comercial: ['registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial'],
         finance: ['solicitud-viaticos', 'legalizacion-gastos', 'registro-pago'],
@@ -78,13 +78,13 @@ export async function POST(
         warehouse: ['requerimiento-compra', 'evaluacion-proveedor'],
         almacen: ['requerimiento-compra', 'evaluacion-proveedor'],
         management: [
-          'requerimiento-compra', 'orden-compra', 'evaluacion-proveedor',
+          'requerimiento-compra', 'orden-compra', 'evaluacion-proveedor', 'registro-proveedor',
           'registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial',
           'solicitud-viaticos', 'legalizacion-gastos', 'registro-pago',
           'radicacion-factura', 'soporte-cobro'
         ],
         gerencia: [
-          'requerimiento-compra', 'orden-compra', 'evaluacion-proveedor',
+          'requerimiento-compra', 'orden-compra', 'evaluacion-proveedor', 'registro-proveedor',
           'registro-oportunidad', 'cotizacion-comercial', 'cierre-comercial',
           'solicitud-viaticos', 'legalizacion-gastos', 'registro-pago',
           'radicacion-factura', 'soporte-cobro'
