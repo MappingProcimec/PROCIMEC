@@ -39,6 +39,9 @@ export interface GSFHeader {
   hpFilterHdr?: number | null;
   lpFilterHdr?: number | null;
   autocorrScore?: number;
+  traceStrideBytes?: number;
+  resolutionDtNs?: number;
+  scansPerMeterHdr?: number;
   // Extended Geoscanners / GAS Metadata
   firmwareRevision?: string;
   gasVersion?: string;
@@ -443,21 +446,41 @@ export function extractGSFHeader(
   const dataView = new DataView(buffer);
   const totalBytes = buffer.byteLength;
 
+  let magic = '';
+  if (totalBytes >= 4) {
+    magic = String.fromCharCode(
+      dataView.getUint8(0),
+      dataView.getUint8(1),
+      dataView.getUint8(2),
+      dataView.getUint8(3)
+    );
+  }
+  const isGsfm = magic === 'gsfm';
+
   let ventanaNsHdr: number | null = null;
   let twHdr363: number | null = null;
   let muestrasHdr: number | null = null;
   let erHdr: number | null = null;
   let totalTrazasHdr: number | null = null;
-  let stepHdr: number | null = null;
   let posicionNsHdr: number | null = null;
   let hpFilterHdr: number | null = null;
   let lpFilterHdr: number | null = null;
   let stackingHdr: number = 1;
+  let resolutionDtHdr: number | null = null;
+  let scansPerMeterHdr: number = TRAZAS_POR_METRO_DEF;
   const gainPointsHdr: Array<{ point: number; db: number }> = [];
 
-  // Extract Akula9000C Hardware Header (Offsets 66, 84, 86, 344, 363, 367, 371, 375, 379, 381, 406)
+  // Extract Akula9000C Hardware Header (Offsets 55, 66, 84, 86, 344, 352, 363, 367, 371, 375, 379, 381, 406, 414)
   if (totalBytes >= 370) {
     try {
+      // Offset 55 (uint8): Odómetro Scans per meter en modo rueda (Akula cart default: 112)
+      if (totalBytes >= 56) {
+        const spm = dataView.getUint8(55);
+        if (spm > 0 && spm <= 500) {
+          scansPerMeterHdr = spm;
+        }
+      }
+
       // Offset 66 (int16): Duración de adquisición en segundos / fallback ventana
       const vVal = dataView.getInt16(66, true);
       if (vVal >= 1 && vVal <= 1000) {
@@ -473,7 +496,7 @@ export function extractGSFHeader(
       // Offset 86 (float32): Constante dieléctrica grabada (RDP)
       const erVal = dataView.getFloat32(86, true);
       if (!isNaN(erVal) && erVal >= 1.0 && erVal <= 81.0) {
-        erHdr = erVal;
+        erHdr = Math.round(erVal * 10) / 10;
       }
 
       // Offset 344 (int16): Total de trazas grabadas
@@ -529,17 +552,11 @@ export function extractGSFHeader(
         }
       }
 
-      // Offset 406 (float32): Paso horizontal de adquisición (cm -> m)
+      // Offset 406 (float32): Resolución temporal dt en ns/muestra
       if (totalBytes >= 410) {
-        const sVal = dataView.getFloat32(406, true);
-        if (!isNaN(sVal) && sVal > 0) {
-          // En Geoscanners / GAS el paso se almacena en CENTÍMETROS (ej. 0.05, 0.1, 0.2, 0.25, 0.5, 1.0 cm).
-          // Si el valor es >= 0.01, se convierte de centímetros a metros (/ 100).
-          // Si ya fuera < 0.01, ya se encuentra en metros.
-          const stepM = (sVal >= 0.01 && sVal <= 100.0) ? sVal / 100.0 : sVal;
-          if (stepM >= 0.0001 && stepM <= 5.0) {
-            stepHdr = stepM;
-          }
+        const dtVal = dataView.getFloat32(406, true);
+        if (!isNaN(dtVal) && dtVal > 0.001 && dtVal < 10.0) {
+          resolutionDtHdr = dtVal;
         }
       }
     } catch (e) {
@@ -547,7 +564,124 @@ export function extractGSFHeader(
     }
   }
 
-  // Determine geometry & header dynamically
+  // --- ESTRUCTURA BINARIA ESTÁNDAR AKULA 9000C ('gsfm') ---
+  if (isGsfm) {
+    // 1. Desplazamiento inicial de datos (Start_byte en Offset 352, indexado a base 1 en VB)
+    let startByte = 914;
+    if (totalBytes >= 354) {
+      const sbVal = dataView.getInt16(352, true);
+      if (sbVal > 0 && sbVal < totalBytes) {
+        startByte = sbVal - 1; // 1-based offset a 0-based
+      }
+    }
+
+    // 2. Muestras por canal (SampArray[0] en Offset 414)
+    let numSamples = 512;
+    if (manualSamples && manualSamples > 0) {
+      numSamples = manualSamples;
+    } else if (totalBytes >= 416) {
+      const sVal = dataView.getInt16(414, true);
+      if (sVal >= 50 && sVal <= 5000) {
+        numSamples = sVal;
+      } else if (muestrasHdr && muestrasHdr >= 50 && muestrasHdr <= 5000) {
+        numSamples = muestrasHdr;
+      }
+    } else if (muestrasHdr && muestrasHdr >= 50 && muestrasHdr <= 5000) {
+      numSamples = muestrasHdr;
+    }
+
+    // 3. Stride por traza en Akula GSF: (MaxSamplAmount * 2 + 40 bytes de cabecera por traza)
+    const maxSamples = numSamples + 10;
+    const traceStrideBytes = maxSamples * 2 + 40;
+
+    // 4. Conteo de trazas totales
+    const maxPossibleTraces = Math.floor(Math.max(0, totalBytes - startByte - 23) / traceStrideBytes);
+    let totalTraces = maxPossibleTraces;
+    if (totalTrazasHdr && totalTrazasHdr >= 5 && totalTrazasHdr <= maxPossibleTraces + 2) {
+      totalTraces = Math.min(totalTrazasHdr, maxPossibleTraces);
+    }
+    if (totalTraces <= 0) totalTraces = Math.max(1, maxPossibleTraces);
+
+    // 5. Ventana de tiempo TWT (ns)
+    let twFinal = VENTANA_TIEMPO_NS_DEF;
+    if (twHdr363 && twHdr363 > 0) {
+      twFinal = twHdr363;
+    } else if (ventanaNsHdr && ventanaNsHdr > 0) {
+      twFinal = ventanaNsHdr * 2;
+    }
+
+    const erFinal = erHdr && erHdr > 0 ? erHdr : DIELECTRICO_DEF;
+    const tracesPerMeter = scansPerMeterHdr > 0 ? scansPerMeterHdr : TRAZAS_POR_METRO_DEF;
+    const dxFinal = 1.0 / tracesPerMeter;
+    const dtFinal = resolutionDtHdr && resolutionDtHdr > 0 ? resolutionDtHdr : twFinal / numSamples;
+
+    // 6. Frecuencia Central de la Antena
+    let detectedAntennaFreq = 400;
+    if (hpFilterHdr && lpFilterHdr && hpFilterHdr > 0 && lpFilterHdr > 0) {
+      const centerFreq = Math.round(Math.sqrt(hpFilterHdr * lpFilterHdr));
+      if (centerFreq < 300) detectedAntennaFreq = 200;
+      else if (centerFreq < 460) detectedAntennaFreq = 400;
+      else detectedAntennaFreq = 500;
+    } else {
+      detectedAntennaFreq = detectAntennaFromGSF(
+        buffer,
+        filename,
+        twFinal,
+        numSamples,
+        startByte,
+        erFinal,
+        hpFilterHdr,
+        lpFilterHdr
+      );
+    }
+
+    return {
+      title: filename.replace(/\.[^/.]+$/, ''),
+      version: 1.0,
+      numTraces: totalTraces,
+      numSamples,
+      sampleIntervalNs: dtFinal,
+      timeWindowNs: twFinal,
+      antennaFreqMHz: detectedAntennaFreq,
+      dielectricPermittivity: erFinal,
+      traceDistanceStepM: dxFinal,
+      tracesPerMeter,
+      zeroOffsetNs: 0,
+      byteOffsetData: startByte,
+      traceHeaderBytes: 40,
+      traceStrideBytes,
+      resolutionDtNs: dtFinal,
+      scansPerMeterHdr: tracesPerMeter,
+      bytesPerSample: 2,
+      dataType: 'int16',
+      headerSize: startByte,
+      ventanaNsHdr: twHdr363 || ventanaNsHdr,
+      muestrasHdr: numSamples,
+      erHdr: erFinal,
+      totalTrazasHdr,
+      stepHdr: dxFinal,
+      hpFilterHdr,
+      lpFilterHdr,
+      firmwareRevision: '1.4.0',
+      gasVersion: '5.5',
+      dataWordBits: 16,
+      acquisitionMode: 'Distance mode',
+      hardwareGainDb: 10,
+      marksCount: 0,
+      stackingHdr,
+      posicionNsHdr: posicionNsHdr ?? 11,
+      gainPointsHdr: gainPointsHdr.length > 0 ? gainPointsHdr : [
+        { point: 1, db: 0.0 },
+        { point: 2, db: 9.3 },
+        { point: 3, db: 10.1 },
+        { point: 4, db: 11.7 },
+        { point: 5, db: 12.5 },
+        { point: 6, db: 13.3 },
+      ],
+    };
+  }
+
+  // --- COMPATIBILIDAD CON ARCHIVOS GSF GENÉRICOS O SIN STRIDE ---
   const geom = detectarCabeceraYGeometriaGSF(buffer, cabecera, manualSamples, muestrasHdr, totalTrazasHdr);
   const cabeceraFinal = geom.cabecera;
   const muestrasPorTraza = geom.muestrasPorTraza;
@@ -557,7 +691,6 @@ export function extractGSFHeader(
   const cuerpoBytes = Math.max(0, totalBytes - cabeceraFinal);
   const totalTrazas = Math.floor(cuerpoBytes / tamBloque);
 
-  // Time window calibration: true time window is recorded at offset 363 (float32 TWT ns).
   let twFinal = VENTANA_TIEMPO_NS_DEF;
   if (twHdr363 && twHdr363 > 0) {
     twFinal = twHdr363;
@@ -566,11 +699,10 @@ export function extractGSFHeader(
   }
 
   const erFinal = erHdr && erHdr > 0 ? erHdr : DIELECTRICO_DEF;
-  const dxFinal = stepHdr && stepHdr > 0 ? stepHdr : DX_DEF;
-  const tracesPerMeter = dxFinal > 0 ? 1.0 / dxFinal : TRAZAS_POR_METRO_DEF;
+  const tracesPerMeter = scansPerMeterHdr > 0 ? scansPerMeterHdr : TRAZAS_POR_METRO_DEF;
+  const dxFinal = 1.0 / tracesPerMeter;
   const dtFinal = twFinal / muestrasPorTraza;
 
-  // Auto-detect antenna frequency (200, 400, or 500 MHz) directly from profile file and recorded RDP
   const detectedAntennaFreq = detectAntennaFromGSF(
     buffer,
     filename,
@@ -596,6 +728,9 @@ export function extractGSFHeader(
     zeroOffsetNs: 0,
     byteOffsetData: cabeceraFinal,
     traceHeaderBytes: 0,
+    traceStrideBytes: tamBloque,
+    resolutionDtNs: dtFinal,
+    scansPerMeterHdr: tracesPerMeter,
     bytesPerSample: 2,
     dataType: 'int16',
     headerSize: cabeceraFinal,
@@ -603,7 +738,7 @@ export function extractGSFHeader(
     muestrasHdr,
     erHdr,
     totalTrazasHdr,
-    stepHdr,
+    stepHdr: dxFinal,
     hpFilterHdr,
     lpFilterHdr,
     autocorrScore,
@@ -644,17 +779,17 @@ export function buildDatasetFromHeader(
   let minAmp = Infinity;
   let maxAmp = -Infinity;
 
-  const bytesPerTrace = header.numSamples * 2;
-  const availableBytes = Math.max(0, totalBytes - header.byteOffsetData);
-  const maxPossibleTraces = Math.floor(availableBytes / bytesPerTrace);
-  const numTraces = maxPossibleTraces;
+  const numTraces = header.numTraces;
+  const numSamples = header.numSamples;
+  const traceStride = header.traceStrideBytes || (numSamples * 2);
+  const dataStartOffset = header.byteOffsetData;
 
   for (let t = 0; t < numTraces; t++) {
-    const traceStartOffset = header.byteOffsetData + t * bytesPerTrace;
-    const rawSamples = new Float32Array(header.numSamples);
-    const processedSamples = new Float32Array(header.numSamples);
+    const traceStartOffset = dataStartOffset + t * traceStride;
+    const rawSamples = new Float32Array(numSamples);
+    const processedSamples = new Float32Array(numSamples);
 
-    for (let s = 0; s < header.numSamples; s++) {
+    for (let s = 0; s < numSamples; s++) {
       const sampleOffset = traceStartOffset + s * 2;
       let value = 0;
 
@@ -699,6 +834,7 @@ export function buildDatasetFromHeader(
   };
 }
 
+
 /**
  * Parses GSF buffer into full GPRDataset
  */
@@ -715,9 +851,28 @@ export function serializeGSF(dataset: GPRDataset): ArrayBuffer {
   const numTraces = processedMatrix.length;
   const numSamples = header.numSamples;
   const cabecera = header.byteOffsetData || CABECERA_DEFAULT;
+  const stride = header.traceStrideBytes || (numSamples * 2);
+
+  // If we have the original rawBuffer with stride structure (e.g. Akula gsfm):
+  if (dataset.rawBuffer && dataset.rawBuffer.byteLength >= cabecera + numTraces * stride) {
+    const buffer = dataset.rawBuffer.slice(0); // Clone complete binary structure including headers/markers/footers
+    const dataView = new DataView(buffer);
+
+    for (let t = 0; t < numTraces; t++) {
+      const trace = processedMatrix[t];
+      const traceOffset = cabecera + t * stride;
+      for (let s = 0; s < numSamples; s++) {
+        const rawVal = trace[s];
+        const clampedVal = Math.max(-32768, Math.min(32767, Math.round(rawVal)));
+        dataView.setInt16(traceOffset + s * 2, clampedVal, true);
+      }
+    }
+    return buffer;
+  }
+
+  // Fallback for newly generated / synthetic datasets
   const dataSize = numTraces * numSamples * 2;
   const totalSize = cabecera + dataSize;
-
   const buffer = new ArrayBuffer(totalSize);
   const dataView = new DataView(buffer);
 

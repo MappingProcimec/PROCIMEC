@@ -209,7 +209,16 @@ export default function RadargramaWorkstationPage() {
   // Handle Header Calibration Override (live re-parsing from raw buffer)
   const handleHeaderOverride = (updatedHeader: GSFHeader) => {
     if (!activeDataset) return;
-    const reBuiltDataset = buildDatasetFromHeader(activeDataset.rawBuffer, activeDataset.filename, updatedHeader);
+    const numSamples = updatedHeader.numSamples;
+    const traceStrideBytes = updatedHeader.traceStrideBytes || ((numSamples + 10) * 2 + 40);
+    const startByte = updatedHeader.byteOffsetData || 914;
+    const maxTraces = Math.floor(Math.max(0, activeDataset.rawBuffer.byteLength - startByte - 23) / traceStrideBytes);
+    const safeHeader: GSFHeader = {
+      ...updatedHeader,
+      traceStrideBytes,
+      numTraces: updatedHeader.numTraces > 0 && updatedHeader.numTraces <= maxTraces ? updatedHeader.numTraces : (maxTraces > 0 ? maxTraces : updatedHeader.numTraces),
+    };
+    const reBuiltDataset = buildDatasetFromHeader(activeDataset.rawBuffer, activeDataset.filename, safeHeader);
 
     setDatasets((prev) =>
       prev.map((d) => (d.id === activeDataset.id ? { ...reBuiltDataset, id: d.id } : d))
@@ -545,11 +554,17 @@ export default function RadargramaWorkstationPage() {
                     : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'
                 }`}
               >
-                <FolderOpen className="w-3.5 h-3.5 text-primary" />
-                <span className="max-w-[160px] truncate">{ds.filename}</span>
+                <FolderOpen className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                <span className="max-w-[140px] truncate">{ds.filename}</span>
+                <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-100 text-primary-900 font-bold border border-amber-300 flex-shrink-0">
+                  {ds.header.antennaFreqMHz || 400} MHz
+                </span>
+                <span className="text-[9.5px] font-mono text-slate-500 flex-shrink-0">
+                  {(ds.header.numTraces * (ds.header.traceDistanceStepM || 1.0 / 112.0)).toFixed(1)}m
+                </span>
                 <button
                   onClick={(e) => handleRemoveDataset(ds.id, e)}
-                  className="p-0.5 hover:bg-red-100 rounded text-text-muted hover:text-red-600 transition"
+                  className="p-0.5 hover:bg-red-100 rounded text-text-muted hover:text-red-600 transition ml-0.5"
                 >
                   <X className="w-3 h-3" />
                 </button>

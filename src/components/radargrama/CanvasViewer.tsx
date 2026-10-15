@@ -9,6 +9,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   X,
+  Radio,
 } from 'lucide-react';
 import { DetectionConfig, DetectionResults, AnomalyMarker } from '@/lib/gpr/detectionTypes';
 
@@ -199,27 +200,25 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       visibleTraces,
     });
 
-    // Dynamic range normalization:
-    let vmax = 32767.0;
-    if (mode === 'procesado') {
-      // Symmetric 98.5-percentile clipping across visible traces for processed DSP
-      const allAbs: number[] = [];
-      const step = Math.max(1, Math.floor(visibleTraces / 100));
-      for (let t = startTrace; t < endTrace; t += step) {
-        const tr = processedMatrix[t];
-        if (!tr) continue;
-        for (let s = 0; s < numSamples; s += 4) {
-          allAbs.push(Math.abs(tr[s]));
-        }
+    // Dynamic range normalization: symmetric 98.5-percentile clipping across visible traces
+    const allAbs: number[] = [];
+    const step = Math.max(1, Math.floor(visibleTraces / 100));
+    for (let t = startTrace; t < endTrace; t += step) {
+      const tr = processedMatrix[t];
+      if (!tr) continue;
+      for (let s = 0; s < numSamples; s += 4) {
+        allAbs.push(Math.abs(tr[s]));
       }
-      allAbs.sort((a, b) => a - b);
-      const pIdx = Math.floor(allAbs.length * 0.985);
-      vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
-      if (vmax <= 1e-6) vmax = 1.0;
-    } else {
-      // In 'crudo' (raw binary) mode, normalize to standard 16-bit ADC scale (matching GPRSoft -32767 to +32767)
-      vmax = 32767.0;
     }
+    allAbs.sort((a, b) => a - b);
+    const pIdx = Math.floor(allAbs.length * 0.985);
+    let vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
+    if (vmax <= 1e-6) vmax = 1.0;
+    // In raw mode, ensure minimum scale floor of 1000 to avoid over-amplifying pure background noise
+    if (mode === 'crudo') {
+      vmax = Math.max(1000.0, vmax);
+    }
+
 
     // Offscreen ImageData for current profile data (visibleTraces x numSamples)
     const imgData = ctx.createImageData(visibleTraces, numSamples);
@@ -573,6 +572,11 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           <span className="font-bold text-sky-400 bg-sky-950/70 px-2 py-0.5 rounded border border-sky-800/60 text-xs flex-shrink-0">
             {dataset ? dataset.filename : 'Sin archivo'}
           </span>
+          <span className="bg-[#EAA023] text-primary-900 font-bold px-2 py-0.5 rounded text-xs flex-shrink-0 flex items-center gap-1 shadow-xs">
+            <Radio className="w-3 h-3 text-primary-900" />
+            <span>{dataset?.header?.antennaFreqMHz || 400} MHz</span>
+          </span>
+          <span className="text-slate-600 flex-shrink-0">•</span>
           <span className="text-slate-400 flex-shrink-0">
             εr: <strong className="text-slate-100">{dielectricPermittivity.toFixed(1)}</strong>
           </span>
@@ -590,7 +594,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           </span>
           <span className="text-slate-600 flex-shrink-0">•</span>
           <span className="text-slate-400 flex-shrink-0">
-            Distancia: <strong className="text-emerald-400">{distTotalM.toFixed(2)} m</strong> <span className="text-slate-400 font-normal">({numTraces} tr)</span>
+            Distancia: <strong className="text-emerald-400">{distTotalM.toFixed(2)} m</strong> <span className="text-slate-400 font-normal">({numTraces} tr · {Math.round(1.0 / dxM)} tr/m)</span>
           </span>
         </div>
 

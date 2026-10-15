@@ -642,7 +642,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               )}
             </div>
 
-            {/* 1. CABECERA & MUESTRAS (.GSF) */}
+            {/* 1. FICHA TÉCNICA Y METADATOS GEOFÍSICOS (.GSF) */}
             {header && (
               <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
                 <button
@@ -651,11 +651,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 >
                   <div className="flex items-center gap-2 text-primary font-bold text-xs">
                     <FileCode className="w-4 h-4 text-primary" />
-                    <span>Cabecera & Muestras (.GSF)</span>
+                    <span>Ficha Técnica del Archivo (.GSF)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="badge-primary text-[9px] px-1.5 py-0.2">
-                      {header.byteOffsetData || 512} Bytes
+                    <span className="badge-primary text-[9px] px-1.5 py-0.2 font-mono">
+                      {header.antennaFreqMHz || 400} MHz · {header.numSamples} samp
                     </span>
                     {openSections.header ? (
                       <ChevronDown className="w-4 h-4 text-text-muted" />
@@ -666,96 +666,68 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 </button>
 
                 {openSections.header && (
-                  <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <label className="text-[10px] font-semibold text-text-secondary">
-                          Tamaño Cabecera de Archivo:
-                        </label>
-                        <span className="text-[9px] text-emerald-600 font-medium font-mono">
-                          Auto-detectado: {header.byteOffsetData ?? 937}B
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {[937, 512, 1024, 0].map((off) => (
-                          <button
-                            key={off}
-                            onClick={() => updateHeader('byteOffsetData', off)}
-                            className={`py-1.5 rounded-xl text-xs font-mono border transition flex flex-col items-center justify-center ${
-                              (header.byteOffsetData ?? 937) === off
-                                ? 'bg-primary text-white border-primary font-bold shadow-xs'
-                                : 'bg-white text-text-secondary border-border hover:bg-gray-100'
-                            }`}
-                          >
-                            <span>{off} B</span>
-                            {off === 937 && (
-                              <span className="text-[8px] font-sans font-normal opacity-90">
-                                Akula9000
-                              </span>
-                            )}
-                            {off === 512 && (
-                              <span className="text-[8px] font-sans font-normal opacity-90">
-                                Estándar
-                              </span>
-                            )}
-                            {off === 0 && (
-                              <span className="text-[8px] font-sans font-normal opacity-90">
-                                Sin cab.
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
+                  <div className="p-3 pt-0 border-t border-border/60 space-y-2 mt-1.5">
+                    <div className="flex items-center justify-between text-[10px] text-text-muted pb-1 border-b border-border/50">
+                      <span>Estructura de Adquisición:</span>
+                      <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        Akula 9000C / Geoscanners (.gsfm)
+                      </span>
                     </div>
 
-                    <div>
-                      <label className="text-[10px] font-semibold text-text-secondary block mb-1">
-                        Muestras por Traza (Geometry):
-                      </label>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {[512, 256, 1024, 2048].map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => updateHeader('numSamples', s)}
-                            className={`py-1.5 rounded-xl text-xs font-mono font-bold border transition flex flex-col items-center justify-center ${
-                              header.numSamples === s
-                                ? 'bg-primary text-white border-primary shadow-xs'
-                                : 'bg-white text-text-secondary border-border hover:bg-gray-100'
-                            }`}
-                          >
-                            <span>{s}</span>
-                            {s === 512 && (
-                              <span className="text-[8px] font-sans font-normal opacity-90">
-                                Default
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="p-2.5 bg-white rounded-xl border border-border text-[10px] font-mono space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-text-muted">Offset 66 (OWT → TWT):</span>
+                    <div className="p-2.5 bg-white rounded-xl border border-border text-[10px] font-mono space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Antena & Filtros Hardware:</span>
                         <span className="text-primary font-bold">
-                          {header.ventanaNsHdr != null ? `${header.ventanaNsHdr} ns → ${header.timeWindowNs} ns` : 'N/A'}
+                          {header.antennaFreqMHz || 400} MHz {header.hpFilterHdr && header.lpFilterHdr ? `(HP ${header.hpFilterHdr} - LP ${header.lpFilterHdr})` : ''}
                         </span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-muted">Offset 84 (Muestras):</span>
-                        <span className="text-primary font-bold">{header.muestrasHdr ?? 'N/A'}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Muestras / Traza (Offset 414):</span>
+                        <span className="text-primary font-bold">{header.numSamples} muestras</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-muted">Offset 86 (εr RDP):</span>
-                        <span className="text-primary font-bold">{header.erHdr ? header.erHdr.toFixed(2) : 'N/A'}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Total Trazas (Scans):</span>
+                        <span className="text-primary font-bold">{numTraces} trazas</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-muted">Offset 344 (Trazas):</span>
-                        <span className="text-primary font-bold">{header.totalTrazasHdr ?? header.numTraces}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Ventana TWT (Offset 363):</span>
+                        <span className="text-amber-700 font-bold">{options.ventanaNs.toFixed(1)} ns</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-muted">Paso dx (Offset 406):</span>
-                        <span className="text-primary font-bold">{header.traceDistanceStepM.toFixed(4)} m</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Resolución dt (Offset 406):</span>
+                        <span className="text-primary font-bold">
+                          {header.resolutionDtNs ? header.resolutionDtNs.toFixed(3) : (options.ventanaNs / header.numSamples).toFixed(3)} ns/muestra
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Odometría (Offset 55):</span>
+                        <span className="text-emerald-700 font-bold">
+                          {header.tracesPerMeter || 112} tr/m (dx = {((currentDxM) * 100).toFixed(2)} cm)
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Distancia Total Perfil:</span>
+                        <span className="text-emerald-700 font-bold">{currentTotalDistM.toFixed(2)} m</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">RDP Grabado en Campo (Offset 86):</span>
+                        <span className="text-primary font-bold">εr = {header.erHdr ? header.erHdr.toFixed(1) : '6.0'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Velocidad Onda (v = c/√εr):</span>
+                        <span className="text-primary font-bold">{currentVelocity.toFixed(3)} m/ns</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Profundidad Máx Estimada:</span>
+                        <span className="text-purple-700 font-bold">{currentDepthM.toFixed(2)} m</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-text-muted">Posición Time-Zero (Offset 367):</span>
+                        <span className="text-text-secondary font-bold">{header.posicionNsHdr ?? 13} ns</span>
+                      </div>
+                      <div className="flex justify-between items-center text-text-muted text-[9px] pt-1 border-t border-border/50">
+                        <span>Cabecera / Stride:</span>
+                        <span>{header.byteOffsetData || 914} B / {header.traceStrideBytes || (header.numSamples * 2 + 40)} B</span>
                       </div>
                     </div>
                   </div>

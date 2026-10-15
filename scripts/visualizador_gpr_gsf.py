@@ -82,18 +82,20 @@ def leer_gsf(ruta_archivo: str, cabecera: int = 937, tam_bloque_manual: int = No
     header_bytes = datos[:cabecera]
 
     # --- EXTRACCIÓN DE CABECERA DE HARDWARE AKULA9000C ---
+    is_gsfm = datos[:4] == b'gsfm'
     ventana_ns_hdr = None
-    er_hdr = None
+    er_hdr = 6.0
     total_trazas_hdr = None
     muestras_hdr = None
-    step_hdr = None
+    step_hdr = DX_DEF
+    spm_hdr = TRAZAS_POR_METRO_DEF
 
-    if len(header_bytes) >= 410:
+    if len(header_bytes) >= 416:
         try:
-            # Offset 66 (int16): Duracion / fallback
-            v_val = struct.unpack('<h', header_bytes[66:68])[0]
-            if 1 <= v_val <= 1000:
-                ventana_ns_hdr = float(v_val * 2)
+            # Offset 55 (uint8): Odometria Scans por metro
+            if len(datos) > 55 and datos[55] > 0:
+                spm_hdr = float(datos[55])
+                step_hdr = 1.0 / spm_hdr
 
             # Offset 84 (int16): Muestras configuradas
             m_val = struct.unpack('<h', header_bytes[84:86])[0]
@@ -115,33 +117,50 @@ def leer_gsf(ruta_archivo: str, cabecera: int = 937, tam_bloque_manual: int = No
             if 5.0 <= tw_val <= 2000.0:
                 ventana_ns_hdr = float(tw_val)
 
-            # Offset 406 (float32): Paso horizontal (almacenado en cm en Akula / GAS)
-            s_val = struct.unpack('<f', header_bytes[406:410])[0]
-            if s_val > 0:
-                step_hdr = (s_val / 100.0) if (0.01 <= s_val <= 100.0) else s_val
+            # Offset 414 (int16): Muestras reales por canal
+            s_val = struct.unpack('<h', header_bytes[414:416])[0]
+            if 50 <= s_val <= 5000:
+                muestras_hdr = int(s_val)
         except Exception:
             pass
 
     # --- GEOMETRÍA DE BLOQUE Y TRAZAS ---
-    if tam_bloque_manual:
-        tam_bloque = tam_bloque_manual
-        muestras_por_traza = tam_bloque // 2
-        score = 1.0
-    elif muestras_hdr and (tam_total - cabecera) % (muestras_hdr * 2) == 0:
+    if is_gsfm and muestras_hdr:
+        start_byte = struct.unpack('<h', datos[352:354])[0] - 1 if len(datos) > 354 else 914
         muestras_por_traza = muestras_hdr
-        tam_bloque = muestras_por_traza * 2
+        stride = (muestras_por_traza + 10) * 2 + 40
+        total_trazas = (tam_total - start_byte - 23) // stride
+        if total_trazas_hdr and 5 <= total_trazas_hdr <= total_trazas:
+            total_trazas = min(total_trazas_hdr, total_trazas)
+
+        matriz = np.zeros((muestras_por_traza, total_trazas), dtype=np.float32)
+        for t in range(total_trazas):
+            off = start_byte + t * stride
+            matriz[:, t] = np.frombuffer(datos[off : off + muestras_por_traza * 2], dtype='<i2')
+
         score = 1.0
+        tam_bloque = stride
+        cabecera = start_byte
     else:
-        tam_bloque, muestras_por_traza, score = detectar_geometria_gsf(datos, cabecera=cabecera)
+        if tam_bloque_manual:
+            tam_bloque = tam_bloque_manual
+            muestras_por_traza = tam_bloque // 2
+            score = 1.0
+        elif muestras_hdr and (tam_total - cabecera) % (muestras_hdr * 2) == 0:
+            muestras_por_traza = muestras_hdr
+            tam_bloque = muestras_por_traza * 2
+            score = 1.0
+        else:
+            tam_bloque, muestras_por_traza, score = detectar_geometria_gsf(datos, cabecera=cabecera)
 
-    cuerpo = datos[cabecera:]
-    total_trazas = len(cuerpo) // tam_bloque
+        cuerpo = datos[cabecera:]
+        total_trazas = len(cuerpo) // tam_bloque
 
-    if total_trazas == 0:
-        raise ValueError(f"No se encontraron trazas válidas en {ruta_archivo}")
+        if total_trazas == 0:
+            raise ValueError(f"No se encontraron trazas válidas en {ruta_archivo}")
 
-    util = cuerpo[: total_trazas * tam_bloque]
-    matriz = np.frombuffer(util, dtype="<i2").reshape((total_trazas, muestras_por_traza)).T.astype(np.float32)
+        util = cuerpo[: total_trazas * tam_bloque]
+        matriz = np.frombuffer(util, dtype="<i2").reshape((total_trazas, muestras_por_traza)).T.astype(np.float32)
 
     info = {
         "tam_archivo": tam_total,
@@ -149,11 +168,12 @@ def leer_gsf(ruta_archivo: str, cabecera: int = 937, tam_bloque_manual: int = No
         "tam_bloque": tam_bloque,
         "muestras_por_traza": muestras_por_traza,
         "total_trazas": total_trazas,
-        "ventana_ns_hdr": ventana_ns_hdr,
+        "ventana_ns_hdr": ventana_ns_hdr or VENTANA_TIEMPO_NS_DEF,
         "muestras_hdr": muestras_hdr,
         "er_hdr": er_hdr,
         "total_trazas_hdr": total_trazas_hdr,
         "step_hdr": step_hdr,
+        "scans_por_metro": spm_hdr,
         "confianza_autocorrelacion": score
     }
     return matriz, info
