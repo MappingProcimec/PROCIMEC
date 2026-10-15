@@ -1751,6 +1751,59 @@ export default function PurchasingDashboardPage() {
     }
   };
 
+  // Navegación interactiva desde la Cadena de Trazabilidad hacia las pestañas 2 a 7
+  const handleStepClick = (
+    stepNum: number,
+    r: PurchaseRequest,
+    linkedOrder?: PurchaseOrder
+  ) => {
+    if (stepNum === 2) {
+      setActiveTab('requests');
+      setSearch(r.request_code || '');
+      setFilterStatus('all');
+    } else if (stepNum === 3) {
+      if (canViewApprovals) {
+        setActiveTab('approvals');
+        setSearch(r.request_code || '');
+        setFilterStatus('all');
+      } else {
+        handleOpenDetail(r);
+      }
+    } else if (stepNum === 4) {
+      if (canViewQuotations) {
+        setActiveTab('quotations');
+        setSearch(r.request_code || '');
+        setFilterStatus('all');
+      } else {
+        handleOpenDetail(r);
+      }
+    } else if (stepNum === 5) {
+      if (canViewManagementApproval) {
+        setActiveTab('management_approval');
+        setSearch(r.request_code || '');
+        setFilterStatus('all');
+      } else {
+        handleOpenDetail(r);
+      }
+    } else if (stepNum === 6) {
+      if (canViewOrders) {
+        setActiveTab('orders');
+        setSearch(linkedOrder ? linkedOrder.order_code : (r.request_code || ''));
+        setFilterStatus('all');
+      } else {
+        handleOpenDetail(r);
+      }
+    } else if (stepNum === 7) {
+      if (canViewEvaluations) {
+        setActiveTab('evaluations');
+        setSearch(linkedOrder?.supplier_name || r.client_name || '');
+        setFilterStatus('all');
+      } else {
+        handleOpenDetail(r);
+      }
+    }
+  };
+
   // Descargar PDF de requerimiento FOR-COM-001
   const handleDownloadPdf = (r: PurchaseRequest) => {
     try {
@@ -1992,8 +2045,18 @@ export default function PurchasingDashboardPage() {
                   ? 'Buscar por proveedor o comentarios...'
                   : 'Buscar por código REQ, título, solicitante o proyecto...'
               }
-              className="input w-full pl-9 py-2 text-xs bg-white text-text-primary border-border focus:ring-accent"
+              className="input w-full pl-9 pr-8 py-2 text-xs bg-white text-text-primary border-border focus:ring-accent"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer transition-colors"
+                title="Limpiar búsqueda"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -2063,7 +2126,7 @@ export default function PurchasingDashboardPage() {
         <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6">
           <button
             type="button"
-            onClick={() => setActiveTab('timeline')}
+            onClick={() => { setActiveTab('timeline'); setSearch(''); setFilterStatus('all'); }}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'timeline'
                 ? 'bg-accent text-primary-900 shadow-sm'
@@ -2186,7 +2249,7 @@ export default function PurchasingDashboardPage() {
                     <tr>
                       <th className="py-3 px-4">Código REQ</th>
                       <th className="py-3 px-4">Proyecto / Cliente</th>
-                      <th className="py-3 px-4">Cadena de Trazabilidad (6 Pasos)</th>
+                      <th className="py-3 px-4 min-w-[340px]">Cadena de Trazabilidad (6 Pasos)</th>
                       <th className="py-3 px-4 text-center">Etapa Actual</th>
                       <th className="py-3 px-4 text-right">Monto Estimado</th>
                       <th className="py-3 px-4 text-right">Acciones</th>
@@ -2206,6 +2269,127 @@ export default function PurchasingDashboardPage() {
                       const sigDirector = r.signatures?.director;
                       const sigPurchasing = r.signatures?.purchasing;
                       const sigManagement = r.signatures?.management;
+
+                      const isReqRejected = r.status === 'rejected';
+
+                      // Estado de cada paso sincronizado con las pestañas 2 a 7
+                      const step2Status = isReqRejected && !sigDirector ? 'rejected' : 'completed';
+
+                      const step3Status = sigDirector?.rejected
+                        ? 'rejected'
+                        : sigDirector
+                        ? 'completed'
+                        : isReqRejected
+                        ? 'pending'
+                        : 'current';
+
+                      const step4Status = sigPurchasing?.rejected
+                        ? 'rejected'
+                        : sigPurchasing
+                        ? 'completed'
+                        : step3Status === 'completed' && !isReqRejected
+                        ? 'current'
+                        : 'pending';
+
+                      const step5Status =
+                        sigManagement?.rejected || (isReqRejected && (sigPurchasing || r.status === 'rejected'))
+                          ? 'rejected'
+                          : sigManagement || r.status === 'approved' || r.status === 'purchased'
+                          ? 'completed'
+                          : step4Status === 'completed' && !isReqRejected
+                          ? 'current'
+                          : 'pending';
+
+                      const step6Status = linkedOrder
+                        ? linkedOrder.status === 'completed'
+                          ? 'completed'
+                          : linkedOrder.status === 'cancelled'
+                          ? 'rejected'
+                          : 'current'
+                        : (step5Status === 'completed' || r.status === 'approved') && !isReqRejected
+                        ? 'current'
+                        : 'pending';
+
+                      const step7Status = linkedEval
+                        ? 'completed'
+                        : linkedOrder
+                        ? 'current'
+                        : 'pending';
+
+                      const stepsData = [
+                        {
+                          num: 2,
+                          label: 'PASO 2',
+                          name: 'REQ',
+                          status: step2Status,
+                          tooltip: `Paso 2: Requerimientos (${r.request_code || 'REQ'}) — Clic para abrir Pestaña 2`,
+                        },
+                        {
+                          num: 3,
+                          label: 'PASO 3',
+                          name: 'VB Téc.',
+                          status: step3Status,
+                          tooltip: `Paso 3: VB Técnico (${
+                            sigDirector?.rejected ? 'Rechazado' : sigDirector ? 'Aprobado' : 'Pendiente'
+                          }) — Clic para abrir Pestaña 3`,
+                        },
+                        {
+                          num: 4,
+                          label: 'PASO 4',
+                          name: 'Cotiz.',
+                          status: step4Status,
+                          tooltip: `Paso 4: En Cotización (${
+                            sigPurchasing?.rejected
+                              ? 'Rechazada'
+                              : sigPurchasing
+                              ? 'Cotizado'
+                              : step3Status === 'completed'
+                              ? 'En Proceso'
+                              : 'En espera'
+                          }) — Clic para abrir Pestaña 4`,
+                        },
+                        {
+                          num: 5,
+                          label: 'PASO 5',
+                          name: 'Aprob. GG',
+                          status: step5Status,
+                          tooltip: `Paso 5: Aprobación GG (${
+                            sigManagement || r.status === 'approved'
+                              ? 'Aprobada GG'
+                              : r.status === 'rejected'
+                              ? 'Rechazada GG'
+                              : step4Status === 'completed'
+                              ? 'Pendiente GG'
+                              : 'En espera'
+                          }) — Clic para abrir Pestaña 5`,
+                        },
+                        {
+                          num: 6,
+                          label: 'PASO 6',
+                          name: 'OC',
+                          status: step6Status,
+                          tooltip: `Paso 6: Órdenes de Compra (${
+                            linkedOrder
+                              ? linkedOrder.order_code
+                              : step5Status === 'completed' || r.status === 'approved'
+                              ? 'Pendiente OC'
+                              : 'Sin Emitir'
+                          }) — Clic para abrir Pestaña 6`,
+                        },
+                        {
+                          num: 7,
+                          label: 'PASO 7',
+                          name: 'Eval.',
+                          status: step7Status,
+                          tooltip: `Paso 7: Evaluación Proveedores (${
+                            linkedEval
+                              ? `${Number(linkedEval.overall_rating).toFixed(1)} ★`
+                              : linkedOrder
+                              ? 'Pendiente'
+                              : 'Sin Eval.'
+                          }) — Clic para abrir Pestaña 7`,
+                        },
+                      ];
 
                       return (
                         <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
@@ -2227,123 +2411,70 @@ export default function PurchasingDashboardPage() {
                             </span>
                           </td>
 
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {/* 1. Requerimiento */}
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-blue-50 text-blue-900 border border-blue-200">
-                                <FileText className="w-3 h-3 text-blue-600" />
-                                {r.request_code || 'REQ'}
-                              </span>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="flex items-start gap-1 sm:gap-1.5 py-1">
+                              {stepsData.map((st, idx) => (
+                                <div key={st.num} className="flex items-center gap-1 sm:gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStepClick(st.num, r, linkedOrder)}
+                                    title={st.tooltip}
+                                    className="flex flex-col items-center group cursor-pointer p-0.5 rounded-lg hover:bg-amber-50/70 active:scale-[0.97] transition-all focus:outline-hidden"
+                                  >
+                                    <div className="relative">
+                                      <div
+                                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full font-bold flex items-center justify-center text-xs sm:text-sm transition-all duration-150 group-hover:scale-105 ${
+                                          st.status === 'completed'
+                                            ? 'bg-accent text-primary-900 border-2 border-accent shadow-xs'
+                                            : st.status === 'current'
+                                            ? 'bg-accent text-primary-900 font-black border-2 border-amber-600 shadow-md ring-2 ring-accent/60 ring-offset-1'
+                                            : st.status === 'rejected'
+                                            ? 'bg-rose-500 text-white border-2 border-rose-600 shadow-xs'
+                                            : 'bg-slate-100 text-slate-400 border-2 border-slate-200 group-hover:border-slate-300 group-hover:text-slate-600 group-hover:bg-slate-200/50'
+                                        }`}
+                                      >
+                                        {st.num}
+                                      </div>
+                                      {st.status === 'current' && (
+                                        <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-accent"></span>
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span
+                                      className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider mt-1 transition-colors ${
+                                        st.status === 'completed' || st.status === 'current'
+                                          ? 'text-primary-900'
+                                          : st.status === 'rejected'
+                                          ? 'text-rose-700'
+                                          : 'text-slate-400 group-hover:text-slate-600'
+                                      }`}
+                                    >
+                                      {st.label}
+                                    </span>
+                                    <span
+                                      className={`text-[8px] sm:text-[9px] font-semibold leading-none truncate max-w-[48px] text-center transition-colors ${
+                                        st.status === 'completed' || st.status === 'current'
+                                          ? 'text-amber-800'
+                                          : st.status === 'rejected'
+                                          ? 'text-rose-600'
+                                          : 'text-slate-400'
+                                      }`}
+                                    >
+                                      {st.name}
+                                    </span>
+                                  </button>
 
-                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
-
-                              {/* 2. VB Técnico */}
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                  sigDirector
-                                    ? sigDirector.rejected
-                                      ? 'bg-rose-50 text-rose-800 border-rose-200'
-                                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                    : 'bg-amber-50 text-amber-900 border-amber-300'
-                                }`}
-                              >
-                                <ShieldCheck className="w-3 h-3 text-amber-600" />
-                                {sigDirector
-                                  ? sigDirector.rejected
-                                    ? 'VB Rechazado'
-                                    : 'VB Aprobado'
-                                  : 'Pendiente VB'}
-                              </span>
-
-                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
-
-                              {/* 3. Cotización */}
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                  sigPurchasing
-                                    ? sigPurchasing.rejected
-                                      ? 'bg-rose-50 text-rose-800 border-rose-200'
-                                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                    : sigDirector
-                                    ? 'bg-blue-50 text-blue-900 border-blue-200'
-                                    : 'bg-slate-100 text-slate-600 border-slate-200'
-                                }`}
-                              >
-                                <ShoppingBag className="w-3 h-3 text-purple-600" />
-                                {sigPurchasing
-                                  ? sigPurchasing.rejected
-                                    ? 'Cotiz. Rechazada'
-                                    : 'Cotizado'
-                                  : sigDirector
-                                  ? 'En Cotización'
-                                  : 'En espera'}
-                              </span>
-
-                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
-
-                              {/* 4. Aprobación GG */}
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                  sigManagement || r.status === 'approved'
-                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                    : r.status === 'rejected'
-                                    ? 'bg-rose-50 text-rose-800 border-rose-200'
-                                    : sigPurchasing
-                                    ? 'bg-amber-50 text-amber-900 border-amber-300'
-                                    : 'bg-slate-100 text-slate-600 border-slate-200'
-                                }`}
-                              >
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                {sigManagement || r.status === 'approved'
-                                  ? 'Aprobada GG'
-                                  : r.status === 'rejected'
-                                  ? 'Rechazada GG'
-                                  : sigPurchasing
-                                  ? 'Pendiente GG'
-                                  : 'En espera'}
-                              </span>
-
-                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
-
-                              {/* 5. Orden de Compra */}
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${
-                                  linkedOrder
-                                    ? linkedOrder.status === 'completed'
-                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                      : 'bg-blue-50 text-blue-800 border-blue-200'
-                                    : r.status === 'approved'
-                                    ? 'bg-amber-50 text-amber-900 border-amber-300'
-                                    : 'bg-slate-100 text-slate-600 border-slate-200'
-                                }`}
-                              >
-                                <Package className="w-3 h-3 text-blue-600" />
-                                {linkedOrder
-                                  ? linkedOrder.order_code
-                                  : r.status === 'approved'
-                                  ? 'Pendiente OC'
-                                  : 'Sin Emitir'}
-                              </span>
-
-                              <ArrowRight className="w-3 h-3 text-slate-300 shrink-0" />
-
-                              {/* 6. Evaluación Proveedor */}
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                  linkedEval
-                                    ? 'bg-amber-50 text-amber-900 border-amber-300'
-                                    : linkedOrder
-                                    ? 'bg-slate-100 text-slate-700 border-slate-200'
-                                    : 'bg-slate-100 text-slate-500 border-slate-200'
-                                }`}
-                              >
-                                <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-                                {linkedEval
-                                  ? `${Number(linkedEval.overall_rating).toFixed(1)} ★`
-                                  : linkedOrder
-                                  ? 'Pendiente'
-                                  : 'Sin Eval.'}
-                              </span>
+                                  {idx < stepsData.length - 1 && (
+                                    <ArrowRight
+                                      className={`w-3.5 h-3.5 stroke-[2.5] shrink-0 mt-2 sm:mt-2.5 transition-colors ${
+                                        st.status === 'completed' ? 'text-accent' : 'text-slate-300'
+                                      }`}
+                                    />
+                                  )}
+                                </div>
+                              ))}
                             </div>
                           </td>
 
