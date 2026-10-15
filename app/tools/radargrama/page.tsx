@@ -36,12 +36,66 @@ import {
   Zap,
   Download,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
 } from 'lucide-react';
+
+/**
+ * Miniature radargram preview for PowerPoint-style left slide sorter
+ */
+const ProfileMiniatureThumbnail: React.FC<{ dataset: GPRDataset; isActive: boolean }> = ({ dataset }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !dataset.rawMatrix || dataset.rawMatrix.length === 0) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const matrix = dataset.rawMatrix;
+    const numTraces = matrix.length;
+    const numSamples = matrix[0]?.length || 0;
+    if (numTraces === 0 || numSamples === 0) return;
+
+    const imgData = ctx.createImageData(w, h);
+    const data = imgData.data;
+
+    // Fast subsampling loop to fill w x h with real stratigraphy
+    for (let y = 0; y < h; y++) {
+      const sIdx = Math.floor((y / h) * numSamples);
+      for (let x = 0; x < w; x++) {
+        const tIdx = Math.floor((x / w) * numTraces);
+        const amp = matrix[tIdx]?.[sIdx] || 0;
+        const norm = Math.max(-1.0, Math.min(1.0, amp / 5000.0));
+        const gray = Math.floor(((norm + 1.0) / 2.0) * 255);
+        const ptr = (y * w + x) * 4;
+        data[ptr] = gray;
+        data[ptr + 1] = gray;
+        data[ptr + 2] = gray;
+        data[ptr + 3] = 255;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }, [dataset]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={140}
+      height={45}
+      className="w-full h-full object-cover block opacity-90 group-hover:opacity-100 transition"
+    />
+  );
+};
 
 export default function RadargramaWorkstationPage() {
   // Datasets state
   const [datasets, setDatasets] = useState<GPRDataset[]>([]);
   const [activeDatasetId, setActiveDatasetId] = useState<string | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
   // DSP Options per dataset (map dataset ID -> options)
   const [dspOptionsMap, setDspOptionsMap] = useState<Record<string, DSPOptions>>({});
@@ -540,46 +594,128 @@ export default function RadargramaWorkstationPage() {
         </div>
       </div>
 
-      {/* Dataset Tab Bar (Multi-file batch manager) */}
-      {datasets.length > 0 && (
-        <div className="bg-white border-b border-border px-4 sm:px-6 flex items-center justify-between overflow-x-auto h-11">
-          <div className="flex items-center gap-2">
-            {datasets.map((ds) => (
-              <div
-                key={ds.id}
-                onClick={() => setActiveDatasetId(ds.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition ${
-                  activeDatasetId === ds.id
-                    ? 'bg-primary-50 text-primary border-primary font-semibold shadow-xs'
-                    : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'
-                }`}
-              >
-                <FolderOpen className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                <span className="max-w-[140px] truncate">{ds.filename}</span>
-                <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-100 text-primary-900 font-bold border border-amber-300 flex-shrink-0">
-                  {ds.header.antennaFreqMHz || 400} MHz
-                </span>
-                <span className="text-[9.5px] font-mono text-slate-500 flex-shrink-0">
-                  {(ds.header.numTraces * (ds.header.traceDistanceStepM || 1.0 / 112.0)).toFixed(1)}m
-                </span>
-                <button
-                  onClick={(e) => handleRemoveDataset(ds.id, e)}
-                  className="p-0.5 hover:bg-red-100 rounded text-text-muted hover:text-red-600 transition ml-0.5"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden p-4 gap-4 max-w-[1600px] w-full mx-auto">
+      {/* Main Workstation Layout with PowerPoint-Style Left Sidebar */}
+      <div className="flex-1 flex overflow-hidden p-3 gap-3 w-full">
         {activeDataset ? (
           <>
+            {/* LEFT: PowerPoint-Style Profile Slide Deck */}
+            {datasets.length > 0 && (
+              <aside
+                className={`bg-white rounded-2xl border border-border shadow-2xs flex flex-col overflow-hidden flex-shrink-0 h-[calc(100vh-140px)] transition-all duration-200 ${
+                  isSidebarCollapsed ? 'w-14' : 'w-56 sm:w-64'
+                }`}
+              >
+                {/* Header of Slide Deck */}
+                <div className="p-2.5 border-b border-border bg-gray-50/80 flex items-center justify-between">
+                  {!isSidebarCollapsed && (
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Layers className="w-4 h-4 text-primary flex-shrink-0" />
+                      <span className="text-xs font-bold text-text-primary truncate">Perfiles GPR</span>
+                      <span className="badge-primary text-[10px] px-1.5 py-0.2 font-mono font-bold flex-shrink-0">
+                        {datasets.length}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1">
+                    {!isSidebarCollapsed && (
+                      <label
+                        className="p-1 hover:bg-gray-200 text-text-secondary hover:text-primary rounded-lg transition cursor-pointer"
+                        title="Cargar más archivos .GSF"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <input type="file" accept=".gsf,.bin" multiple onChange={handleFileUpload} className="hidden" />
+                      </label>
+                    )}
+                    <button
+                      onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+                      className="p-1 text-text-muted hover:text-text-primary hover:bg-gray-200 rounded-lg transition cursor-pointer"
+                      title={isSidebarCollapsed ? 'Expandir panel de diapositivas' : 'Colapsar panel'}
+                    >
+                      {isSidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Slides List (Vertical Scroll) */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                  {datasets.map((ds, index) => {
+                    const isActive = activeDatasetId === ds.id;
+                    const totalDistM = ds.header.numTraces * (ds.header.traceDistanceStepM || 1.0 / 112.0);
+
+                    if (isSidebarCollapsed) {
+                      return (
+                        <div
+                          key={ds.id}
+                          onClick={() => setActiveDatasetId(ds.id)}
+                          className={`w-10 h-10 mx-auto rounded-xl flex flex-col items-center justify-center cursor-pointer border transition text-xs font-mono font-bold ${
+                            isActive
+                              ? 'bg-[#EAA023] text-primary-900 border-amber-500 shadow-xs'
+                              : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'
+                          }`}
+                          title={`${ds.filename} (${ds.header.antennaFreqMHz || 400} MHz, ${totalDistM.toFixed(1)}m)`}
+                        >
+                          <span>{index + 1}</span>
+                          <span className="text-[7.5px] font-sans opacity-85 leading-none">{ds.header.antennaFreqMHz || 400}M</span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={ds.id}
+                        onClick={() => setActiveDatasetId(ds.id)}
+                        className={`group relative rounded-xl border transition-all cursor-pointer p-2 flex flex-col gap-1.5 select-none ${
+                          isActive
+                            ? 'bg-amber-50/70 border-accent ring-2 ring-accent shadow-xs'
+                            : 'bg-white border-border hover:border-slate-300 hover:bg-gray-50/80 shadow-2xs'
+                        }`}
+                      >
+                        {/* Slide Top: Number, Name, Delete */}
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span
+                              className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-mono font-bold flex-shrink-0 ${
+                                isActive ? 'bg-[#EAA023] text-primary-900' : 'bg-gray-100 text-text-muted group-hover:bg-gray-200'
+                              }`}
+                            >
+                              {index + 1}
+                            </span>
+                            <span className="text-xs font-bold text-text-primary truncate" title={ds.filename}>
+                              {ds.filename}
+                            </span>
+                          </div>
+                          <button
+                            onClick={(e) => handleRemoveDataset(ds.id, e)}
+                            className="p-1 text-text-muted hover:text-red-600 hover:bg-red-50 rounded transition opacity-60 group-hover:opacity-100 flex-shrink-0"
+                            title="Cerrar perfil"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {/* Slide Preview Canvas */}
+                        <div className="w-full h-14 bg-slate-900 rounded-lg overflow-hidden relative border border-slate-800 flex items-center justify-center shadow-inner">
+                          <ProfileMiniatureThumbnail dataset={ds} isActive={isActive} />
+                        </div>
+
+                        {/* Slide Bottom Info: Frequency Badge and Total Distance */}
+                        <div className="flex items-center justify-between text-[10px] font-mono pt-0.5">
+                          <span className="bg-[#EAA023] text-primary-900 font-bold px-1.5 py-0.2 rounded text-[9px] shadow-2xs">
+                            {ds.header.antennaFreqMHz || 400} MHz
+                          </span>
+                          <span className="text-text-secondary font-semibold">
+                            {totalDistM.toFixed(1)}m <span className="text-text-muted font-normal">({ds.header.numTraces} tr)</span>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </aside>
+            )}
+
             {/* Center Canvas Viewport */}
-            <div className="flex-1 flex flex-col min-h-[600px] h-[calc(100vh-170px)]">
+            <div className="flex-1 flex flex-col min-w-0 h-[calc(100vh-140px)]">
               <CanvasViewer
                 dataset={activeDataset}
                 processedMatrix={activeProcessedMatrix}
@@ -598,7 +734,7 @@ export default function RadargramaWorkstationPage() {
             </div>
 
             {/* Right DSP Options Panel */}
-            <div className="h-[calc(100vh-170px)] rounded-2xl overflow-hidden border border-border">
+            <div className="w-80 h-[calc(100vh-140px)] rounded-2xl overflow-hidden border border-border flex-shrink-0">
               <DSPOptionsPanel
                 options={activeOptions}
                 header={activeDataset.header}

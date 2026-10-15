@@ -265,8 +265,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   onDetectionConfigChange,
   detectionResults,
 }) => {
-  // Main tabs: Modo (Izquierda), Procesamiento (Centro), Calibración, Detección
-  const [activeTab, setActiveTab] = useState<'mode' | 'filters' | 'calibracion' | 'deteccion'>('mode');
+  // Main tabs en orden requerido: Process (primero), Detección, Detalles, Calibración
+  const [activeTab, setActiveTab] = useState<'process' | 'deteccion' | 'detalles' | 'calibracion'>('process');
 
   // Detection config state with 300ms debounce
   const [localConfig, setLocalConfig] = useState<DetectionConfig>(detectionConfig);
@@ -492,47 +492,23 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         </button>
       </div>
 
-      {/* Tabs Bar: Modo | Procesamiento | Calibración | Detección */}
+      {/* Tabs Bar en orden solicitado: Process | Detección | Detalles | Calibración */}
       <div className="grid grid-cols-4 bg-gray-100 p-1 border-b border-border text-xs gap-0.5">
         <button
-          onClick={() => setActiveTab('mode')}
-          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition ${
-            activeTab === 'mode'
-              ? 'bg-primary text-white shadow-xs font-bold'
-              : 'text-text-secondary hover:bg-gray-200'
-          }`}
-          title="Modo de Señal (Dato Crudo / Procesado)"
-        >
-          <FileSpreadsheet className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="text-[10px] sm:text-[11px] truncate">Modo</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('filters')}
-          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition ${
-            activeTab === 'filters'
+          onClick={() => setActiveTab('process')}
+          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition cursor-pointer ${
+            activeTab === 'process'
               ? 'bg-primary text-white shadow-xs font-bold'
               : 'text-text-secondary hover:bg-gray-200'
           }`}
           title="Filtros y Procesamiento DSP"
         >
           <Activity className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="text-[10px] sm:text-[11px] truncate">Procesamiento</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('calibracion')}
-          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition ${
-            activeTab === 'calibracion'
-              ? 'bg-primary text-white shadow-xs font-bold'
-              : 'text-text-secondary hover:bg-gray-200'
-          }`}
-          title="Calibración Centralizada (Cabecera, Geometría, Time-Zero, Paleta)"
-        >
-          <Sliders className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="text-[10px] sm:text-[11px] truncate">Calibración</span>
+          <span className="text-[10px] sm:text-[11px] truncate">Process</span>
         </button>
         <button
           onClick={() => setActiveTab('deteccion')}
-          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition ${
+          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition cursor-pointer ${
             activeTab === 'deteccion'
               ? 'bg-primary text-white shadow-xs font-bold'
               : 'text-text-secondary hover:bg-gray-200'
@@ -541,6 +517,30 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         >
           <Scan className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="text-[10px] sm:text-[11px] truncate">Detección</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('detalles')}
+          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition cursor-pointer ${
+            activeTab === 'detalles'
+              ? 'bg-primary text-white shadow-xs font-bold'
+              : 'text-text-secondary hover:bg-gray-200'
+          }`}
+          title="Ficha Técnica y Detalles del Archivo"
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-[10px] sm:text-[11px] truncate">Detalles</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('calibracion')}
+          className={`py-2 flex items-center justify-center gap-1 rounded-lg font-medium transition cursor-pointer ${
+            activeTab === 'calibracion'
+              ? 'bg-primary text-white shadow-xs font-bold'
+              : 'text-text-secondary hover:bg-gray-200'
+          }`}
+          title="Calibración Centralizada (Cabecera, Geometría, Time-Zero, Paleta)"
+        >
+          <Sliders className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-[10px] sm:text-[11px] truncate">Calibración</span>
         </button>
       </div>
 
@@ -1088,10 +1088,43 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* TAB 2: FILTERS DSP / PROCESAMIENTO MODULAR (Accordion Cards) */}
+        {/* TAB 1: PROCESS (MODO DE SEÑAL DE PRIMERO + FILTROS DSP)      */}
         {/* ============================================================ */}
-        {activeTab === 'filters' && (
+        {activeTab === 'process' && (
           <div className="space-y-3">
+            {/* 0. MODO DE SEÑAL: DATO CRUDO vs PROCESADO DSP (COLOCADO DE PRIMERO) */}
+            <div className="bg-gray-50 p-3 rounded-2xl border border-border space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-text-primary block text-xs">Modo de Señal</span>
+                <span className="text-[9.5px] font-mono font-semibold px-2 py-0.5 rounded bg-white border border-border text-primary">
+                  {options.mode === 'crudo' ? 'Binario Original' : 'Filtros DSP Activos'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => updateOption('mode', 'crudo')}
+                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-0.5 cursor-pointer ${
+                    options.mode === 'crudo'
+                      ? 'bg-primary text-white border-primary shadow-xs'
+                      : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                  }`}
+                >
+                  <span>Dato Crudo</span>
+                  <span className="text-[9.5px] font-normal opacity-80">(Binario Original)</span>
+                </button>
+                <button
+                  onClick={() => updateOption('mode', 'procesado')}
+                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-0.5 cursor-pointer ${
+                    options.mode === 'procesado'
+                      ? 'bg-primary text-white border-primary shadow-xs'
+                      : 'bg-white text-text-secondary border-border hover:bg-gray-100'
+                  }`}
+                >
+                  <span>Procesado DSP</span>
+                  <span className="text-[9.5px] font-normal opacity-80">(Filtros GPR)</span>
+                </button>
+              </div>
+            </div>
             {/* ------------------------------------------------------------ */}
             {/* 1. SECCIÓN: FILTRO DEWOW (DERIVA DC EN NS)                   */}
             {/* ------------------------------------------------------------ */}
@@ -2785,36 +2818,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* TAB 3: MODE & SYSTEM SPECS                                   */}
+        {/* TAB 3: DETALLES (FICHA TÉCNICA Y SISTEMA DE ADQUISICIÓN)      */}
         {/* ============================================================ */}
-        {activeTab === 'mode' && (
+        {activeTab === 'detalles' && (
           <div className="space-y-3">
-            <div className="bg-gray-50 p-3 rounded-2xl border border-border space-y-2.5">
-              <span className="font-bold text-text-primary block text-xs">Modo de Señal</span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => updateOption('mode', 'crudo')}
-                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
-                    options.mode === 'crudo'
-                      ? 'bg-primary text-white border-primary shadow-xs'
-                      : 'bg-white text-text-secondary border-border hover:bg-gray-100'
-                  }`}
-                >
-                  <span>Dato Crudo</span>
-                  <span className="text-[10px] font-normal opacity-80">(Binario Original)</span>
-                </button>
-                <button
-                  onClick={() => updateOption('mode', 'procesado')}
-                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
-                    options.mode === 'procesado'
-                      ? 'bg-primary text-white border-primary shadow-xs'
-                      : 'bg-white text-text-secondary border-border hover:bg-gray-100'
-                  }`}
-                >
-                  <span>Procesado DSP</span>
-                  <span className="text-[10px] font-normal opacity-80">(Filtros GPR)</span>
-                </button>
+            <div className="bg-primary-50/70 p-3 rounded-2xl border border-primary-200 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-primary" />
+                <span className="font-bold text-primary">Ficha Técnica Geofísica</span>
               </div>
+              <span className="badge-primary text-[10px] font-mono font-bold px-2 py-0.5">
+                {currentAntennaFreq} MHz
+              </span>
             </div>
 
             {header && (
