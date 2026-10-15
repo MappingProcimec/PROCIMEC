@@ -30,11 +30,19 @@ import {
   Grid,
   GitCommit,
   Moon,
+  CheckCheck,
+  XCircle,
+  Eye,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   DetectionConfig,
   DetectionResults,
   DEFAULT_DETECTION_CONFIG,
+  getTotalAnomaliesCount,
+  getAllMarkers,
+  createSensitivityPreset,
+  AnomalyMarker,
 } from '@/lib/gpr/detectionTypes';
 
 interface DSPOptionsPanelProps {
@@ -54,6 +62,7 @@ interface DSPOptionsPanelProps {
   detectionConfig?: DetectionConfig;
   onDetectionConfigChange?: (cfg: DetectionConfig) => void;
   detectionResults?: DetectionResults;
+  onSelectMarker?: (marker: AnomalyMarker | null) => void;
 }
 
 /**
@@ -264,12 +273,16 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   detectionConfig = DEFAULT_DETECTION_CONFIG,
   onDetectionConfigChange,
   detectionResults,
+  onSelectMarker,
 }) => {
   // Main tabs en orden requerido: Process (primero), Detección, Detalles, Calibración
   const [activeTab, setActiveTab] = useState<'process' | 'deteccion' | 'detalles' | 'calibracion'>('process');
 
   // Detection config state with 300ms debounce
   const [localConfig, setLocalConfig] = useState<DetectionConfig>(detectionConfig);
+  const [showAnomalyList, setShowAnomalyList] = useState<boolean>(false);
+  const totalAnomalies = getTotalAnomaliesCount(detectionResults);
+  const allDetectedMarkers = getAllMarkers(detectionResults);
 
   useEffect(() => {
     if (detectionConfig) {
@@ -303,6 +316,113 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         onDetectionConfigChange?.(updated);
       }, 300);
     }
+  };
+
+  const handleEnableAllDetections = () => {
+    const updated: DetectionConfig = {
+      ...localConfig,
+      brightSpot: { ...localConfig.brightSpot, enabled: true },
+      hyperbola: { ...localConfig.hyperbola, enabled: true },
+      delamination: { ...localConfig.delamination, enabled: true },
+      subslabVoid: { ...localConfig.subslabVoid, enabled: true },
+      diffuseScattering: { ...localConfig.diffuseScattering, enabled: true },
+      jointInfiltration: { ...localConfig.jointInfiltration, enabled: true },
+      dielectricShadow: { ...localConfig.dielectricShadow, enabled: true },
+      thicknessVariation: { ...localConfig.thicknessVariation, enabled: true },
+      pipeUtility: { ...localConfig.pipeUtility, enabled: true },
+    };
+    setLocalConfig(updated);
+    onDetectionConfigChange?.(updated);
+  };
+
+  const handleDisableAllDetections = () => {
+    const updated: DetectionConfig = {
+      ...localConfig,
+      brightSpot: { ...localConfig.brightSpot, enabled: false },
+      hyperbola: { ...localConfig.hyperbola, enabled: false },
+      delamination: { ...localConfig.delamination, enabled: false },
+      subslabVoid: { ...localConfig.subslabVoid, enabled: false },
+      diffuseScattering: { ...localConfig.diffuseScattering, enabled: false },
+      jointInfiltration: { ...localConfig.jointInfiltration, enabled: false },
+      dielectricShadow: { ...localConfig.dielectricShadow, enabled: false },
+      thicknessVariation: { ...localConfig.thicknessVariation, enabled: false },
+      pipeUtility: { ...localConfig.pipeUtility, enabled: false },
+    };
+    setLocalConfig(updated);
+    onDetectionConfigChange?.(updated);
+  };
+
+  const handleSetSensitivity = (level: 'alta' | 'estandar' | 'estricta') => {
+    const updated = createSensitivityPreset(level, localConfig);
+    setLocalConfig(updated);
+    onDetectionConfigChange?.(updated);
+  };
+
+  const applyPresetHormigon = () => {
+    onChange({
+      ...options,
+      mode: 'procesado',
+      dewow: true,
+      dewowWindowNs: 2.0,
+      bandpass: true,
+      hpCutoffMHz: 200,
+      lpCutoffMHz: 800,
+      backgroundRemoval: true,
+      bkgRemovalPercent: 10,
+      secGain: true,
+      gainMode: 'auto',
+      maxGainDb: 40,
+    });
+  };
+
+  const applyPresetPavimento = () => {
+    onChange({
+      ...options,
+      mode: 'procesado',
+      dewow: true,
+      dewowWindowNs: 2.0,
+      bandpass: true,
+      hpCutoffMHz: 250,
+      lpCutoffMHz: 1000,
+      backgroundRemoval: true,
+      bkgRemovalPercent: 15,
+      secGain: true,
+      gainMode: 'logarithmic',
+      maxGainDb: 45,
+    });
+  };
+
+  const applyPresetTuberias = () => {
+    onChange({
+      ...options,
+      mode: 'procesado',
+      dewow: true,
+      dewowWindowNs: 3.0,
+      bandpass: true,
+      hpCutoffMHz: 100,
+      lpCutoffMHz: 400,
+      backgroundRemoval: true,
+      bkgRemovalPercent: 8,
+      secGain: true,
+      gainMode: 'auto',
+      maxGainDb: 50,
+    });
+  };
+
+  const applyResetFilters = () => {
+    onChange({
+      ...options,
+      mode: 'procesado',
+      dewow: true,
+      dewowWindowNs: 2.0,
+      bandpass: true,
+      hpCutoffMHz: 200,
+      lpCutoffMHz: 800,
+      backgroundRemoval: false,
+      secGain: true,
+      gainMode: 'auto',
+      maxGainDb: 40,
+    });
   };
 
   // Collapsible Accordion sections for Detección view (ALL CONTRACTED BY DEFAULT!)
@@ -379,11 +499,15 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     }));
   };
 
-  const updateOption = <K extends keyof DSPOptions>(key: K, value: DSPOptions[K]) => {
-    onChange({
+  const updateOption = <K extends keyof DSPOptions>(key: K, value: DSPOptions[K], autoActivateDSP = false) => {
+    const updated = {
       ...options,
       [key]: value,
-    });
+    };
+    if (autoActivateDSP && options.mode === 'crudo') {
+      updated.mode = 'procesado';
+    }
+    onChange(updated);
   };
 
   const updateHeader = <K extends keyof GSFHeader>(key: K, value: GSFHeader[K]) => {
@@ -1093,6 +1217,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         {activeTab === 'process' && (
           <div className="space-y-3">
             {/* 0. MODO DE SEÑAL: DATO CRUDO vs PROCESADO DSP (COLOCADO DE PRIMERO) */}
+            {/* 0. MODO DE SEÑAL: DATO CRUDO vs PROCESADO DSP (COLOCADO DE PRIMERO) */}
             <div className="bg-gray-50 p-3 rounded-2xl border border-border space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-text-primary block text-xs">Modo de Señal</span>
@@ -1124,7 +1249,62 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <span className="text-[9.5px] font-normal opacity-80">(Filtros GPR)</span>
                 </button>
               </div>
+
+              {options.mode === 'crudo' && (
+                <div className="p-2 bg-amber-50/80 border border-amber-200/90 rounded-xl text-[10.5px] text-amber-900 flex items-center justify-between gap-2">
+                  <span>Modo Crudo activo (sin filtros en vivo).</span>
+                  <button
+                    onClick={() => updateOption('mode', 'procesado')}
+                    className="font-bold underline text-amber-950 hover:text-black cursor-pointer"
+                  >
+                    Activar Filtros DSP
+                  </button>
+                </div>
+              )}
             </div>
+
+            {/* 0.1 MACROS RÁPIDAS DE CAMPO */}
+            <div className="bg-gray-50 p-2.5 rounded-2xl border border-border space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10.5px] font-bold text-text-primary">Macros Rápidas de Campo</span>
+                <span className="text-[9px] text-text-muted">1-Click</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  onClick={applyPresetHormigon}
+                  className="py-1.5 px-2 bg-white hover:bg-primary-50 text-text-secondary hover:text-primary rounded-xl text-[10px] font-semibold border border-border transition flex items-center gap-1.5 cursor-pointer text-left"
+                  title="Dewow 2ns, IIR 200-800MHz, Bkg 10%, SEC 40dB"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                  <span className="truncate">Hormigón (200-800M)</span>
+                </button>
+                <button
+                  onClick={applyPresetPavimento}
+                  className="py-1.5 px-2 bg-white hover:bg-primary-50 text-text-secondary hover:text-primary rounded-xl text-[10px] font-semibold border border-border transition flex items-center gap-1.5 cursor-pointer text-left"
+                  title="Dewow 2ns, IIR 250-1000MHz, Bkg 15%, Log 45dB"
+                >
+                  <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />
+                  <span className="truncate">Vías / Asfalto</span>
+                </button>
+                <button
+                  onClick={applyPresetTuberias}
+                  className="py-1.5 px-2 bg-white hover:bg-primary-50 text-text-secondary hover:text-primary rounded-xl text-[10px] font-semibold border border-border transition flex items-center gap-1.5 cursor-pointer text-left"
+                  title="Dewow 3ns, IIR 100-400MHz, Bkg 8%, SEC 50dB"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                  <span className="truncate">Tuberías (100-400M)</span>
+                </button>
+                <button
+                  onClick={applyResetFilters}
+                  className="py-1.5 px-2 bg-white hover:bg-gray-100 text-text-secondary rounded-xl text-[10px] font-semibold border border-border transition flex items-center gap-1.5 cursor-pointer text-left"
+                  title="Restablecer a valores de fábrica"
+                >
+                  <RefreshCw className="w-2.5 h-2.5 text-text-muted flex-shrink-0" />
+                  <span className="truncate">Restablecer</span>
+                </button>
+              </div>
+            </div>
+
             {/* ------------------------------------------------------------ */}
             {/* 1. SECCIÓN: FILTRO DEWOW (DERIVA DC EN NS)                   */}
             {/* ------------------------------------------------------------ */}
@@ -1138,12 +1318,15 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <span>Filtro Dewow (Remoción DC)</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${options.dewow ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-gray-200/70 text-text-muted'}`}>
+                    {options.dewow ? `${options.dewowWindowNs || 2.0} ns` : 'Inactivo'}
+                  </span>
                   <input
                     type="checkbox"
                     checked={options.dewow}
                     onChange={(e) => {
                       e.stopPropagation();
-                      updateOption('dewow', e.target.checked);
+                      updateOption('dewow', e.target.checked, true);
                     }}
                     className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
                   />
@@ -1172,7 +1355,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         min="0.5"
                         max="30"
                         value={options.dewowWindowNs || 2.0}
-                        onChange={(e) => updateOption('dewowWindowNs', Math.max(0.5, parseFloat(e.target.value) || 2.0))}
+                        onChange={(e) => updateOption('dewowWindowNs', Math.max(0.5, parseFloat(e.target.value) || 2.0), true)}
                         className="input text-xs py-1 font-mono font-bold text-amber-700 flex-1"
                       />
                       <span className="text-[10px] font-mono text-text-muted">ns</span>
@@ -1195,12 +1378,15 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <span>Filtros de Perfil (Filtro IIR)</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${options.bandpass ? 'bg-sky-100 text-sky-900 border border-sky-300' : 'bg-gray-200/70 text-text-muted'}`}>
+                    {options.bandpass ? `${options.hpCutoffMHz || 200}-${options.lpCutoffMHz || 800}M` : 'Inactivo'}
+                  </span>
                   <input
                     type="checkbox"
                     checked={options.bandpass}
                     onChange={(e) => {
                       e.stopPropagation();
-                      updateOption('bandpass', e.target.checked);
+                      updateOption('bandpass', e.target.checked, true);
                     }}
                     className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
                   />
@@ -1215,8 +1401,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               {filterOpenSections.iir && options.bandpass && (
                 <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5">
                   <div className="flex justify-between items-center bg-white p-2 rounded-xl border border-border">
-                    <span className="text-[10px] text-text-muted font-medium">Atenuación IIR:</span>
-                    <span className="badge-primary text-[9px] px-2 py-0.5 font-bold">10 dB Predeterminada</span>
+                    <span className="text-[10px] text-text-muted font-medium">Algoritmo Digital:</span>
+                    <span className="badge-primary text-[9px] px-2 py-0.5 font-bold">Butterworth Fase Cero (filtfilt)</span>
                   </div>
 
                   {/* Antenna Adapt Badge & Preset Buttons */}
@@ -1225,8 +1411,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       <span>Antena Activa: <strong>{currentAntennaFreq} MHz</strong></span>
                       <button
                         onClick={() => {
-                          updateOption('hpCutoffMHz', resolutionInfo.recommendedHpMHz);
-                          updateOption('lpCutoffMHz', resolutionInfo.recommendedLpMHz);
+                          updateOption('hpCutoffMHz', resolutionInfo.recommendedHpMHz, true);
+                          updateOption('lpCutoffMHz', resolutionInfo.recommendedLpMHz, true);
                         }}
                         className="text-[10px] text-sky-700 hover:text-sky-900 underline font-semibold cursor-pointer"
                         title="Aplicar cortes IIR recomendados para esta antena"
@@ -1244,8 +1430,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         <button
                           key={preset.label}
                           onClick={() => {
-                            updateOption('hpCutoffMHz', preset.hp);
-                            updateOption('lpCutoffMHz', preset.lp);
+                            updateOption('hpCutoffMHz', preset.hp, true);
+                            updateOption('lpCutoffMHz', preset.lp, true);
                           }}
                           className={`py-1 rounded-lg text-[9px] font-mono border transition text-center ${
                             (options.hpCutoffMHz === preset.hp && options.lpCutoffMHz === preset.lp)
@@ -1269,7 +1455,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         type="number"
                         step="10"
                         value={options.hpCutoffMHz || 200}
-                        onChange={(e) => updateOption('hpCutoffMHz', Math.max(1, parseFloat(e.target.value) || 100))}
+                        onChange={(e) => updateOption('hpCutoffMHz', Math.max(1, parseFloat(e.target.value) || 100), true)}
                         className="input text-xs py-1 font-mono font-bold text-sky-700"
                       />
                     </div>
@@ -1281,7 +1467,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         type="number"
                         step="50"
                         value={options.lpCutoffMHz || 800}
-                        onChange={(e) => updateOption('lpCutoffMHz', Math.max(10, parseFloat(e.target.value) || 800))}
+                        onChange={(e) => updateOption('lpCutoffMHz', Math.max(10, parseFloat(e.target.value) || 800), true)}
                         className="input text-xs py-1 font-mono font-bold text-sky-700"
                       />
                     </div>
@@ -1303,12 +1489,15 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <span>Eliminar Fondo (Background)</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${options.backgroundRemoval ? 'bg-purple-100 text-purple-900 border border-purple-300' : 'bg-gray-200/70 text-text-muted'}`}>
+                    {options.backgroundRemoval ? `${options.bkgRemovalPercent || 10}%` : 'Inactivo'}
+                  </span>
                   <input
                     type="checkbox"
                     checked={options.backgroundRemoval}
                     onChange={(e) => {
                       e.stopPropagation();
-                      updateOption('backgroundRemoval', e.target.checked);
+                      updateOption('backgroundRemoval', e.target.checked, true);
                     }}
                     className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
                   />
@@ -1339,7 +1528,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       max={100}
                       step={1}
                       value={options.bkgRemovalPercent || 10}
-                      onChange={(e) => updateOption('bkgRemovalPercent', parseInt(e.target.value, 10))}
+                      onChange={(e) => updateOption('bkgRemovalPercent', parseInt(e.target.value, 10), true)}
                       className="w-full accent-purple-600 bg-gray-200 rounded cursor-pointer"
                     />
                     <div className="flex justify-between text-[9px] text-text-muted font-mono">
@@ -1365,12 +1554,15 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <span>Función de Ganancia (Gain)</span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${options.secGain ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-gray-200/70 text-text-muted'}`}>
+                    {options.secGain ? `${options.maxGainDb || 40}dB · ${options.gainMode || 'auto'}` : 'Inactivo'}
+                  </span>
                   <input
                     type="checkbox"
                     checked={options.secGain}
                     onChange={(e) => {
                       e.stopPropagation();
-                      updateOption('secGain', e.target.checked);
+                      updateOption('secGain', e.target.checked, true);
                     }}
                     className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
                   />
@@ -1394,11 +1586,12 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                         { id: 'linear', label: 'Lineal' },
                         { id: 'logarithmic', label: 'Logarítmica' },
                         { id: 'power', label: 'Potencial' },
+                        { id: 'agc', label: 'AGC Auto' },
                         { id: 'custom', label: 'Curva Custom' },
                       ].map((m) => (
                         <button
                           key={m.id}
-                          onClick={() => updateOption('gainMode', m.id as DSPOptions['gainMode'])}
+                          onClick={() => updateOption('gainMode', m.id as DSPOptions['gainMode'], true)}
                           className={`py-1.5 px-1 rounded-xl text-[10px] font-medium border transition ${
                             (options.gainMode || 'auto') === m.id
                               ? 'bg-primary text-white border-primary font-bold shadow-xs'
@@ -1410,6 +1603,15 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       ))}
                     </div>
                   </div>
+
+                  {options.gainMode === 'agc' && (
+                    <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-[10.5px] space-y-1">
+                      <span className="font-bold block">Control Automático de Ganancia (AGC):</span>
+                      <p className="text-[10px] text-emerald-800 leading-tight">
+                        Normaliza dinámicamente la energía RMS en ventana móvil (12 ns). Ideal para compensar atenuación severa sin saturar reflectores someros.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="space-y-1.5 bg-white p-2.5 rounded-xl border border-border">
                     <div className="flex justify-between items-center text-[11px]">
@@ -1424,7 +1626,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       max={80.0}
                       step={1.0}
                       value={options.maxGainDb || 40.0}
-                      onChange={(e) => updateOption('maxGainDb', parseFloat(e.target.value))}
+                      onChange={(e) => updateOption('maxGainDb', parseFloat(e.target.value), true)}
                       className="w-full accent-emerald-600 bg-gray-200 rounded cursor-pointer"
                     />
                     <div className="flex justify-between text-[9px] text-text-muted font-mono">
@@ -1579,10 +1781,96 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* TAB 4: DETECCIÓN AUTOMÁTICA SOBRE PERFIL                     */}
+        {/* TAB 2: DETECCIÓN AUTOMÁTICA SOBRE PERFIL                     */}
         {/* ============================================================ */}
         {activeTab === 'deteccion' && (
           <div className="space-y-3">
+            {/* ============================================================ */}
+            {/* AUDITORÍA GEOFÍSICA Y CONTROL MAESTRO DE DETECCIÓN           */}
+            {/* ============================================================ */}
+            <div className="p-3 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl border border-slate-700 shadow-md space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-[#EAA023] flex items-center justify-center border border-amber-500/30">
+                    <Scan className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-xs text-white">Auditoría Geofísica</h3>
+                    <p className="text-[10px] text-slate-400">9 algoritmos automáticos de subsuelo</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={handleEnableAllDetections}
+                    className="px-2 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                    title="Activar todos los detectores"
+                  >
+                    <CheckCheck className="w-3 h-3" />
+                    <span>Todas</span>
+                  </button>
+                  <button
+                    onClick={handleDisableAllDetections}
+                    className="px-2 py-1 rounded-lg bg-rose-600/30 hover:bg-rose-600/50 text-rose-300 border border-rose-500/40 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                    title="Desactivar todos los detectores"
+                  >
+                    <XCircle className="w-3 h-3" />
+                    <span>Ninguna</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sensitivity Presets Bar */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-700/80">
+                <div className="flex items-center justify-between text-[10.5px]">
+                  <span className="text-slate-300 font-semibold flex items-center gap-1">
+                    <SlidersHorizontal className="w-3 h-3 text-amber-400" />
+                    Sensibilidad:
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-mono">ASTM D6432</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                  <button
+                    onClick={() => handleSetSensitivity('alta')}
+                    className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white transition font-semibold text-center cursor-pointer"
+                    title="Alta sensibilidad para detectar anomalías tenues o tempranas"
+                  >
+                    Auditoría
+                  </button>
+                  <button
+                    onClick={() => handleSetSensitivity('estandar')}
+                    className="py-1 px-1.5 rounded-lg bg-[#EAA023] hover:bg-[#d89320] text-primary-900 border border-amber-500 font-bold text-center shadow-xs cursor-pointer"
+                    title="Sensibilidad balanceada recomendada"
+                  >
+                    Estándar
+                  </button>
+                  <button
+                    onClick={() => handleSetSensitivity('estricta')}
+                    className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white transition font-semibold text-center cursor-pointer"
+                    title="Alta certeza: solo anomalías con fuerte contraste"
+                  >
+                    Alta Certeza
+                  </button>
+                </div>
+              </div>
+
+              {/* Total Anomalies Summary & Anomaly Explorer Toggle */}
+              <div className="pt-2 border-t border-slate-700/80 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[11px] font-mono font-bold text-white">
+                    {totalAnomalies} {totalAnomalies === 1 ? 'anomalía detectada' : 'anomalías detectadas'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowAnomalyList((prev) => !prev)}
+                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10.5px] font-medium text-amber-400 hover:text-amber-300 flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>{showAnomalyList ? 'Ocultar' : 'Explorador'}</span>
+                </button>
+              </div>
+            </div>
+
             {/* ------------------------------------------------------------ */}
             {/* ROW 1: TUBERÍAS Y SERVICIOS ENTERRADOS                       */}
             {/* ------------------------------------------------------------ */}
@@ -1596,6 +1884,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <Zap className="w-3 h-3 text-amber-600" strokeWidth={2} />
                   </div>
                   <span>Tuberías y Servicios</span>
+                  {(detectionResults?.pipesUtilities.count ?? 0) > 0 && (
+                    <span className="text-[10px] bg-amber-200 text-amber-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-300">
+                      {detectionResults?.pipesUtilities.count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -1774,6 +2067,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Droplets className="w-4 h-4 text-sky-500" />
                   <span>Bright Spot (Acumulación de Agua)</span>
+                  {(detectionResults?.brightSpots.count ?? 0) > 0 && (
+                    <span className="text-[10px] bg-sky-200 text-sky-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-sky-300">
+                      {detectionResults?.brightSpots.count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -1870,7 +2168,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <div className="flex items-center justify-between px-3 py-1.5 bg-sky-50 rounded-xl border border-sky-200 text-sky-800 text-xs font-semibold">
                     <span>Resultado:</span>
                     <span>
-                      {detectionResults ? `${detectionResults.brightSpots.count} bright spots detected` : '0 bright spots detected'}
+                      {detectionResults ? `${detectionResults.brightSpots.count} puntos brillantes detectados` : '0 puntos brillantes detectados'}
                     </span>
                   </div>
 
@@ -1897,6 +2195,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <CircleDot className="w-4 h-4 text-rose-500" />
                   <span>Hipérbolas de Difracción (Acero / Discontinuidades)</span>
+                  {(detectionResults?.hyperbolas.count ?? 0) > 0 && (
+                    <span className="text-[10px] bg-rose-200 text-rose-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-rose-300">
+                      {detectionResults?.hyperbolas.count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2015,7 +2318,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <div className="flex items-center justify-between px-3 py-1.5 bg-rose-50 rounded-xl border border-rose-200 text-rose-800 text-xs font-semibold">
                     <span>Resultado:</span>
                     <span>
-                      {detectionResults ? `${detectionResults.hyperbolas.count} anomalous hyperbolas detected` : '0 anomalous hyperbolas detected'}
+                      {detectionResults ? `${detectionResults.hyperbolas.count} hipérbolas anómalas detectadas` : '0 hipérbolas anómalas detectadas'}
                     </span>
                   </div>
 
@@ -2042,6 +2345,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Layers className="w-4 h-4 text-amber-500" />
                   <span>Delaminación (Separación entre Capas)</span>
+                  {(detectionResults?.delaminations.count ?? 0) > 0 && (
+                    <span className="text-[10px] bg-amber-200 text-amber-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-300">
+                      {detectionResults?.delaminations.count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2113,7 +2421,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-semibold">
                     <span>Resultado:</span>
                     <span>
-                      {detectionResults ? `${detectionResults.delaminations.count} delamination zones detected` : '0 delamination zones detected'}
+                      {detectionResults ? `${detectionResults.delaminations.count} zonas de deslaminación detectadas` : '0 zonas de deslaminación detectadas'}
                     </span>
                   </div>
 
@@ -2140,6 +2448,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <AlertTriangle className="w-4 h-4 text-red-600" />
                   <span>Vacío Sub-losa (Alta Criticidad)</span>
+                  {(detectionResults?.subslabVoids.count ?? 0) > 0 && (
+                    <span className="text-[10px] bg-red-200 text-red-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-red-300">
+                      {detectionResults?.subslabVoids.count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2264,8 +2577,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <span>Resultado:</span>
                     <span>
                       {detectionResults
-                        ? `${detectionResults.subslabVoids.count} voids detected — ${detectionResults.subslabVoids.criticalCount} critical`
-                        : '0 voids detected — 0 critical'}
+                        ? `${detectionResults.subslabVoids.count} oquedades detectadas — ${detectionResults.subslabVoids.criticalCount} críticas`
+                        : '0 oquedades detectadas — 0 críticas'}
                     </span>
                   </div>
 
@@ -2292,6 +2605,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Grid className="w-4 h-4 text-orange-500" />
                   <span>Scattering Difuso (Fisuración Masiva)</span>
+                  {(detectionResults?.diffuseScattering.count ?? 0) > 0 && (
+                    <span className="text-[10px] bg-orange-200 text-orange-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-orange-300">
+                      {detectionResults?.diffuseScattering.count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2406,8 +2724,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <span>Resultado:</span>
                     <span>
                       {detectionResults
-                        ? `${detectionResults.diffuseScattering.count} cracking zones — total ${detectionResults.diffuseScattering.totalAffectedM.toFixed(1)}m affected`
-                        : '0 cracking zones — total 0.0m affected'}
+                        ? `${detectionResults.diffuseScattering.count} zonas con fisuración — ${detectionResults.diffuseScattering.totalAffectedM.toFixed(1)}m afectados en total`
+                        : '0 zonas con fisuración — 0.0m afectados'}
                     </span>
                   </div>
 
@@ -2434,6 +2752,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <GitCommit className="w-4 h-4 text-purple-600" />
                   <span>Infiltración en Juntas (Patrón Periódico)</span>
+                  {(detectionResults?.jointInfiltrations.count ?? 0) > 0 && (
+                    <span className="text-[10px] bg-purple-200 text-purple-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-purple-300">
+                      {detectionResults?.jointInfiltrations.count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2532,8 +2855,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <span>Resultado:</span>
                     <span>
                       {detectionResults
-                        ? `${detectionResults.jointInfiltrations.count} infiltrated joints — max IDF: ${detectionResults.jointInfiltrations.maxIdf.toFixed(1)}`
-                        : '0 infiltrated joints — max IDF: 0.0'}
+                        ? `${detectionResults.jointInfiltrations.count} juntas con infiltración — IDF máx: ${detectionResults.jointInfiltrations.maxIdf.toFixed(1)}`
+                        : '0 juntas con infiltración — IDF máx: 0.0'}
                     </span>
                   </div>
 
@@ -2560,6 +2883,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Moon className="w-4 h-4 text-slate-600" />
                   <span>Sombra Dieléctrica (Pérdida Prematura de Señal)</span>
+                  {(detectionResults?.dielectricShadows.count ?? 0) > 0 && (
+                    <span className="text-[10px] bg-slate-300 text-slate-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-400">
+                      {detectionResults?.dielectricShadows.count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2670,8 +2998,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <span>Resultado:</span>
                     <span>
                       {detectionResults
-                        ? `${detectionResults.dielectricShadows.count} shadow zones — estimated α > 10 dB/m`
-                        : '0 shadow zones — estimated α > 10 dB/m'}
+                        ? `${detectionResults.dielectricShadows.count} zonas de atenuación/sombra — α est. > 10 dB/m`
+                        : '0 zonas de atenuación/sombra — α est. > 10 dB/m'}
                     </span>
                   </div>
 
@@ -2699,6 +3027,11 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Ruler className="w-4 h-4 text-emerald-600" />
                   <span>Variación de Espesor (Inconsistencia Estructural)</span>
+                  {(detectionResults?.thicknessVariations.count ?? 0) > 0 && (
+                    <span className="text-[10px] bg-emerald-200 text-emerald-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-emerald-300">
+                      {detectionResults?.thicknessVariations.count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2797,8 +3130,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <span>Resultado:</span>
                     <span>
                       {detectionResults
-                        ? `${detectionResults.thicknessVariations.count} thickness anomaly zones — max deviation ±${detectionResults.thicknessVariations.maxDeviationCm.toFixed(1)} cm`
-                        : '0 thickness anomaly zones — max deviation ±0.0 cm'}
+                        ? `${detectionResults.thicknessVariations.count} anomalías de espesor — desviación máx. ±${detectionResults.thicknessVariations.maxDeviationCm.toFixed(1)} cm`
+                        : '0 anomalías de espesor — desviación máx. ±0.0 cm'}
                     </span>
                   </div>
 
@@ -2814,6 +3147,54 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 </div>
               )}
             </div>
+
+            {/* ============================================================ */}
+            {/* EXPLORADOR DE ANOMALÍAS REGISTRADAS                          */}
+            {/* ============================================================ */}
+            {showAnomalyList && (
+              <div className="bg-white rounded-2xl border border-border overflow-hidden shadow-sm space-y-2 p-3">
+                <div className="flex items-center justify-between border-b border-border/70 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-primary" />
+                    <span className="font-bold text-xs text-primary">Listado Maestro de Anomalías</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                    {allDetectedMarkers.length} marcas
+                  </span>
+                </div>
+
+                {allDetectedMarkers.length === 0 ? (
+                  <p className="text-[11px] text-text-muted text-center py-4">
+                    No se han detectado anomalías con los parámetros actuales. Pruebe reduciendo umbrales o seleccionando el preset &quot;Auditoría (Alta)&quot;.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {allDetectedMarkers.map((m) => (
+                      <div
+                        key={m.id}
+                        onClick={() => onSelectMarker?.(m)}
+                        className="p-2 bg-gray-50 hover:bg-amber-50/70 border border-border hover:border-accent rounded-xl cursor-pointer transition text-left space-y-1 group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-[11px] text-primary group-hover:text-amber-900">
+                            {m.title}
+                          </span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-gray-200/80 text-text-secondary group-hover:bg-amber-200 group-hover:text-amber-950 font-bold">
+                            {m.severityLabel}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-2 text-[10px] font-mono text-text-muted">
+                          <div>Dist: <span className="text-text-primary font-bold">{m.xCenterM.toFixed(2)} m</span></div>
+                          <div>Prof: <span className="text-purple-700 font-bold">{m.depthM.toFixed(2)} m</span></div>
+                          <div>TWT: <span className="text-amber-700 font-bold">{m.timeNs.toFixed(1)} ns</span></div>
+                          <div>Severidad: <span className="text-emerald-700 font-bold">{m.severity.toFixed(2)}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

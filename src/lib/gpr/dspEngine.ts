@@ -42,7 +42,7 @@ export interface DSPOptions {
 
   // 5. Gain Functions
   secGain: boolean;
-  gainMode: 'auto' | 'linear' | 'logarithmic' | 'power' | 'custom';
+  gainMode: 'auto' | 'linear' | 'logarithmic' | 'power' | 'custom' | 'agc';
   maxGainDb: number; // Max gain 10 dB to 80 dB (default 40 dB)
   customGainPoints: GainPoint[];
 
@@ -101,6 +101,108 @@ export const DEFAULT_DSP_OPTIONS: DSPOptions = {
   migrationApertureTraces: 10,
   antennaFreqMHz: 400,
 };
+
+/**
+ * Coeficientes Biquad de 2do orden para filtrado digital IIR
+ */
+interface BiquadCoeffs {
+  b0: number;
+  b1: number;
+  b2: number;
+  a1: number;
+  a2: number;
+}
+
+function designButterworthLowPass(wNormalized: number): BiquadCoeffs {
+  const w = Math.min(0.99, Math.max(0.01, wNormalized));
+  const theta = Math.PI * w;
+  const Q = 1.0 / Math.SQRT2;
+  const sinT = Math.sin(theta);
+  const cosT = Math.cos(theta);
+  const alpha = sinT / (2 * Q);
+
+  const b0 = (1 - cosT) / 2;
+  const b1 = 1 - cosT;
+  const b2 = (1 - cosT) / 2;
+  const a0 = 1 + alpha;
+  const a1 = -2 * cosT;
+  const a2 = 1 - alpha;
+
+  return {
+    b0: b0 / a0,
+    b1: b1 / a0,
+    b2: b2 / a0,
+    a1: a1 / a0,
+    a2: a2 / a0,
+  };
+}
+
+function designButterworthHighPass(wNormalized: number): BiquadCoeffs {
+  const w = Math.min(0.99, Math.max(0.01, wNormalized));
+  const theta = Math.PI * w;
+  const Q = 1.0 / Math.SQRT2;
+  const sinT = Math.sin(theta);
+  const cosT = Math.cos(theta);
+  const alpha = sinT / (2 * Q);
+
+  const b0 = (1 + cosT) / 2;
+  const b1 = -(1 + cosT);
+  const b2 = (1 + cosT) / 2;
+  const a0 = 1 + alpha;
+  const a1 = -2 * cosT;
+  const a2 = 1 - alpha;
+
+  return {
+    b0: b0 / a0,
+    b1: b1 / a0,
+    b2: b2 / a0,
+    a1: a1 / a0,
+    a2: a2 / a0,
+  };
+}
+
+/**
+ * Filtro Biquad digital de fase cero adelante-atrás (equivalente a scipy filtfilt)
+ * Elimina por completo el desfase temporal/profundo en radargramas.
+ */
+function applyBiquadZeroPhase(signal: Float32Array, coeffs: BiquadCoeffs): Float32Array {
+  const n = signal.length;
+  if (n < 6) return new Float32Array(signal);
+
+  const { b0, b1, b2, a1, a2 } = coeffs;
+  const forward = new Float32Array(n);
+
+  const xInit = signal[0];
+  let x1 = xInit, x2 = xInit;
+  let y1 = xInit, y2 = xInit;
+
+  for (let i = 0; i < n; i++) {
+    const x0 = signal[i];
+    const y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    forward[i] = y0;
+    x2 = x1;
+    x1 = x0;
+    y2 = y1;
+    y1 = y0;
+  }
+
+  const result = new Float32Array(n);
+  const xEnd = forward[n - 1];
+  x1 = xEnd; x2 = xEnd;
+  y1 = xEnd; y2 = xEnd;
+
+  for (let i = n - 1; i >= 0; i--) {
+    const x0 = forward[i];
+    const y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    result[i] = y0;
+    x2 = x1;
+    x1 = x0;
+    y2 = y1;
+    y1 = y0;
+  }
+
+  return result;
+}
 
 /**
  * Calculates the free-space and medium wavelength lambda, Rayleigh vertical resolution limit (lambda / 4),
@@ -259,7 +361,7 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
     return processed;
   }
 
-  // 3. Dewow Filter (DC Offset Removal with configurable time window in ns)
+  // 3. Dewow Filter (DC Offset Removal with fast O(1) sliding window accumulator)
   if (options.dewow) {
     const dewowWinSamples = Math.max(3, Math.round((options.dewowWindowNs || 2.0) / dtNs));
     const halfWin = Math.floor(dewowWinSamples / 2);
@@ -268,21 +370,56 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
       const trace = processed[t];
       const dewowed = new Float32Array(numSamples);
 
+      // Fast sliding window sum accumulator: O(N) per trace
+      let winSum = 0;
+      let winCount = 0;
+      const initialEnd = Math.min(numSamples, halfWin + 1);
+      for (let k = 0; k < initialEnd; k++) {
+        winSum += trace[k];
+        winCount++;
+      }
+
       for (let s = 0; s < numSamples; s++) {
-        const start = Math.max(0, s - halfWin);
-        const end = Math.min(numSamples, s + halfWin + 1);
-        let sum = 0;
-        for (let k = start; k < end; k++) {
-          sum += trace[k];
+        const leftLeaving = s - halfWin - 1;
+        if (leftLeaving >= 0) {
+          winSum -= trace[leftLeaving];
+          winCount--;
         }
-        const mean = sum / (end - start);
+        const rightEntering = s + halfWin;
+        if (rightEntering < numSamples && rightEntering >= initialEnd) {
+          winSum += trace[rightEntering];
+          winCount++;
+        }
+
+        const mean = winCount > 0 ? winSum / winCount : 0;
         dewowed[s] = trace[s] - mean;
       }
       processed[t] = dewowed;
     }
   }
 
-  // 4. Background Removal: subtract horizontal moving average over configurable percentage of traces (default 10%)
+  // 4. IIR Profile Bandpass Filter (Filtro Digital Butterworth Fase Cero - Pasa-Alto & Pasa-Bajo en MHz)
+  // Se aplica ANTES de la ganancia para erradicar ruido de alta/baja frecuencia sin amplificarlo
+  if (options.bandpass) {
+    const hpMHz = options.hpCutoffMHz || 100.0;
+    const lpMHz = options.lpCutoffMHz || 800.0;
+    const fNyquistMHz = dtNs > 0 ? 500.0 / dtNs : 1000.0;
+
+    const normHp = Math.min(0.95, Math.max(0.01, hpMHz / fNyquistMHz));
+    const normLp = Math.min(0.99, Math.max(normHp + 0.02, lpMHz / fNyquistMHz));
+
+    const hpCoeffs = designButterworthHighPass(normHp);
+    const lpCoeffs = designButterworthLowPass(normLp);
+
+    for (let t = 0; t < currentTraces; t++) {
+      // 1. Pasa-Alto: suprime oscilaciones residuales bajo corte HP
+      const afterHp = applyBiquadZeroPhase(processed[t], hpCoeffs);
+      // 2. Pasa-Bajo: suprime ruido electrónico y espigas sobre corte LP
+      processed[t] = applyBiquadZeroPhase(afterHp, lpCoeffs);
+    }
+  }
+
+  // 5. Background Removal: subtract horizontal moving average over configurable percentage of traces (default 10%)
   if (options.backgroundRemoval) {
     const pct = Math.max(1, Math.min(100, options.bkgRemovalPercent || 10));
     const winTraces = Math.max(1, Math.round(currentTraces * (pct / 100)));
@@ -308,123 +445,115 @@ export function processRadargramDSP(dataset: GPRDataset, options: DSPOptions): F
     processed = bkgFiltered;
   }
 
-  // 5. Gain Functions (Auto SEC, Linear, Logarithmic, Power, Custom Multi-point 10 to 80 dB)
+  // 6. Gain Functions (Auto SEC, Linear, Logarithmic, Power, AGC, Custom Multi-point 10 to 80 dB)
   if (options.secGain) {
     const maxDb = Math.max(10, Math.min(80, options.maxGainDb || 40.0));
     const maxGainFactor = Math.pow(10, maxDb / 20.0);
     const gainMode = options.gainMode || 'auto';
 
-    const gainCurve = new Float32Array(numSamples);
+    if (gainMode === 'agc') {
+      // Automatic Gain Control (AGC) over sliding gate window (standard geophysics)
+      const agcWindowNs = 12.0;
+      const halfGate = Math.max(3, Math.round((agcWindowNs / dtNs) / 2));
+      const targetRms = 2500.0;
 
-    if (gainMode === 'auto') {
-      // Estimate attenuation alpha for SEC
-      let sumLog = 0;
-      let sumT = 0;
-      let sumT2 = 0;
-      let sumTLog = 0;
-      const n = numSamples;
+      for (let t = 0; t < currentTraces; t++) {
+        const trace = processed[t];
+        const gainTrace = new Float32Array(numSamples);
 
-      for (let s = 0; s < n; s++) {
-        let sumAmp = 0;
-        for (let t = 0; t < currentTraces; t++) {
-          sumAmp += Math.abs(processed[t][s]);
+        for (let s = 0; s < numSamples; s++) {
+          const start = Math.max(0, s - halfGate);
+          const end = Math.min(numSamples, s + halfGate + 1);
+          let sumSq = 0;
+          for (let k = start; k < end; k++) {
+            sumSq += trace[k] * trace[k];
+          }
+          const rms = Math.sqrt(sumSq / (end - start)) + 1e-4;
+          const factor = Math.min(maxGainFactor, Math.max(0.1, targetRms / rms));
+          gainTrace[s] = trace[s] * factor;
         }
-        const amp = sumAmp / currentTraces + 1e-6;
-        const logAmp = Math.log(amp);
+        processed[t] = gainTrace;
+      }
+    } else {
+      const gainCurve = new Float32Array(numSamples);
 
-        sumT += s;
-        sumT2 += s * s;
-        sumLog += logAmp;
-        sumTLog += s * logAmp;
-      }
+      if (gainMode === 'auto') {
+        // Estimate attenuation alpha for SEC
+        let sumLog = 0;
+        let sumT = 0;
+        let sumT2 = 0;
+        let sumTLog = 0;
+        const n = numSamples;
 
-      const denom = n * sumT2 - sumT * sumT;
-      const slope = denom !== 0 ? (n * sumTLog - sumT * sumLog) / denom : -0.005;
-      const alpha = Math.max(options.secAlphaMin, Math.min(options.secAlphaMax, -slope));
+        for (let s = 0; s < n; s++) {
+          let sumAmp = 0;
+          for (let t = 0; t < currentTraces; t++) {
+            sumAmp += Math.abs(processed[t][s]);
+          }
+          const amp = sumAmp / currentTraces + 1e-6;
+          const logAmp = Math.log(amp);
 
-      for (let s = 0; s < numSamples; s++) {
-        const rawGain = Math.exp(alpha * s);
-        // Scale so max gain equals maxGainFactor
-        gainCurve[s] = Math.min(maxGainFactor, rawGain);
-      }
-    } else if (gainMode === 'linear') {
-      for (let s = 0; s < numSamples; s++) {
-        const frac = s / Math.max(1, numSamples - 1);
-        gainCurve[s] = 1.0 + (maxGainFactor - 1.0) * frac;
-      }
-    } else if (gainMode === 'logarithmic') {
-      for (let s = 0; s < numSamples; s++) {
-        const frac = s / Math.max(1, numSamples - 1);
-        gainCurve[s] = 1.0 + (maxGainFactor - 1.0) * (Math.log(1.0 + 9.0 * frac) / Math.LN10);
-      }
-    } else if (gainMode === 'power') {
-      for (let s = 0; s < numSamples; s++) {
-        const frac = s / Math.max(1, numSamples - 1);
-        gainCurve[s] = 1.0 + (maxGainFactor - 1.0) * Math.pow(frac, 2);
-      }
-    } else if (gainMode === 'custom' && options.customGainPoints && options.customGainPoints.length > 0) {
-      // Custom multi-point gain curve interpolation
-      const sortedPoints = [...options.customGainPoints].sort((a, b) => a.timeNs - b.timeNs);
-      for (let s = 0; s < numSamples; s++) {
-        const tNs = s * dtNs;
-        let interpDb = sortedPoints[0].gainDb;
+          sumT += s;
+          sumT2 += s * s;
+          sumLog += logAmp;
+          sumTLog += s * logAmp;
+        }
 
-        if (tNs <= sortedPoints[0].timeNs) {
-          interpDb = sortedPoints[0].gainDb;
-        } else if (tNs >= sortedPoints[sortedPoints.length - 1].timeNs) {
-          interpDb = sortedPoints[sortedPoints.length - 1].gainDb;
-        } else {
-          for (let p = 0; p < sortedPoints.length - 1; p++) {
-            if (tNs >= sortedPoints[p].timeNs && tNs <= sortedPoints[p + 1].timeNs) {
-              const span = sortedPoints[p + 1].timeNs - sortedPoints[p].timeNs;
-              const alpha = span > 0 ? (tNs - sortedPoints[p].timeNs) / span : 0;
-              interpDb = (1 - alpha) * sortedPoints[p].gainDb + alpha * sortedPoints[p + 1].gainDb;
-              break;
+        const denom = n * sumT2 - sumT * sumT;
+        const slope = denom !== 0 ? (n * sumTLog - sumT * sumLog) / denom : -0.005;
+        const alpha = Math.max(options.secAlphaMin, Math.min(options.secAlphaMax, -slope));
+
+        for (let s = 0; s < numSamples; s++) {
+          const rawGain = Math.exp(alpha * s);
+          // Scale so max gain equals maxGainFactor
+          gainCurve[s] = Math.min(maxGainFactor, rawGain);
+        }
+      } else if (gainMode === 'linear') {
+        for (let s = 0; s < numSamples; s++) {
+          const frac = s / Math.max(1, numSamples - 1);
+          gainCurve[s] = 1.0 + (maxGainFactor - 1.0) * frac;
+        }
+      } else if (gainMode === 'logarithmic') {
+        for (let s = 0; s < numSamples; s++) {
+          const frac = s / Math.max(1, numSamples - 1);
+          gainCurve[s] = 1.0 + (maxGainFactor - 1.0) * (Math.log(1.0 + 9.0 * frac) / Math.LN10);
+        }
+      } else if (gainMode === 'power') {
+        for (let s = 0; s < numSamples; s++) {
+          const frac = s / Math.max(1, numSamples - 1);
+          gainCurve[s] = 1.0 + (maxGainFactor - 1.0) * Math.pow(frac, 2);
+        }
+      } else if (gainMode === 'custom' && options.customGainPoints && options.customGainPoints.length > 0) {
+        // Custom multi-point gain curve interpolation
+        const sortedPoints = [...options.customGainPoints].sort((a, b) => a.timeNs - b.timeNs);
+        for (let s = 0; s < numSamples; s++) {
+          const tNs = s * dtNs;
+          let interpDb = sortedPoints[0].gainDb;
+
+          if (tNs <= sortedPoints[0].timeNs) {
+            interpDb = sortedPoints[0].gainDb;
+          } else if (tNs >= sortedPoints[sortedPoints.length - 1].timeNs) {
+            interpDb = sortedPoints[sortedPoints.length - 1].gainDb;
+          } else {
+            for (let p = 0; p < sortedPoints.length - 1; p++) {
+              if (tNs >= sortedPoints[p].timeNs && tNs <= sortedPoints[p + 1].timeNs) {
+                const span = sortedPoints[p + 1].timeNs - sortedPoints[p].timeNs;
+                const alpha = span > 0 ? (tNs - sortedPoints[p].timeNs) / span : 0;
+                interpDb = (1 - alpha) * sortedPoints[p].gainDb + alpha * sortedPoints[p + 1].gainDb;
+                break;
+              }
             }
           }
+          gainCurve[s] = Math.pow(10, interpDb / 20.0);
         }
-        gainCurve[s] = Math.pow(10, interpDb / 20.0);
       }
-    }
 
-    for (let t = 0; t < currentTraces; t++) {
-      const trace = processed[t];
-      for (let s = 0; s < numSamples; s++) {
-        trace[s] *= gainCurve[s];
+      for (let t = 0; t < currentTraces; t++) {
+        const trace = processed[t];
+        for (let s = 0; s < numSamples; s++) {
+          trace[s] *= gainCurve[s];
+        }
       }
-    }
-  }
-
-  // 6. IIR Profile Bandpass Filter (High-Pass & Low-Pass Cutoffs in MHz with 10dB Attenuation)
-  if (options.bandpass) {
-    const hpMHz = options.hpCutoffMHz || 100.0;
-    const lpMHz = options.lpCutoffMHz || 800.0;
-    const attenDb = options.filterAttenuationDb || 10.0;
-    const attenFactor = Math.pow(10, -attenDb / 20.0); // 10dB attenuation factor = 0.316
-
-    const fNyquistMHz = dtNs > 0 ? 500.0 / dtNs : 1000.0;
-    const normHp = Math.min(1.0, Math.max(0.01, hpMHz / fNyquistMHz));
-    const normLp = Math.min(1.0, Math.max(normHp, lpMHz / fNyquistMHz));
-
-    for (let t = 0; t < currentTraces; t++) {
-      const trace = processed[t];
-      const filtered = new Float32Array(numSamples);
-
-      // Apply IIR bandpass in frequency / moving average domain
-      for (let s = 0; s < numSamples; s++) {
-        const p2 = s > 1 ? trace[s - 2] : trace[s];
-        const p1 = s > 0 ? trace[s - 1] : trace[s];
-        const c = trace[s];
-        const n1 = s < numSamples - 1 ? trace[s + 1] : trace[s];
-        const n2 = s < numSamples - 2 ? trace[s + 2] : trace[s];
-
-        const lowPassSample = (p2 + 2 * p1 + 3 * c + 2 * n1 + n2) / 9.0;
-        const highPassSample = c - lowPassSample;
-
-        const passWeight = normLp - normHp;
-        filtered[s] = (lowPassSample * normLp + highPassSample * normHp * attenFactor) * (1.0 + passWeight * 0.2);
-      }
-      processed[t] = filtered;
     }
   }
 

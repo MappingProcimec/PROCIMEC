@@ -287,3 +287,89 @@ export const EMPTY_DETECTION_RESULTS: DetectionResults = {
     markers: [],
   },
 };
+
+/**
+ * Retorna la suma total de anomalías detectadas en todas las categorías
+ */
+export function getTotalAnomaliesCount(results?: DetectionResults): number {
+  if (!results) return 0;
+  return (
+    results.brightSpots.count +
+    results.hyperbolas.count +
+    results.delaminations.count +
+    results.subslabVoids.count +
+    results.diffuseScattering.count +
+    results.jointInfiltrations.count +
+    results.dielectricShadows.count +
+    results.thicknessVariations.count +
+    results.pipesUtilities.count
+  );
+}
+
+/**
+ * Retorna todos los marcadores individuales de anomalías encontrados ordenados de izquierda a derecha (X metros)
+ */
+export function getAllMarkers(results?: DetectionResults): AnomalyMarker[] {
+  if (!results) return [];
+  const list: AnomalyMarker[] = [
+    ...results.pipesUtilities.markers,
+    ...results.brightSpots.markers,
+    ...results.hyperbolas.markers,
+    ...results.delaminations.markers,
+    ...results.subslabVoids.markers,
+    ...results.diffuseScattering.markers,
+    ...results.jointInfiltrations.markers,
+    ...results.dielectricShadows.markers,
+    ...results.thicknessVariations.markers,
+  ];
+  return list.sort((a, b) => a.xCenterM - b.xCenterM);
+}
+
+/**
+ * Genera una configuración ajustada según nivel de sensibilidad geofísica
+ */
+export function createSensitivityPreset(
+  level: 'alta' | 'estandar' | 'estricta',
+  base: DetectionConfig
+): DetectionConfig {
+  if (level === 'alta') {
+    return {
+      ...base,
+      brightSpot: { ...base.brightSpot, thresholdSigma: 1.8 },
+      hyperbola: { ...base.hyperbola, amplitudeThresholdSigma: 1.5, depthDeviationM: 0.08 },
+      delamination: { ...base.delamination, reflectionLossPercent: 25 },
+      subslabVoid: { ...base.subslabVoid, r2AmplitudeSigma: 1.5, signalLossPercent: 35 },
+      diffuseScattering: { ...base.diffuseScattering, cvaThreshold: 0.35 },
+      jointInfiltration: { ...base.jointInfiltration, idfThreshold: 1.5 },
+      dielectricShadow: { ...base.dielectricShadow, signalLossThresholdPercent: 8 },
+      thicknessVariation: { ...base.thicknessVariation, deviationThresholdNs: 1.0 },
+      pipeUtility: { ...base.pipeUtility, minCoherenceR2: 0.65 },
+    };
+  }
+  if (level === 'estricta') {
+    return {
+      ...base,
+      brightSpot: { ...base.brightSpot, thresholdSigma: 3.2 },
+      hyperbola: { ...base.hyperbola, amplitudeThresholdSigma: 2.8, depthDeviationM: 0.03 },
+      delamination: { ...base.delamination, reflectionLossPercent: 55 },
+      subslabVoid: { ...base.subslabVoid, r2AmplitudeSigma: 2.8, signalLossPercent: 65 },
+      diffuseScattering: { ...base.diffuseScattering, cvaThreshold: 0.65 },
+      jointInfiltration: { ...base.jointInfiltration, idfThreshold: 3.0 },
+      dielectricShadow: { ...base.dielectricShadow, signalLossThresholdPercent: 3 },
+      thicknessVariation: { ...base.thicknessVariation, deviationThresholdNs: 2.0 },
+      pipeUtility: { ...base.pipeUtility, minCoherenceR2: 0.85 },
+    };
+  }
+  return {
+    ...base,
+    brightSpot: { ...base.brightSpot, thresholdSigma: 2.5 },
+    hyperbola: { ...base.hyperbola, amplitudeThresholdSigma: 2.0, depthDeviationM: 0.05 },
+    delamination: { ...base.delamination, reflectionLossPercent: 40 },
+    subslabVoid: { ...base.subslabVoid, r2AmplitudeSigma: 2.0, signalLossPercent: 50 },
+    diffuseScattering: { ...base.diffuseScattering, cvaThreshold: 0.50 },
+    jointInfiltration: { ...base.jointInfiltration, idfThreshold: 2.0 },
+    dielectricShadow: { ...base.dielectricShadow, signalLossThresholdPercent: 5 },
+    thicknessVariation: { ...base.thicknessVariation, deviationThresholdNs: 1.5 },
+    pipeUtility: { ...base.pipeUtility, minCoherenceR2: 0.75 },
+  };
+}

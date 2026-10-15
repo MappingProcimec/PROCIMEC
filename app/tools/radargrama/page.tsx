@@ -20,6 +20,7 @@ import {
   DetectionResults,
   DEFAULT_DETECTION_CONFIG,
   EMPTY_DETECTION_RESULTS,
+  AnomalyMarker,
 } from '@/lib/gpr/detectionTypes';
 import { runAnomalyDetections } from '@/lib/gpr/detectionEngine';
 import {
@@ -115,6 +116,7 @@ export default function RadargramaWorkstationPage() {
   // Anomaly Detection State per dataset (map dataset ID -> DetectionConfig)
   const [detectionConfigMap, setDetectionConfigMap] = useState<Record<string, DetectionConfig>>({});
   const [detectionResultsMap, setDetectionResultsMap] = useState<Record<string, DetectionResults>>({});
+  const [selectedAnomalyMarker, setSelectedAnomalyMarker] = useState<AnomalyMarker | null>(null);
 
   // Macro Manager & Batch Processing state
   const [showMacroModal, setShowMacroModal] = useState<boolean>(false);
@@ -730,6 +732,8 @@ export default function RadargramaWorkstationPage() {
                 showHyperbolaTool={showHyperbolaTool}
                 detectionConfig={activeDetectionConfig}
                 detectionResults={activeDetectionResults}
+                selectedMarker={selectedAnomalyMarker}
+                onSelectMarker={setSelectedAnomalyMarker}
               />
             </div>
 
@@ -752,6 +756,7 @@ export default function RadargramaWorkstationPage() {
                 detectionConfig={activeDetectionConfig}
                 onDetectionConfigChange={handleDetectionConfigChange}
                 detectionResults={activeDetectionResults}
+                onSelectMarker={setSelectedAnomalyMarker}
               />
             </div>
           </>

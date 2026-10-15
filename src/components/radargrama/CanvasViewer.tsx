@@ -30,6 +30,8 @@ interface CanvasViewerProps {
   showHyperbolaTool: boolean;
   detectionConfig?: DetectionConfig;
   detectionResults?: DetectionResults;
+  selectedMarker?: AnomalyMarker | null;
+  onSelectMarker?: (marker: AnomalyMarker | null) => void;
 }
 
 export const CanvasViewer: React.FC<CanvasViewerProps> = ({
@@ -46,6 +48,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   showHyperbolaTool,
   detectionConfig,
   detectionResults,
+  selectedMarker: externalSelectedMarker,
+  onSelectMarker,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -83,7 +87,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
   const [hoveredMarker, setHoveredMarker] = useState<AnomalyMarker | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [selectedMarker, setSelectedMarker] = useState<AnomalyMarker | null>(null);
+  const [internalSelectedMarker, setInternalSelectedMarker] = useState<AnomalyMarker | null>(null);
+  const selectedMarker = externalSelectedMarker !== undefined ? externalSelectedMarker : internalSelectedMarker;
 
   const numTraces = processedMatrix ? processedMatrix.length : 0;
   const numSamples = processedMatrix && numTraces > 0 ? processedMatrix[0].length : 0;
@@ -95,6 +100,24 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const effWindowM = windowMeters === 0 ? distTotalM : Math.min(windowMeters, distTotalM);
 
   const maxScrollM = Math.max(0, distTotalM - effWindowM);
+
+  const setSelectedMarker = useCallback((m: AnomalyMarker | null) => {
+    setInternalSelectedMarker(m);
+    onSelectMarker?.(m);
+    if (m && windowMeters > 0) {
+      const targetScroll = Math.max(0, Math.min(maxScrollM, m.xCenterM - effWindowM / 2));
+      setScrollMeters(targetScroll);
+    }
+  }, [onSelectMarker, windowMeters, maxScrollM, effWindowM]);
+
+  // Sync when externalSelectedMarker changes
+  useEffect(() => {
+    if (externalSelectedMarker && windowMeters > 0) {
+      const targetScroll = Math.max(0, Math.min(maxScrollM, externalSelectedMarker.xCenterM - effWindowM / 2));
+      setScrollMeters(targetScroll);
+    }
+  }, [externalSelectedMarker, windowMeters, maxScrollM, effWindowM]);
+
   const startM = Math.max(0, Math.min(maxScrollM, scrollMeters));
   const endM = Math.min(distTotalM, startM + effWindowM);
 
