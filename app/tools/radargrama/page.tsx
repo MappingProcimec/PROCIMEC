@@ -185,12 +185,13 @@ export default function RadargramaWorkstationPage() {
         newOptionsMap[ds.id] = {
           ...DEFAULT_DSP_OPTIONS,
           antennaFreqMHz: detectedFreq,
-          hpCutoffMHz: res.recommendedHpMHz,
-          lpCutoffMHz: res.recommendedLpMHz,
+          hpCutoffMHz: ds.header.hpFilterHdr || res.recommendedHpMHz,
+          lpCutoffMHz: ds.header.lpFilterHdr || res.recommendedLpMHz,
           dewowWindowNs: res.recommendedDewowNs, // Siempre 2.0 o 3.0 ns
           dielectricPermittivity: ds.header.dielectricPermittivity || DIELECTRICO_DEF,
           ventanaNs: ds.header.timeWindowNs || VENTANA_TIEMPO_NS_DEF,
           traceDistanceStepM: ds.header.traceDistanceStepM || DX_DEF,
+          stackingFactor: ds.header.stackingHdr || 1,
         };
       } catch (err) {
         console.error(`Error al parsear el archivo ${file.name}:`, err);
@@ -213,6 +214,20 @@ export default function RadargramaWorkstationPage() {
     setDatasets((prev) =>
       prev.map((d) => (d.id === activeDataset.id ? { ...reBuiltDataset, id: d.id } : d))
     );
+
+    // Live update active DSP options with new calibration
+    setDspOptionsMap((prev) => ({
+      ...prev,
+      [activeDataset.id]: {
+        ...(prev[activeDataset.id] || DEFAULT_DSP_OPTIONS),
+        dielectricPermittivity: updatedHeader.dielectricPermittivity,
+        ventanaNs: updatedHeader.timeWindowNs,
+        traceDistanceStepM: updatedHeader.traceDistanceStepM,
+        antennaFreqMHz: updatedHeader.antennaFreqMHz,
+        hpCutoffMHz: updatedHeader.hpFilterHdr || prev[activeDataset.id]?.hpCutoffMHz || DEFAULT_DSP_OPTIONS.hpCutoffMHz,
+        lpCutoffMHz: updatedHeader.lpFilterHdr || prev[activeDataset.id]?.lpCutoffMHz || DEFAULT_DSP_OPTIONS.lpCutoffMHz,
+      },
+    }));
   };
 
   // Generate Synthetic Demo GSF Radargram for testing if no file uploaded
@@ -559,6 +574,7 @@ export default function RadargramaWorkstationPage() {
                 dielectricPermittivity={activeOptions.dielectricPermittivity}
                 ventanaNs={activeOptions.ventanaNs}
                 traceDistanceStepM={activeOptions.traceDistanceStepM}
+                mode={activeOptions.mode}
                 onSelectTrace={(traceIdx) => setSelectedTraceIdx(traceIdx)}
                 showHyperbolaTool={showHyperbolaTool}
                 detectionConfig={activeDetectionConfig}

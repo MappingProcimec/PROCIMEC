@@ -84,8 +84,7 @@ export function renderFullProfileCanvas(
   const lambdaQuarterCm = ((lambdaM / 4.0) * 100).toFixed(1);
 
   // Scale canvas width dynamically proportional to profile length (min 1800px)
-  const MIN_WINDOW_M = 10.0;
-  const dispWindowM = Math.max(MIN_WINDOW_M, distTotalM);
+  const dispWindowM = distTotalM > 0 ? distTotalM : 10.0;
 
   const canvas = document.createElement('canvas');
   const width = Math.max(1800, Math.min(4800, Math.round((dispWindowM / 10.0) * 1800)));
@@ -110,8 +109,7 @@ export function renderFullProfileCanvas(
   ctx.fillRect(0, 0, width, height);
 
   // 2. Render Radargram Image (All Traces 0 to numTraces)
-  const dataFraction = Math.min(1.0, distTotalM / dispWindowM);
-  const dataPlotWidth = Math.max(1, Math.floor(plotW * dataFraction));
+  const dataPlotWidth = plotW;
 
   const imgCanvas = document.createElement('canvas');
   imgCanvas.width = numTraces;
@@ -122,19 +120,24 @@ export function renderFullProfileCanvas(
     const imgData = imgCtx.createImageData(numTraces, numSamples);
     const data = imgData.data;
 
-    // Symmetric 98.5-percentile clipping matching CanvasViewer exactly
-    const allAbs: number[] = [];
-    const step = Math.max(1, Math.floor(numTraces / 100));
-    for (let t = 0; t < numTraces; t += step) {
-      const tr = processedMatrix[t];
-      if (!tr) continue;
-      for (let s = 0; s < numSamples; s += 4) {
-        allAbs.push(Math.abs(tr[s]));
+    let vmax = 32767.0;
+    if (options.mode === 'procesado') {
+      const allAbs: number[] = [];
+      const step = Math.max(1, Math.floor(numTraces / 100));
+      for (let t = 0; t < numTraces; t += step) {
+        const tr = processedMatrix[t];
+        if (!tr) continue;
+        for (let s = 0; s < numSamples; s += 4) {
+          allAbs.push(Math.abs(tr[s]));
+        }
       }
+      allAbs.sort((a, b) => a - b);
+      const pIdx = Math.floor(allAbs.length * 0.985);
+      vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
+      if (vmax <= 1e-6) vmax = 1.0;
+    } else {
+      vmax = 32767.0;
     }
-    allAbs.sort((a, b) => a - b);
-    const pIdx = Math.floor(allAbs.length * 0.985);
-    const vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
 
     for (let t = 0; t < numTraces; t++) {
       const trace = processedMatrix[t];

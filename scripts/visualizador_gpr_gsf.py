@@ -90,14 +90,14 @@ def leer_gsf(ruta_archivo: str, cabecera: int = 937, tam_bloque_manual: int = No
 
     if len(header_bytes) >= 410:
         try:
-            # Offset 66 (int16): Ventana / One-Way time
+            # Offset 66 (int16): Duracion / fallback
             v_val = struct.unpack('<h', header_bytes[66:68])[0]
             if 1 <= v_val <= 1000:
-                ventana_ns_hdr = float(v_val)
+                ventana_ns_hdr = float(v_val * 2)
 
             # Offset 84 (int16): Muestras configuradas
             m_val = struct.unpack('<h', header_bytes[84:86])[0]
-            if 100 <= m_val <= 5000:
+            if 50 <= m_val <= 5000:
                 muestras_hdr = int(m_val)
 
             # Offset 86 (float32): Constante dieléctrica grabada (RDP)
@@ -107,13 +107,18 @@ def leer_gsf(ruta_archivo: str, cabecera: int = 937, tam_bloque_manual: int = No
 
             # Offset 344 (int16): Total de trazas grabadas
             t_val = struct.unpack('<h', header_bytes[344:346])[0]
-            if 10 <= t_val <= 50000:
+            if 5 <= t_val <= 50000:
                 total_trazas_hdr = int(t_val)
 
-            # Offset 406 (float32): Paso horizontal
+            # Offset 363 (float32): Ventana de tiempo real TWT en nanosegundos
+            tw_val = struct.unpack('<f', header_bytes[363:367])[0]
+            if 5.0 <= tw_val <= 2000.0:
+                ventana_ns_hdr = float(tw_val)
+
+            # Offset 406 (float32): Paso horizontal (almacenado en cm en Akula / GAS)
             s_val = struct.unpack('<f', header_bytes[406:410])[0]
-            if 0.001 <= s_val <= 2.0:
-                step_hdr = float(s_val)
+            if s_val > 0:
+                step_hdr = (s_val / 100.0) if (0.01 <= s_val <= 100.0) else s_val
         except Exception:
             pass
 

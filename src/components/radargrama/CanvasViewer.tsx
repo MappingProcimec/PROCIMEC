@@ -23,6 +23,7 @@ interface CanvasViewerProps {
   dielectricPermittivity: number;
   ventanaNs: number;
   traceDistanceStepM: number;
+  mode?: 'crudo' | 'procesado';
   onSelectTrace?: (traceIdx: number) => void;
   showHyperbolaTool: boolean;
   detectionConfig?: DetectionConfig;
@@ -38,6 +39,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   dielectricPermittivity = 6.0,
   ventanaNs = 90.0,
   traceDistanceStepM = 1.0 / 112.0,
+  mode = 'crudo',
   onSelectTrace,
   showHyperbolaTool,
   detectionConfig,
@@ -46,8 +48,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Horizontal Window & Panning state (Minimum window size = 10 meters)
-  const [windowMeters, setWindowMeters] = useState<number>(10.0);
+  // Horizontal Window & Panning state (0 = "Ver Todo" / Full Profile View)
+  const [windowMeters, setWindowMeters] = useState<number>(0);
   const [scrollMeters, setScrollMeters] = useState<number>(0.0);
 
   // Mouse hover info
@@ -87,11 +89,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const dxM = traceDistanceStepM > 0 ? traceDistanceStepM : 1.0 / 112.0;
   const distTotalM = numTraces * dxM;
 
-  // Minimum visible window in distance is ALWAYS 10.0 meters
-  const MIN_WINDOW_M = 10.0;
-  const effWindowM = windowMeters === 0
-    ? Math.max(MIN_WINDOW_M, distTotalM)
-    : Math.max(MIN_WINDOW_M, Math.min(windowMeters, distTotalM));
+  // Horizontal windowing: windowMeters === 0 shows 100% of the profile horizontally
+  const effWindowM = windowMeters === 0 ? distTotalM : Math.min(windowMeters, distTotalM);
 
   const maxScrollM = Math.max(0, distTotalM - effWindowM);
   const startM = Math.max(0, Math.min(maxScrollM, scrollMeters));
@@ -185,8 +184,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
     if (plotWidth <= 0 || plotHeight <= 0) return;
 
-    // Proportion of physical data width relative to 10m minimum window
-    const dataFraction = Math.min(1.0, visibleDataDistM / effWindowM);
+    // Proportion of physical data width relative to visible window
+    const dataFraction = effWindowM > 0 ? Math.min(1.0, visibleDataDistM / effWindowM) : 1.0;
     const dataPlotWidth = Math.max(1, Math.floor(plotWidth * dataFraction));
 
     setPlotMetrics({
@@ -200,19 +199,27 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       visibleTraces,
     });
 
-    // Symmetric 98.5-percentile clipping across visible traces
-    const allAbs: number[] = [];
-    const step = Math.max(1, Math.floor(visibleTraces / 100));
-    for (let t = startTrace; t < endTrace; t += step) {
-      const tr = processedMatrix[t];
-      if (!tr) continue;
-      for (let s = 0; s < numSamples; s += 4) {
-        allAbs.push(Math.abs(tr[s]));
+    // Dynamic range normalization:
+    let vmax = 32767.0;
+    if (mode === 'procesado') {
+      // Symmetric 98.5-percentile clipping across visible traces for processed DSP
+      const allAbs: number[] = [];
+      const step = Math.max(1, Math.floor(visibleTraces / 100));
+      for (let t = startTrace; t < endTrace; t += step) {
+        const tr = processedMatrix[t];
+        if (!tr) continue;
+        for (let s = 0; s < numSamples; s += 4) {
+          allAbs.push(Math.abs(tr[s]));
+        }
       }
+      allAbs.sort((a, b) => a - b);
+      const pIdx = Math.floor(allAbs.length * 0.985);
+      vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
+      if (vmax <= 1e-6) vmax = 1.0;
+    } else {
+      // In 'crudo' (raw binary) mode, normalize to standard 16-bit ADC scale (matching GPRSoft -32767 to +32767)
+      vmax = 32767.0;
     }
-    allAbs.sort((a, b) => a - b);
-    const pIdx = Math.floor(allAbs.length * 0.985);
-    const vmax = allAbs[pIdx] || (allAbs.length > 0 ? allAbs[allAbs.length - 1] : 1.0) || 1.0;
 
     // Offscreen ImageData for current profile data (visibleTraces x numSamples)
     const imgData = ctx.createImageData(visibleTraces, numSamples);
@@ -1154,7 +1161,20 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
             <span className="text-[10px] text-slate-400 px-1 font-medium">Ventana:</span>
-            {[10, 20, 50, 0].map((m) => (
+            <button
+              onClick={() => {
+                setWindowMeters(0);
+                setScrollMeters(0);
+              }}
+              className={`px-2 py-0.5 rounded text-[10px] font-mono transition ${
+                windowMeters === 0
+                  ? 'bg-primary text-white font-bold'
+                  : 'text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              Ver Todo ({distTotalM.toFixed(1)}m)
+            </button>
+            {[10, 20, 50].filter((m) => distTotalM > m).map((m) => (
               <button
                 key={m}
                 onClick={() => {
@@ -1167,7 +1187,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                     : 'text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                {m === 0 ? 'Ver Todo' : `${m}m`}
+                {m}m
               </button>
             ))}
           </div>

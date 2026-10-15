@@ -36,6 +36,8 @@ export interface GSFHeader {
   erHdr: number | null;
   totalTrazasHdr: number | null;
   stepHdr: number | null;
+  hpFilterHdr?: number | null;
+  lpFilterHdr?: number | null;
   autocorrScore?: number;
   // Extended Geoscanners / GAS Metadata
   firmwareRevision?: string;
@@ -201,23 +203,26 @@ export function detectarCabeceraYGeometriaGSF(
     };
   }
 
-  // 3. Hardware Header Validation: Offset 84 (muestrasHdr) and Offset 344 (totalTrazasHdr)
-  if (muestrasHdr && muestrasHdr >= 100 && muestrasHdr <= 5000) {
-    const bSize = muestrasHdr * 2;
-
-    // Check if totalTrazasHdr matches exactly with any candidate header
-    if (totalTrazasHdr && totalTrazasHdr > 0) {
-      for (const h of candidateHeaders) {
-        if (totalBytes > h && Math.floor((totalBytes - h) / bSize) === totalTrazasHdr && (totalBytes - h) % bSize === 0) {
-          return { cabecera: h, muestrasPorTraza: muestrasHdr, tamBloque: bSize, score: 1.0 };
+  // 3. Hardware Header Validation: Offset 344 (totalTrazasHdr) and Offset 84 (muestrasHdr)
+  if (totalTrazasHdr && totalTrazasHdr > 0) {
+    for (const h of candidateHeaders) {
+      const rem = totalBytes - h;
+      if (rem > 0 && rem % (totalTrazasHdr * 2) === 0) {
+        const s = rem / (totalTrazasHdr * 2);
+        if (s >= 50 && s <= 5000) {
+          return { cabecera: h, muestrasPorTraza: s, tamBloque: s * 2, score: 1.0 };
         }
       }
     }
+  }
 
-    // Check exact divisibility for candidate headers
-    for (const h of candidateHeaders) {
-      if (totalBytes > h && (totalBytes - h) % bSize === 0) {
-        return { cabecera: h, muestrasPorTraza: muestrasHdr, tamBloque: bSize, score: 1.0 };
+  if (muestrasHdr && muestrasHdr >= 50 && muestrasHdr <= 5000) {
+    for (const candidateS of [muestrasHdr + 20, muestrasHdr]) {
+      const bSize = candidateS * 2;
+      for (const h of candidateHeaders) {
+        if (totalBytes > h && (totalBytes - h) % bSize === 0) {
+          return { cabecera: h, muestrasPorTraza: candidateS, tamBloque: bSize, score: 1.0 };
+        }
       }
     }
   }
@@ -261,26 +266,44 @@ export function detectAntennaFromGSF(
   timeWindowNs: number,
   numSamples: number,
   cabecera: number = CABECERA_DEFAULT,
-  rdpRecorded: number = DIELECTRICO_DEF
+  rdpRecorded: number = DIELECTRICO_DEF,
+  hpFilterHdr?: number | null,
+  lpFilterHdr?: number | null
 ): number {
   let score200 = 0;
   let score400 = 0;
   let score500 = 0;
 
+  // 1. Hardware Filters (Offsets 371 & 375): Most reliable truth recorded by Akula9000C
+  if (hpFilterHdr && lpFilterHdr && hpFilterHdr > 0 && lpFilterHdr > 0) {
+    if (hpFilterHdr >= 70 && hpFilterHdr <= 150 && lpFilterHdr >= 300 && lpFilterHdr <= 600) {
+      score200 += 120;
+    } else if (hpFilterHdr >= 150 && hpFilterHdr <= 240 && lpFilterHdr >= 600 && lpFilterHdr <= 950) {
+      score400 += 120;
+    } else if (hpFilterHdr >= 240 && hpFilterHdr <= 350 && lpFilterHdr >= 900 && lpFilterHdr <= 1500) {
+      score500 += 120;
+    }
+
+    const geometricCenter = Math.round(Math.sqrt(hpFilterHdr * lpFilterHdr));
+    if (geometricCenter >= 150 && geometricCenter <= 280) score200 += 60;
+    else if (geometricCenter >= 320 && geometricCenter <= 460) score400 += 60;
+    else if (geometricCenter >= 470 && geometricCenter <= 650) score500 += 60;
+  }
+
   const fnLower = filename.toLowerCase();
 
-  // 1. Filename Regex Analysis
-  if (/(?:^|[_\-.])(200mhz|flb-?200|gc-?200|ant-?200|200)(?:[_\-.]|$)/i.test(fnLower)) {
-    score200 += 50;
+  // 2. Filename & Path Regex Analysis
+  if (/(?:^|[_\-.\\/])(200mhz|flb-?200|gc-?200|ant-?200|200)(?:[_\-.\\/]|$)/i.test(fnLower)) {
+    score200 += 60;
   }
-  if (/(?:^|[_\-.])(500mhz|flb-?500|gc-?500|ant-?500|500)(?:[_\-.]|$)/i.test(fnLower)) {
-    score500 += 50;
+  if (/(?:^|[_\-.\\/])(500mhz|flb-?500|gc-?500|ant-?500|500)(?:[_\-.\\/]|$)/i.test(fnLower)) {
+    score500 += 60;
   }
-  if (/(?:^|[_\-.])(400mhz|flb-?400|gc-?400|ant-?400|400)(?:[_\-.]|$)/i.test(fnLower)) {
-    score400 += 50;
+  if (/(?:^|[_\-.\\/])(400mhz|flb-?400|gc-?400|ant-?400|400)(?:[_\-.\\/]|$)/i.test(fnLower)) {
+    score400 += 60;
   }
 
-  // 2. Scan Header ASCII Text (Offsets 0 to cabecera)
+  // 3. Scan Header ASCII Text (Offsets 0 to cabecera)
   if (buffer.byteLength >= cabecera) {
     const bytes = new Uint8Array(buffer, 0, Math.min(cabecera, buffer.byteLength));
     let headerStr = '';
@@ -421,42 +444,103 @@ export function extractGSFHeader(
   const totalBytes = buffer.byteLength;
 
   let ventanaNsHdr: number | null = null;
+  let twHdr363: number | null = null;
   let muestrasHdr: number | null = null;
   let erHdr: number | null = null;
   let totalTrazasHdr: number | null = null;
   let stepHdr: number | null = null;
+  let posicionNsHdr: number | null = null;
+  let hpFilterHdr: number | null = null;
+  let lpFilterHdr: number | null = null;
+  let stackingHdr: number = 1;
+  const gainPointsHdr: Array<{ point: number; db: number }> = [];
 
-  // Extract Akula9000C Hardware Header (Offsets 66, 84, 86, 344, 406)
-  if (totalBytes >= 410) {
+  // Extract Akula9000C Hardware Header (Offsets 66, 84, 86, 344, 363, 367, 371, 375, 379, 381, 406)
+  if (totalBytes >= 370) {
     try {
-      // Offset 66 (int16): Ventana de tiempo (ns)
+      // Offset 66 (int16): Duración de adquisición en segundos / fallback ventana
       const vVal = dataView.getInt16(66, true);
       if (vVal >= 1 && vVal <= 1000) {
         ventanaNsHdr = vVal;
       }
 
-      // Offset 84 (int16): Muestras configuradas
+      // Offset 84 (int16): Muestras configuradas hardware
       const mVal = dataView.getInt16(84, true);
-      if (mVal >= 100 && mVal <= 5000) {
+      if (mVal >= 50 && mVal <= 5000) {
         muestrasHdr = mVal;
       }
 
       // Offset 86 (float32): Constante dieléctrica grabada (RDP)
       const erVal = dataView.getFloat32(86, true);
-      if (erVal >= 1.0 && erVal <= 81.0) {
+      if (!isNaN(erVal) && erVal >= 1.0 && erVal <= 81.0) {
         erHdr = erVal;
       }
 
       // Offset 344 (int16): Total de trazas grabadas
-      const tVal = dataView.getInt16(344, true);
-      if (tVal >= 10 && tVal <= 50000) {
-        totalTrazasHdr = tVal;
+      if (totalBytes >= 346) {
+        const tVal = dataView.getInt16(344, true);
+        if (tVal >= 5 && tVal <= 50000) {
+          totalTrazasHdr = tVal;
+        }
       }
 
-      // Offset 406 (float32): Paso horizontal
-      const sVal = dataView.getFloat32(406, true);
-      if (sVal >= 0.001 && sVal <= 2.0) {
-        stepHdr = sVal;
+      // Offset 363 (float32): Ventana de tiempo real Two-Way Travel Time (ns)
+      if (totalBytes >= 367) {
+        const twVal = dataView.getFloat32(363, true);
+        if (!isNaN(twVal) && twVal >= 5.0 && twVal <= 2000.0) {
+          twHdr363 = Math.round(twVal * 10) / 10;
+        }
+      }
+
+      // Offset 367 (float32): Posición de tiempo cero hardware (ns)
+      if (totalBytes >= 371) {
+        const posVal = dataView.getFloat32(367, true);
+        if (!isNaN(posVal) && posVal >= 0 && posVal <= 200) {
+          posicionNsHdr = Math.round(posVal * 10) / 10;
+        }
+      }
+
+      // Offset 371 & 375 (float32): Filtros HP y LP de adquisición hardware (MHz)
+      if (totalBytes >= 379) {
+        const hpVal = dataView.getFloat32(371, true);
+        const lpVal = dataView.getFloat32(375, true);
+        if (!isNaN(hpVal) && hpVal >= 10 && hpVal <= 2000) hpFilterHdr = Math.round(hpVal * 10) / 10;
+        if (!isNaN(lpVal) && lpVal >= 10 && lpVal <= 4000) lpFilterHdr = Math.round(lpVal * 10) / 10;
+      }
+
+      // Offset 379 (int16): Stacking factor
+      if (totalBytes >= 381) {
+        const stVal = dataView.getInt16(379, true);
+        if (stVal >= 1 && stVal <= 64) stackingHdr = stVal;
+      }
+
+      // Offset 381 (int16) y 386+ (float32): Puntos de ganancia de hardware
+      if (totalBytes >= 406) {
+        const count = dataView.getInt16(381, true);
+        const safeCount = Math.min(Math.max(1, count), 8);
+        for (let p = 0; p < safeCount; p++) {
+          const off = 386 + p * 4;
+          if (off + 4 <= totalBytes) {
+            const db = dataView.getFloat32(off, true);
+            if (!isNaN(db)) {
+              gainPointsHdr.push({ point: p + 1, db: Math.round(db * 10) / 10 });
+            }
+          }
+        }
+      }
+
+      // Offset 406 (float32): Paso horizontal de adquisición (cm -> m)
+      if (totalBytes >= 410) {
+        const sVal = dataView.getFloat32(406, true);
+        if (!isNaN(sVal) && sVal > 0) {
+          // En Geoscanners / GAS el paso se almacena en CENTÍMETROS (ej. 0.05, 0.1, 0.2, 0.25, 0.5, 1.0 cm).
+          // Si el valor es >= 0.01, se convierte de centímetros a metros (/ 100).
+          // Si ya fuera < 0.01, ya se encuentra en metros.
+          const stepM = (sVal >= 0.01 && sVal <= 100.0) ? sVal / 100.0 : sVal;
+          if (stepM >= 0.0001 && stepM <= 5.0) {
+            stepHdr = stepM;
+          }
+        }
       }
     } catch (e) {
       console.warn('Error al leer offsets de cabecera Akula:', e);
@@ -473,9 +557,11 @@ export function extractGSFHeader(
   const cuerpoBytes = Math.max(0, totalBytes - cabeceraFinal);
   const totalTrazas = Math.floor(cuerpoBytes / tamBloque);
 
-  // Time window calibration: Offset 66 stores One-Way Time (OWT ns). Two-Way Travel Time (TWT ns) = OWT * 2.
+  // Time window calibration: true time window is recorded at offset 363 (float32 TWT ns).
   let twFinal = VENTANA_TIEMPO_NS_DEF;
-  if (ventanaNsHdr && ventanaNsHdr > 0) {
+  if (twHdr363 && twHdr363 > 0) {
+    twFinal = twHdr363;
+  } else if (ventanaNsHdr && ventanaNsHdr > 0) {
     twFinal = ventanaNsHdr * 2;
   }
 
@@ -485,7 +571,16 @@ export function extractGSFHeader(
   const dtFinal = twFinal / muestrasPorTraza;
 
   // Auto-detect antenna frequency (200, 400, or 500 MHz) directly from profile file and recorded RDP
-  const detectedAntennaFreq = detectAntennaFromGSF(buffer, filename, twFinal, muestrasPorTraza, cabeceraFinal, erFinal);
+  const detectedAntennaFreq = detectAntennaFromGSF(
+    buffer,
+    filename,
+    twFinal,
+    muestrasPorTraza,
+    cabeceraFinal,
+    erFinal,
+    hpFilterHdr,
+    lpFilterHdr
+  );
 
   return {
     title: filename.replace(/\.[^/.]+$/, ''),
@@ -504,11 +599,13 @@ export function extractGSFHeader(
     bytesPerSample: 2,
     dataType: 'int16',
     headerSize: cabeceraFinal,
-    ventanaNsHdr,
+    ventanaNsHdr: twHdr363 || ventanaNsHdr,
     muestrasHdr,
     erHdr,
     totalTrazasHdr,
     stepHdr,
+    hpFilterHdr,
+    lpFilterHdr,
     autocorrScore,
     firmwareRevision: '1.4.0',
     gasVersion: '5.5',
@@ -516,9 +613,9 @@ export function extractGSFHeader(
     acquisitionMode: 'Distance mode',
     hardwareGainDb: 10,
     marksCount: 0,
-    stackingHdr: 3,
-    posicionNsHdr: 11,
-    gainPointsHdr: [
+    stackingHdr,
+    posicionNsHdr: posicionNsHdr ?? 11,
+    gainPointsHdr: gainPointsHdr.length > 0 ? gainPointsHdr : [
       { point: 1, db: 0.0 },
       { point: 2, db: 9.3 },
       { point: 3, db: 10.1 },
