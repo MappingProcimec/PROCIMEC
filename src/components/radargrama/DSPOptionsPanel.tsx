@@ -281,6 +281,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   // Detection config state with 300ms debounce
   const [localConfig, setLocalConfig] = useState<DetectionConfig>(detectionConfig);
   const [showAnomalyList, setShowAnomalyList] = useState<boolean>(false);
+  const [selectedSensitivity, setSelectedSensitivity] = useState<'alta' | 'estandar' | 'estricta' | null>('estandar');
+  const [activeFieldMacro, setActiveFieldMacro] = useState<'hormigon' | 'pavimento' | 'tuberias' | 'restablecer' | null>(null);
   const totalAnomalies = getTotalAnomaliesCount(detectionResults);
   const allDetectedMarkers = getAllMarkers(detectionResults);
 
@@ -298,6 +300,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     value: DetectionConfig[K][F],
     isImmediate = false
   ) => {
+    // Si el usuario modifica manualmente un parámetro de detección, se desmarca el preset fijo
+    setSelectedSensitivity(null);
     const updated = {
       ...localConfig,
       [category]: {
@@ -353,12 +357,14 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   };
 
   const handleSetSensitivity = (level: 'alta' | 'estandar' | 'estricta') => {
+    setSelectedSensitivity(level);
     const updated = createSensitivityPreset(level, localConfig);
     setLocalConfig(updated);
     onDetectionConfigChange?.(updated);
   };
 
   const applyPresetHormigon = () => {
+    setActiveFieldMacro('hormigon');
     onChange({
       ...options,
       mode: 'procesado',
@@ -376,6 +382,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   };
 
   const applyPresetPavimento = () => {
+    setActiveFieldMacro('pavimento');
     onChange({
       ...options,
       mode: 'procesado',
@@ -393,6 +400,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   };
 
   const applyPresetTuberias = () => {
+    setActiveFieldMacro('tuberias');
     onChange({
       ...options,
       mode: 'procesado',
@@ -410,6 +418,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   };
 
   const applyResetFilters = () => {
+    setActiveFieldMacro('restablecer');
     onChange({
       ...options,
       mode: 'procesado',
@@ -500,6 +509,8 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   };
 
   const updateOption = <K extends keyof DSPOptions>(key: K, value: DSPOptions[K], autoActivateDSP = false) => {
+    // Al modificar cualquier parámetro de procesamiento, la macro activa se vuelve Personalizada
+    setActiveFieldMacro(null);
     const updated = {
       ...options,
       [key]: value,
@@ -1267,39 +1278,57 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             <div className="bg-gray-50 p-2.5 rounded-2xl border border-border space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[10.5px] font-bold text-text-primary">Macros Rápidas de Campo</span>
-                <span className="text-[9px] text-text-muted">1-Click</span>
+                <span className="text-[9px] font-mono font-semibold text-text-muted">
+                  {activeFieldMacro ? 'Macro Activa' : 'Personalizado'}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   onClick={applyPresetHormigon}
-                  className="py-1.5 px-2 bg-white hover:bg-primary-50 text-text-secondary hover:text-primary rounded-xl text-[10px] font-semibold border border-border transition flex items-center gap-1.5 cursor-pointer text-left"
-                  title="Dewow 2ns, IIR 200-800MHz, Bkg 10%, SEC 40dB"
+                  className={`py-1.5 px-2 rounded-xl text-[10px] font-semibold border transition flex items-center gap-1.5 cursor-pointer text-left ${
+                    activeFieldMacro === 'hormigon'
+                      ? 'bg-[#EAA023] text-primary-900 border-amber-500 font-bold shadow-xs ring-1 ring-amber-400'
+                      : 'bg-white hover:bg-gray-100 text-text-primary border-border'
+                  }`}
+                  title="Dewow 2ns, Butterworth 200-800MHz, Bkg 10%, SEC 40dB"
                 >
-                  <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${activeFieldMacro === 'hormigon' ? 'bg-primary-900' : 'bg-amber-500'}`} />
                   <span className="truncate">Hormigón (200-800M)</span>
                 </button>
                 <button
                   onClick={applyPresetPavimento}
-                  className="py-1.5 px-2 bg-white hover:bg-primary-50 text-text-secondary hover:text-primary rounded-xl text-[10px] font-semibold border border-border transition flex items-center gap-1.5 cursor-pointer text-left"
-                  title="Dewow 2ns, IIR 250-1000MHz, Bkg 15%, Log 45dB"
+                  className={`py-1.5 px-2 rounded-xl text-[10px] font-semibold border transition flex items-center gap-1.5 cursor-pointer text-left ${
+                    activeFieldMacro === 'pavimento'
+                      ? 'bg-[#EAA023] text-primary-900 border-amber-500 font-bold shadow-xs ring-1 ring-amber-400'
+                      : 'bg-white hover:bg-gray-100 text-text-primary border-border'
+                  }`}
+                  title="Dewow 2ns, Butterworth 250-1000MHz, Bkg 15%, Log 45dB"
                 >
-                  <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${activeFieldMacro === 'pavimento' ? 'bg-primary-900' : 'bg-sky-500'}`} />
                   <span className="truncate">Vías / Asfalto</span>
                 </button>
                 <button
                   onClick={applyPresetTuberias}
-                  className="py-1.5 px-2 bg-white hover:bg-primary-50 text-text-secondary hover:text-primary rounded-xl text-[10px] font-semibold border border-border transition flex items-center gap-1.5 cursor-pointer text-left"
-                  title="Dewow 3ns, IIR 100-400MHz, Bkg 8%, SEC 50dB"
+                  className={`py-1.5 px-2 rounded-xl text-[10px] font-semibold border transition flex items-center gap-1.5 cursor-pointer text-left ${
+                    activeFieldMacro === 'tuberias'
+                      ? 'bg-[#EAA023] text-primary-900 border-amber-500 font-bold shadow-xs ring-1 ring-amber-400'
+                      : 'bg-white hover:bg-gray-100 text-text-primary border-border'
+                  }`}
+                  title="Dewow 3ns, Butterworth 100-400MHz, Bkg 8%, SEC 50dB"
                 >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${activeFieldMacro === 'tuberias' ? 'bg-primary-900' : 'bg-emerald-500'}`} />
                   <span className="truncate">Tuberías (100-400M)</span>
                 </button>
                 <button
                   onClick={applyResetFilters}
-                  className="py-1.5 px-2 bg-white hover:bg-gray-100 text-text-secondary rounded-xl text-[10px] font-semibold border border-border transition flex items-center gap-1.5 cursor-pointer text-left"
+                  className={`py-1.5 px-2 rounded-xl text-[10px] font-semibold border transition flex items-center gap-1.5 cursor-pointer text-left ${
+                    activeFieldMacro === 'restablecer'
+                      ? 'bg-[#EAA023] text-primary-900 border-amber-500 font-bold shadow-xs ring-1 ring-amber-400'
+                      : 'bg-white hover:bg-gray-100 text-text-secondary border-border'
+                  }`}
                   title="Restablecer a valores de fábrica"
                 >
-                  <RefreshCw className="w-2.5 h-2.5 text-text-muted flex-shrink-0" />
+                  <RefreshCw className={`w-2.5 h-2.5 flex-shrink-0 ${activeFieldMacro === 'restablecer' ? 'text-primary-900' : 'text-text-muted'}`} />
                   <span className="truncate">Restablecer</span>
                 </button>
               </div>
@@ -1826,26 +1855,40 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <SlidersHorizontal className="w-3 h-3 text-amber-400" />
                     Sensibilidad:
                   </span>
-                  <span className="text-[9px] text-slate-400 font-mono">ASTM D6432</span>
+                  <span className="text-[9px] text-slate-400 font-mono">
+                    {selectedSensitivity ? 'ASTM D6432' : 'Personalizada'}
+                  </span>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 text-[10px]">
                   <button
                     onClick={() => handleSetSensitivity('alta')}
-                    className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white transition font-semibold text-center cursor-pointer"
+                    className={`py-1 px-1.5 rounded-lg border transition font-semibold text-center cursor-pointer ${
+                      selectedSensitivity === 'alta'
+                        ? 'bg-[#EAA023] text-primary-900 border-amber-500 font-bold shadow-xs'
+                        : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 hover:text-white'
+                    }`}
                     title="Alta sensibilidad para detectar anomalías tenues o tempranas"
                   >
                     Auditoría
                   </button>
                   <button
                     onClick={() => handleSetSensitivity('estandar')}
-                    className="py-1 px-1.5 rounded-lg bg-[#EAA023] hover:bg-[#d89320] text-primary-900 border border-amber-500 font-bold text-center shadow-xs cursor-pointer"
+                    className={`py-1 px-1.5 rounded-lg border transition font-semibold text-center cursor-pointer ${
+                      selectedSensitivity === 'estandar'
+                        ? 'bg-[#EAA023] text-primary-900 border-amber-500 font-bold shadow-xs'
+                        : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 hover:text-white'
+                    }`}
                     title="Sensibilidad balanceada recomendada"
                   >
                     Estándar
                   </button>
                   <button
                     onClick={() => handleSetSensitivity('estricta')}
-                    className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white transition font-semibold text-center cursor-pointer"
+                    className={`py-1 px-1.5 rounded-lg border transition font-semibold text-center cursor-pointer ${
+                      selectedSensitivity === 'estricta'
+                        ? 'bg-[#EAA023] text-primary-900 border-amber-500 font-bold shadow-xs'
+                        : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200 hover:text-white'
+                    }`}
                     title="Alta certeza: solo anomalías con fuerte contraste"
                   >
                     Alta Certeza

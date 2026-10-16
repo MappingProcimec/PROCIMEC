@@ -96,7 +96,7 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 select-none">
-      <div className="bg-white border border-border rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="bg-white border border-border rounded-3xl w-full max-w-5xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Modal Header */}
         <div className="p-4 border-b border-border flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5 text-text-primary font-bold text-base">
@@ -129,11 +129,11 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
 
         <div className="flex-1 overflow-y-auto p-5 grid grid-cols-1 md:grid-cols-12 gap-5">
           {/* LEFT COLUMN: File Selector for Open Datasets (4 Cols) */}
-          <div className="md:col-span-5 space-y-3 bg-slate-50 p-4 rounded-2xl border border-border flex flex-col">
+          <div className="md:col-span-4 space-y-3 bg-slate-50 p-4 rounded-2xl border border-border flex flex-col">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-primary" />
-                <span>Perfiles Abiertos ({datasets.length})</span>
+                <span>Perfiles ({datasets.length})</span>
               </span>
               <button
                 onClick={handleToggleSelectAll}
@@ -141,18 +141,18 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
               >
                 {selectedIds.length === datasets.length ? (
                   <>
-                    <CheckSquare className="w-3.5 h-3.5" /> Desmarcar Todos
+                    <CheckSquare className="w-3.5 h-3.5" /> Desmarcar
                   </>
                 ) : (
                   <>
-                    <Square className="w-3.5 h-3.5" /> Seleccionar Todos
+                    <Square className="w-3.5 h-3.5" /> Seleccionar
                   </>
                 )}
               </button>
             </div>
 
             {/* File List Checkboxes */}
-            <div className="flex-1 min-h-[220px] max-h-[300px] overflow-y-auto space-y-1.5 pr-1">
+            <div className="flex-1 min-h-[220px] max-h-[320px] overflow-y-auto space-y-1.5 pr-1">
               {datasets.map((ds) => {
                 const isSelected = selectedIds.includes(ds.id);
                 return (
@@ -172,7 +172,7 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
                         onChange={() => {}}
                         className="rounded border-border text-primary focus:ring-primary accent-primary w-4 h-4 cursor-pointer"
                       />
-                      <span className="truncate max-w-[180px]">{ds.filename}</span>
+                      <span className="truncate max-w-[150px]">{ds.filename}</span>
                     </div>
                     <span className="text-[10px] font-mono text-text-muted">
                       {ds.processedMatrix.length} tr
@@ -190,15 +190,15 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
                 className="w-full btn-primary btn-sm rounded-xl py-2 flex items-center justify-center gap-2 font-bold text-xs disabled:opacity-50"
               >
                 <Zap className="w-4 h-4 text-amber-300" />
-                <span>Aplicar Procesamiento Actual a ({selectedIds.length}) Seleccionados</span>
+                <span>Aplicar Actual ({selectedIds.length})</span>
               </button>
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Macros Library & Save Custom Macro (7 Cols) */}
-          <div className="md:col-span-7 space-y-5">
+          {/* RIGHT COLUMN: Macros Library & Save Custom Macro (8 Cols) */}
+          <div className="md:col-span-8 space-y-4">
             {/* SECTION 1: Built-in & Custom Macros Library */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-amber-500" />
@@ -209,48 +209,50 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 max-h-[220px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-1">
                 {allMacros.map((macro) => {
                   const isSelected = activeMacro.id === macro.id;
                   return (
                     <div
                       key={macro.id}
                       onClick={() => setActiveMacro(macro)}
-                      className={`p-3 rounded-2xl border text-xs transition cursor-pointer flex items-center justify-between ${
+                      className={`p-3 rounded-2xl border text-xs transition cursor-pointer flex items-center justify-between gap-3 ${
                         isSelected
-                          ? 'bg-amber-50/70 border-amber-300 text-amber-900 shadow-2xs'
+                          ? 'bg-amber-50/70 border-amber-300 text-amber-900 shadow-2xs ring-1 ring-amber-300'
                           : 'bg-gray-50 border-border text-text-secondary hover:bg-white'
                       }`}
                     >
-                      <div className="space-y-0.5 max-w-[65%]">
+                      <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                          <Wand2 className="w-3.5 h-3.5 text-amber-600" />
-                          <span>{macro.name}</span>
+                          <Wand2 className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                          <span className="truncate">{macro.name}</span>
                         </div>
-                        <p className="text-[10px] text-text-muted truncate">{macro.description}</p>
+                        <p className="text-[10.5px] text-text-muted leading-tight">{macro.description}</p>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleApplyMacroToSelected(macro);
                           }}
                           disabled={selectedIds.length === 0}
-                          className="px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded-lg text-[10px] font-bold text-amber-800 transition disabled:opacity-50"
-                          title="Aplicar solo a los perfiles seleccionados"
+                          className="px-3 py-1.5 bg-white hover:bg-amber-50 border border-amber-300 rounded-xl text-[10.5px] font-bold text-amber-900 transition disabled:opacity-40 shadow-2xs whitespace-nowrap flex items-center gap-1 cursor-pointer"
+                          title="Aplicar a los perfiles seleccionados"
                         >
-                          Aplicar a Seleccionados ({selectedIds.length})
+                          <Check className="w-3 h-3 text-amber-700" />
+                          <span>Seleccionados ({selectedIds.length})</span>
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleApplyMacroToAll(macro);
                           }}
-                          className="px-2.5 py-1 bg-accent hover:bg-accent-600 text-primary-900 rounded-lg text-[10px] font-bold shadow-xs transition"
+                          className="px-3 py-1.5 bg-[#EAA023] hover:bg-[#d89320] text-primary-900 rounded-xl text-[10.5px] font-bold shadow-xs transition whitespace-nowrap flex items-center gap-1 cursor-pointer"
                           title="Aplicar a TODOS los perfiles abiertos"
                         >
-                          A Todos ({datasets.length})
+                          <Zap className="w-3 h-3 text-primary-900" />
+                          <span>A Todos ({datasets.length})</span>
                         </button>
                       </div>
                     </div>

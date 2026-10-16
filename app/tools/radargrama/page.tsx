@@ -14,6 +14,7 @@ import {
   exportTechnicalPDFReport,
   exportModifiedGSF,
   exportBatchPPTX,
+  exportBatchPDFReport,
 } from '@/lib/gpr/exportEngine';
 import {
   DetectionConfig,
@@ -401,17 +402,35 @@ export default function RadargramaWorkstationPage() {
     }));
   };
 
-  // Single JPG Export (Full Distance Profile 0m to Total Distance)
+  // Single JPG Export (Full Distance Profile 0m to Total Distance with detections)
   const handleExportJPG = async () => {
     if (activeDataset && activeProcessedMatrix) {
-      await exportRadargramJPG(activeDataset, activeProcessedMatrix, activeOptions, palette, contrast, brightness);
+      await exportRadargramJPG(
+        activeDataset,
+        activeProcessedMatrix,
+        activeOptions,
+        palette,
+        contrast,
+        brightness,
+        activeDetectionConfig,
+        activeDetectionResults
+      );
     }
   };
 
-  // Single PDF Technical Report Export (Full Distance Profile 0m to Total Distance)
+  // Single PDF Technical Report Export (Full Distance Profile 0m to Total Distance with detections)
   const handleExportPDF = async () => {
     if (activeDataset && activeProcessedMatrix) {
-      await exportTechnicalPDFReport(activeDataset, activeProcessedMatrix, activeOptions, palette, contrast, brightness);
+      await exportTechnicalPDFReport(
+        activeDataset,
+        activeProcessedMatrix,
+        activeOptions,
+        palette,
+        contrast,
+        brightness,
+        activeDetectionConfig,
+        activeDetectionResults
+      );
     }
   };
 
@@ -426,7 +445,7 @@ export default function RadargramaWorkstationPage() {
     }
   };
 
-  // Batch PPTX Export (Full Distance Profile 0m to Total Distance for all datasets)
+  // Batch PPTX Export (Full Distance Profile 0m to Total Distance for all datasets with cover slide)
   const handleExportBatchPPTX = async () => {
     if (datasets.length === 0) return;
     const processedMatricesMap = new Map<string, Float32Array[]>();
@@ -439,7 +458,41 @@ export default function RadargramaWorkstationPage() {
       optionsMap.set(ds.id, opts);
     });
 
-    await exportBatchPPTX(datasets, processedMatricesMap, optionsMap, palette, contrast, brightness);
+    await exportBatchPPTX(
+      datasets,
+      processedMatricesMap,
+      optionsMap,
+      palette,
+      contrast,
+      brightness,
+      detectionConfigMap,
+      detectionResultsMap
+    );
+  };
+
+  // Batch PDF Export (Full Distance Profile 0m to Total Distance for all datasets with cover sheet)
+  const handleExportBatchPDF = async () => {
+    if (datasets.length === 0) return;
+    const processedMatricesMap = new Map<string, Float32Array[]>();
+    const optionsMap = new Map<string, DSPOptions>();
+
+    datasets.forEach((ds) => {
+      const opts = dspOptionsMap[ds.id] || DEFAULT_DSP_OPTIONS;
+      const matrix = processRadargramDSP(ds, opts);
+      processedMatricesMap.set(ds.id, matrix);
+      optionsMap.set(ds.id, opts);
+    });
+
+    await exportBatchPDFReport(
+      datasets,
+      processedMatricesMap,
+      optionsMap,
+      palette,
+      contrast,
+      brightness,
+      detectionConfigMap,
+      detectionResultsMap
+    );
   };
 
   // Remove dataset
@@ -526,9 +579,9 @@ export default function RadargramaWorkstationPage() {
                 </button>
 
                 {showExportDropdown && (
-                  <div className="absolute right-0 mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-border py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-border py-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
                     <div className="px-3 py-1.5 text-[10px] font-bold text-text-muted uppercase tracking-wider border-b border-border mb-1">
-                      Formatos de Exportación
+                      Exportación Individual (Perfil Activo)
                     </div>
 
                     <button
@@ -536,12 +589,12 @@ export default function RadargramaWorkstationPage() {
                         setShowExportDropdown(false);
                         handleExportJPG();
                       }}
-                      className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-emerald-50 flex items-center gap-2.5 transition text-left"
+                      className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-emerald-50 flex items-center gap-2.5 transition text-left cursor-pointer"
                     >
                       <FileSpreadsheet className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                       <div>
                         <div className="font-bold text-text-primary">Imagen JPG</div>
-                        <div className="text-[10px] text-text-muted">Alta resolución con logo y escalas</div>
+                        <div className="text-[10px] text-text-muted">Alta resolución con escalas y anomalías</div>
                       </div>
                     </button>
 
@@ -550,12 +603,12 @@ export default function RadargramaWorkstationPage() {
                         setShowExportDropdown(false);
                         handleExportPDF();
                       }}
-                      className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-red-50 flex items-center gap-2.5 transition text-left"
+                      className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-red-50 flex items-center gap-2.5 transition text-left cursor-pointer"
                     >
                       <FileText className="w-4 h-4 text-red-600 flex-shrink-0" />
                       <div>
                         <div className="font-bold text-text-primary">Reporte PDF (Bandera)</div>
-                        <div className="text-[10px] text-text-muted">Formato continuo 1:1 con logo y metadatos</div>
+                        <div className="text-[10px] text-text-muted">Formato continuo 1:1 con logo y 3 bloques</div>
                       </div>
                     </button>
 
@@ -564,7 +617,7 @@ export default function RadargramaWorkstationPage() {
                         setShowExportDropdown(false);
                         handleExportGSF();
                       }}
-                      className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-blue-50 flex items-center gap-2.5 transition text-left"
+                      className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-blue-50 flex items-center gap-2.5 transition text-left cursor-pointer"
                     >
                       <FileDown className="w-4 h-4 text-primary flex-shrink-0" />
                       <div>
@@ -573,19 +626,37 @@ export default function RadargramaWorkstationPage() {
                       </div>
                     </button>
 
-                    <div className="border-t border-border my-1"></div>
+                    <div className="border-t border-border my-1.5"></div>
+
+                    <div className="px-3 py-1.5 text-[10px] font-bold text-amber-700 uppercase tracking-wider border-b border-border mb-1 bg-amber-50/60">
+                      Exportación en Lote (Todos los Perfiles)
+                    </div>
 
                     <button
                       onClick={() => {
                         setShowExportDropdown(false);
                         handleExportBatchPPTX();
                       }}
-                      className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-amber-50 flex items-center gap-2.5 transition text-left"
+                      className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-amber-50 flex items-center gap-2.5 transition text-left cursor-pointer"
                     >
                       <Presentation className="w-4 h-4 text-accent flex-shrink-0" />
                       <div>
-                        <div className="font-bold text-accent-700">Presentación PPTX ({datasets.length})</div>
-                        <div className="text-[10px] text-text-muted">Diapositiva 16:9 con logo, radargrama y tabla</div>
+                        <div className="font-bold text-accent-700">Presentación PPTX en Lote ({datasets.length})</div>
+                        <div className="text-[10px] text-text-muted">Con carátula, 3 bloques y detecciones</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowExportDropdown(false);
+                        handleExportBatchPDF();
+                      }}
+                      className="w-full px-3 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-rose-50 flex items-center gap-2.5 transition text-left cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                      <div>
+                        <div className="font-bold text-rose-700">Reporte PDF en Lote ({datasets.length})</div>
+                        <div className="text-[10px] text-text-muted">Con carátula y perfiles continuos</div>
                       </div>
                     </button>
                   </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { GPRDataset } from '@/lib/gpr/gsfParser';
 import { calculateVelocity } from '@/lib/gpr/dspEngine';
 import {
@@ -89,6 +89,70 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [internalSelectedMarker, setInternalSelectedMarker] = useState<AnomalyMarker | null>(null);
   const selectedMarker = externalSelectedMarker !== undefined ? externalSelectedMarker : internalSelectedMarker;
+
+  // Anti-jitter / anti-flicker hover timer ref for adjacent and overlapping markers
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleMarkerMouseEnter = useCallback((e: React.MouseEvent, m: AnomalyMarker) => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setHoveredMarker(m);
+    setTooltipPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleMarkerMouseMove = useCallback((e: React.MouseEvent) => {
+    setTooltipPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleMarkerMouseLeave = useCallback((m: AnomalyMarker) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
+      setHoveredMarker((current) => (current?.id === m.id ? null : current));
+    }, 120);
+  }, []);
+
+  // Gather all active anomaly markers
+  const allActiveMarkers: AnomalyMarker[] = useMemo(() => {
+    if (!detectionResults || !detectionConfig) return [];
+    const list: AnomalyMarker[] = [];
+    if (detectionConfig.brightSpot?.enabled) list.push(...(detectionResults.brightSpots?.markers || []));
+    if (detectionConfig.hyperbola?.enabled) list.push(...(detectionResults.hyperbolas?.markers || []));
+    if (detectionConfig.delamination?.enabled) list.push(...(detectionResults.delaminations?.markers || []));
+    if (detectionConfig.subslabVoid?.enabled) list.push(...(detectionResults.subslabVoids?.markers || []));
+    if (detectionConfig.diffuseScattering?.enabled) list.push(...(detectionResults.diffuseScattering?.markers || []));
+    if (detectionConfig.jointInfiltration?.enabled) list.push(...(detectionResults.jointInfiltrations?.markers || []));
+    if (detectionConfig.dielectricShadow?.enabled) list.push(...(detectionResults.dielectricShadows?.markers || []));
+    if (detectionConfig.thicknessVariation?.enabled) list.push(...(detectionResults.thicknessVariations?.markers || []));
+    if (detectionConfig.pipeUtility?.enabled) list.push(...(detectionResults.pipesUtilities?.markers || []));
+    return list;
+  }, [detectionResults, detectionConfig]);
+
+  // Find co-located or nearby markers for the hovered marker (within 0.35m and 6ns)
+  const coLocatedHoveredMarkers = useMemo(() => {
+    if (!hoveredMarker) return [];
+    return allActiveMarkers.filter(
+      (other) =>
+        other.id !== hoveredMarker.id &&
+        Math.abs(other.xCenterM - hoveredMarker.xCenterM) < 0.35 &&
+        Math.abs(other.timeNs - hoveredMarker.timeNs) < 6.0
+    );
+  }, [hoveredMarker, allActiveMarkers]);
+
+  // Find co-located or nearby markers for the selected marker
+  const coLocatedSelectedMarkers = useMemo(() => {
+    if (!selectedMarker) return [];
+    const cluster = allActiveMarkers.filter(
+      (other) =>
+        Math.abs(other.xCenterM - selectedMarker.xCenterM) < 0.40 &&
+        Math.abs(other.timeNs - selectedMarker.timeNs) < 8.0
+    );
+    if (!cluster.some((m) => m.id === selectedMarker.id)) {
+      cluster.unshift(selectedMarker);
+    }
+    return cluster;
+  }, [selectedMarker, allActiveMarkers]);
 
   const numTraces = processedMatrix ? processedMatrix.length : 0;
   const numSamples = processedMatrix && numTraces > 0 ? processedMatrix[0].length : 0;
@@ -711,12 +775,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           stroke="transparent"
                           strokeWidth="12"
                           className="cursor-pointer"
-                          onMouseEnter={(e) => {
-                            setHoveredMarker(m);
-                            setTooltipPos({ x: e.clientX, y: e.clientY });
-                          }}
-                          onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                          onMouseLeave={() => setHoveredMarker(null)}
+                          onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
+                          onMouseMove={handleMarkerMouseMove}
+                          onMouseLeave={() => handleMarkerMouseLeave(m)}
                           onClick={() => setSelectedMarker(m)}
                         />
                       </g>
@@ -738,12 +799,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           stroke="#FFFFFF"
                           strokeWidth="1.5"
                           className="cursor-pointer hover:opacity-80 transition"
-                          onMouseEnter={(e) => {
-                            setHoveredMarker(m);
-                            setTooltipPos({ x: e.clientX, y: e.clientY });
-                          }}
-                          onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                          onMouseLeave={() => setHoveredMarker(null)}
+                          onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
+                          onMouseMove={handleMarkerMouseMove}
+                          onMouseLeave={() => handleMarkerMouseLeave(m)}
                           onClick={() => setSelectedMarker(m)}
                         />
                       </g>
@@ -775,12 +833,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           stroke="transparent"
                           strokeWidth="12"
                           className="cursor-pointer"
-                          onMouseEnter={(e) => {
-                            setHoveredMarker(m);
-                            setTooltipPos({ x: e.clientX, y: e.clientY });
-                          }}
-                          onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                          onMouseLeave={() => setHoveredMarker(null)}
+                          onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
+                          onMouseMove={handleMarkerMouseMove}
+                          onMouseLeave={() => handleMarkerMouseLeave(m)}
                           onClick={() => setSelectedMarker(m)}
                         />
                       </g>
@@ -796,16 +851,22 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                       <g
                         key={m.id}
                         className="pointer-events-auto cursor-pointer"
-                        onMouseEnter={(e) => {
-                          setHoveredMarker(m);
-                          setTooltipPos({ x: e.clientX, y: e.clientY });
-                        }}
-                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                        onMouseLeave={() => setHoveredMarker(null)}
+                        onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
+                        onMouseMove={handleMarkerMouseMove}
+                        onMouseLeave={() => handleMarkerMouseLeave(m)}
                         onClick={() => setSelectedMarker(m)}
                       >
                         {m.isCritical && detectionConfig.subslabVoid.pulsingCritical && (
-                          <circle cx={cx} cy={cy} r="12" fill="none" stroke="#FF0000" strokeWidth="2.5">
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r="12"
+                            fill="none"
+                            stroke="#FF0000"
+                            strokeWidth="2.5"
+                            className="pointer-events-none"
+                            style={{ pointerEvents: 'none' }}
+                          >
                             <animate attributeName="r" values="12;24;12" dur="1.3s" repeatCount="indefinite" />
                             <animate attributeName="opacity" values="0.9;0.1;0.9" dur="1.3s" repeatCount="indefinite" />
                           </circle>
@@ -841,12 +902,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                         fillOpacity="0.25"
                         stroke="none"
                         className="pointer-events-auto cursor-pointer hover:fill-opacity-40 transition"
-                        onMouseEnter={(e) => {
-                          setHoveredMarker(m);
-                          setTooltipPos({ x: e.clientX, y: e.clientY });
-                        }}
-                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                        onMouseLeave={() => setHoveredMarker(null)}
+                        onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
+                        onMouseMove={handleMarkerMouseMove}
+                        onMouseLeave={() => handleMarkerMouseLeave(m)}
                         onClick={() => setSelectedMarker(m)}
                       />
                     );
@@ -865,14 +923,11 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                         r="6"
                         fill="#FFFFFF"
                         stroke="#9B59B6"
-                        strokeWidth="2"
-                        className="pointer-events-auto cursor-pointer hover:scale-125 transition-transform"
-                        onMouseEnter={(e) => {
-                          setHoveredMarker(m);
-                          setTooltipPos({ x: e.clientX, y: e.clientY });
-                        }}
-                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                        onMouseLeave={() => setHoveredMarker(null)}
+                        strokeWidth="2.5"
+                        className="pointer-events-auto cursor-pointer hover:stroke-purple-300 hover:fill-purple-100 transition-colors"
+                        onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
+                        onMouseMove={handleMarkerMouseMove}
+                        onMouseLeave={() => handleMarkerMouseLeave(m)}
                         onClick={() => setSelectedMarker(m)}
                       />
                     );
@@ -888,12 +943,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                       <g
                         key={m.id}
                         className="pointer-events-auto cursor-pointer"
-                        onMouseEnter={(e) => {
-                          setHoveredMarker(m);
-                          setTooltipPos({ x: e.clientX, y: e.clientY });
-                        }}
-                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                        onMouseLeave={() => setHoveredMarker(null)}
+                        onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
+                        onMouseMove={handleMarkerMouseMove}
+                        onMouseLeave={() => handleMarkerMouseLeave(m)}
                         onClick={() => setSelectedMarker(m)}
                       >
                         <rect
@@ -949,12 +1001,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           strokeWidth={isAnom ? '2' : '1.5'}
                           strokeDasharray="3,2"
                           className="pointer-events-auto cursor-pointer"
-                          onMouseEnter={(e) => {
-                            setHoveredMarker(firstMarker);
-                            setTooltipPos({ x: e.clientX, y: e.clientY });
-                          }}
-                          onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                          onMouseLeave={() => setHoveredMarker(null)}
+                          onMouseEnter={(e) => handleMarkerMouseEnter(e, firstMarker)}
+                          onMouseMove={handleMarkerMouseMove}
+                          onMouseLeave={() => handleMarkerMouseLeave(firstMarker)}
                           onClick={() => setSelectedMarker(firstMarker)}
                         />
                       );
@@ -967,10 +1016,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                   detectionResults?.pipesUtilities.markers.map((m) => {
                     const cx = getCanvasXFromDistM(m.xCenterM);
                     const cy = getCanvasYFromTimeNs(m.timeNs);
-                    // Color variations of yellow:
-                    // Metallic -> Electric Yellow (#FFE600)
-                    // Plastic -> Amber Yellow (#FFB703)
-                    // Concrete -> Emerald / Lime Yellow (#D4E157)
                     const pipeColor =
                       m.pipeMaterial === 'Metálica (Acero / Conductor)'
                         ? '#FFE600'
@@ -982,12 +1027,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                       <g
                         key={m.id}
                         className="pointer-events-auto cursor-pointer"
-                        onMouseEnter={(e) => {
-                          setHoveredMarker(m);
-                          setTooltipPos({ x: e.clientX, y: e.clientY });
-                        }}
-                        onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
-                        onMouseLeave={() => setHoveredMarker(null)}
+                        onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
+                        onMouseMove={handleMarkerMouseMove}
+                        onMouseLeave={() => handleMarkerMouseLeave(m)}
                         onClick={() => setSelectedMarker(m)}
                       >
                         {/* Outer Glow / Dashed Target Ring */}
@@ -999,7 +1041,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           stroke={pipeColor}
                           strokeWidth="1.8"
                           strokeDasharray="2,2"
-                          className="opacity-90"
+                          className="opacity-90 pointer-events-none"
+                          style={{ pointerEvents: 'none' }}
                         />
                         {/* Semi-transparent Middle Ring */}
                         <circle
@@ -1010,7 +1053,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           fillOpacity="0.30"
                           stroke={pipeColor}
                           strokeWidth="2"
-                          className="hover:scale-110 transition-transform"
+                          className="hover:stroke-[3px] transition-all"
                         />
                         {/* Solid Inner Core */}
                         <circle
@@ -1032,6 +1075,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           stroke="#000000"
                           strokeWidth="0.6"
                           paintOrder="stroke fill"
+                          className="pointer-events-none select-none"
+                          style={{ pointerEvents: 'none' }}
                         >
                           Ø{m.pipeDiameterMm}mm
                         </text>
@@ -1048,8 +1093,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       {hoveredMarker && (
         <div
           style={{
-            left: `${Math.min(typeof window !== 'undefined' ? window.innerWidth - 240 : 800, Math.max(10, tooltipPos.x + 12))}px`,
-            top: `${Math.max(10, tooltipPos.y - 45)}px`,
+            left: `${Math.min(typeof window !== 'undefined' ? window.innerWidth - 260 : 800, Math.max(10, tooltipPos.x + 14))}px`,
+            top: `${Math.max(10, tooltipPos.y - 50)}px`,
           }}
           className="fixed z-40 pointer-events-none bg-slate-900/95 text-white p-2.5 rounded-xl border border-slate-700 shadow-xl backdrop-blur text-xs space-y-1 max-w-xs animate-in fade-in duration-100"
         >
@@ -1065,7 +1110,17 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
             <div>TWT: <span className="text-amber-300">{hoveredMarker.timeNs.toFixed(1)} ns</span></div>
             <div>Severidad: <span className="text-emerald-400">{hoveredMarker.severity.toFixed(2)}</span></div>
           </div>
-          <p className="text-[9px] text-slate-400 italic pt-0.5">Click para ver ficha técnica detallada</p>
+          {coLocatedHoveredMarkers.length > 0 && (
+            <div className="mt-1 pt-1 border-t border-slate-800 text-[10px] text-amber-300 flex items-center gap-1 font-sans">
+              <span className="font-bold">+{coLocatedHoveredMarkers.length} en esta zona:</span>
+              <span className="truncate text-slate-300 font-mono">{coLocatedHoveredMarkers.map((c: AnomalyMarker) => c.title).join(', ')}</span>
+            </div>
+          )}
+          <p className="text-[9px] text-slate-400 italic pt-0.5">
+            {coLocatedHoveredMarkers.length > 0
+              ? 'Click para ver y alternar entre detecciones'
+              : 'Click para ver ficha técnica detallada'}
+          </p>
         </div>
       )}
 
@@ -1087,6 +1142,37 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Selector de detecciones cuando hay 2 o más juntas / co-localizadas */}
+            {coLocatedSelectedMarkers.length > 1 && (
+              <div className="p-2.5 bg-slate-100 border-b border-slate-200">
+                <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                    Detecciones en esta zona ({coLocatedSelectedMarkers.length}):
+                  </span>
+                  <span className="text-[10px] text-amber-700 font-medium">Haga click para alternar</span>
+                </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                  {coLocatedSelectedMarkers.map((item: AnomalyMarker) => {
+                    const isCurrent = item.id === selectedMarker.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSelectedMarker(item)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex-shrink-0 ${
+                          isCurrent
+                            ? 'bg-[#1E2229] text-[#EAA023] ring-1 ring-[#EAA023] shadow-xs'
+                            : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-300'
+                        }`}
+                      >
+                        {item.title}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="p-4 space-y-3.5 max-h-[75vh] overflow-y-auto">
               <div className="bg-surface p-3 rounded-xl border border-border">
