@@ -3,20 +3,23 @@
 import React, { useState } from 'react';
 import { GPRDataset } from '@/lib/gpr/gsfParser';
 import { DSPOptions, GPRMacro, BUILTIN_MACROS } from '@/lib/gpr/dspEngine';
+import { DetectionConfig } from '@/lib/gpr/detectionTypes';
 import { Sparkles, Wand2, CheckSquare, Square, X, Save, Layers, Check, Zap } from 'lucide-react';
 
 interface MacroManagerModalProps {
   datasets: GPRDataset[];
   activeOptions: DSPOptions;
+  activeDetectionConfig?: DetectionConfig;
   customMacros: GPRMacro[];
   onSaveCustomMacro: (macro: GPRMacro) => void;
-  onApplyOptionsToDatasets: (datasetIds: string[], options: DSPOptions) => void;
+  onApplyOptionsToDatasets: (datasetIds: string[], options: DSPOptions, detectionConfig?: DetectionConfig) => void;
   onClose: () => void;
 }
 
 export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
   datasets,
   activeOptions,
+  activeDetectionConfig,
   customMacros,
   onSaveCustomMacro,
   onApplyOptionsToDatasets,
@@ -54,15 +57,15 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
   // Apply current active DSP options to selected or all files
   const handleApplyCurrentToSelected = () => {
     if (selectedIds.length === 0) return;
-    onApplyOptionsToDatasets(selectedIds, activeOptions);
-    setSuccessMessage(`Procesamiento actual aplicado a ${selectedIds.length} perfiles.`);
+    onApplyOptionsToDatasets(selectedIds, activeOptions, activeDetectionConfig);
+    setSuccessMessage(`Procesamiento y configuración de detección aplicados a ${selectedIds.length} perfiles.`);
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
   // Apply chosen Macro options to selected files
   const handleApplyMacroToSelected = (macro: GPRMacro) => {
     if (selectedIds.length === 0) return;
-    onApplyOptionsToDatasets(selectedIds, macro.options);
+    onApplyOptionsToDatasets(selectedIds, macro.options, activeDetectionConfig);
     setSuccessMessage(`Macro "${macro.name}" aplicada a ${selectedIds.length} perfiles.`);
     setTimeout(() => setSuccessMessage(null), 3000);
   };
@@ -70,7 +73,7 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
   // Apply chosen Macro options to ALL files
   const handleApplyMacroToAll = (macro: GPRMacro) => {
     const allIds = datasets.map((d) => d.id);
-    onApplyOptionsToDatasets(allIds, macro.options);
+    onApplyOptionsToDatasets(allIds, macro.options, activeDetectionConfig);
     setSuccessMessage(`Macro "${macro.name}" aplicada a TODOS los (${allIds.length}) perfiles.`);
     setTimeout(() => setSuccessMessage(null), 3000);
   };

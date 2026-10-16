@@ -159,8 +159,16 @@ export default function RadargramaWorkstationPage() {
     }));
   };
 
-  // Apply specified DSP options to given dataset IDs
-  const handleApplyOptionsToDatasets = (datasetIds: string[], options: DSPOptions) => {
+  // Apply specified DSP options AND detection configuration to given dataset IDs
+  const handleApplyOptionsToDatasets = (
+    datasetIds: string[],
+    options: DSPOptions,
+    detectionConfig?: DetectionConfig
+  ) => {
+    const configToApply: DetectionConfig = detectionConfig
+      ? JSON.parse(JSON.stringify(detectionConfig))
+      : JSON.parse(JSON.stringify(activeDetectionConfig));
+
     setDspOptionsMap((prev) => {
       const updated = { ...prev };
       datasetIds.forEach((id) => {
@@ -169,15 +177,46 @@ export default function RadargramaWorkstationPage() {
       return updated;
     });
 
-    setBatchToast(`Procesamiento aplicado a ${datasetIds.length} perfiles.`);
+    setDetectionConfigMap((prev) => {
+      const updated = { ...prev };
+      datasetIds.forEach((id) => {
+        updated[id] = JSON.parse(JSON.stringify(configToApply));
+      });
+      return updated;
+    });
+
+    // Recompute DSP matrices and run anomaly detections immediately for all affected datasets
+    const newMatrices: Record<string, Float32Array[]> = {};
+    const newDetections: Record<string, DetectionResults> = {};
+
+    datasets.forEach((ds) => {
+      if (datasetIds.includes(ds.id)) {
+        const matrix = processRadargramDSP(ds, options);
+        newMatrices[ds.id] = matrix;
+
+        const results = runAnomalyDetections(
+          matrix,
+          options.ventanaNs,
+          options.traceDistanceStepM,
+          options.dielectricPermittivity,
+          configToApply
+        );
+        newDetections[ds.id] = results;
+      }
+    });
+
+    setProcessedMatrices((prev) => ({ ...prev, ...newMatrices }));
+    setDetectionResultsMap((prev) => ({ ...prev, ...newDetections }));
+
+    setBatchToast(`Procesamiento DSP y configuración de detección aplicados a ${datasetIds.length} perfiles.`);
     setTimeout(() => setBatchToast(null), 3500);
   };
 
-  // Apply current active DSP options to ALL open datasets
+  // Apply current active DSP options AND active detection config to ALL open datasets
   const handleBatchProcessAllOpen = () => {
     if (datasets.length === 0 || !activeOptions) return;
     const allIds = datasets.map((d) => d.id);
-    handleApplyOptionsToDatasets(allIds, activeOptions);
+    handleApplyOptionsToDatasets(allIds, activeOptions, activeDetectionConfig);
   };
 
   // Save new custom macro preset
@@ -450,12 +489,27 @@ export default function RadargramaWorkstationPage() {
     if (datasets.length === 0) return;
     const processedMatricesMap = new Map<string, Float32Array[]>();
     const optionsMap = new Map<string, DSPOptions>();
+    const fullDetectionConfigMap: Record<string, DetectionConfig> = { ...detectionConfigMap };
+    const fullDetectionResultsMap: Record<string, DetectionResults> = { ...detectionResultsMap };
 
     datasets.forEach((ds) => {
       const opts = dspOptionsMap[ds.id] || DEFAULT_DSP_OPTIONS;
-      const matrix = processRadargramDSP(ds, opts);
+      const matrix = processedMatrices[ds.id] || processRadargramDSP(ds, opts);
       processedMatricesMap.set(ds.id, matrix);
       optionsMap.set(ds.id, opts);
+
+      const detCfg = fullDetectionConfigMap[ds.id] || activeDetectionConfig || DEFAULT_DETECTION_CONFIG;
+      fullDetectionConfigMap[ds.id] = detCfg;
+
+      if (!fullDetectionResultsMap[ds.id]) {
+        fullDetectionResultsMap[ds.id] = runAnomalyDetections(
+          matrix,
+          opts.ventanaNs,
+          opts.traceDistanceStepM,
+          opts.dielectricPermittivity,
+          detCfg
+        );
+      }
     });
 
     await exportBatchPPTX(
@@ -465,8 +519,8 @@ export default function RadargramaWorkstationPage() {
       palette,
       contrast,
       brightness,
-      detectionConfigMap,
-      detectionResultsMap
+      fullDetectionConfigMap,
+      fullDetectionResultsMap
     );
   };
 
@@ -475,12 +529,27 @@ export default function RadargramaWorkstationPage() {
     if (datasets.length === 0) return;
     const processedMatricesMap = new Map<string, Float32Array[]>();
     const optionsMap = new Map<string, DSPOptions>();
+    const fullDetectionConfigMap: Record<string, DetectionConfig> = { ...detectionConfigMap };
+    const fullDetectionResultsMap: Record<string, DetectionResults> = { ...detectionResultsMap };
 
     datasets.forEach((ds) => {
       const opts = dspOptionsMap[ds.id] || DEFAULT_DSP_OPTIONS;
-      const matrix = processRadargramDSP(ds, opts);
+      const matrix = processedMatrices[ds.id] || processRadargramDSP(ds, opts);
       processedMatricesMap.set(ds.id, matrix);
       optionsMap.set(ds.id, opts);
+
+      const detCfg = fullDetectionConfigMap[ds.id] || activeDetectionConfig || DEFAULT_DETECTION_CONFIG;
+      fullDetectionConfigMap[ds.id] = detCfg;
+
+      if (!fullDetectionResultsMap[ds.id]) {
+        fullDetectionResultsMap[ds.id] = runAnomalyDetections(
+          matrix,
+          opts.ventanaNs,
+          opts.traceDistanceStepM,
+          opts.dielectricPermittivity,
+          detCfg
+        );
+      }
     });
 
     await exportBatchPDFReport(
@@ -490,8 +559,8 @@ export default function RadargramaWorkstationPage() {
       palette,
       contrast,
       brightness,
-      detectionConfigMap,
-      detectionResultsMap
+      fullDetectionConfigMap,
+      fullDetectionResultsMap
     );
   };
 
@@ -858,14 +927,6 @@ export default function RadargramaWorkstationPage() {
                     className="hidden"
                   />
                 </label>
-
-                <button
-                  onClick={handleLoadDemoDataset}
-                  className="btn-outline btn-sm"
-                >
-                  <Sparkles className="w-4 h-4 text-accent-700" />
-                  <span>Probar Demo</span>
-                </button>
               </div>
             </div>
           </div>
@@ -897,6 +958,7 @@ export default function RadargramaWorkstationPage() {
         <MacroManagerModal
           datasets={datasets}
           activeOptions={activeOptions}
+          activeDetectionConfig={activeDetectionConfig}
           customMacros={customMacros}
           onSaveCustomMacro={handleSaveCustomMacro}
           onApplyOptionsToDatasets={handleApplyOptionsToDatasets}

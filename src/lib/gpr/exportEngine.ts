@@ -396,12 +396,6 @@ export function renderFullProfileCanvas(
 
     imgCtx.putImageData(imgData, 0, 0);
     ctx.drawImage(imgCanvas, padL, padT, dataPlotWidth, plotH);
-
-    // Fill remaining area with clean white space if profile < 10m
-    if (dataPlotWidth < plotW) {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(padL + dataPlotWidth, padT, plotW - dataPlotWidth, plotH);
-    }
   }
 
   // Draw active anomaly detection markers directly onto the canvas plot
@@ -798,9 +792,9 @@ export async function exportRadargramJPG(
 }
 
 /**
- * Renders a single continuous banner page (Formato Bandera) into a jsPDF document
- * with Dark Navy & Amber header, corporate logo, full-profile canvas with active anomaly markers,
- * and 3-box side panel (Metadatos, Parámetros DSP, Hallazgos Geofísicos).
+ * Renders a single technical profile page into a jsPDF document (Standard A4 Landscape)
+ * with Dark Navy & Amber header, corporate logo, 3-box side panel on the left (Metadatos, Parámetros DSP, Hallazgos),
+ * and the complete full-profile radargram canvas with active anomaly markers on the right.
  */
 export function renderPDFBannerPage(
   pdf: any,
@@ -822,42 +816,35 @@ export function renderPDFBannerPage(
   const velocity = calculateVelocity(options.dielectricPermittivity || 6.0);
   const depthM = ((twNs * velocity) / 2).toFixed(2);
 
-  const MIN_WINDOW_M = 10.0;
-  const dispDistM = Math.max(MIN_WINDOW_M, totalDistM);
-
-  const imgWidthMm = Math.max(185, Math.round(dispDistM * 22));
-  const imgHeightMm = 160;
-  const panelWidthMm = 90;
-  const marginMm = 15;
-  const gapMm = 12;
-
-  const pageWidthMm = marginMm + imgWidthMm + gapMm + panelWidthMm + marginMm;
-  const pageHeightMm = 215;
+  // Standard A4 Landscape dimensions (297 x 210 mm)
+  const pageWidthMm = 297;
+  const pageHeightMm = 210;
+  const marginMm = 12;
 
   if (isFirstPage) {
     // Current page is already the active first page
   } else {
-    pdf.addPage([pageHeightMm, pageWidthMm], 'landscape');
+    pdf.addPage('a4', 'landscape');
   }
 
-  // Background Header Bar (Full Banner Width)
+  // Background Header Bar (Full A4 Width)
   pdf.setFillColor(15, 23, 42); // Dark Slate #0f172a
-  pdf.rect(0, 0, pageWidthMm, 24, 'F');
+  pdf.rect(0, 0, pageWidthMm, 22, 'F');
 
   // Amber Accent Line below Header
   pdf.setFillColor(234, 160, 35); // #EAA023
-  pdf.rect(0, 24, pageWidthMm, 1.2, 'F');
+  pdf.rect(0, 22, pageWidthMm, 1.2, 'F');
 
   // Header Title
   pdf.setTextColor(255, 255, 255);
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(14);
-  pdf.text('REPORTE TÉCNICO DE PROCESAMIENTO RADARGRAMA GPR', marginMm, 10.5);
+  pdf.setFontSize(13);
+  pdf.text('REPORTE TÉCNICO DE PROCESAMIENTO RADARGRAMA GPR', marginMm, 9.5);
 
-  pdf.setFontSize(9);
+  pdf.setFontSize(8.5);
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(56, 189, 248); // Sky blue
-  pdf.text(`Proyecto / Archivo: ${dataset.filename}  (Perfil Continuo Completo)`, marginMm, 17.5);
+  pdf.text(`Proyecto / Archivo: ${dataset.filename}  (Perfil Continuo Completo)`, marginMm, 16.5);
 
   const dateStr = new Date().toLocaleDateString('es-ES', {
     year: 'numeric',
@@ -867,21 +854,141 @@ export function renderPDFBannerPage(
     minute: '2-digit',
   });
   pdf.setTextColor(148, 163, 184);
-  pdf.text(`Fecha: ${dateStr}`, pageWidthMm - 145, 17.5);
+  pdf.text(`Fecha: ${dateStr}`, pageWidthMm - 130, 16.5);
 
   // Corporate Logo on Top-Right of PDF Header Bar
   try {
-    const logoPdfH = 14;
-    const logoPdfW = logoPdfH * (256 / 73); // ~49mm
+    const logoPdfH = 13;
+    const logoPdfW = logoPdfH * (256 / 73); // ~45.5mm
     const logoPdfX = pageWidthMm - marginMm - logoPdfW;
-    const logoPdfY = 5;
+    const logoPdfY = 4.5;
     pdf.addImage(CORPORATE_LOGO_BASE64, 'PNG', logoPdfX, logoPdfY, logoPdfW, logoPdfH);
   } catch (e) {
     console.error('Error adding logo to PDF report', e);
   }
 
-  // Render Full Uncompressed Overview Canvas WITH active detection markers overlay
-  const fullCanvas = renderFullProfileCanvas(
+  // Left Side Panel: 3 Structured Blocks (Metadatos, Parámetros DSP, Hallazgos Geofísicos)
+  const panelX = marginMm;
+  const panelWidthMm = 82;
+  const gapMm = 6;
+
+  const antennaFreq = options.antennaFreqMHz || dataset.header.antennaFreqMHz || 400;
+  const lambdaM = (velocity * 1e9) / (antennaFreq * 1e6);
+  const lambdaQuarterCm = ((lambdaM / 4.0) * 100).toFixed(1);
+  const tracesPerMeter = dxM > 0 ? Math.round(1.0 / dxM) : 112;
+
+  // Box 1: Metadata Summary
+  let panelY = 26;
+  pdf.setFillColor(248, 250, 252);
+  pdf.rect(panelX, panelY, panelWidthMm, 48, 'F');
+  pdf.setDrawColor(203, 213, 225);
+  pdf.rect(panelX, panelY, panelWidthMm, 48, 'S');
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text('Metadatos de Perfil', panelX + 4, panelY + 6.5);
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.2);
+  pdf.setTextColor(51, 65, 85);
+
+  pdf.text(`Número de Trazas: ${numTraces}`, panelX + 4, panelY + 13);
+  pdf.text(`Muestras por Traza: ${numSamples}`, panelX + 4, panelY + 18.5);
+  pdf.text(`Distancia Total: ${totalDistM.toFixed(2)} m (${tracesPerMeter} tr/m)`, panelX + 4, panelY + 24);
+  pdf.text(`Ventana Temporal: ${twNs.toFixed(1)} ns`, panelX + 4, panelY + 29.5);
+  pdf.text(`Profundidad Est.: ${depthM} m`, panelX + 4, panelY + 35);
+  pdf.text(`Frecuencia Antena: ${antennaFreq} MHz (Akula9000C)`, panelX + 4, panelY + 40.5);
+  pdf.text(`Resolución Vert. (λ/4): ${lambdaQuarterCm} cm | v: ${velocity.toFixed(3)} m/ns`, panelX + 4, panelY + 46);
+
+  // Box 2: Applied DSP Parameters
+  panelY = 77;
+  pdf.setFillColor(248, 250, 252);
+  pdf.rect(panelX, panelY, panelWidthMm, 53, 'F');
+  pdf.rect(panelX, panelY, panelWidthMm, 53, 'S');
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text('Parámetros y Filtros DSP', panelX + 4, panelY + 6.5);
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.2);
+  pdf.setTextColor(51, 65, 85);
+
+  const isCrudoMode = options.mode === 'crudo';
+
+  pdf.text(`• Modo Señal: ${isCrudoMode ? 'Dato Crudo Original' : 'Procesado DSP'}`, panelX + 4, panelY + 13);
+  pdf.text(`• Dewow (DC Offset): ${!isCrudoMode && options.dewow ? `Activado (${options.dewowWindowNs || 2.0}ns)` : 'Desactivado'}`, panelX + 4, panelY + 18.5);
+  pdf.text(`• Time-Zero: ${!isCrudoMode && options.timeZero ? `Activado (${options.timeZeroMode === 'auto' ? 'Auto' : 'Manual'})` : 'Desactivado'}`, panelX + 4, panelY + 24);
+  pdf.text(`• Ganancia SEC: ${!isCrudoMode && options.secGain ? `Activada (${options.gainMode || 'auto'}, max ${options.maxGainDb || 40}dB)` : 'Desactivada'}`, panelX + 4, panelY + 29.5);
+  pdf.text(`• Pasa-Banda IIR: ${!isCrudoMode && options.bandpass ? `Activado (${options.hpCutoffMHz}-${options.lpCutoffMHz}MHz)` : 'Desactivado'}`, panelX + 4, panelY + 35);
+  pdf.text(`• Bkg Removal: ${!isCrudoMode && options.backgroundRemoval ? `Activado (${options.bkgRemovalPercent || 10}%)` : 'Desactivado'}`, panelX + 4, panelY + 40.5);
+  pdf.text(`• Migración / ε_r: ${!isCrudoMode && options.enableMigration ? 'Kirchhoff' : 'Sin migración'} | ε_r = ${options.dielectricPermittivity.toFixed(1)}`, panelX + 4, panelY + 46);
+
+  // Box 3: Hallazgos Geofísicos (Detecciones)
+  panelY = 133;
+  pdf.setFillColor(248, 250, 252);
+  pdf.rect(panelX, panelY, panelWidthMm, 50, 'F');
+  pdf.rect(panelX, panelY, panelWidthMm, 50, 'S');
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text('Hallazgos Geofísicos (Detecciones)', panelX + 4, panelY + 6.5);
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7.2);
+  pdf.setTextColor(51, 65, 85);
+
+  const findings: string[] = [];
+  if (detectionConfig?.subslabVoid?.enabled && (detectionResults?.subslabVoids?.markers?.length || 0) > 0) {
+    findings.push(`• Oquedades / Vacíos: ${detectionResults!.subslabVoids.markers.length}`);
+  }
+  if (detectionConfig?.jointInfiltration?.enabled && (detectionResults?.jointInfiltrations?.markers?.length || 0) > 0) {
+    findings.push(`• Juntas infiltradas: ${detectionResults!.jointInfiltrations.markers.length}`);
+  }
+  if (detectionConfig?.pipeUtility?.enabled && (detectionResults?.pipesUtilities?.markers?.length || 0) > 0) {
+    findings.push(`• Tuberías de redes: ${detectionResults!.pipesUtilities.markers.length}`);
+  }
+  if (detectionConfig?.hyperbola?.enabled && (detectionResults?.hyperbolas?.markers?.length || 0) > 0) {
+    findings.push(`• Hipérbolas de difracción: ${detectionResults!.hyperbolas.markers.length}`);
+  }
+  if (detectionConfig?.brightSpot?.enabled && (detectionResults?.brightSpots?.markers?.length || 0) > 0) {
+    findings.push(`• Bright Spots: ${detectionResults!.brightSpots.markers.length}`);
+  }
+  if (detectionConfig?.delamination?.enabled && (detectionResults?.delaminations?.markers?.length || 0) > 0) {
+    findings.push(`• Delaminaciones: ${detectionResults!.delaminations.markers.length}`);
+  }
+  if (detectionConfig?.diffuseScattering?.enabled && (detectionResults?.diffuseScattering?.markers?.length || 0) > 0) {
+    findings.push(`• Zonas de dispersión: ${detectionResults!.diffuseScattering.markers.length}`);
+  }
+  if (detectionConfig?.dielectricShadow?.enabled && (detectionResults?.dielectricShadows?.markers?.length || 0) > 0) {
+    findings.push(`• Sombras dieléctricas: ${detectionResults!.dielectricShadows.markers.length}`);
+  }
+  if (detectionConfig?.thicknessVariation?.enabled && (detectionResults?.thicknessVariations?.markers?.length || 0) > 0) {
+    findings.push(`• Variación de espesor detectada`);
+  }
+
+  if (findings.length === 0) {
+    pdf.setTextColor(100, 116, 139);
+    pdf.text('Sin anomalías geofísicas detectadas.', panelX + 4, panelY + 14);
+    pdf.text('Reflectores estructurales conformes.', panelX + 4, panelY + 20);
+  } else {
+    let fy = panelY + 14;
+    for (let f = 0; f < Math.min(5, findings.length); f++) {
+      pdf.text(findings[f], panelX + 4, fy);
+      fy += 5.5;
+    }
+  }
+
+  // Right Side: Render Full Profile Radargram Canvas WITH active detections overlay
+  const imgX = panelX + panelWidthMm + gapMm;
+  const imgY = 26;
+  const imgWidthMm = pageWidthMm - imgX - marginMm; // 297 - 100 - 12 = 185 mm
+  const imgHeightMm = 157;
+
+  const fullCanvas = renderPPTXProfileCanvas(
     dataset,
     processedMatrix,
     options,
@@ -893,140 +1000,25 @@ export function renderPDFBannerPage(
   );
   const imgData = fullCanvas.toDataURL('image/jpeg', 0.95);
 
-  pdf.addImage(imgData, 'JPEG', marginMm, 30, imgWidthMm, imgHeightMm);
+  pdf.addImage(imgData, 'JPEG', imgX, imgY, imgWidthMm, imgHeightMm);
 
   // Border around radargram image
   pdf.setDrawColor(51, 65, 85);
-  pdf.rect(marginMm, 30, imgWidthMm, imgHeightMm);
-
-  // Side Panel: 3 Structured Blocks (Metadatos, Parámetros DSP, Hallazgos Geofísicos)
-  const panelX = marginMm + imgWidthMm + gapMm;
-  let panelY = 30;
-
-  const antennaFreq = options.antennaFreqMHz || dataset.header.antennaFreqMHz || 400;
-  const lambdaM = (velocity * 1e9) / (antennaFreq * 1e6);
-  const lambdaQuarterCm = ((lambdaM / 4.0) * 100).toFixed(1);
-  const tracesPerMeter = dxM > 0 ? Math.round(1.0 / dxM) : 112;
-
-  // Box 1: Metadata Summary
-  pdf.setFillColor(248, 250, 252);
-  pdf.rect(panelX, panelY, panelWidthMm, 50, 'F');
-  pdf.rect(panelX, panelY, panelWidthMm, 50, 'S');
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(9.5);
-  pdf.setTextColor(15, 23, 42);
-  pdf.text('Metadatos de Perfil', panelX + 5, panelY + 7);
-
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(51, 65, 85);
-
-  pdf.text(`Número de Trazas: ${numTraces}`, panelX + 5, panelY + 14);
-  pdf.text(`Muestras por Traza: ${numSamples}`, panelX + 5, panelY + 19.5);
-  pdf.text(`Distancia Total: ${totalDistM.toFixed(2)} m (${tracesPerMeter} tr/m)`, panelX + 5, panelY + 25);
-  pdf.text(`Ventana Temporal: ${twNs.toFixed(1)} ns`, panelX + 5, panelY + 30.5);
-  pdf.text(`Profundidad Est.: ${depthM} m`, panelX + 5, panelY + 36);
-  pdf.text(`Frecuencia Antena: ${antennaFreq} MHz (Akula9000C)`, panelX + 5, panelY + 41.5);
-  pdf.text(`Resolución Vert. (λ/4): ${lambdaQuarterCm} cm | v: ${velocity.toFixed(3)} m/ns`, panelX + 5, panelY + 47);
-
-  // Box 2: Applied DSP Parameters
-  panelY = 84;
-  pdf.setFillColor(248, 250, 252);
-  pdf.rect(panelX, panelY, panelWidthMm, 54, 'F');
-  pdf.rect(panelX, panelY, panelWidthMm, 54, 'S');
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(9.5);
-  pdf.setTextColor(15, 23, 42);
-  pdf.text('Parámetros y Filtros DSP', panelX + 5, panelY + 7);
-
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(51, 65, 85);
-
-  const isCrudoMode = options.mode === 'crudo';
-
-  pdf.text(`• Modo Señal: ${isCrudoMode ? 'Dato Crudo Original (Sin Filtros)' : 'Procesado DSP'}`, panelX + 5, panelY + 14);
-  pdf.text(`• Dewow (DC Offset): ${!isCrudoMode && options.dewow ? `Activado (${options.dewowWindowNs || 2.0}ns)` : 'Desactivado'}`, panelX + 5, panelY + 19.5);
-  pdf.text(`• Time-Zero: ${!isCrudoMode && options.timeZero ? `Activado (${options.timeZeroMode === 'auto' ? 'Auto Pulso+2%' : 'Manual'})` : 'Desactivado'}`, panelX + 5, panelY + 25);
-  pdf.text(`• Ganancia SEC: ${!isCrudoMode && options.secGain ? `Activada (${options.gainMode || 'auto'}, max ${options.maxGainDb || 40}dB)` : 'Desactivada'}`, panelX + 5, panelY + 30.5);
-  pdf.text(`• Pasa-Banda IIR: ${!isCrudoMode && options.bandpass ? `Activado (${options.hpCutoffMHz}-${options.lpCutoffMHz}MHz)` : 'Desactivado'}`, panelX + 5, panelY + 36);
-  pdf.text(`• Bkg Removal: ${!isCrudoMode && options.backgroundRemoval ? `Activado (${options.bkgRemovalPercent || 10}%)` : 'Desactivado'}`, panelX + 5, panelY + 41.5);
-  pdf.text(`• Migración / Dieléctrico: ${!isCrudoMode && options.enableMigration ? 'Kirchhoff' : 'Sin migración'} | ε_r = ${options.dielectricPermittivity.toFixed(1)}`, panelX + 5, panelY + 47);
-
-  // Box 3: Hallazgos Geofísicos (Detecciones)
-  panelY = 142;
-  pdf.setFillColor(248, 250, 252);
-  pdf.rect(panelX, panelY, panelWidthMm, 48, 'F');
-  pdf.rect(panelX, panelY, panelWidthMm, 48, 'S');
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(9.5);
-  pdf.setTextColor(15, 23, 42);
-  pdf.text('Hallazgos Geofísicos (Detecciones)', panelX + 5, panelY + 7);
-
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(51, 65, 85);
-
-  const findings: string[] = [];
-  if (detectionConfig?.subslabVoid?.enabled && (detectionResults?.subslabVoids?.markers?.length || 0) > 0) {
-    findings.push(`• Oquedades / Vacíos bajo losa: ${detectionResults!.subslabVoids.markers.length}`);
-  }
-  if (detectionConfig?.jointInfiltration?.enabled && (detectionResults?.jointInfiltrations?.markers?.length || 0) > 0) {
-    findings.push(`• Juntas infiltradas con humedad: ${detectionResults!.jointInfiltrations.markers.length}`);
-  }
-  if (detectionConfig?.pipeUtility?.enabled && (detectionResults?.pipesUtilities?.markers?.length || 0) > 0) {
-    findings.push(`• Tuberías / Redes de servicios: ${detectionResults!.pipesUtilities.markers.length}`);
-  }
-  if (detectionConfig?.hyperbola?.enabled && (detectionResults?.hyperbolas?.markers?.length || 0) > 0) {
-    findings.push(`• Hipérbolas de difracción: ${detectionResults!.hyperbolas.markers.length}`);
-  }
-  if (detectionConfig?.brightSpot?.enabled && (detectionResults?.brightSpots?.markers?.length || 0) > 0) {
-    findings.push(`• Bright Spots (alta reflectividad): ${detectionResults!.brightSpots.markers.length}`);
-  }
-  if (detectionConfig?.delamination?.enabled && (detectionResults?.delaminations?.markers?.length || 0) > 0) {
-    findings.push(`• Delaminaciones / Fisuras: ${detectionResults!.delaminations.markers.length}`);
-  }
-  if (detectionConfig?.diffuseScattering?.enabled && (detectionResults?.diffuseScattering?.markers?.length || 0) > 0) {
-    findings.push(`• Zonas de dispersión difusa: ${detectionResults!.diffuseScattering.markers.length}`);
-  }
-  if (detectionConfig?.dielectricShadow?.enabled && (detectionResults?.dielectricShadows?.markers?.length || 0) > 0) {
-    findings.push(`• Sombras dieléctricas: ${detectionResults!.dielectricShadows.markers.length}`);
-  }
-  if (detectionConfig?.thicknessVariation?.enabled && (detectionResults?.thicknessVariations?.markers?.length || 0) > 0) {
-    findings.push(`• Variación de espesor de capa detectada`);
-  }
-
-  if (findings.length === 0) {
-    pdf.setTextColor(100, 116, 139);
-    pdf.text('Sin anomalías geofísicas detectadas en el umbral actual.', panelX + 5, panelY + 16);
-    pdf.text('Todos los reflectores se encuentran conformes.', panelX + 5, panelY + 23);
-  } else {
-    let fy = panelY + 15;
-    for (let f = 0; f < Math.min(5, findings.length); f++) {
-      pdf.text(findings[f], panelX + 5, fy);
-      fy += 6;
-    }
-    if (findings.length > 5) {
-      pdf.text(`• Y ${findings.length - 5} tipos de anomalías adicionales...`, panelX + 5, fy);
-    }
-  }
+  pdf.rect(imgX, imgY, imgWidthMm, imgHeightMm);
 
   // Footer
-  pdf.setFontSize(8);
+  pdf.setFontSize(7.5);
   pdf.setTextColor(100, 116, 139);
   pdf.text(
-    'Generado automáticamente por PROCIMEC Radargram Processing Workstation — Perfil Continuo Completo',
+    'PROCIMEC INGENIERÍA S.A.S. — Reporte Técnico Geofísico de Radargramas GPR — Perfil Continuo Completo (100%)',
     marginMm,
-    pageHeightMm - 8
+    pageHeightMm - 5
   );
 }
 
 /**
- * Generates an Extended Continuous Banner PDF Technical Report (Formato Bandera):
- * Entire profile rendered continuously on a single wide-format page without chopping or compression.
+ * Generates an Extended Technical PDF Report (Standard A4 Landscape):
+ * Entire profile rendered continuously on a single standard A4 page without chopping or compression.
  */
 export async function exportTechnicalPDFReport(
   dataset: GPRDataset,
@@ -1040,24 +1032,10 @@ export async function exportTechnicalPDFReport(
 ): Promise<void> {
   const { default: jsPDF } = await import('jspdf');
 
-  const numTraces = processedMatrix.length;
-  const dxM = options.traceDistanceStepM || dataset.header.traceDistanceStepM || 1.0 / 112.0;
-  const totalDistM = numTraces * dxM;
-  const MIN_WINDOW_M = 10.0;
-  const dispDistM = Math.max(MIN_WINDOW_M, totalDistM);
-
-  const imgWidthMm = Math.max(185, Math.round(dispDistM * 22));
-  const panelWidthMm = 90;
-  const marginMm = 15;
-  const gapMm = 12;
-
-  const pageWidthMm = marginMm + imgWidthMm + gapMm + panelWidthMm + marginMm;
-  const pageHeightMm = 215;
-
   const pdf = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
-    format: [pageHeightMm, pageWidthMm],
+    format: 'a4',
   });
 
   renderPDFBannerPage(
@@ -1073,7 +1051,7 @@ export async function exportTechnicalPDFReport(
     true // isFirstPage = true
   );
 
-  pdf.save(`${dataset.filename.replace(/\.[^/.]+$/, '')}_ReporteTecnicoBandera.pdf`);
+  pdf.save(`${dataset.filename.replace(/\.[^/.]+$/, '')}_ReporteTecnico.pdf`);
 }
 
 /**
@@ -1181,7 +1159,13 @@ export async function exportBatchPDFReport(
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(226, 232, 240);
 
-  for (let i = 0; i < Math.min(10, datasets.length); i++) {
+  const maxPdfRows = Math.min(18, datasets.length);
+  const isCompactPdfTable = datasets.length > 10;
+  const pdfRowH = isCompactPdfTable ? 5.2 : 7.0;
+  const pdfFontSize = isCompactPdfTable ? 7.0 : 8.0;
+  pdf.setFontSize(pdfFontSize);
+
+  for (let i = 0; i < maxPdfRows; i++) {
     const ds = datasets[i];
     const opt = optionsMap.get(ds.id) || ({} as DSPOptions);
     const matrix = processedMatricesMap.get(ds.id) || ds.rawMatrix;
@@ -1207,20 +1191,21 @@ export async function exportBatchPDFReport(
 
     const rowBg = i % 2 === 0 ? [24, 28, 36] : [18, 21, 27];
     pdf.setFillColor(rowBg[0], rowBg[1], rowBg[2]);
-    pdf.rect(tableX, tableY, 257, 7, 'F');
+    pdf.rect(tableX, tableY, 257, pdfRowH, 'F');
 
-    pdf.text(`${i + 1}`, tableX + 3, tableY + 5);
-    pdf.text(ds.filename.length > 40 ? ds.filename.substring(0, 37) + '...' : ds.filename, tableX + 12, tableY + 5);
-    pdf.text(`${ant} MHz`, tableX + 100, tableY + 5);
-    pdf.text(`${dist} m`, tableX + 130, tableY + 5);
-    pdf.text(`${numTr}`, tableX + 160, tableY + 5);
+    const textBaselineY = tableY + (pdfRowH * 0.72);
+    pdf.text(`${i + 1}`, tableX + 3, textBaselineY);
+    pdf.text(ds.filename.length > 40 ? ds.filename.substring(0, 37) + '...' : ds.filename, tableX + 12, textBaselineY);
+    pdf.text(`${ant} MHz`, tableX + 100, textBaselineY);
+    pdf.text(`${dist} m`, tableX + 130, textBaselineY);
+    pdf.text(`${numTr}`, tableX + 160, textBaselineY);
     pdf.text(
       totalAnomCount > 0 ? `${totalAnomCount} anomalía(s) identificada(s)` : 'Sin anomalías registradas',
       tableX + 185,
-      tableY + 5
+      textBaselineY
     );
 
-    tableY += 7;
+    tableY += pdfRowH;
   }
 
   // Cover footer
@@ -1298,8 +1283,8 @@ export function renderPPTXProfileCanvas(
   const velocity = calculateVelocity(options.dielectricPermittivity || 6.0);
   const depthMaxM = (velocity * twNs) / 2.0;
 
-  const MIN_WINDOW_M = 10.0;
-  const dispWindowM = Math.max(MIN_WINDOW_M, distTotalM);
+  // Dynamic profile distance window: display 100% of the profile distance from 0m to distTotalM
+  const dispWindowM = distTotalM > 0 ? distTotalM : 10.0;
 
   const width = 2000;
   const height = 1380;
@@ -1321,8 +1306,8 @@ export function renderPPTXProfileCanvas(
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, width, height);
 
-  const dataFraction = Math.min(1.0, distTotalM / dispWindowM);
-  const dataPlotWidth = Math.max(1, Math.floor(plotW * dataFraction));
+  // Full profile fills 100% of the data plot width with zero truncation
+  const dataPlotWidth = plotW;
 
   const imgCanvas = document.createElement('canvas');
   imgCanvas.width = numTraces;
@@ -1364,11 +1349,6 @@ export function renderPPTXProfileCanvas(
 
     imgCtx.putImageData(imgData, 0, 0);
     ctx.drawImage(imgCanvas, padL, padT, dataPlotWidth, plotH);
-
-    if (dataPlotWidth < plotW) {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(padL + dataPlotWidth, padT, plotW - dataPlotWidth, plotH);
-    }
   }
 
   // Draw active anomaly detection markers directly onto the canvas plot
@@ -1631,7 +1611,13 @@ export async function exportBatchPPTX(
     ],
   ];
 
-  for (let i = 0; i < Math.min(8, datasets.length); i++) {
+  const maxPptxRows = Math.min(18, datasets.length);
+  const isCompactTable = datasets.length > 8;
+  const tableFontSize = isCompactTable ? 6.8 : 8;
+  const tableRowH = isCompactTable ? 0.165 : 0.28;
+  const tableY = isCompactTable ? 2.45 : 2.65;
+
+  for (let i = 0; i < maxPptxRows; i++) {
     const ds = datasets[i];
     const opt = optionsMap.get(ds.id) || ({} as DSPOptions);
     const matrix = processedMatricesMap.get(ds.id) || ds.rawMatrix;
@@ -1657,7 +1643,7 @@ export async function exportBatchPPTX(
 
     profileRows.push([
       { text: `${i + 1}` },
-      { text: ds.filename.length > 30 ? ds.filename.substring(0, 28) + '...' : ds.filename },
+      { text: ds.filename.length > 32 ? ds.filename.substring(0, 30) + '...' : ds.filename },
       { text: `${ant} MHz` },
       { text: `${dist} m` },
       { text: `${numTr}` },
@@ -1667,12 +1653,12 @@ export async function exportBatchPPTX(
 
   coverSlide.addTable(profileRows, {
     x: 0.6,
-    y: 2.65,
+    y: tableY,
     w: 8.8,
     colW: [0.5, 3.1, 1.1, 1.1, 1.0, 2.0],
-    fontSize: 8,
-    rowH: 0.28,
-    margin: [1.5, 2.5, 1.5, 2.5],
+    fontSize: tableFontSize,
+    rowH: tableRowH,
+    margin: [1.2, 2.0, 1.2, 2.0],
     fill: { color: '181C24' },
     color: 'E2E8F0',
     border: { pt: 0.5, color: '334155' },
