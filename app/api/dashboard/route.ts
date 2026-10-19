@@ -7,7 +7,7 @@ import { getDashboardActivities } from '@/lib/dashboard-activities';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type Tool = { id: string; slug: string; name: string; category: string };
+type Tool = { id: string; slug: string; name: string; category: string; is_universal?: boolean };
 type Form = { id: string; slug: string; name: string };
 type Project = { id: string; cost_center?: string; code?: string; name: string; client: string };
 
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
         tools.push({ id: 'warehouse-inventory', slug: 'warehouse-inventory', name: 'Kárdex e Inventario Activo de Bodega', category: 'warehouse' });
       }
       if (!toolSlugs.has('forms-audit')) {
-        tools.push({ id: 'forms-audit', slug: 'forms-audit', name: 'Auditoría General de Formularios', category: 'universal' as any });
+        tools.push({ id: 'forms-audit', slug: 'forms-audit', name: 'Auditoría General de Formularios', category: 'universal' });
       }
       if (!toolSlugs.has('commercial-clients')) {
         tools.push({ id: 'commercial-clients', slug: 'commercial-clients', name: 'Directorio y Gestión de Clientes', category: 'commercial' });
@@ -258,7 +258,7 @@ export async function GET(req: NextRequest) {
     } else if (dbUser.role === 'purchasing') {
       const toolSlugs = new Set(tools.map((t) => t.slug));
       if (!toolSlugs.has('purchasing-suppliers')) {
-        tools.push({ id: 'purchasing-suppliers', slug: 'purchasing-suppliers', name: 'Directorio y Gestión de Proveedores', category: 'purchasing', is_universal: false } as any);
+        tools.push({ id: 'purchasing-suppliers', slug: 'purchasing-suppliers', name: 'Directorio y Gestión de Proveedores', category: 'purchasing', is_universal: false });
       }
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('requerimiento-compra')) forms.push({ id: 'requerimiento-compra', slug: 'requerimiento-compra', name: 'Solicitud de Requerimiento' });
@@ -268,7 +268,7 @@ export async function GET(req: NextRequest) {
     } else if (dbUser.role === 'commercial') {
       const toolSlugs = new Set(tools.map((t) => t.slug));
       if (!toolSlugs.has('commercial-clients')) {
-        tools.push({ id: 'commercial-clients', slug: 'commercial-clients', name: 'Directorio y Gestión de Clientes', category: 'commercial', is_universal: false } as any);
+        tools.push({ id: 'commercial-clients', slug: 'commercial-clients', name: 'Directorio y Gestión de Clientes', category: 'commercial', is_universal: false });
       }
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('registro-oportunidad')) forms.push({ id: 'registro-oportunidad', slug: 'registro-oportunidad', name: 'Registro de Oportunidad / Licitación' });

@@ -16,14 +16,10 @@ import {
   TableCell,
   WidthType,
   AlignmentType,
-  BorderStyle,
   ImageRun,
   VerticalAlign,
 } from 'docx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { fetchSigTemplateBuffer, generateSigChangePdf } from '@/lib/sig-templates';
-import { createPurchaseRequestPdf } from '@/lib/purchasing/purchaseRequestPdfGenerator';
+import { fetchSigTemplateBuffer } from '@/lib/sig-templates';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

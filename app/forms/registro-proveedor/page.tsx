@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import {
@@ -13,10 +12,8 @@ import {
   ShoppingBag,
   CreditCard,
   Phone,
-  Mail,
-  MapPin,
-  FileText,
 } from 'lucide-react';
+import type { Supplier } from '@/types';
 
 const CATEGORIES = [
   'Materiales Pétreos y Áridos',
@@ -41,8 +38,6 @@ const PAYMENT_TERMS_OPTIONS = [
 ];
 
 export default function RegistroProveedorPage() {
-  const router = useRouter();
-
   // Form State
   const [companyName, setCompanyName] = useState('');
   const [nit, setNit] = useState('');
@@ -62,7 +57,7 @@ export default function RegistroProveedorPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [registeredSupplier, setRegisteredSupplier] = useState<any>(null);
+  const [registeredSupplier, setRegisteredSupplier] = useState<Supplier | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

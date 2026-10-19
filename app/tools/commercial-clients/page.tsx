@@ -8,25 +8,21 @@ import {
   Briefcase,
   Users,
   Search,
-  Filter,
   Plus,
   Download,
   Building2,
-  Mail,
   Phone,
   MapPin,
   FileText,
   CheckCircle2,
   AlertCircle,
   Clock,
-  ExternalLink,
   Edit3,
   Eye,
   X,
   Save,
   RotateCw,
   FolderGit2,
-  TrendingUp,
 } from 'lucide-react';
 import type { Client } from '@/types';
 
@@ -104,7 +100,7 @@ export default function CommercialClientsPage() {
     refetchOnWindowFocus: false,
   });
 
-  const clients = data?.clients ?? [];
+  const rawClients = data?.clients;
   const stats = data?.stats ?? {
     totalClients: 0,
     activeClients: 0,
@@ -115,9 +111,10 @@ export default function CommercialClientsPage() {
 
   // Filtrado local ágil por texto
   const filteredClients = useMemo(() => {
-    if (!search.trim()) return clients;
+    const list = rawClients ?? [];
+    if (!search.trim()) return list;
     const q = search.trim().toLowerCase();
-    return clients.filter((c) => {
+    return list.filter((c) => {
       return (
         c.company_name.toLowerCase().includes(q) ||
         (c.nit && c.nit.toLowerCase().includes(q)) ||
@@ -126,7 +123,7 @@ export default function CommercialClientsPage() {
         (c.economic_sector && c.economic_sector.toLowerCase().includes(q))
       );
     });
-  }, [clients, search]);
+  }, [rawClients, search]);
 
   // Mutación para Guardar / Actualizar
   const saveMutation = useMutation({

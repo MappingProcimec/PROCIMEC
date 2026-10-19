@@ -33,7 +33,6 @@ import {
   MapPin,
   Info,
   Coins,
-  BadgePercent,
   Download,
   Sparkles,
 } from 'lucide-react';

@@ -1161,7 +1161,7 @@ export async function POST(req: NextRequest) {
         else normalizedEditable = 'xlsx';
       }
 
-      const updateFields: Record<string, any> = {
+      const updateFields: Record<string, unknown> = {
         current_version: new_version,
         effective_date: change_date,
         updated_at: new Date().toISOString(),
@@ -1308,7 +1308,7 @@ export async function POST(req: NextRequest) {
 
       const versionChanged = currentFmt && currentFmt.current_version !== current_version.trim();
 
-      const updateFields: Record<string, any> = {
+      const updateFields: Record<string, unknown> = {
         code: code.trim().toUpperCase(),
         name: name.trim(),
         process: process.trim(),

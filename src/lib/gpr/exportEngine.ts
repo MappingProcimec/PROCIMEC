@@ -4,10 +4,14 @@
  * modified GSF binary download, and batch PowerPoint (.pptx) deck generation.
  */
 
+import type jsPDF from 'jspdf';
+import type PptxGenJS from 'pptxgenjs';
 import { GPRDataset, serializeGSF } from './gsfParser';
 import { DSPOptions, calculateVelocity } from './dspEngine';
 import { CORPORATE_LOGO_BASE64 } from './logoBase64';
 import { DetectionConfig, DetectionResults } from './detectionTypes';
+
+type PPTXTableRow = PptxGenJS.TableRow;
 
 /**
  * Converts bipolar amplitude value [-1, 1] to RGB matching selected colormap palette
@@ -797,7 +801,7 @@ export async function exportRadargramJPG(
  * and the complete full-profile radargram canvas with active anomaly markers on the right.
  */
 export function renderPDFBannerPage(
-  pdf: any,
+  pdf: jsPDF,
   dataset: GPRDataset,
   processedMatrix: Float32Array[],
   options: DSPOptions,
@@ -1600,7 +1604,7 @@ export async function exportBatchPPTX(
   );
 
   // Summary Table of Included Profiles
-  const profileRows: any[][] = [
+  const profileRows: PPTXTableRow[] = [
     [
       { text: '#', options: { bold: true, fill: { color: '2A303C' }, color: 'EAA023' } },
       { text: 'Perfil / Archivo', options: { bold: true, fill: { color: '2A303C' }, color: 'EAA023' } },
@@ -1743,7 +1747,7 @@ export async function exportBatchPPTX(
     const depthM = ((twNs * vel) / 2).toFixed(2);
 
     // Block 1: Metadatos de Perfil
-    const metaRows: any[] = [
+    const metaRows: PPTXTableRow[] = [
       [
         { text: 'Metadatos de Perfil', options: { bold: true, fill: { color: '0F172A' }, color: 'FFFFFF', colspan: 2 } },
       ],
@@ -1766,7 +1770,7 @@ export async function exportBatchPPTX(
     });
 
     // Block 2: Parámetros y Filtros DSP
-    const dspRows: any[] = [
+    const dspRows: PPTXTableRow[] = [
       [
         { text: 'Parámetros y Filtros DSP', options: { bold: true, fill: { color: '0F172A' }, color: 'FFFFFF', colspan: 2 } },
       ],
@@ -1815,7 +1819,7 @@ export async function exportBatchPPTX(
       findingsList.push(`Sombras dieléctricas: ${detResults!.dielectricShadows.markers.length}`);
     }
 
-    const findingRows: any[] = [
+    const findingRows: PPTXTableRow[] = [
       [
         { text: 'Hallazgos Geofísicos', options: { bold: true, fill: { color: '0F172A' }, color: 'EAA023', colspan: 2 } },
       ],

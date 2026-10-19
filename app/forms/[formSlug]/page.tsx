@@ -492,7 +492,7 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? 'Error al enviar formulario');
-    router.push(projectId ? `/projects/${projectId}` : '/dashboard');
+    router.push(projectId ? `/projects/${projectId}/reports` : '/dashboard');
   };
 
   const FORM_ICONS: Record<string, LucideIcon> = {
@@ -513,7 +513,7 @@ function FormPageInner({ params }: { params: { formSlug: string } }) {
   };
 
   const FormIcon = FORM_ICONS[formSlug] ?? ClipboardList;
-  const backUrl = projectId ? `/projects/${projectId}` : '/dashboard';
+  const backUrl = projectId ? `/projects/${projectId}/reports` : '/dashboard';
   const backLabel = projectId ? 'Volver al Proyecto' : 'Volver a Mi Panel';
 
   return (

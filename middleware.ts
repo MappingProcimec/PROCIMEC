@@ -15,6 +15,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/terms' ||
     pathname === '/api/logout' ||
     pathname.startsWith('/tools/gsf-processor') ||
+    pathname.startsWith('/tools/radargrama') ||
     pathname.startsWith('/herramientas/radargrama') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next') ||

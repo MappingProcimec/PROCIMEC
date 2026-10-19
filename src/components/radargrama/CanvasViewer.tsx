@@ -509,6 +509,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     effWindowM,
     getPaletteColor,
     dataset,
+    mode,
   ]);
 
   // Mouse handlers (Locked cleanly to data plot region)

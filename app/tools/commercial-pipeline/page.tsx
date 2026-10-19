@@ -13,31 +13,20 @@ import {
   Trophy,
   Search,
   Filter,
-  FileText,
   X,
   Calculator,
   Download,
   ArrowRight,
   Link as LinkIcon,
-  CheckCircle2,
-  AlertTriangle,
   Layers,
-  Clock,
-  User,
   ExternalLink,
   Plus,
   ShieldCheck,
-  Lock,
   PenTool,
   RotateCw,
-  FolderKanban,
 } from 'lucide-react';
 import {
-  CommercialOpportunity,
-  CommercialBudget,
   CommercialProposal,
-  CommercialClosing,
-  Project,
   CommercialPipelineData,
 } from '@/types';
 import {
@@ -98,7 +87,6 @@ export default function CommercialPipelinePage() {
   const userRole = session?.user?.role || 'pending';
 
   // Permisos RBAC por pestaña
-  const isManagementOrAdmin = ['admin', 'management', 'gerencia'].includes(userRole);
   const isCommercial = ['commercial', 'comercial', 'admin', 'management', 'gerencia'].includes(userRole);
   const isEngineeringOrDrawing = ['drawing', 'dibujo', 'admin', 'management', 'gerencia'].includes(userRole);
 
@@ -119,11 +107,8 @@ export default function CommercialPipelinePage() {
   // Consulta React Query con staleTime de 60s y refetch manual
   const {
     data: dashboard,
-    isLoading,
     isFetching,
     refetch,
-    isError,
-    error,
   } = useQuery<CommercialPipelineData>({
     queryKey: ['commercial-pipeline'],
     queryFn: async () => {

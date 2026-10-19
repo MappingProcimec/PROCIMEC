@@ -521,14 +521,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
     onChange(updated);
   };
 
-  const updateHeader = <K extends keyof GSFHeader>(key: K, value: GSFHeader[K]) => {
-    if (!header || !onHeaderChange) return;
-    onHeaderChange({
-      ...header,
-      [key]: value,
-    });
-  };
-
   const currentAntennaFreq = options.antennaFreqMHz || (header ? header.antennaFreqMHz : 400) || 400;
   const resolutionInfo = calculateResolution(currentAntennaFreq, options.dielectricPermittivity);
 

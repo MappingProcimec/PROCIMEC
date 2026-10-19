@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import {
@@ -10,16 +9,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Building2,
-  Calendar,
-  MapPin,
-  Mail,
-  Phone,
-  User,
   DollarSign,
-  FileText,
   Download,
   ArrowRight,
-  Plus,
   Calculator,
 } from 'lucide-react';
 import { CommercialOpportunity } from '@/types';
@@ -45,8 +37,6 @@ function formatCOP(amount: number): string {
 }
 
 export default function RegistroOportunidadPage() {
-  const router = useRouter();
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savedOpportunity, setSavedOpportunity] = useState<CommercialOpportunity | null>(null);

@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
               prjUpdate.commercial_budget_id = resolvedBudgetId;
             }
 
-            let { error: pErr } = await supabase.from('projects').update(prjUpdate).eq('id', resolvedProjectId);
+            const { error: pErr } = await supabase.from('projects').update(prjUpdate).eq('id', resolvedProjectId);
             if (pErr && pErr.code === '42703') {
               delete prjUpdate.contract_value;
               delete prjUpdate.execution_value;
@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
               prjUpdate.contract_number = String(contract_number).trim();
             }
 
-            let { error: pErr } = await supabase.from('projects').update(prjUpdate).eq('id', resolvedProjectId);
+            const { error: pErr } = await supabase.from('projects').update(prjUpdate).eq('id', resolvedProjectId);
             if (pErr && pErr.code === '42703') {
               delete prjUpdate.commercial_closing_id;
               delete prjUpdate.commercial_proposal_id;

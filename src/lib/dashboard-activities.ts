@@ -444,7 +444,7 @@ export async function getDashboardActivities({
             statusLabel: 'Costeado',
           });
         }
-      } catch (err) {
+      } catch {
         // Ignorar si la tabla no existe aún
       }
     })()

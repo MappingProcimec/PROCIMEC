@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import {
@@ -12,13 +12,11 @@ import {
   Building2,
   Calendar,
   DollarSign,
-  FileText,
   Download,
   ArrowRight,
   Plus,
   Layers,
   Briefcase,
-  Check,
   Percent,
   Clock,
   Send,
@@ -92,7 +90,6 @@ const STANDARD_PAYMENT_CONDITIONS = [
 ];
 
 function CotizacionComercialContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -181,11 +178,6 @@ function CotizacionComercialContent() {
   const applyProjectCeilingPricing = () => {
     setSubtotal(projectBaseSubtotal);
     setApplyTax(true);
-  };
-
-  const applyProjectGrossPricing = () => {
-    setSubtotal(projectContractVal);
-    setApplyTax(false);
   };
 
   // Cargar datos previos y parámetros de URL

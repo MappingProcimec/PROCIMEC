@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -31,8 +31,6 @@ import {
   ArrowRight,
   Plus,
   RotateCw,
-  TrendingUp,
-  TrendingDown,
   HelpCircle,
   Calculator,
   Sparkles,
@@ -329,7 +327,6 @@ export default function PurchasingDashboardPage() {
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [downloadingReqId, setDownloadingReqId] = useState<string | null>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   // Estados para control de firmas electrónicas
   const [signingStep, setSigningStep] = useState<'director' | 'purchasing' | 'management' | null>(null);
@@ -449,18 +446,6 @@ export default function PurchasingDashboardPage() {
     if (activeTab === 'orders' && !canViewOrders) setActiveTab('timeline');
     if (activeTab === 'evaluations' && !canViewEvaluations) setActiveTab('timeline');
   }, [activeTab, canViewApprovals, canViewQuotations, canViewManagementApproval, canViewOrders, canViewEvaluations]);
-
-  // Cerrar desplegables al hacer clic fuera
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('.dropdown-action-container')) {
-        setOpenDropdownId(null);
-      }
-    };
-    document.addEventListener('click', handleOutsideClick);
-    return () => document.removeEventListener('click', handleOutsideClick);
-  }, []);
 
   // Verificar si el usuario conectado puede firmar como Director en la solicitud seleccionada
   const isDesignatedApprover = selectedRequest
@@ -744,7 +729,7 @@ export default function PurchasingDashboardPage() {
   }, [dashboard?.requests, search, filterProject]);
 
   // Helper para calcular cuántos ítems de una solicitud ya tienen Orden de Compra generada
-  const getManagedItemsCount = (req: PurchaseRequest) => {
+  const getManagedItemsCount = useCallback((req: PurchaseRequest) => {
     const totalItems = req.items?.length || 0;
     const reqOrders = (dashboard?.orders || []).filter((o) => o.purchase_request_id === req.id);
     if (reqOrders.length === 0) return { count: 0, total: totalItems, isFullyManaged: false };
@@ -753,7 +738,7 @@ export default function PurchasingDashboardPage() {
     const orderedItemKeys = new Set<string>();
     reqOrders.forEach((o) => {
       const oItems = Array.isArray(o.items_detail) ? o.items_detail : [];
-      oItems.forEach((it: any) => {
+      oItems.forEach((it: { item_no?: number | string; description?: string }) => {
         const key = `${it.item_no || ''}_${String(it.description || '').trim().toLowerCase()}`;
         orderedItemKeys.add(key);
       });
@@ -771,7 +756,7 @@ export default function PurchasingDashboardPage() {
     const finalCount = Math.min(count, totalItems || count);
     const isFullyManaged = totalItems > 0 ? (finalCount >= totalItems) : (reqOrders.length > 0);
     return { count: finalCount, total: totalItems, isFullyManaged };
-  };
+  }, [dashboard?.orders]);
 
   // Solicitudes Aprobadas por Gerencia que aún tienen ítems pendientes de emitirles Orden de Compra
   const approvedWaitingOrders = useMemo(() => {
@@ -792,28 +777,7 @@ export default function PurchasingDashboardPage() {
 
       return isApproved && !isFullyManaged && matchSearch && matchProject;
     });
-  }, [dashboard?.requests, dashboard?.orders, search, filterProject]);
-
-  // Filtrado de órdenes de compra
-  const filteredOrders = useMemo(() => {
-    if (!dashboard?.orders) return [];
-    return dashboard.orders.filter((o) => {
-      const matchSearch =
-        search === '' ||
-        o.order_code.toLowerCase().includes(search.toLowerCase()) ||
-        o.supplier_name.toLowerCase().includes(search.toLowerCase()) ||
-        (o.supplier_nit || '').toLowerCase().includes(search.toLowerCase()) ||
-        (o.projects?.name || '').toLowerCase().includes(search.toLowerCase());
-
-      const matchStatus = filterStatus === 'all' || o.status === filterStatus;
-      const matchProject =
-        filterProject === 'all' ||
-        o.project_id === filterProject ||
-        o.projects?.id === filterProject;
-
-      return matchSearch && matchStatus && matchProject;
-    });
-  }, [dashboard?.orders, search, filterStatus, filterProject]);
+  }, [dashboard?.requests, getManagedItemsCount, search, filterProject]);
 
   // Agrupación de órdenes de compra formalizadas por requerimiento con conteo de emitidas vs entregadas
   const groupedOrdersByRequest = useMemo<GroupedRequestOrders[]>(() => {
@@ -1045,7 +1009,6 @@ export default function PurchasingDashboardPage() {
     setSigningSuccessMsg(null);
     setSignerCedula('');
     setSignerNotes('');
-    setOpenDropdownId(null);
 
     // Si viene de la pestaña 4 (En Cotización), contraer todo excepto Bienes e Insumos y activar Modo Cotización
     // Si viene de la pestaña 3 (VB Técnico), contraer metadatos y enfocar en Análisis Presupuestal APU
@@ -1364,8 +1327,8 @@ export default function PurchasingDashboardPage() {
         deliveryDeadline: o.delivery_deadline ? new Date(o.delivery_deadline).toLocaleDateString('es-CO') : undefined,
         deliverySite: o.delivery_site || reqInfo?.delivery_site || undefined,
         paymentTerms: o.payment_terms || undefined,
-        items: items.map((it: any, idx: number) => ({
-          item_no: it.item_no || idx + 1,
+        items: items.map((it: { item_no?: number | string; description?: string; quantity?: number; unit?: string; unit_price?: number; total?: number; delivery_date?: string }, idx: number) => ({
+          item_no: typeof it.item_no === 'number' ? it.item_no : (Number(it.item_no) || idx + 1),
           description: it.description || '',
           quantity: it.quantity || 1,
           unit: it.unit || 'Und',
@@ -1691,17 +1654,6 @@ export default function PurchasingDashboardPage() {
     }
   };
 
-  // Acceso directo a firma desde bandejas operativas
-  const handleOpenDirectSign = (
-    r: PurchaseRequest,
-    step: 'director' | 'purchasing' | 'management',
-    action: 'approve' | 'reject'
-  ) => {
-    handleOpenDetail(r);
-    setSigningStep(step);
-    setSigningAction(action);
-  };
-
   // Procesar firma electrónica y cambio de estado
   const handleSignSubmit = async () => {
     if (!selectedRequest || !signingStep) return;
@@ -1808,7 +1760,6 @@ export default function PurchasingDashboardPage() {
   const handleDownloadPdf = (r: PurchaseRequest) => {
     try {
       setDownloadingReqId(r.id);
-      setOpenDropdownId(null);
       const pId = r.project_id || '';
       const pBudget = pId && dashboard?.projectBudgets ? dashboard.projectBudgets[pId] : undefined;
       const itemsMapped: PurchaseRequestPdfItem[] = (r.items || []).map((it, idx) => {
@@ -4917,13 +4868,13 @@ export default function PurchasingDashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
-                        {selectedOrder.items_detail.map((it: any, idx: number) => (
+                        {selectedOrder.items_detail.map((it: { item_no?: number | string; description?: string; quantity?: number; unit?: string; unit_price?: number; total?: number }, idx: number) => (
                           <tr key={idx}>
                             <td className="py-1.5 px-3 font-mono text-[10px] text-text-muted">{it.item_no || idx + 1}</td>
                             <td className="py-1.5 px-3 font-medium text-text-primary">{it.description}</td>
                             <td className="py-1.5 px-3 text-center font-mono">{it.quantity} {it.unit || 'Und'}</td>
-                            <td className="py-1.5 px-3 text-right font-mono text-text-muted">{formatCOP(it.unit_price)}</td>
-                            <td className="py-1.5 px-3 text-right font-mono font-bold text-text-primary">{formatCOP(it.total)}</td>
+                            <td className="py-1.5 px-3 text-right font-mono text-text-muted">{formatCOP(it.unit_price || 0)}</td>
+                            <td className="py-1.5 px-3 text-right font-mono font-bold text-text-primary">{formatCOP(it.total || 0)}</td>
                           </tr>
                         ))}
                       </tbody>

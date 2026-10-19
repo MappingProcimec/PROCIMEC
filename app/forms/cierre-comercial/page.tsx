@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import {
@@ -10,18 +10,14 @@ import {
   CheckCircle2,
   AlertTriangle,
   Building2,
-  Calendar,
   DollarSign,
-  FileText,
   Download,
-  ArrowRight,
   Plus,
   Layers,
   Briefcase,
   XCircle,
   Clock,
   Send,
-  HelpCircle,
   Rocket,
   FolderKanban,
   Scale,
@@ -40,7 +36,6 @@ function formatCOP(amount: number): string {
 }
 
 function CierreComercialContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [isSubmitting, setIsSubmitting] = useState(false);

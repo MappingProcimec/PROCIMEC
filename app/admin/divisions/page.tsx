@@ -525,7 +525,7 @@ function EditDivisionModal({
   const { data: detail, isLoading: loadingDetail } = useQuery({
     queryKey: ['admin-division', division.id],
     queryFn: () => fetchDivisionDetail(division.id),
-    staleTime: 0,
+    staleTime: 60 * 1000,
   });
 
   useEffect(() => {

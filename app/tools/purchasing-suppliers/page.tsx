@@ -8,17 +8,14 @@ import {
   ShoppingBag,
   Truck,
   Search,
-  Filter,
   Plus,
   Download,
   Building2,
-  Mail,
   Phone,
   MapPin,
   FileText,
   CheckCircle2,
   AlertCircle,
-  Clock,
   Edit3,
   Eye,
   X,
@@ -26,8 +23,6 @@ import {
   RotateCw,
   CreditCard,
   Package,
-  Layers,
-  HelpCircle,
 } from 'lucide-react';
 import type { Supplier } from '@/types';
 
@@ -110,7 +105,8 @@ export default function PurchasingSuppliersPage() {
     refetchOnWindowFocus: false,
   });
 
-  const suppliers = data?.suppliers ?? [];
+  const rawSuppliers = data?.suppliers;
+  const suppliers = useMemo(() => rawSuppliers ?? [], [rawSuppliers]);
   const stats = data?.stats ?? {
     totalSuppliers: 0,
     activeSuppliers: 0,

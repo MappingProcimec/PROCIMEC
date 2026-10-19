@@ -31,9 +31,7 @@ import {
   FileText,
   Presentation,
   Activity,
-  Sparkles,
   X,
-  FolderOpen,
   Wand2,
   Zap,
   Download,
@@ -927,6 +925,15 @@ export default function RadargramaWorkstationPage() {
                     className="hidden"
                   />
                 </label>
+                <button
+                  type="button"
+                  onClick={handleLoadDemoDataset}
+                  className="btn-outline btn-sm font-semibold text-text-secondary hover:text-text-primary"
+                  title="Cargar perfil de demostración sintético"
+                >
+                  <Activity className="w-4 h-4 text-amber-500" />
+                  <span>Cargar Demo</span>
+                </button>
               </div>
             </div>
           </div>

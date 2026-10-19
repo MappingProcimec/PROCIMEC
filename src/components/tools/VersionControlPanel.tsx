@@ -1,35 +1,29 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
   ShieldCheck,
   Search,
-  Filter,
   FileSpreadsheet,
   FileText,
-  Download,
   History,
   PlusCircle,
   ExternalLink,
   RotateCcw,
-  Clock,
   Layers,
   FileCheck,
   CheckCircle2,
   X,
-  FileCode,
-  Tag,
   Users,
   AlertCircle,
   FolderTree,
   Edit3,
   Database,
-  Sparkles,
   Upload,
 } from 'lucide-react';
-import type { DocumentFormatItem, FormatVersionHistoryItem } from '@/app/api/tools/version-control/route';
+import type { DocumentFormatItem } from '@/app/api/tools/version-control/route';
 
 export const COMMON_SYSTEM_FORMS = [
   { slug: '', label: '-- Ninguno / Documento Físico o Descargable --' },

@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     // 1. Buscar en la tabla document_format_versions
     // Buscar primero por código exacto, o por form_slug
-    let { data: format, error } = await supabase
+    const { data: initialFormat, error } = await supabase
       .from('document_format_versions')
       .select('id, code, name, process, form_slug, roles_access, is_universal, current_version, effective_date, status, category, description, download_template_url')
       .eq('status', 'active')
@@ -35,6 +35,8 @@ export async function GET(req: NextRequest) {
     if (error) {
       console.warn('Error consultando versión activa en document_format_versions:', error.message);
     }
+
+    let format = initialFormat;
 
     // 2. Si no se encontró por coincidencia directa, intentar búsqueda parcial
     if (!format) {

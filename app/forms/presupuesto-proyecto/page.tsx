@@ -1,9 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
 import {
@@ -12,7 +10,6 @@ import {
   Trash2,
   CheckCircle2,
   AlertTriangle,
-  FileText,
   DollarSign,
   Briefcase,
   Layers,
@@ -142,9 +139,6 @@ function formatCOP(amount: number): string {
 }
 
 export default function PresupuestoProyectoPage() {
-  const { data: session } = useSession();
-  const router = useRouter();
-
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -165,6 +159,24 @@ export default function PresupuestoProyectoPage() {
   const [aiuPercentage, setAiuPercentage] = useState<number>(25.0);
   const [savedBudget, setSavedBudget] = useState<CommercialBudget | null>(null);
   const [historicalCatalog, setHistoricalCatalog] = useState<Array<{ description: string; brand?: string; suggested_supplier?: string; unit?: string }>>([]);
+
+  const handleOpportunityChange = useCallback((oppId: string) => {
+    setSelectedOpportunityId(oppId);
+    if (!oppId) return;
+
+    const selectedOpp = opportunities.find((o) => o.id === oppId);
+    if (selectedOpp) {
+      setClientName(selectedOpp.client_name || '');
+      setProjectTitle(selectedOpp.opportunity_title || '');
+      if (selectedOpp.service_type === 'gpr_localizacion') {
+        setServiceCategory('mapping_geofisica');
+      } else if (selectedOpp.service_type === 'topografia_cad') {
+        setServiceCategory('topografia_industrial');
+      } else {
+        setServiceCategory('civil_planta');
+      }
+    }
+  }, [opportunities]);
 
   useEffect(() => {
     async function loadInitialData() {
@@ -197,25 +209,7 @@ export default function PresupuestoProyectoPage() {
         handleOpportunityChange(oppId);
       }
     }
-  }, [opportunities]);
-
-  const handleOpportunityChange = (oppId: string) => {
-    setSelectedOpportunityId(oppId);
-    if (!oppId) return;
-
-    const selectedOpp = opportunities.find((o) => o.id === oppId);
-    if (selectedOpp) {
-      setClientName(selectedOpp.client_name || '');
-      setProjectTitle(selectedOpp.opportunity_title || '');
-      if (selectedOpp.service_type === 'gpr_localizacion') {
-        setServiceCategory('mapping_geofisica');
-      } else if (selectedOpp.service_type === 'topografia_cad') {
-        setServiceCategory('topografia_industrial');
-      } else {
-        setServiceCategory('civil_planta');
-      }
-    }
-  };
+  }, [opportunities, handleOpportunityChange]);
 
   const totalsByCategory = useMemo(() => {
     const cats: Record<BudgetItem['category'], number> = {
@@ -750,12 +744,12 @@ export default function PresupuestoProyectoPage() {
 
           {/* Botones de Acción de Paso Único */}
           <div className="flex items-center justify-end gap-3 pt-2">
-            <Link href="/dashboard" className="btn btn-ghost text-xs">
+            <Link href="/dashboard" prefetch={false} className="btn btn-ghost text-xs">
               Cancelar
             </Link>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoading}
               className="btn btn-accent text-xs shadow-sm flex items-center gap-1.5"
             >
               {isSubmitting ? 'Guardando Presupuesto...' : 'Guardar Presupuesto APU'}

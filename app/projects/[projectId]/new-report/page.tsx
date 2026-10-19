@@ -210,7 +210,7 @@ export default function NewReportPage() {
 
       <div className="page-hero">
         <div className="max-w-3xl mx-auto">
-          <BackButton href={projectId ? `/projects/${projectId}` : '/dashboard'} label={projectId ? 'Volver al Proyecto' : 'Volver a Mi Panel'} />
+          <BackButton href={projectId ? `/projects/${projectId}/reports` : '/dashboard'} label={projectId ? 'Volver al Proyecto' : 'Volver a Mi Panel'} />
           <h1 className="text-2xl sm:text-3xl font-bold text-white mt-3 flex items-center gap-2.5">
             <Radio className="w-7 h-7 text-accent" strokeWidth={1.75} /> Formulario de Campo GPR
           </h1>
