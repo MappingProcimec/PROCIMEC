@@ -144,7 +144,7 @@ export default function LandingPage() {
             <h3 className="font-bold text-text-primary text-lg mb-2">Procesos Transversales</h3>
             <p className="text-text-secondary text-sm leading-relaxed">
               Administración unificada para comercial, compras, gestión contable, almacén y repositorio
-              institucional articulado con Google Drive.
+              institucional blindado con PCM CLOUD.
             </p>
           </div>
         </div>

@@ -18,11 +18,11 @@ export async function GET(req: NextRequest) {
       count: templates.length,
       folderId: HSEQ_TEMPLATES_FOLDER_ID,
       templates,
-      source: 'google_drive',
+      source: 'pcm_cloud',
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido al conectar con Google Drive';
-    console.error('Error escaneando Drive HSEQ:', message);
+    const message = err instanceof Error ? err.message : 'Error desconocido al consultar plantillas HSEQ';
+    console.error('Error escaneando plantillas HSEQ:', message);
 
     return NextResponse.json({
       ok: false,

@@ -1,15 +1,17 @@
+export const KNOWN_ADMIN_EMAILS = ['mapping.procimec2024@gmail.com'];
+
 /**
  * Centralizes admin email detection.
- * Configure via env vars GOOGLE_DRIVE_ADMIN_EMAIL and ADMIN_EMAILS (comma-separated).
+ * Configure via env vars ADMIN_PRIMARY_EMAIL, GOOGLE_DRIVE_ADMIN_EMAIL and ADMIN_EMAILS (comma-separated).
  */
 export function isKnownAdmin(email?: string | null): boolean {
   if (!email) return false;
-  const normalized = email.toLowerCase();
+  const normalized = email.trim().toLowerCase();
 
-  if (normalized === 'mapping.procimec2024@gmail.com') return true;
+  if (KNOWN_ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(normalized)) return true;
 
-  const driveAdmin = process.env.GOOGLE_DRIVE_ADMIN_EMAIL || 'mapping.procimec2024@gmail.com';
-  if (normalized === driveAdmin.toLowerCase()) return true;
+  const primaryAdmin = process.env.ADMIN_PRIMARY_EMAIL || process.env.GOOGLE_DRIVE_ADMIN_EMAIL || 'mapping.procimec2024@gmail.com';
+  if (normalized === primaryAdmin.trim().toLowerCase()) return true;
 
   const extras = process.env.ADMIN_EMAILS ?? '';
   return extras

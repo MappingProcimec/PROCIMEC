@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /privacy
+Allow: /terms
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /api/
+Disallow: /tools/
+Disallow: /forms/
+Disallow: /projects/
+Disallow: /pending

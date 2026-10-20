@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
-import { createProjectFolder, createSessionFolder, setFilePublicPermission, uploadFileToDrive } from '@/lib/drive';
 import { generateFieldReportDocx } from '@/lib/docx-generator';
 import { FieldReport, Project, ReportFile, AppUser } from '@/types';
 import { generateGprExecutiveSummary, ProjectContext, GprReportContext } from '@/lib/gpr/geminiGprSummary';
@@ -100,43 +99,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Intentar crear o vincular carpetas en Google Drive (Tolerante a fallos / No bloqueante)
-    let parentDriveFolderId = project.drive_folder_id;
-    let sessionFolderId: string | undefined;
-    let sessionFolderUrl: string | undefined;
-    let rawGprFolderId: string | undefined;
-    let gpsFolderId: string | undefined;
-    let photosFolderId: string | undefined;
-
-    if (!parentDriveFolderId) {
-      try {
-        const newFolder = await createProjectFolder(project.cost_center, project.name);
-        parentDriveFolderId = newFolder.id;
-        await supabase
-          .from('projects')
-          .update({ drive_folder_id: newFolder.id, drive_folder_url: newFolder.webViewLink })
-          .eq('id', project.id);
-      } catch (driveErr) {
-        console.warn('Aviso: Creación de carpeta de proyecto en Google Drive omitida (Drive no configurado o token expirado):', driveErr);
-      }
-    }
-
-    if (parentDriveFolderId) {
-      try {
-        const { sessionFolder, rawGprFolder, gpsFolder, photosFolder } = await createSessionFolder(
-          parentDriveFolderId,
-          reportData.localizador_name || reportData.operator_name || session.user.name || 'Localizador',
-          new Date()
-        );
-        sessionFolderId = sessionFolder.id;
-        sessionFolderUrl = sessionFolder.webViewLink;
-        rawGprFolderId = rawGprFolder.id;
-        gpsFolderId = gpsFolder.id;
-        photosFolderId = photosFolder.id;
-      } catch (driveErr) {
-        console.warn('Aviso: Creación de subcarpetas en Google Drive omitida:', driveErr);
-      }
-    }
+    // 2. Asignar sesión y enlaces canónicos PCM CLOUD
+    const sessionFolderId = `session_${reportData.project_id}_${Date.now()}`;
+    const sessionFolderUrl = `/projects/${project.id}`;
+    const rawGprFolderId = `${sessionFolderId}_raw`;
+    const gpsFolderId = `${sessionFolderId}_gps`;
+    const photosFolderId = `${sessionFolderId}_photos`;
 
     // 3. Formatear campos para la base de datos
     const formattedEquipments = reportData.equipments_used && reportData.equipments_used.length > 0
@@ -245,13 +213,8 @@ export async function PUT(request: NextRequest) {
       }
 
       let webViewUrl = storageUrl || '';
-      if (driveFileId && driveFileId !== 'pending' && driveFileId !== 'supabase_storage') {
-        try {
-          const permResult = await setFilePublicPermission(driveFileId);
-          if (permResult.webViewLink) webViewUrl = permResult.webViewLink;
-        } catch {
-          webViewUrl = `https://drive.google.com/file/d/${driveFileId}/view`;
-        }
+      if (!webViewUrl && driveFileId && driveFileId.startsWith('http')) {
+        webViewUrl = driveFileId;
       }
 
       const { data: savedFile, error: fileErr } = await supabase
@@ -409,7 +372,7 @@ export async function PUT(request: NextRequest) {
         console.error('Error subiendo PDF a Supabase Storage:', pdfUploadErr);
       }
 
-      // 8. Opcional: Generar .docx y subir a Drive si Drive está configurado (sin bloquear si falla)
+      // 8. Opcional: Generar .docx y subir a Supabase Storage (Bucket 'evidencias')
       let docxDriveFileId: string | undefined;
       let docxDriveUrl: string | undefined;
 
@@ -427,24 +390,29 @@ export async function PUT(request: NextRequest) {
           user: userRecord as unknown as AppUser,
         });
 
-        if (fieldReport.drive_session_folder_id) {
-          const pad = (n: number) => String(n).padStart(2, '0');
-          const d = new Date();
-          const dateStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
-          const pCode = project.cost_center || 'PROJ';
-          const filename = `Reporte_${pCode}_${dateStr}.docx`;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const d = new Date();
+        const dateStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+        const pCode = project.cost_center || 'PROJ';
+        const filename = `Reporte_${pCode}_${dateStr}.docx`;
+        const docxStoragePath = `field-reports/${fieldReportId}/reportes/${Date.now()}_${filename}`;
 
-          const docxDriveFile = await uploadFileToDrive(
-            fieldReport.drive_session_folder_id,
-            docxBuffer,
-            filename,
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-          );
-          docxDriveFileId = docxDriveFile.id;
-          docxDriveUrl = docxDriveFile.webViewLink;
+        const { error: docxErr } = await supabase.storage
+          .from('evidencias')
+          .upload(docxStoragePath, docxBuffer, {
+            contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            upsert: true,
+          });
+
+        if (!docxErr) {
+          const { data: docxUrlData } = supabase.storage
+            .from('evidencias')
+            .getPublicUrl(docxStoragePath);
+          docxDriveUrl = docxUrlData?.publicUrl || '';
+          docxDriveFileId = `storage_${Date.now()}`;
         }
       } catch (docxErr) {
-        console.warn('Aviso: Generación de .docx en Drive omitida (Drive no disponible):', docxErr);
+        console.warn('Aviso: Generación de .docx omitida:', docxErr);
       }
 
       // 9. Actualizar field_reports con la URL del PDF, la ruta de storage y la síntesis de IA (tolerante al esquema)

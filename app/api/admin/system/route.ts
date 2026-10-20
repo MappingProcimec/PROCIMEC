@@ -339,10 +339,13 @@ export async function POST(req: NextRequest) {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 7000);
 
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
           const res = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
             signal: controller.signal,
             body: JSON.stringify({
               contents: [{ parts: [{ text: 'Responde exclusivamente: CONECTADO' }] }],

@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
       matrixItems = [] as InspectionMatrixItem[],
     } = body;
 
-    if (!templateFileId || typeof templateFileId !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(templateFileId)) {
+    if (!templateFileId || typeof templateFileId !== 'string' || !/^[a-zA-Z0-9_\-\.]+$/.test(templateFileId)) {
       return NextResponse.json(
-        { error: 'Debe especificar un templateFileId válido de Google Drive' },
+        { error: 'Debe especificar un identificador de plantilla válido' },
         { status: 400 }
       );
     }

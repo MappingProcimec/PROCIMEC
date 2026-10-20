@@ -13,9 +13,7 @@ export const authOptions: NextAuthOptions = {
           prompt: 'consent select_account',
           access_type: 'offline',
           response_type: 'code',
-          scope: process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN
-            ? 'openid email profile'
-            : 'openid email profile https://www.googleapis.com/auth/drive',
+          scope: 'openid email profile',
         },
       },
     }),
@@ -29,7 +27,7 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60,
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, profile }) {
       if (!user.email) return false;
 
       const supabase = createAdminClient();
@@ -65,19 +63,6 @@ export const authOptions: NextAuthOptions = {
         if (isAdmin && existingUser.role !== 'admin') {
           await supabase.from('users').update({ role: 'admin' }).eq('email', user.email);
         }
-      }
-
-      // Si es el admin y viene con refresh_token, guardarlo en Supabase
-      if (
-        account?.refresh_token &&
-        isKnownAdmin(user.email)
-      ) {
-        await supabase
-          .from('users')
-          .update({ drive_refresh_token: account.refresh_token })
-          .eq('email', user.email);
-
-        console.log('[Auth] Admin Drive refresh_token guardado en Supabase');
       }
 
       return true;

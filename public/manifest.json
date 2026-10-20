@@ -4,8 +4,8 @@
   "description": "Sistema de registro digital de levantamientos GPR para Mapping Ingeniería",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#1B3A5C",
-  "theme_color": "#1B3A5C",
+  "background_color": "#1E2229",
+  "theme_color": "#1E2229",
   "orientation": "portrait",
   "categories": ["productivity", "utilities"],
   "icons": [

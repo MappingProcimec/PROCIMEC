@@ -1,18 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { drive_v3, google } from 'googleapis';
+import fs from 'fs';
+import path from 'path';
+import { createAdminClient } from './supabase';
 import { inferOptimalResponse, DroneInspectionItemDef } from './hseq-definitions';
 
-export const HSEQ_TEMPLATES_FOLDER_ID =
-  process.env.GOOGLE_DRIVE_HSEQ_TEMPLATES_FOLDER_ID || '1CwEDHn4Vv77dbW5du6EvHGufd78yDCHS';
-
-export const HSEQ_EVIDENCE_FOLDER_ID =
-  process.env.GOOGLE_DRIVE_HSEQ_EVIDENCE_FOLDER_ID || '18kLylRhxxQG7hfMgie9ByHCE6AfdDhrv';
-
-export const RRHH_LETTERS_FOLDER_ID =
-  process.env.GOOGLE_DRIVE_RRHH_LETTERS_FOLDER_ID || '1sIjHxPb1Qz2vyLLpuSMIL6o1qD_ejyqn';
-
-export const WEB_EXTERNAL_FOLDER_ID =
-  process.env.GOOGLE_DRIVE_WEB_EXTERNAL_FOLDER_ID || '1isEW_n6BzBjypUlJjGmtjrPHVi3a-TIy';
+export const HSEQ_TEMPLATES_FOLDER_ID = 'local_hseq_templates';
+export const HSEQ_EVIDENCE_FOLDER_ID = 'local_hseq_evidence';
+export const RRHH_LETTERS_FOLDER_ID = 'local_rrhh_letters';
+export const WEB_EXTERNAL_FOLDER_ID = 'local_web_external';
 
 export interface HseqTemplateItem {
   id: string;
@@ -27,111 +22,17 @@ export interface HseqTemplateItem {
   size?: string;
 }
 
-// ─── Cache en memoria para evitar saturar cuotas de Google Drive ─────────────
+// ─── Cache en memoria de plantillas locales ──────────────────────────────────
 let cachedTemplates: HseqTemplateItem[] | null = null;
 let lastScanTimestamp = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de caché
 
-export async function getDriveClient(): Promise<drive_v3.Drive> {
-  // 1. Service Account (Cuenta de Servicio: no expira nunca y tiene acceso estable y directo)
-  const base64Key = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY;
-  if (base64Key) {
-    try {
-      const credentials = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf-8'));
-      const auth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: ['https://www.googleapis.com/auth/drive'],
-      });
-      return google.drive({ version: 'v3', auth });
-    } catch (err) {
-      console.warn('Error iniciando cliente Drive con Service Account:', err);
-    }
-  }
-
-  // 2. Token directo en variables de entorno (si está configurado)
-  const refreshToken = process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN;
-  if (refreshToken) {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      (process.env.NEXTAUTH_URL || 'http://localhost:3000') + '/api/auth/callback/google'
-    );
-    oauth2Client.setCredentials({ refresh_token: refreshToken });
-    return google.drive({ version: 'v3', auth: oauth2Client });
-  }
-
-  // 3. Fallback a Supabase
-  try {
-    const { createAdminClient } = await import('./supabase');
-    const supabase = createAdminClient();
-    const adminEmail = process.env.GOOGLE_DRIVE_ADMIN_EMAIL || 'mapping.procimec2024@gmail.com';
-
-    const { data } = await supabase
-      .from('users')
-      .select('drive_refresh_token')
-      .eq('email', adminEmail)
-      .single();
-
-    if (data?.drive_refresh_token) {
-      const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        (process.env.NEXTAUTH_URL || 'http://localhost:3000') + '/api/auth/callback/google'
-      );
-      oauth2Client.setCredentials({ refresh_token: data.drive_refresh_token });
-      return google.drive({ version: 'v3', auth: oauth2Client });
-    }
-  } catch (err) {
-    console.warn('Error intentando obtener token de Supabase para HSEQ Drive:', err);
-  }
-
-  throw new Error(
-    'No hay credenciales configuradas para Google Drive.'
-  );
+export async function getDriveClient(): Promise<any> {
+  return null;
 }
 
-// ─── Cliente Google Drive para Subida (prioriza OAuth para cuota de usuario) ─
-export async function getUploadDriveClient(): Promise<drive_v3.Drive> {
-  const refreshToken = process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN;
-  if (refreshToken) {
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      (process.env.NEXTAUTH_URL || 'http://localhost:3000') + '/api/auth/callback/google'
-    );
-    oauth2Client.setCredentials({ refresh_token: refreshToken });
-    return google.drive({ version: 'v3', auth: oauth2Client });
-  }
-
-  try {
-    const { createAdminClient } = await import('./supabase');
-    const supabase = createAdminClient();
-    const adminEmail = process.env.GOOGLE_DRIVE_ADMIN_EMAIL || 'mapping.procimec2024@gmail.com';
-
-    const { data: usersWithToken } = await supabase
-      .from('users')
-      .select('drive_refresh_token, email')
-      .not('drive_refresh_token', 'is', null);
-
-    const targetUser =
-      usersWithToken?.find((u) => u.email?.toLowerCase() === adminEmail.toLowerCase()) ||
-      usersWithToken?.[0];
-
-    if (targetUser?.drive_refresh_token) {
-      const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        (process.env.NEXTAUTH_URL || 'http://localhost:3000') + '/api/auth/callback/google'
-      );
-      oauth2Client.setCredentials({ refresh_token: targetUser.drive_refresh_token });
-      return google.drive({ version: 'v3', auth: oauth2Client });
-    }
-  } catch (err) {
-    console.warn('Aviso obteniendo token admin de Supabase para subida:', err);
-  }
-
-  // Fallback a Service Account
-  return getDriveClient();
+export async function getUploadDriveClient(): Promise<any> {
+  return null;
 }
 
 // ─── Extracción limpia y normalización canónica de código y título ────────────
@@ -183,7 +84,53 @@ export function parseFormatName(rawName: string): { code: string; title: string 
   };
 }
 
-// ─── Exploración Recursiva de Carpetas en Drive ──────────────────────────────
+// ─── Localizador y Buscador de Plantillas Oficiales Locales ───────────────────
+export function findTemplateBuffer(templateFileId: string, templateCode?: string): Buffer | null {
+  const dirs = [
+    path.join(process.cwd(), 'public', 'templates'),
+    path.join(process.cwd(), 'formatos'),
+  ];
+
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue;
+
+    // 1. Coincidencia exacta de archivo
+    if (templateFileId) {
+      const directPath = path.join(dir, templateFileId);
+      if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) {
+        return fs.readFileSync(directPath);
+      }
+    }
+
+    // 2. Coincidencia por código o prefijo
+    try {
+      const files = fs.readdirSync(dir);
+      const targetCode = (templateCode || '').toUpperCase().trim();
+      const targetId = (templateFileId || '').toUpperCase().trim();
+
+      for (const file of files) {
+        if (!file.toLowerCase().endsWith('.xlsx')) continue;
+        const upper = file.toUpperCase();
+        if (targetCode && upper.includes(targetCode)) {
+          return fs.readFileSync(path.join(dir, file));
+        }
+        if (targetId && upper.includes(targetId)) {
+          return fs.readFileSync(path.join(dir, file));
+        }
+        const parsed = parseFormatName(file);
+        if (targetCode && parsed.code === targetCode) {
+          return fs.readFileSync(path.join(dir, file));
+        }
+      }
+    } catch (e) {
+      console.warn(`Error buscando plantilla en ${dir}:`, e);
+    }
+  }
+
+  return null;
+}
+
+// ─── Exploración Local de Plantillas Oficiales (PCM CLOUD) ───────────────────
 export async function scanHseqTemplates(forceRefresh = false): Promise<HseqTemplateItem[]> {
   const now = Date.now();
   if (forceRefresh) {
@@ -193,83 +140,45 @@ export async function scanHseqTemplates(forceRefresh = false): Promise<HseqTempl
     return cachedTemplates;
   }
 
-  const drive = await getDriveClient();
-  const rootId = HSEQ_TEMPLATES_FOLDER_ID;
-
   const results: HseqTemplateItem[] = [];
-  const foldersToScan: { id: string; name: string }[] = [{ id: rootId, name: 'Raíz Formatos' }];
-  const visitedFolders = new Set<string>();
+  const seenCodes = new Set<string>();
+  const templatesDir = path.join(process.cwd(), 'public', 'templates');
 
-  while (foldersToScan.length > 0) {
-    const currentFolder = foldersToScan.shift()!;
-    if (visitedFolders.has(currentFolder.id)) continue;
-    visitedFolders.add(currentFolder.id);
-
+  if (fs.existsSync(templatesDir)) {
     try {
-      let pageToken: string | undefined = undefined;
+      const files = fs.readdirSync(templatesDir);
+      for (const file of files) {
+        if (!file.toLowerCase().endsWith('.xlsx')) continue;
+        const isForTemplate =
+          /FOR-|INSPECCI|PREOPERACIONAL|PRE-OPERACIONAL|CHECKLIST|CONTROL/i.test(file);
+        if (!isForTemplate) continue;
 
-      do {
-        // Consultar carpetas y archivos hijos directos
-        const res: drive_v3.Schema$FileList = (
-          await drive.files.list({
-            q: `'${currentFolder.id}' in parents and trashed = false`,
-            fields: 'nextPageToken, files(id, name, mimeType, modifiedTime, webViewLink, size)',
-            pageSize: 100,
-            pageToken,
-          })
-        ).data;
+        const { code, title } = parseFormatName(file);
+        if (seenCodes.has(code)) continue;
+        seenCodes.add(code);
 
-        const files = res.files ?? [];
+        const fullPath = path.join(templatesDir, file);
+        const stats = fs.statSync(fullPath);
 
-        for (const file of files) {
-          if (!file.id || !file.name) continue;
-
-          // Si es una subcarpeta, la encolamos para explorarla
-          if (file.mimeType === 'application/vnd.google-apps.folder') {
-            foldersToScan.push({
-              id: file.id,
-              name: file.name,
-            });
-          } else {
-            // Si es un archivo de hoja de cálculo
-            const isSpreadsheet =
-              file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-              file.mimeType === 'application/vnd.google-apps.spreadsheet' ||
-              file.name.toLowerCase().endsWith('.xlsx');
-
-            const isForTemplate =
-              /FOR-|INSPECCI|PREOPERACIONAL|PRE-OPERACIONAL|CHECKLIST|CONTROL/i.test(file.name) ||
-              /format|procedimiento|inspecci/i.test(currentFolder.name);
-
-            if (isSpreadsheet && isForTemplate) {
-              const { code, title } = parseFormatName(file.name);
-
-              results.push({
-                id: file.id,
-                name: file.name,
-                code,
-                title,
-                folderId: currentFolder.id,
-                folderName: currentFolder.name,
-                mimeType: file.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                modifiedTime: file.modifiedTime ?? undefined,
-                webViewLink: file.webViewLink ?? undefined,
-                size: file.size ?? undefined,
-              });
-            }
-          }
-        }
-
-        pageToken = res.nextPageToken ?? undefined;
-      } while (pageToken);
-    } catch (folderErr) {
-      console.error(`Error escaneando carpeta ${currentFolder.name} (${currentFolder.id}):`, folderErr);
+        results.push({
+          id: file,
+          name: file,
+          code,
+          title,
+          folderId: 'public_templates',
+          folderName: 'Formatos Oficiales PCM CLOUD',
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          modifiedTime: stats.mtime.toISOString(),
+          webViewLink: `/templates/${encodeURIComponent(file)}`,
+          size: String(stats.size),
+        });
+      }
+    } catch (err) {
+      console.error('Error escaneando plantillas locales en public/templates:', err);
     }
   }
 
-  // Ordenar por código
   results.sort((a, b) => a.code.localeCompare(b.code));
-
   cachedTemplates = results;
   lastScanTimestamp = now;
 
@@ -468,9 +377,6 @@ export async function generateHseqEvidencePdf(params: {
     matrixItems = [],
   } = params;
 
-  const { Readable } = await import('stream');
-  const drive = await getDriveClient();
-
   // Nombre normalizado para la evidencia final
   const cleanCode = templateCode.replace(/[^A-Z0-9\-_]/gi, '_');
   const cleanProject = projectName.replace(/[^a-zA-Z0-9\-_]/g, '_').substring(0, 30);
@@ -479,12 +385,16 @@ export async function generateHseqEvidencePdf(params: {
   const pdfFileName = `${titleBase}.pdf`;
   const excelFileName = `${titleBase}.xlsx`;
 
-  // 1. Descargar la plantilla oficial Excel de Google Drive
-  const downloadRes = await drive.files.get(
-    { fileId: templateFileId, alt: 'media' },
-    { responseType: 'arraybuffer' }
-  );
-  const originalTemplateBuffer = Buffer.from(downloadRes.data as ArrayBuffer);
+  // 1. Obtener la plantilla oficial Excel desde almacenamiento local PCM CLOUD
+  let originalTemplateBuffer = findTemplateBuffer(templateFileId, templateCode);
+  if (!originalTemplateBuffer) {
+    const ExcelJSModule = await import('exceljs');
+    const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule;
+    const fallbackWb = new ExcelJS.Workbook();
+    fallbackWb.addWorksheet('Inspección');
+    const buf = await fallbackWb.xlsx.writeBuffer();
+    originalTemplateBuffer = Buffer.from(buf);
+  }
 
   // 2. Inyectar los datos reales, observaciones y marcas 'X' en la plantilla oficial
   const filledExcelBuffer = await injectDataIntoExcelBuffer(
@@ -493,94 +403,9 @@ export async function generateHseqEvidencePdf(params: {
     matrixItems
   );
 
-  let uploadedFileId = '';
-  let webViewLink = '';
-  let driveError: string | null = null;
-  let officialPdfBuffer: Buffer | null = null;
-
-  // 3. Subir a Google Drive en la carpeta de EVIDENCIAS
-  try {
-    const uploadDrive = await getUploadDriveClient();
-
-    // 3a. Subir como Google Spreadsheet (convierte el .xlsx manteniendo formato oficial exacto)
-    const evidenceSheet = await uploadDrive.files.create({
-      requestBody: {
-        name: titleBase,
-        parents: [HSEQ_EVIDENCE_FOLDER_ID],
-        mimeType: 'application/vnd.google-apps.spreadsheet',
-      },
-      media: {
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        body: Readable.from(filledExcelBuffer),
-      },
-      fields: 'id, name, webViewLink',
-    });
-
-    uploadedFileId = evidenceSheet.data.id || '';
-    webViewLink =
-      evidenceSheet.data.webViewLink ||
-      (uploadedFileId ? `https://drive.google.com/file/d/${uploadedFileId}/view` : '');
-
-    if (uploadedFileId) {
-      // Dar permisos de lectura pública/empresa
-      try {
-        await uploadDrive.permissions.create({
-          fileId: uploadedFileId,
-          requestBody: { role: 'reader', type: 'anyone' },
-        });
-      } catch (permErr) {
-        console.warn('Aviso dando permisos en Drive:', permErr);
-      }
-
-      // 3b. Exportar como PDF nativo de Google Drive (renderizado idéntico a la plantilla)
-      try {
-        const exportRes = await uploadDrive.files.export(
-          {
-            fileId: uploadedFileId,
-            mimeType: 'application/pdf',
-          },
-          { responseType: 'arraybuffer' }
-        );
-        officialPdfBuffer = Buffer.from(exportRes.data as ArrayBuffer);
-      } catch (exportErr) {
-        console.warn('Exportación de Google Drive a PDF falló, usando generador de respaldo:', exportErr);
-      }
-
-      // 3c. También guardar el archivo .xlsx directo en la carpeta de EVIDENCIAS
-      try {
-        await uploadDrive.files.create({
-          requestBody: {
-            name: excelFileName,
-            parents: [HSEQ_EVIDENCE_FOLDER_ID],
-          },
-          media: {
-            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            body: Readable.from(filledExcelBuffer),
-          },
-          fields: 'id',
-        });
-      } catch (xlsxErr) {
-        console.warn('Aviso guardando archivo .xlsx en Drive:', xlsxErr);
-      }
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes('storage quota') || message.includes('invalid_grant')) {
-      driveError = 'El token de Google Drive ha expirado. Por favor, cierra sesión y vuelve a iniciar sesión con Google (mapping.procimec2024@gmail.com) para autorizar la subida automática a Drive.';
-    } else {
-      driveError = message;
-    }
-    console.error('Error subiendo evidencia a Google Drive:', err);
-  }
-
-  // 4. Si Google Drive export no produjo PDF, generar PDF de contingencia
-  let pdfBase64 = '';
-  if (officialPdfBuffer) {
-    pdfBase64 = officialPdfBuffer.toString('base64');
-  } else {
-    // Generador de PDF de alta fidelidad que replica la estructura oficial de inspección
-    const { default: jsPDF } = await import('jspdf');
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  // 3. Generación directa del documento PDF de alta fidelidad con jsPDF
+  const { default: jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 12;
@@ -795,41 +620,57 @@ export async function generateHseqEvidencePdf(params: {
     doc.text('PROCIMEC INGENIERÍA S.A.S.', margin + sigWidth + 20, y + 16);
 
     const pdfArrayBuffer = doc.output('arraybuffer');
-    pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');
+    const pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');
+
+    // 4. Subir a Supabase Storage (Bucket 'evidencias')
+    let webViewLink = '';
+    const supabase = createAdminClient();
+    const timestamp = Date.now();
+    const pdfStoragePath = `hseq/${cleanCode}/${timestamp}_${pdfFileName}`;
+    const excelStoragePath = `hseq/${cleanCode}/${timestamp}_${excelFileName}`;
+
+    try {
+      await supabase.storage.from('evidencias').upload(pdfStoragePath, Buffer.from(pdfArrayBuffer), {
+        contentType: 'application/pdf',
+        upsert: true,
+      });
+      await supabase.storage.from('evidencias').upload(excelStoragePath, filledExcelBuffer, {
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        upsert: true,
+      });
+      const { data: publicUrlData } = supabase.storage.from('evidencias').getPublicUrl(pdfStoragePath);
+      webViewLink = publicUrlData?.publicUrl || '';
+    } catch (storageErr) {
+      console.warn('Aviso guardando evidencia HSEQ en Supabase Storage:', storageErr);
+    }
+
+    return {
+      fileId: `${cleanCode}_${timestamp}`,
+      fileName: pdfFileName,
+      excelFileName,
+      webViewLink,
+      pdfBase64,
+      excelBase64: filledExcelBuffer.toString('base64'),
+      driveError: null,
+    };
   }
 
-  return {
-    fileId: uploadedFileId || `local-${Date.now()}`,
-    fileName: pdfFileName,
-    excelFileName,
-    webViewLink: webViewLink || '',
-    pdfBase64,
-    excelBase64: filledExcelBuffer.toString('base64'),
-    driveError,
-  };
-}
+  // ─── Extracción de texto y preguntas reales de la plantilla Excel ─────────────
+  export interface TemplateExtractionResult {
+    leftColumnItems: string[];
+    fullTextSummary: string;
+  }
 
+  export async function extractTemplateTextSummary(templateFileId: string): Promise<TemplateExtractionResult> {
+    try {
+      const templateBuffer = findTemplateBuffer(templateFileId);
+      if (!templateBuffer) return { leftColumnItems: [], fullTextSummary: '' };
 
-// ─── Extracción de texto y preguntas reales de la plantilla Excel ─────────────
-export interface TemplateExtractionResult {
-  leftColumnItems: string[];
-  fullTextSummary: string;
-}
-
-export async function extractTemplateTextSummary(templateFileId: string): Promise<TemplateExtractionResult> {
-  try {
-    const drive = await getDriveClient();
-    const downloadRes = await drive.files.get(
-      { fileId: templateFileId, alt: 'media' },
-      { responseType: 'arraybuffer' }
-    );
-    const templateBuffer = Buffer.from(downloadRes.data as ArrayBuffer);
-
-    const ExcelJSModule = await import('exceljs');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule;
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(templateBuffer);
+      const ExcelJSModule = await import('exceljs');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule;
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(templateBuffer);
 
     const worksheet = workbook.worksheets.find((ws: any) => ws.rowCount > 5) || workbook.worksheets[0];
     if (!worksheet) return { leftColumnItems: [], fullTextSummary: '' };
@@ -955,16 +796,7 @@ export async function parseExcelTemplateSchema(
 
   let buffer = customBuffer;
   if (!buffer && templateFileId) {
-    try {
-      const drive = await getDriveClient();
-      const res = await drive.files.get(
-        { fileId: templateFileId, alt: 'media' },
-        { responseType: 'arraybuffer' }
-      );
-      buffer = Buffer.from(res.data as ArrayBuffer);
-    } catch (err) {
-      console.warn(`Aviso descargando archivo ${templateFileId} de Drive:`, err);
-    }
+    buffer = findTemplateBuffer(templateFileId, fallbackName) || undefined;
   }
 
   if (!buffer) {

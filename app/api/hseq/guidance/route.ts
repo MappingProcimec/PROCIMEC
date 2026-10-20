@@ -49,7 +49,7 @@ async function callGemini(apiKey: string, prompt: string): Promise<string | null
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
       const res = await fetch(url, {
         method: 'POST',

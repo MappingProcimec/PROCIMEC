@@ -42,7 +42,7 @@ export default function PrivacyPage() {
             <ul className="list-disc list-inside text-text-secondary text-sm space-y-1.5 pl-2">
               <li><strong>Datos de cuenta:</strong> Nombre completo, correo electrónico y foto de perfil provenientes de la cuenta corporativa de Google.</li>
               <li><strong>Datos de actividad:</strong> Registros técnicos de campo (Radar GPR), archivos de proyectos, fechas de trabajo, uso de software de dibujo y observaciones de proyectos.</li>
-              <li><strong>Almacenamiento en Google Drive:</strong> Archivos adjuntos y reportes técnicos autorizados en el almacenamiento corporativo.</li>
+              <li><strong>Almacenamiento Corporativo PCM CLOUD:</strong> Archivos adjuntos, evidencias y reportes técnicos resguardados en Supabase Storage institucional.</li>
             </ul>
           </section>
 

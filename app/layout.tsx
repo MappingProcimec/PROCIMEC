@@ -40,8 +40,6 @@ export const viewport: Viewport = {
   themeColor: '#1E2229',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -52,7 +50,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
       </head>
       <body className="font-sans bg-surface text-text-primary antialiased min-h-screen">
         <Providers>{children}</Providers>

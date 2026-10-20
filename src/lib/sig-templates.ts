@@ -1,8 +1,8 @@
-import https from 'https';
+import fs from 'fs';
+import path from 'path';
 import { CORPORATE_LOGO_BASE64 } from './gpr/logoBase64';
 
-export const SIG_CHANGE_TEMPLATE_DRIVE_ID =
-  process.env.GOOGLE_DRIVE_SIG_CHANGE_TEMPLATE_ID || '1wTRLk90fdyMPoDywI0hLYC3O4-ekDlyq';
+export const SIG_CHANGE_TEMPLATE_DRIVE_ID = 'local_sig_change_template';
 
 export interface SigChangeWorkTeamMember {
   nombre: string;
@@ -60,62 +60,57 @@ let lastFetchTimestamp = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos de caché en memoria
 
 /**
- * Descarga en caliente la plantilla viva desde Google Drive.
- * Si el archivo en Drive se modifica, al vencer el TTL se obtiene la versión actualizada sin redesplegar.
+ * Carga la plantilla oficial FOR-SIG-001 desde almacenamiento local PCM CLOUD.
+ * Si no existe archivo físico en public/templates, genera un libro Excel base compatible.
  */
-export async function fetchSigTemplateBuffer(fileId: string = SIG_CHANGE_TEMPLATE_DRIVE_ID, forceRefresh = false): Promise<Buffer> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function fetchSigTemplateBuffer(_fileId: string = SIG_CHANGE_TEMPLATE_DRIVE_ID, forceRefresh = false): Promise<Buffer> {
   const now = Date.now();
   if (!forceRefresh && cachedTemplateBuffer && now - lastFetchTimestamp < CACHE_TTL_MS) {
     return cachedTemplateBuffer;
   }
 
-  // 1. Intentar descargar mediante Google Drive API si las credenciales están configuradas
-  try {
-    const { getDriveClient } = await import('./hseq-drive');
-    const drive = await getDriveClient();
-    const downloadRes = await drive.files.get(
-      { fileId, alt: 'media' },
-      { responseType: 'arraybuffer' }
-    );
-    if (downloadRes.data) {
-      const buffer = Buffer.from(downloadRes.data as ArrayBuffer);
-      cachedTemplateBuffer = buffer;
+  // 1. Buscar en carpetas de plantillas locales
+  const candidateDirs = [
+    path.join(process.cwd(), 'public', 'templates'),
+    path.join(process.cwd(), 'formatos'),
+  ];
+
+  for (const dir of candidateDirs) {
+    if (!fs.existsSync(dir)) continue;
+    const directPath = path.join(dir, 'FOR-SIG-001.xlsx');
+    if (fs.existsSync(directPath)) {
+      const buf = fs.readFileSync(directPath);
+      cachedTemplateBuffer = buf;
       lastFetchTimestamp = now;
-      return buffer;
+      return buf;
     }
-  } catch (apiErr) {
-    console.warn('Descarga por Google Drive API no disponible o sin permisos directos, usando enlace compartido:', apiErr);
   }
 
-  // 2. Fallback de alta velocidad: Descarga HTTP directa del enlace compartido público / con acceso de visualización
-  const downloadUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;
+  // 2. Generación programática de la estructura oficial si no existe archivo en disco
+  const ExcelJSModule = await import('exceljs');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ExcelJS = (ExcelJSModule as any).default || ExcelJSModule;
+  const workbook = new ExcelJS.Workbook();
+  const ws = workbook.addWorksheet('FOR-SIG-001');
 
-  const buffer = await new Promise<Buffer>((resolve, reject) => {
-    function fetchUrl(targetUrl: string, maxRedirects = 5) {
-      if (maxRedirects <= 0) return reject(new Error('Demasiadas redirecciones en Google Drive'));
+  // Cabecera institucional
+  ws.addRow(['PROCIMEC INGENIERÍA S.A.S.', '', 'FORMATO DE ANÁLISIS Y PLANIFICACIÓN DE CAMBIOS SIG', '', 'Código: FOR-SIG-001']);
+  ws.addRow(['Nombre: {{ nombre }}', 'Cargo: {{ cargo }}', 'Fecha: {{ fecha_identificacion }}', 'Proceso: {{ proceso_identificacion }}']);
+  ws.addRow(['Descripción del cambio:', '{{ descripcion_cambio }}']);
+  ws.addRow(['Justificación:', '{{ justificacion_cambio }}']);
+  ws.addRow(['Procesos afectados:', '{{ procesos_afectados }}']);
+  ws.addRow(['Elementos requeridos:', '{{ elementos_cambio }}']);
+  ws.addRow(['Equipo de trabajo modelo:', '{{ equipo_trabajo[0].nombre }}', '{{ equipo_trabajo[0].cargo }}', '{{ equipo_trabajo[0].proceso }}']);
+  ws.addRow(['Riesgos modelo:', '{{ riesgos[0].descripcion }}', '{{ riesgos[0].tipo }}', '{{ riesgos[0].controles }}']);
+  ws.addRow(['Actividades modelo:', '{{ actividades[0].actividad }}', '{{ actividades[0].responsable }}', '{{ actividades[0].fecha_limite }}', '{{ actividades[0].producto_esperado }}']);
+  ws.addRow(['Aprobación:', '{{ aprobacion_nombre }}', '{{ aprobacion_cargo }}', '{{ aprobacion_proceso }}', '{{ aprobacion_firma }}']);
+  ws.addRow(['Seguimiento:', '{{ seguimiento_nombre }}', '{{ seguimiento_cargo }}', '{{ seguimiento_proceso }}', '{{ seguimiento_firma }}']);
 
-      https.get(targetUrl, (res) => {
-        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          return fetchUrl(res.headers.location, maxRedirects - 1);
-        }
-
-        if (res.statusCode !== 200) {
-          return reject(new Error(`Respuesta HTTP inesperada de Google Drive: ${res.statusCode}`));
-        }
-
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-        res.on('end', () => resolve(Buffer.concat(chunks)));
-        res.on('error', reject);
-      }).on('error', reject);
-    }
-
-    fetchUrl(downloadUrl);
-  });
-
-  cachedTemplateBuffer = buffer;
+  const generatedBuf = Buffer.from(await workbook.xlsx.writeBuffer());
+  cachedTemplateBuffer = generatedBuf;
   lastFetchTimestamp = now;
-  return buffer;
+  return generatedBuf;
 }
 
 export function formatRequiredElements(val: unknown): string {

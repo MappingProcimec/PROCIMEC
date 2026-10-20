@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
 import { createProjectSchema } from '@/lib/validations';
-import { createProjectFolder } from '@/lib/drive';
 import { isKnownAdmin } from '@/lib/admin-emails';
 import { computeProjectFinancials } from '@/lib/projectFinancials';
 import { ProjectDeduction, ProjectFinancials } from '@/types';
@@ -370,16 +369,9 @@ export async function POST(request: NextRequest) {
     requires_positioning,
   } = parsed.data;
 
-  // Crear carpeta en Drive
-  let driveFolderId: string | undefined;
-  let driveFolderUrl: string | undefined;
-  try {
-    const folder = await createProjectFolder(cost_center, name);
-    driveFolderId = folder.id;
-    driveFolderUrl = folder.webViewLink;
-  } catch (e) {
-    console.error('Drive folder creation failed:', e);
-  }
+  // Asignar identificadores de expediente PCM CLOUD
+  const driveFolderId = `proj_${cost_center ? cost_center.trim() : 'PROJ'}_${Date.now()}`;
+  const driveFolderUrl = `/projects?code=${encodeURIComponent(cost_center || 'PROJ')}`;
 
   const divisionIds: string[] = body.division_ids ?? [];
   const tMl = target_ml ?? 0;

@@ -29,7 +29,6 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
-      { protocol: 'https', hostname: 'drive.google.com' },
     ],
   },
   async rewrites() {
@@ -78,8 +77,6 @@ const nextConfig = {
       'recharts',
     ],
     serverComponentsExternalPackages: [
-      'googleapis',
-      'google-auth-library',
       'exceljs',
       'docx',
       'nodemailer',

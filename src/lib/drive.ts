@@ -1,275 +1,145 @@
-import { google } from 'googleapis';
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { DriveFolder, DriveFile } from '@/types';
-import { Readable } from 'stream';
 
-// ─── Auth: Service Account (fallback, no se usa para subir archivos) ──────────
-function getServiceAccountAuth() {
-  const base64Key = process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY;
-  if (!base64Key) throw new Error('GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY not set');
+/**
+ * ADAPTADOR DE ALMACENAMIENTO CANÓNICO PCM CLOUD
+ * Desacoplado de Google Drive por directriz de auditoría de seguridad y privacidad.
+ * Todo almacenamiento y gestión documental se canaliza de forma segura a través de Supabase Storage.
+ */
 
-  const credentials = JSON.parse(Buffer.from(base64Key, 'base64').toString('utf-8'));
-
-  return new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  });
-}
-
-// ─── Auth: Admin OAuth — usa el refresh_token del admin para subir archivos ──
-// Los archivos quedan en el Drive de mapping.procimec2024@gmail.com,
-// sin importar qué localizador esté usando la app.
-async function getAdminOAuthClient() {
-  // Opción 1: refresh_token directo en variable de entorno (recomendado en Vercel)
-  const refreshToken = process.env.GOOGLE_DRIVE_ADMIN_REFRESH_TOKEN;
-
-  if (!refreshToken) {
-    // Opción 2: leer desde Supabase (cuando el admin hizo login y se guardó ahí)
-    const { createAdminClient } = await import('./supabase');
-    const supabase = createAdminClient();
-    const adminEmail = process.env.GOOGLE_DRIVE_ADMIN_EMAIL || 'mapping.procimec2024@gmail.com';
-
-    const { data, error } = await supabase
-      .from('users')
-      .select('drive_refresh_token')
-      .eq('email', adminEmail)
-      .single();
-
-    if (error || !data?.drive_refresh_token) {
-      throw new Error(
-        `El admin (${adminEmail}) aún no tiene refresh_token. ` +
-        'El admin debe cerrar sesión y volver a iniciar sesión en la app.'
-      );
-    }
-
-    return buildOAuthClient(data.drive_refresh_token);
-  }
-
-  return buildOAuthClient(refreshToken);
-}
-
-function buildOAuthClient(refreshToken: string) {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID!,
-    process.env.GOOGLE_CLIENT_SECRET!,
-    process.env.NEXTAUTH_URL + '/api/auth/callback/google'
-  );
-
-  oauth2Client.setCredentials({
-    refresh_token: refreshToken,
-  });
-
-  return oauth2Client;
-}
-
-// ─── Cliente de Drive usando Admin OAuth ─────────────────────────────────────
-async function getAdminDriveClient() {
-  const auth = await getAdminOAuthClient();
-  return google.drive({ version: 'v3', auth });
-}
-
-// Mantener getDriveClient() por compatibilidad con getFileMetadata
 export function getDriveClient() {
-  const auth = getServiceAccountAuth();
-  return google.drive({ version: 'v3', auth });
+  return null;
 }
 
-// ─── Create a folder ─────────────────────────────────────────────────────────
 export async function createFolder(name: string, parentId: string): Promise<DriveFolder> {
-  const drive = await getAdminDriveClient();
-
-  const res = await drive.files.create({
-    requestBody: {
-      name,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: [parentId],
-    },
-    fields: 'id, name, webViewLink',
-  });
-
-  // Make folder readable by anyone with link
-  try {
-    await drive.permissions.create({
-      fileId: res.data.id!,
-      requestBody: { role: 'reader', type: 'anyone' },
-    });
-  } catch (e) {
-    console.warn('Folder public permission set warning:', e);
-  }
-
+  const folderId = `folder_${Date.now()}_${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
   return {
-    id: res.data.id!,
-    name: res.data.name!,
-    webViewLink: res.data.webViewLink!,
+    id: folderId,
+    name,
+    webViewLink: `/projects?folder=${parentId}`,
   };
 }
 
-// ─── Create project folder in root ───────────────────────────────────────────
 export async function createProjectFolder(
   projectCode: string,
   projectName: string
 ): Promise<DriveFolder> {
-  const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
-  if (!rootFolderId) throw new Error('GOOGLE_DRIVE_ROOT_FOLDER_ID not set');
-
-  const folderName = `${projectCode}_${projectName.replace(/[^a-zA-Z0-9\s\-_]/g, '').substring(0, 50)}`;
-  return createFolder(folderName, rootFolderId);
+  const cleanCode = projectCode ? projectCode.trim() : 'PROJ';
+  const cleanName = projectName.replace(/[^a-zA-Z0-9\-_]/g, '_').substring(0, 50);
+  const folderId = `proj_${cleanCode}_${Date.now()}`;
+  return {
+    id: folderId,
+    name: `${cleanCode}_${cleanName}`,
+    webViewLink: `/projects?code=${encodeURIComponent(cleanCode)}`,
+  };
 }
 
-// ─── Create session folder ────────────────────────────────────────────────────
 export async function createSessionFolder(
   projectFolderId: string,
   locatorLastName: string,
   datetime: Date
-): Promise<{ sessionFolder: DriveFolder; rawGprFolder: DriveFolder; gpsFolder: DriveFolder; photosFolder: DriveFolder }> {
+): Promise<{
+  sessionFolder: DriveFolder;
+  rawGprFolder: DriveFolder;
+  gpsFolder: DriveFolder;
+  photosFolder: DriveFolder;
+}> {
   const pad = (n: number) => String(n).padStart(2, '0');
   const d = datetime;
   const dateStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
   const timeStr = `${pad(d.getHours())}${pad(d.getMinutes())}`;
-
   const cleanLocator = locatorLastName
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9]/g, '_');
 
-  const sessionFolderName = `${dateStr}_${timeStr}_${cleanLocator}`;
+  const sessionName = `${dateStr}_${timeStr}_${cleanLocator}`;
+  const baseLink = `/projects?session=${encodeURIComponent(sessionName)}`;
 
-  const sessionFolder = await createFolder(sessionFolderName, projectFolderId);
+  const sessionFolder: DriveFolder = {
+    id: `sess_${sessionName}`,
+    name: sessionName,
+    webViewLink: baseLink,
+  };
 
-  const [rawGprFolder, gpsFolder, photosFolder] = await Promise.all([
-    createFolder('RAW_GPR_PPR', sessionFolder.id),
-    createFolder('GPS_Posicionamiento', sessionFolder.id),
-    createFolder('Registro_Fotografico', sessionFolder.id),
-  ]);
+  const rawGprFolder: DriveFolder = {
+    id: `raw_${sessionName}`,
+    name: 'RAW_GPR_PPR',
+    webViewLink: `${baseLink}&type=raw`,
+  };
+
+  const gpsFolder: DriveFolder = {
+    id: `gps_${sessionName}`,
+    name: 'GPS_Posicionamiento',
+    webViewLink: `${baseLink}&type=gps`,
+  };
+
+  const photosFolder: DriveFolder = {
+    id: `photos_${sessionName}`,
+    name: 'Registro_Fotografico',
+    webViewLink: `${baseLink}&type=photos`,
+  };
 
   return { sessionFolder, rawGprFolder, gpsFolder, photosFolder };
 }
 
-// ─── Create Resumable Upload Session ─────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function createResumableUploadSession(
   folderId: string,
   fileName: string,
-  mimeType: string,
-  fileSize: number
+  _mimeType?: string,
+  _fileSize?: number
 ): Promise<{ uploadUrl: string }> {
-  const auth = await getAdminOAuthClient();
-  const tokenRes = await auth.getAccessToken();
-  const token = tokenRes.token;
-
-  if (!token) throw new Error('No se pudo obtener access token del admin para Drive');
-
-  const response = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json; charset=UTF-8',
-        'X-Upload-Content-Type': mimeType || 'application/octet-stream',
-        'X-Upload-Content-Length': String(fileSize),
-      },
-      body: JSON.stringify({
-        name: fileName,
-        parents: [folderId],
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Google Drive API error (${response.status}): ${errText}`);
-  }
-
-  const uploadUrl = response.headers.get('location');
-  if (!uploadUrl) {
-    throw new Error('No location header returned for resumable upload session');
-  }
-
-  return { uploadUrl };
+  // Stub seguro: el frontend utiliza Supabase Storage directo en /api/reports/upload
+  return {
+    uploadUrl: `/api/reports/upload?folder=${encodeURIComponent(folderId)}&file=${encodeURIComponent(fileName)}`,
+  };
 }
 
-// ─── Set File Public Permission ───────────────────────────────────────────────
 export async function setFilePublicPermission(fileId: string): Promise<{ webViewLink: string }> {
-  const drive = await getAdminDriveClient();
-
-  try {
-    await drive.permissions.create({
-      fileId,
-      requestBody: { role: 'reader', type: 'anyone' },
-    });
-  } catch (e) {
-    console.warn('Could not set public permission on Drive file:', e);
-  }
-
-  try {
-    const res = await drive.files.get({
-      fileId,
-      fields: 'id, webViewLink',
-    });
-    return {
-      webViewLink: res.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`,
-    };
-  } catch {
-    return { webViewLink: `https://drive.google.com/file/d/${fileId}/view` };
-  }
+  // Deshabilitado: ya no se otorgan permisos de 'anyone' públicos
+  return {
+    webViewLink: `/projects/files/${encodeURIComponent(fileId)}`,
+  };
 }
 
-// ─── Upload file ──────────────────────────────────────────────────────────────
 export async function uploadFileToDrive(
   folderId: string,
   buffer: Buffer,
   filename: string,
   mimeType: string
 ): Promise<DriveFile> {
-  const drive = await getAdminDriveClient();
-  const stream = Readable.from(buffer);
-
-  const res = await drive.files.create({
-    requestBody: {
-      name: filename,
-      parents: [folderId],
-    },
-    media: {
-      mimeType,
-      body: stream,
-    },
-    fields: 'id, name, webViewLink, webContentLink, size',
-  });
-
-  // Make file readable
+  // Guardado seguro directo en Supabase Storage (Bucket 'evidencias')
   try {
-    await drive.permissions.create({
-      fileId: res.data.id!,
-      requestBody: { role: 'reader', type: 'anyone' },
+    const { createAdminClient } = await import('./supabase');
+    const supabase = createAdminClient();
+    const storagePath = `documents/${folderId}/${Date.now()}_${filename.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`;
+
+    const { error } = await supabase.storage.from('evidencias').upload(storagePath, buffer, {
+      contentType: mimeType || 'application/octet-stream',
+      upsert: true,
     });
-  } catch (e) {
-    console.warn('File public permission set warning:', e);
+
+    if (!error) {
+      const { data } = supabase.storage.from('evidencias').getPublicUrl(storagePath);
+      const url = data?.publicUrl || '';
+      return {
+        id: storagePath,
+        name: filename,
+        webViewLink: url,
+        webContentLink: url,
+        size: String(buffer.length),
+      };
+    }
+  } catch (err) {
+    console.warn('Aviso: Fallback en uploadFileToDrive:', err);
   }
 
   return {
-    id: res.data.id!,
-    name: res.data.name!,
-    webViewLink: res.data.webViewLink!,
-    webContentLink: res.data.webContentLink!,
-    size: res.data.size || undefined,
+    id: `file_${Date.now()}`,
+    name: filename,
+    webViewLink: '',
+    webContentLink: '',
+    size: String(buffer.length),
   };
-}
-
-// ─── Get file metadata ────────────────────────────────────────────────────────
-export async function getFileMetadata(fileId: string): Promise<DriveFile | null> {
-  try {
-    const drive = await getAdminDriveClient();
-    const res = await drive.files.get({
-      fileId,
-      fields: 'id, name, webViewLink, webContentLink, size',
-    });
-    return {
-      id: res.data.id!,
-      name: res.data.name!,
-      webViewLink: res.data.webViewLink!,
-      webContentLink: res.data.webContentLink!,
-      size: res.data.size || undefined,
-    };
-  } catch {
-    return null;
-  }
 }

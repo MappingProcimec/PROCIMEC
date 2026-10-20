@@ -643,7 +643,7 @@ export default function HseqReportPage() {
                 Inspección Registrada Exitosamente
               </h2>
               <p className="text-xs text-text-muted">
-                El reporte ha sido generado según la plantilla oficial de la <strong>Carpeta 24</strong>.
+                El reporte ha sido generado según la plantilla oficial de <strong>PCM CLOUD</strong>.
               </p>
             </div>
 
@@ -710,7 +710,7 @@ export default function HseqReportPage() {
                   rel="noopener noreferrer"
                   className="btn btn-outline"
                 >
-                  <ExternalLink className="w-4 h-4" /> Ver en Google Drive
+                  <ExternalLink className="w-4 h-4" /> Ver Documento Digital
                 </a>
               )}
 

@@ -42,7 +42,6 @@ export default function SuccessPage() {
   const reportId = (params.reportId as string) || '';
 
   const initialPdfUrl = searchParams.get('pdfUrl') || '';
-  const folderUrl = searchParams.get('folderUrl') || '';
   const docxUrl = searchParams.get('docxUrl') || '';
 
   const [report, setReport] = useState<ReportDetails | null>(null);
@@ -211,24 +210,20 @@ _Plataforma Integral PROCIMEC Ingeniería S.A.S._`;
             </a>
           )}
 
-          {/* Carpeta en Google Drive (si está disponible) */}
-          {folderUrl && (
-            <a
-              href={folderUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="card p-4 flex items-center gap-4 hover:shadow-sm transition-all hover:-translate-y-0.5 group rounded-xl"
-            >
-              <div className="w-12 h-12 rounded-xl bg-slate-500/10 flex items-center justify-center text-slate-500 flex-shrink-0">
-                <FolderOpen className="w-6 h-6" strokeWidth={1.75} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-text-primary text-sm">Abrir carpeta en Google Drive</p>
-                <p className="text-xs text-text-muted mt-0.5">Ver réplica en la nube</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-primary transition-colors flex-shrink-0" strokeWidth={1.75} />
-            </a>
-          )}
+          {/* Expediente del Proyecto en PCM CLOUD */}
+          <Link
+            href={`/projects/${projectId}`}
+            className="card p-4 flex items-center gap-4 hover:shadow-sm transition-all hover:-translate-y-0.5 group rounded-xl"
+          >
+            <div className="w-12 h-12 rounded-xl bg-slate-500/10 flex items-center justify-center text-slate-500 flex-shrink-0">
+              <FolderOpen className="w-6 h-6" strokeWidth={1.75} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-text-primary text-sm">Abrir Expediente del Proyecto</p>
+              <p className="text-xs text-text-muted mt-0.5">Ver reportes, planos y archivos vinculados</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-primary transition-colors flex-shrink-0" strokeWidth={1.75} />
+          </Link>
         </div>
 
         {/* Resumen de Integridad y Almacenamiento */}
