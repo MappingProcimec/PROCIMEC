@@ -28,6 +28,7 @@ import {
   ArrowRight,
   LayoutDashboard,
   Star,
+  RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
 import type { ActivityRecord } from '@/lib/dashboard-activities';
@@ -432,9 +433,9 @@ export function DynamicDashboard({
     if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(`pcm_favorites_${user.id}`);
-      if (raw) {
+      if (raw !== null) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setFavorites(parsed);
           return;
         }
@@ -443,12 +444,35 @@ export function DynamicDashboard({
       console.warn('Error al leer favoritos:', e);
     }
 
-    // Predeterminados inteligentes por rol: primeros 4 formularios y 2 herramientas
-    const defaults: string[] = [];
-    forms.slice(0, 4).forEach((f) => defaults.push(`form:${f.slug}`));
-    tools.slice(0, 2).forEach((t) => defaults.push(`tool:${t.slug}`));
-    setFavorites(defaults);
-  }, [user.id, forms, tools]);
+    // Inicializar sin predeterminados forzados: se puebla según el uso del usuario
+    setFavorites([]);
+  }, [user.id]);
+
+  const resetShortcuts = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setFavorites([]);
+    try {
+      localStorage.setItem(`pcm_favorites_${user.id}`, JSON.stringify([]));
+    } catch {
+      // Ignorar errores de localStorage
+    }
+  };
+
+  const recordUsage = (itemKey: string) => {
+    setFavorites((prev) => {
+      const filtered = prev.filter((k) => k !== itemKey);
+      const next = [itemKey, ...filtered].slice(0, 8);
+      try {
+        localStorage.setItem(`pcm_favorites_${user.id}`, JSON.stringify(next));
+      } catch {
+        // Ignorar errores de localStorage
+      }
+      return next;
+    });
+  };
 
   const toggleFavorite = (itemKey: string, e?: React.MouseEvent) => {
     if (e) {
@@ -840,20 +864,37 @@ export function DynamicDashboard({
           )}
 
           {/* Accesos Rápidos Directos (1 Clic) */}
-          {resolvedShortcuts.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Star className="w-4 h-4 text-accent fill-accent" strokeWidth={1.75} />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary">
-                    Accesos Rápidos (1 Clic)
-                  </h3>
-                </div>
-                <span className="text-[11px] text-text-muted hidden sm:inline">
-                  Acceso directo sin modales · Clic en la estrella para fijar favoritos
-                </span>
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-accent fill-accent" strokeWidth={1.75} />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary">
+                  Accesos Rápidos (1 Clic)
+                </h3>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-text-muted hidden sm:inline">
+                  Acceso directo sin modales · Se alimenta según tu uso
+                </span>
+                {favorites.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={resetShortcuts}
+                    className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-text-muted hover:text-accent border border-border rounded-lg hover:border-accent transition-colors"
+                    title="Reiniciar accesos rápidos"
+                  >
+                    <RotateCcw className="w-3 h-3 text-accent" />
+                    <span>Reiniciar</span>
+                  </button>
+                )}
+              </div>
+            </div>
 
+            {resolvedShortcuts.length === 0 ? (
+              <div className="p-4 rounded-xl border border-dashed border-border bg-surface/30 text-center text-xs text-text-muted">
+                Tus accesos rápidos se han reiniciado. A medida que utilices formularios o herramientas, aparecerán aquí automáticamente.
+              </div>
+            ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
                 {resolvedShortcuts.map((item) => {
                   const meta = CATEGORY_META[item.categoryKey] || CATEGORY_META.universal;
@@ -904,8 +945,8 @@ export function DynamicDashboard({
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </section>
       )}
 
@@ -1278,7 +1319,10 @@ export function DynamicDashboard({
                     <Link
                       href={`/forms/${f.slug}`}
                       prefetch={false}
-                      onClick={() => setActiveFormGroup(null)}
+                      onClick={() => {
+                        recordUsage(`form:${f.slug}`);
+                        setActiveFormGroup(null);
+                      }}
                       className="flex items-center gap-3 min-w-0 flex-1 pr-1"
                     >
                       <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text-muted group-hover:text-primary group-hover:border-primary/40 transition-colors flex-shrink-0">
@@ -1314,7 +1358,10 @@ export function DynamicDashboard({
                       <Link
                         href={`/forms/${f.slug}`}
                         prefetch={false}
-                        onClick={() => setActiveFormGroup(null)}
+                        onClick={() => {
+                          recordUsage(`form:${f.slug}`);
+                          setActiveFormGroup(null);
+                        }}
                         className="text-text-muted p-1 group-hover:text-primary group-hover:translate-x-0.5 transition-all"
                         aria-label="Abrir formulario"
                       >
@@ -1393,7 +1440,10 @@ export function DynamicDashboard({
                     <Link
                       href={`/tools/${t.slug}`}
                       prefetch={false}
-                      onClick={() => setActiveToolGroup(null)}
+                      onClick={() => {
+                        recordUsage(`tool:${t.slug}`);
+                        setActiveToolGroup(null);
+                      }}
                       className="flex items-center gap-3 min-w-0 flex-1 pr-1"
                     >
                       <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text-muted group-hover:text-primary group-hover:border-primary/40 transition-colors flex-shrink-0">
@@ -1432,7 +1482,10 @@ export function DynamicDashboard({
                       <Link
                         href={`/tools/${t.slug}`}
                         prefetch={false}
-                        onClick={() => setActiveToolGroup(null)}
+                        onClick={() => {
+                          recordUsage(`tool:${t.slug}`);
+                          setActiveToolGroup(null);
+                        }}
                         className="text-text-muted p-1 group-hover:text-primary group-hover:translate-x-0.5 transition-all"
                         aria-label="Abrir herramienta"
                       >
