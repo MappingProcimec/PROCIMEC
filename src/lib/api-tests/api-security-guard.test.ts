@@ -39,8 +39,8 @@ describe('Guardia de Seguridad de Rutas API (CI Security Guard)', () => {
     expect(routeFiles.length).toBeGreaterThan(50);
   });
 
-  it('ninguna ruta debe usar createAdminClient() sin protección de autenticación', () => {
-    const violations: { file: string; reason: string }[] = [];
+  it('ninguna ruta debe usar createAdminClient() sin protección de autenticación por handler', () => {
+    const violations: { file: string; method: string; reason: string }[] = [];
 
     for (const filePath of routeFiles) {
       const normalizedPath = filePath.replace(/\\/g, '/');
@@ -52,21 +52,36 @@ describe('Guardia de Seguridad de Rutas API (CI Security Guard)', () => {
 
       const content = fs.readFileSync(filePath, 'utf-8');
 
-      // Si usa createAdminClient, debe verificar autenticación antes de invocar la base de datos
-      if (content.includes('createAdminClient')) {
-        const hasRequireAuth = content.includes('requireAuth(');
-        const hasSessionCheck =
-          content.includes('getServerSession(') &&
-          (content.includes('status: 401') || content.includes('status: 403'));
-        const hasTokenCheck =
-          content.includes('getToken(') &&
-          (content.includes('status: 401') || content.includes('status: 403'));
+      // Si el archivo no interactúa con Supabase, omitir
+      if (!content.includes('createAdminClient')) {
+        continue;
+      }
 
-        if (!hasRequireAuth && !hasSessionCheck && !hasTokenCheck) {
-          violations.push({
-            file: relativePath,
-            reason: 'Usa createAdminClient() pero no llama a requireAuth() ni rechaza con 401/403 ante falta de sesión',
-          });
+      // Extraer cada handler HTTP exportado individualmente
+      const handlerRegex = /export\s+async\s+function\s+(GET|POST|PUT|PATCH|DELETE)\s*\([^)]*\)\s*\{([\s\S]*?)(?=(?:export\s+async\s+function|$))/g;
+      let match: RegExpExecArray | null;
+
+      while ((match = handlerRegex.exec(content)) !== null) {
+        const method = match[1];
+        const handlerBody = match[2];
+
+        // Verificar si este handler específico usa createAdminClient o consultas a BD
+        if (handlerBody.includes('createAdminClient') || handlerBody.includes('supabase.')) {
+          const hasRequireAuth = handlerBody.includes('requireAuth(');
+          const hasSessionCheck =
+            handlerBody.includes('getServerSession(') &&
+            (handlerBody.includes('status: 401') || handlerBody.includes('status: 403'));
+          const hasTokenCheck =
+            handlerBody.includes('getToken(') &&
+            (handlerBody.includes('status: 401') || handlerBody.includes('status: 403'));
+
+          if (!hasRequireAuth && !hasSessionCheck && !hasTokenCheck) {
+            violations.push({
+              file: relativePath,
+              method,
+              reason: `El handler ${method} usa la base de datos pero no cuenta con requireAuth() ni rechazo 401/403 previo`,
+            });
+          }
         }
       }
     }
