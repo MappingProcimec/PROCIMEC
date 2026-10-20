@@ -13,8 +13,7 @@ export async function GET() {
     }
 
     const supabase = createAdminClient();
-    const isAdmin = ['admin', 'gerencia', 'management'].includes(session.user.role || '') || 
-                    session.user.email?.includes('procimec');
+    const isAdmin = ['admin', 'gerencia', 'management'].includes(session.user.role || '');
 
     let query = supabase
       .from('dev_tickets')

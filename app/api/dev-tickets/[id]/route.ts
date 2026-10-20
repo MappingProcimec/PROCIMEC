@@ -55,8 +55,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const isAdmin = ['admin', 'gerencia', 'management'].includes(session.user.role || '') || 
-                    session.user.email?.includes('procimec');
+    const isAdmin = ['admin', 'gerencia', 'management'].includes(session.user.role || '');
 
     if (!isAdmin) {
       return NextResponse.json({ error: 'Solo administradores pueden modificar el estado' }, { status: 403 });
