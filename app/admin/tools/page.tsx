@@ -49,6 +49,11 @@ async function fetchToolsData(): Promise<Tool[]> {
 }
 
 const TOOL_META: Record<string, { description: string; tag: string; path?: string }> = {
+  'dev-tickets': {
+    description: 'Gestión de tickets, especificación técnica por IA, aprobación exclusiva del admin y ciclo DevOps.',
+    tag: 'DevOps / Admin',
+    path: '/tools/dev-tickets',
+  },
   'radargrama': {
     description: 'Visualizador y procesador interactivo de radargramas GPR, filtros DSP y análisis geofísico.',
     tag: 'GPR / Geofísica',

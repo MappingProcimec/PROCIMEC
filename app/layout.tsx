@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { GentleCopilotFloatingButton } from '@/components/copilot';
+import { DevTicketFab } from '@/components/dev-tickets';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           {children}
           <GentleCopilotFloatingButton />
+          <DevTicketFab />
         </Providers>
       </body>
     </html>
