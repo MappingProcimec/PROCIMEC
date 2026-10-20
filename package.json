@@ -11,7 +11,9 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "worker:dev": "tsx scripts/dev-runner/index.ts"
+    "worker:dev": "tsx scripts/dev-runner/index.ts",
+    "bot:telegram": "node bot-telegram/bot.js",
+    "bot:whatsapp": "node bot-whatsapp/bot.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",

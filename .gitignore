@@ -35,8 +35,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# WhatsApp Bot (ejecución local en servidor / PM2, no subir a GitHub)
+# WhatsApp Bot & Telegram Bot (ejecución local en servidor / PM2, no subir a GitHub)
 bot-whatsapp/
+bot-telegram/
+
 
 .vercel
 .env*
