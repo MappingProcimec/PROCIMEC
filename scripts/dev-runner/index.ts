@@ -59,6 +59,87 @@ async function logTicket(ticketId: string, stage: string, message: string, metad
   }
 }
 
+async function applyCodeWithAI(ticket: {
+  id: string;
+  title: string;
+  description: string;
+  technical_spec?: {
+    summary?: string;
+    affectedFiles?: Array<{ path: string; action: string; reason: string }>;
+  };
+}) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY no encontrada en las variables de entorno.');
+  }
+
+  const affectedFiles = ticket.technical_spec?.affectedFiles || [];
+  for (const filePlan of affectedFiles) {
+    const fullPath = path.resolve(process.cwd(), filePlan.path);
+    let originalContent = '';
+    if (fs.existsSync(fullPath)) {
+      originalContent = fs.readFileSync(fullPath, 'utf-8');
+    }
+
+    await logTicket(ticket.id, 'ai_coding', `Modificando con IA: ${filePlan.path}`);
+
+    const prompt = `Eres el Agente Programador Autónomo de PROCIMEC (PCM CLOUD).
+Tu tarea es modificar o crear el siguiente archivo para cumplir el ticket técnico.
+
+TICKET:
+Título: ${ticket.title}
+Descripción: ${ticket.description}
+Acción en este archivo: ${filePlan.action}
+Motivo: ${filePlan.reason}
+
+REGLAS CONSTITUCIONALES OBLIGATORIAS (AGENTS.md):
+- Ley 1: Código TypeScript 100% válido, sin variables no usadas (@typescript-eslint/no-unused-vars), sin tipos any inseguros.
+- Ley 5: Paleta Carbón (#1E2229), Ámbar (#EAA023), contraste WCAG AAA, sin emojis (usar Lucide).
+- Ley 7: Textos visibles al usuario en español, backend en inglés.
+- Conserva intactas todas las importaciones, exportaciones y lógica no relacionada del archivo.
+
+CONTENIDO ACTUAL DEL ARCHIVO [${filePlan.path}]:
+\`\`\`
+${originalContent}
+\`\`\`
+
+INSTRUCCIÓN ESTRICTA: Devuelve ÚNICAMENTE el código fuente completo y definitivo del archivo.
+NO agregues explicaciones, NO agregues markdown (sin bloques \`\`\` al inicio o fin). Devuelve solo el código ejecutable.`;
+
+    const model = process.env.DEV_AI_MODEL || 'gemini-1.5-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 8192,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Error en API de Gemini (${res.status}): ${errText.slice(0, 200)}`);
+    }
+
+    const data = await res.json();
+    let newCode: string = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    newCode = newCode.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '').trim();
+
+    if (newCode && newCode.length > 20) {
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, newCode, 'utf-8');
+      await logTicket(ticket.id, 'file_saved', `Archivo modificado y guardado en disco: ${filePlan.path}`);
+    } else {
+      throw new Error(`Respuesta inválida o vacía recibida para ${filePlan.path}`);
+    }
+  }
+}
+
 async function processTicket(ticket: {
   id: string;
   title: string;
@@ -98,7 +179,19 @@ async function processTicket(ticket: {
     );
   }
 
-  // 3. Etapa de Verificación Estricta (Ley 1 de PROCIMEC: Clean Build Shield)
+  // 3. Etapa de Codificación Autónoma con IA (Gemini / Antigravity Engine)
+  const affectedFiles = ticket.technical_spec?.affectedFiles || [];
+  if (affectedFiles.length > 0) {
+    await logTicket(ticketId, 'coding_start', `Iniciando codificación autónoma en ${affectedFiles.length} archivo(s)...`);
+    try {
+      await applyCodeWithAI(ticket);
+    } catch (aiErr: unknown) {
+      const msg = aiErr instanceof Error ? aiErr.message : String(aiErr);
+      await logTicket(ticketId, 'coding_warning', `Aviso al aplicar código con IA: ${msg}`);
+    }
+  }
+
+  // 4. Etapa de Verificación Estricta (Ley 1 de PROCIMEC: Clean Build Shield)
   await logTicket(ticketId, 'verifying', 'Ejecutando verificación estricta de compilación TypeScript (npx tsc --noEmit)...');
   await supabase.from('dev_tickets').update({ status: 'verifying' }).eq('id', ticketId);
 
