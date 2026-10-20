@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import { generateFieldReportDocx } from '@/lib/docx-generator';
 import { FieldReport, Project, ReportFile, AppUser } from '@/types';
@@ -12,8 +11,8 @@ export const dynamic = 'force-dynamic';
 
 // GET /api/reports — list reports for assigned project or user
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const auth = await requireAuth({ req: request });
+  if (!auth.ok) return auth.response;
 
   const supabase = createAdminClient();
   const { searchParams } = new URL(request.url);
@@ -25,11 +24,11 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false });
 
   if (projectId) {
-    if (session.user.role !== 'admin') {
+    if (auth.ctx.role !== 'admin') {
       const { data: assignment } = await supabase
         .from('user_projects')
         .select('project_id')
-        .eq('user_id', session.user.id)
+        .eq('user_id', auth.ctx.userId)
         .eq('project_id', projectId)
         .maybeSingle();
 
@@ -38,11 +37,11 @@ export async function GET(request: NextRequest) {
       }
     }
     query = query.eq('project_id', projectId);
-  } else if (session.user.role !== 'admin') {
+  } else if (auth.ctx.role !== 'admin') {
     const { data: userProjects } = await supabase
       .from('user_projects')
       .select('project_id')
-      .eq('user_id', session.user.id);
+      .eq('user_id', auth.ctx.userId);
 
     const projectIds = (userProjects || []).map((p: { project_id: string }) => p.project_id);
     if (projectIds.length === 0) return NextResponse.json({ data: [] });
@@ -56,10 +55,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/reports — Create field report record (Supabase Primary + Optional Drive)
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || !['admin', 'localizador', 'operator', 'dibujo'].includes(session.user.role || '')) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const auth = await requireAuth({
+    req: request,
+    roles: ['admin', 'localizador', 'operator', 'dibujo'],
+  });
+  if (!auth.ok) return auth.response;
 
   try {
     const body = await request.json();
@@ -83,11 +83,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 1.1 Verificación anti-IDOR: verificar que el operador esté asignado al proyecto si no es admin
-    if (session.user.role !== 'admin') {
+    if (auth.ctx.role !== 'admin') {
       const { data: assignment } = await supabase
         .from('user_projects')
         .select('project_id')
-        .eq('user_id', session.user.id)
+        .eq('user_id', auth.ctx.userId)
         .eq('project_id', reportData.project_id)
         .maybeSingle();
 
@@ -131,10 +131,10 @@ export async function POST(request: NextRequest) {
       .from('field_reports')
       .insert({
         project_id: reportData.project_id,
-        created_by: session.user.id,
+        created_by: auth.ctx.userId,
         report_date: reportData.report_date,
         report_time: formattedTime,
-        localizador_name: reportData.localizador_name || reportData.operator_name || session.user.name,
+        localizador_name: reportData.localizador_name || reportData.operator_name || auth.ctx.fullName,
         gpr_equipment: formattedEquipments,
         positioning_equipment: reportData.positioning_equipment,
         terrain_conditions: reportData.terrain_conditions,
@@ -182,10 +182,11 @@ export async function POST(request: NextRequest) {
 
 // PUT /api/reports — Registrar archivo o Finalizar reporte (Generación PDF con IA)
 export async function PUT(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || !['admin', 'localizador', 'operator', 'dibujo'].includes(session.user.role || '')) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const auth = await requireAuth({
+    req: request,
+    roles: ['admin', 'localizador', 'operator', 'dibujo', 'gerencia', 'management'],
+  });
+  if (!auth.ok) return auth.response;
 
   try {
     const body = await request.json();
@@ -203,6 +204,32 @@ export async function PUT(request: NextRequest) {
     } = body;
 
     const supabase = createAdminClient();
+
+    // Verificación IDOR en PUT: Si no es admin, verificar que el reporte le pertenece o está asignado a su proyecto
+    if (auth.ctx.role !== 'admin' && fieldReportId) {
+      const { data: targetRep } = await supabase
+        .from('field_reports')
+        .select('user_id, project_id')
+        .eq('id', fieldReportId)
+        .maybeSingle();
+
+      if (!targetRep) {
+        return NextResponse.json({ error: 'Reporte no encontrado' }, { status: 404 });
+      }
+
+      if (targetRep.user_id !== auth.ctx.user.id) {
+        const { data: assignment } = await supabase
+          .from('user_projects')
+          .select('project_id')
+          .eq('user_id', auth.ctx.user.id)
+          .eq('project_id', targetRep.project_id)
+          .maybeSingle();
+
+        if (!assignment) {
+          return NextResponse.json({ error: 'No tienes permisos sobre este reporte ni su proyecto asignado' }, { status: 403 });
+        }
+      }
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // ACCIÓN: add_file (Registro en base de datos)
@@ -380,7 +407,7 @@ export async function PUT(request: NextRequest) {
         const { data: userRecord } = await supabase
           .from('users')
           .select('*')
-          .eq('id', session.user.id)
+          .eq('id', auth.ctx.userId)
           .single();
 
         const docxBuffer = await generateFieldReportDocx({
@@ -446,7 +473,7 @@ export async function PUT(request: NextRequest) {
 
       // 10. Despachar correo automático a mapping@procimecingenieria.com y al usuario que llena el formulario
       try {
-        const userEmail = session.user.email;
+        const userEmail = auth.ctx.email;
         const recipients = [userEmail].filter(Boolean) as string[];
         sendGprReportEmail({
           recipients,

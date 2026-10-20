@@ -1,8 +1,11 @@
 import { NextRequest } from 'next/server';
 import { renderSigChangeEmailHtml } from '@/lib/sig/sigMailer';
 import { SigChangeData } from '@/lib/sig-templates';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth({ req });
+  if (!auth.ok) return auth.response;
   const { searchParams } = new URL(req.url);
 
   const sampleData: SigChangeData = {

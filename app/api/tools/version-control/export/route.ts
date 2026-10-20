@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { getToken } from 'next-auth/jwt';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import fs from 'fs';
 import path from 'path';
@@ -15,13 +13,8 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-    const userEmail = session?.user?.email || token?.email;
-
-    if (!userEmail) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+    const auth = await requireAuth({ req });
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);
     const format = (searchParams.get('format') || 'xlsx').toLowerCase();

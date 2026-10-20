@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -977,10 +976,8 @@ const MASTER_FORMATS_SEED: Omit<DocumentFormatItem, 'id' | 'versions_count'>[] =
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+    const auth = await requireAuth({ req });
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);
     const processFilter = searchParams.get('process') || 'all';
@@ -1111,29 +1108,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+    const auth = await requireAuth({
+      req,
+      roles: ['admin', 'hseq', 'gerencia', 'management'],
+      tool: 'version-control',
+    });
+    if (!auth.ok) return auth.response;
 
     const supabase = createAdminClient();
-
-    // Validar usuario
-    const { data: dbUser } = await supabase
-      .from('users')
-      .select('id, full_name, email, role')
-      .eq('email', session.user.email)
-      .single();
-
-    const allowedRoles = ['admin', 'hseq', 'gerencia', 'management'];
-    const isAuthorized = dbUser && (allowedRoles.includes(dbUser.role) || session.user.email.includes('procimec'));
-
-    if (!isAuthorized) {
-      return NextResponse.json(
-        { error: 'No cuenta con privilegios de HSEQ o Administrador para modificar el control de versiones.' },
-        { status: 403 }
-      );
-    }
+    const dbUser = auth.ctx.user;
 
     const body = await req.json();
     const { action } = body;

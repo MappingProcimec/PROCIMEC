@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import fs from 'fs';
 import path from 'path';
@@ -8,10 +7,12 @@ import path from 'path';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session || !session.user) {
-    return NextResponse.json({ error: 'No autorizado. Debe iniciar sesión.' }, { status: 401 });
-  }
+  const auth = await requireAuth({
+    req: request,
+    roles: ['admin', 'hseq', 'gerencia', 'management'],
+    tool: 'version-control',
+  });
+  if (!auth.ok) return auth.response;
 
   try {
     const formData = await request.formData();

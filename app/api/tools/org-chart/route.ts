@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import { computeAutoLayout, getCanonicalOrgData, buildDynamicPipelineData } from '@/components/tools/org-chart/initialData';
 import { DiagramDivisionItem, DiagramEdge, DiagramNode, DiagramPayload, ViewMode } from '@/components/tools/org-chart/types';
@@ -25,10 +24,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-    }
+    const auth = await requireAuth({ req, tool: 'org-chart' });
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);
     const mode = (searchParams.get('mode') || 'org') as ViewMode;

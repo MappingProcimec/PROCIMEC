@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { createAdminClient } from '@/lib/supabase';
+import { requireAuth } from '@/lib/auth-guard';
 import { createPurchaseOrderPdf } from '@/lib/purchasing/purchaseOrderPdfGenerator';
 import { sendPurchaseOrderEmail } from '@/lib/purchasing/purchaseOrderMailer';
 
@@ -30,12 +28,14 @@ export interface PurchaseOrderItemPayload {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'purchasing', 'compras', 'management', 'gerencia'],
+    tool: 'purchasing-dashboard',
+    req,
+  });
+  if (errorResponse) return errorResponse;
 
-  const supabase = createAdminClient();
+  const supabase = ctx!.supabase;
 
   try {
     const body = await req.json();
@@ -76,12 +76,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'El nombre del proveedor es obligatorio.' }, { status: 400 });
     }
 
-    // Obtener usuario autenticado
-    const { data: dbUser } = await supabase
-      .from('users')
-      .select('id, full_name, email')
-      .eq('email', session.user.email)
-      .single();
+    // Usuario autenticado
+    const dbUser = ctx!.dbUser;
 
     if (!dbUser) {
       return NextResponse.json({ error: 'Usuario no encontrado en la base de datos' }, { status: 404 });
@@ -272,12 +268,14 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'purchasing', 'compras', 'management', 'gerencia'],
+    tool: 'purchasing-dashboard',
+    req,
+  });
+  if (errorResponse) return errorResponse;
 
-  const supabase = createAdminClient();
+  const supabase = ctx!.supabase;
 
   try {
     const body = await req.json();
@@ -291,15 +289,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'ID de la orden y nuevo estado son obligatorios.' }, { status: 400 });
     }
 
-    const { data: dbUser } = await supabase
-      .from('users')
-      .select('id, full_name, email')
-      .eq('email', session.user.email)
-      .single();
-
-    if (!dbUser) {
-      return NextResponse.json({ error: 'Usuario no encontrado.' }, { status: 404 });
-    }
+    const dbUser = ctx!.dbUser;
 
     const { data: order, error: ordErr } = await supabase
       .from('purchase_orders')

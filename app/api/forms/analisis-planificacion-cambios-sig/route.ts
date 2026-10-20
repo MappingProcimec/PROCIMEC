@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import { sendSigChangeNotificationEmail } from '@/lib/sig/sigMailer';
 
+const SIG_ALLOWED_ROLES = ['admin', 'hseq', 'gerencia', 'management', 'operador', 'operator', 'commercial', 'tecnico'];
+
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'No autorizado. Inicie sesión para continuar.' }, { status: 401 });
-    }
+    const auth = await requireAuth({
+      req,
+      roles: SIG_ALLOWED_ROLES,
+      form: 'analisis-planificacion-cambios-sig',
+    });
+    if (!auth.ok) return auth.response;
 
     const body = await req.json();
     const {
@@ -70,7 +73,7 @@ export async function POST(req: NextRequest) {
     const activeVersion = dbVersion?.current_version || body.version || '1';
 
     const insertPayload = {
-      user_id: session.user.id,
+      user_id: auth.ctx.user.id,
       project_id: project_id || null,
       official_code: officialCode,
       version: activeVersion,
@@ -137,7 +140,7 @@ export async function POST(req: NextRequest) {
     if (shouldSendEmail) {
       try {
         await sendSigChangeNotificationEmail({
-          submitterEmail: session.user.email || '',
+          submitterEmail: auth.ctx.email || '',
           submitterName: String(identifier_name).trim(),
           recordId: data.id,
           notifySubmitter: body.send_email_to_submitter !== undefined ? Boolean(body.send_email_to_submitter) : true,
@@ -193,21 +196,25 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+    const auth = await requireAuth({ req });
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     const supabase = createAdminClient();
+    const isElevated = ['admin', 'hseq', 'gerencia', 'management'].includes(auth.ctx.role);
 
     if (id) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('sig_management_changes')
         .select('*')
-        .eq('id', id)
-        .single();
+        .eq('id', id);
+
+      if (!isElevated) {
+        query = query.eq('user_id', auth.ctx.user.id);
+      }
+
+      const { data, error } = await query.single();
 
       if (error || !data) {
         return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 });
@@ -217,11 +224,17 @@ export async function GET(req: NextRequest) {
     }
 
     // Listado de los últimos registros
-    const { data, error } = await supabase
+    let listQuery = supabase
       .from('sig_management_changes')
       .select('id, official_code, identifier_name, change_description, identification_date, status, created_at')
       .order('created_at', { ascending: false })
       .limit(30);
+
+    if (!isElevated) {
+      listQuery = listQuery.eq('user_id', auth.ctx.user.id);
+    }
+
+    const { data, error } = await listQuery;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

@@ -1,45 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { createAdminClient } from '@/lib/supabase';
+import { requireAuth } from '@/lib/auth-guard';
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'purchasing', 'compras', 'management', 'gerencia'],
+    tool: 'purchasing-dashboard',
+    req,
+  });
+  if (errorResponse) return errorResponse;
 
-  const supabase = createAdminClient();
+  const supabase = ctx!.supabase;
+  const dbUser = ctx!.dbUser;
 
   try {
-    // 1. Obtener usuario autenticado en la base de datos
-    let dbUser: { id: string; full_name?: string | null; email: string; role: string } | null = null;
-    const { data: userByEmail } = await supabase
-      .from('users')
-      .select('id, full_name, email, role')
-      .ilike('email', session.user.email.trim())
-      .maybeSingle();
-
-    if (userByEmail) {
-      dbUser = userByEmail;
-    } else if (session.user.id) {
-      const { data: userById } = await supabase
-        .from('users')
-        .select('id, full_name, email, role')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (userById) dbUser = userById;
-    }
-
-    if (!dbUser) {
-      dbUser = {
-        id: session.user.id || '',
-        full_name: session.user.name || '',
-        email: session.user.email,
-        role: session.user.role || 'operator',
-      };
-    }
-
     const body = await req.json();
     const {
       purchase_order_id,

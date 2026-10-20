@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -8,10 +7,8 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+    const auth = await requireAuth({ req });
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);
     const query = (searchParams.get('query') || searchParams.get('code') || searchParams.get('slug') || '').trim();

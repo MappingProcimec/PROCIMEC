@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const COMMERCIAL_ROLES = ['admin', 'commercial', 'comercial', 'management', 'gerencia'];
 
 function parseDateToIso(dateStr?: string | null): string | null {
   if (!dateStr || !dateStr.trim()) return null;
@@ -18,11 +19,13 @@ function parseDateToIso(dateStr?: string | null): string | null {
   return trimmed;
 }
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+export async function GET(request: NextRequest) {
+  const auth = await requireAuth({
+    req: request,
+    roles: COMMERCIAL_ROLES,
+    form: 'registro-oportunidad',
+  });
+  if (!auth.ok) return auth.response;
 
   const supabase = createAdminClient();
 
@@ -48,24 +51,16 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const auth = await requireAuth({
+    req: request,
+    roles: COMMERCIAL_ROLES,
+    form: 'registro-oportunidad',
+  });
+  if (!auth.ok) return auth.response;
 
   const body = await request.json();
   const supabase = createAdminClient();
-
-  // 1. Obtener usuario autenticado en BD
-  const { data: dbUser, error: userError } = await supabase
-    .from('users')
-    .select('id, email, full_name, role')
-    .eq('email', session.user.email)
-    .single();
-
-  if (userError || !dbUser) {
-    return NextResponse.json({ error: 'Usuario no encontrado en la base de datos' }, { status: 404 });
-  }
+  const dbUser = auth.ctx.user;
 
   const {
     opportunity_title,
@@ -100,8 +95,8 @@ export async function POST(request: NextRequest) {
       user_id: dbUser.id,
       consecutive_number: consecutiveNum,
       opportunity_code: oppCode,
-      created_by_name: dbUser.full_name || session.user.name || 'Comercial',
-      created_by_email: dbUser.email || session.user.email,
+      created_by_name: dbUser.full_name || auth.ctx.fullName || 'Comercial',
+      created_by_email: dbUser.email || auth.ctx.email,
       opportunity_title: String(opportunity_title).trim(),
       client_name: String(client_name).trim(),
       client_contact: client_contact ? String(client_contact).trim() : null,

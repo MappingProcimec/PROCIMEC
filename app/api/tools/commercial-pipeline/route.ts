@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { createAdminClient } from '@/lib/supabase';
+import { requireAuth } from '@/lib/auth-guard';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -15,53 +13,15 @@ function cleanProjectDescription(desc?: string | null): string {
     .trim();
 }
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'commercial', 'comercial', 'management', 'gerencia', 'drawing', 'dibujo'],
+    tool: 'commercial-pipeline',
+    req,
+  });
+  if (errorResponse) return errorResponse;
 
-  const userRole = session.user.role;
-  const userId = session.user.id;
-
-  if (userRole === 'pending') {
-    return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
-  }
-
-  const supabase = createAdminClient();
-
-  // Validar permisos: comercial, admin, gerencia, dibujo/costos o asignación en user_tools
-  let hasAccess = [
-    'admin',
-    'commercial',
-    'comercial',
-    'management',
-    'gerencia',
-    'drawing',
-    'dibujo',
-  ].includes(userRole);
-
-  if (!hasAccess && userId) {
-    try {
-      const { data: ut } = await supabase
-        .from('user_tools')
-        .select('tools!inner(slug)')
-        .eq('user_id', userId)
-        .eq('tools.slug', 'commercial-pipeline')
-        .maybeSingle();
-
-      if (ut) hasAccess = true;
-    } catch {
-      // Ignorar si la tabla no responde
-    }
-  }
-
-  if (!hasAccess) {
-    return NextResponse.json(
-      { error: 'No tienes permisos para consultar la Gestión Comercial.' },
-      { status: 403 }
-    );
-  }
+  const supabase = ctx!.supabase;
 
   try {
     const [oppsRes, budgetsRes, proposalsRes, closingsRes, projectsRes] = await Promise.all([
@@ -270,17 +230,19 @@ export async function GET() {
 
 // PATCH /api/tools/commercial-pipeline - Actualización y vinculación bidireccional
 export async function PATCH(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'commercial', 'comercial', 'management', 'gerencia'],
+    tool: 'commercial-pipeline',
+    req: request,
+  });
+  if (errorResponse) return errorResponse;
 
-  const body = await request.json();
-  const { action, proposal_id, project_id, subtotal, tax_amount, total_amount, scope_description, notes } = body;
-
-  const supabase = createAdminClient();
+  const supabase = ctx!.supabase;
 
   try {
+    const body = await request.json();
+    const { action, proposal_id, subtotal, tax_amount, total_amount, scope_description, notes, project_id } = body;
+
     // 1. Actualización de datos económicos y alcance de Cotización
     if (action === 'update_proposal' || (!action && proposal_id && (total_amount !== undefined || subtotal !== undefined))) {
       if (!proposal_id) {

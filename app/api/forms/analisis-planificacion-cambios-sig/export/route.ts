@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import {
   fetchSigTemplateBuffer,
@@ -13,10 +12,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
+    const auth = await requireAuth({ req });
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -27,14 +24,21 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    const { data: record, error } = await supabase
+    const isElevated = ['admin', 'hseq', 'gerencia', 'management'].includes(auth.ctx.role);
+
+    let query = supabase
       .from('sig_management_changes')
       .select('*')
-      .eq('id', id)
-      .single();
+      .eq('id', id);
+
+    if (!isElevated) {
+      query = query.eq('user_id', auth.ctx.user.id);
+    }
+
+    const { data: record, error } = await query.single();
 
     if (error || !record) {
-      return NextResponse.json({ error: 'Registro de cambio no encontrado en la base de datos' }, { status: 404 });
+      return NextResponse.json({ error: 'Registro de cambio no encontrado en la base de datos o sin autorización' }, { status: 404 });
     }
 
     const changeData: SigChangeData = {

@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { createAdminClient } from '@/lib/supabase';
+import { requireAuth } from '@/lib/auth-guard';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'commercial', 'comercial', 'management', 'gerencia', 'dibujo', 'drawing'],
+    form: 'presupuesto-proyecto',
+    req,
+  });
+  if (errorResponse) return errorResponse;
 
-  const supabase = createAdminClient();
+  const supabase = ctx!.supabase;
 
   try {
     // 1. Obtener oportunidades abiertas o cotizadas para vincular opcionalmente
@@ -105,24 +105,16 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'commercial', 'comercial', 'management', 'gerencia', 'dibujo', 'drawing'],
+    form: 'presupuesto-proyecto',
+    req: request,
+  });
+  if (errorResponse) return errorResponse;
 
   const body = await request.json();
-  const supabase = createAdminClient();
-
-  // Obtener usuario en DB
-  const { data: dbUser } = await supabase
-    .from('users')
-    .select('id, full_name, email, role')
-    .eq('email', session.user.email)
-    .single();
-
-  if (!dbUser) {
-    return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-  }
+  const supabase = ctx!.supabase;
+  const dbUser = ctx!.dbUser;
 
   const {
     opportunity_id,
@@ -164,8 +156,8 @@ export async function POST(request: NextRequest) {
   const year = new Date().getFullYear();
   const budgetCode = `PRE-${year}-${String(consecutiveNum).padStart(3, '0')}`;
 
-  const creatorName = dbUser.full_name || session.user.name || 'Área Técnica';
-  const creatorEmail = dbUser.email || session.user.email;
+  const creatorName = dbUser.full_name || ctx!.fullName || 'Área Técnica';
+  const creatorEmail = dbUser.email || ctx!.email;
 
   const nowIso = new Date().toISOString();
   const rawItems = Array.isArray(items_detail) ? items_detail : [];

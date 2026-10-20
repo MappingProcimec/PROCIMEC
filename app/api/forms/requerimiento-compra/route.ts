@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 
 export interface PurchaseRequestItem {
@@ -36,51 +35,17 @@ function formatDateTimeCO(d: Date = new Date()): string {
 }
 
 // GET: Obtener proyectos habilitados, datos del usuario y siguiente consecutivo
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth({ req, form: 'requerimiento-compra' });
+  if (!auth.ok) return auth.response;
 
   const supabase = createAdminClient();
-
-  // 1. Obtener usuario de la base de datos (con fallback robusto a la sesión)
-  let dbUser: { id: string; full_name?: string | null; email: string; role: string } | null = null;
-
-  try {
-    const { data: userByEmail } = await supabase
-      .from('users')
-      .select('id, full_name, email, role')
-      .ilike('email', session.user.email.trim())
-      .maybeSingle();
-
-    if (userByEmail) {
-      dbUser = userByEmail;
-    } else if (session.user.id) {
-      const { data: userById } = await supabase
-        .from('users')
-        .select('id, full_name, email, role')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (userById) dbUser = userById;
-    }
-  } catch (err) {
-    console.warn('Error consultando tabla users en requerimiento-compra:', err);
-  }
-
-  // Fallback seguro si el usuario tiene sesión activa pero no existe en users
-  if (!dbUser) {
-    dbUser = {
-      id: session.user.id || 'session-user',
-      full_name: session.user.name || session.user.email.split('@')[0],
-      email: session.user.email,
-      role: session.user.role || 'operator',
-    };
-  }
-
-  if (dbUser.role === 'pending') {
-    return NextResponse.json({ error: 'Usuario pendiente de aprobación' }, { status: 403 });
-  }
+  const dbUser = auth.ctx.user;
+  const effectiveUserId = dbUser.id;
+  const isUnrestricted =
+    dbUser.role === 'admin' ||
+    dbUser.role === 'management' ||
+    dbUser.role === 'gerencia';
 
   // 2. Proyectos habilitados para el usuario
   let projects: Array<{ id: string; name: string; cost_center: string; client: string }> = [];
@@ -99,14 +64,6 @@ export async function GET() {
         cost_center: String(p.cost_center || '').trim(),
         client: ((p.client as string) || '').trim(),
       }));
-
-      const effectiveUserId = session.user.id || dbUser.id;
-      const isUnrestricted =
-        dbUser.role === 'admin' ||
-        dbUser.role === 'management' ||
-        dbUser.role === 'gerencia' ||
-        session.user.role === 'admin' ||
-        session.user.role === 'management';
 
       if (!isUnrestricted && effectiveUserId) {
         // Consultar asignaciones de proyectos para el usuario
@@ -335,7 +292,7 @@ export async function GET() {
     success: true,
     user: {
       id: dbUser.id,
-      full_name: dbUser.full_name || session.user.name || '',
+      full_name: dbUser.full_name || auth.ctx.fullName || '',
       email: dbUser.email,
       role: dbUser.role,
     },
@@ -352,51 +309,16 @@ export async function GET() {
 
 // POST: Registrar Solicitud de Requerimiento con consecutivo secuencial
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const body = await req.json();
+  const auth = await requireAuth({
+    req,
+    projectId: body.project_id || undefined,
+    form: 'requerimiento-compra',
+  });
+  if (!auth.ok) return auth.response;
 
   const supabase = createAdminClient();
-
-  // 1. Obtener usuario de la base de datos (con coincidencia robusta)
-  let dbUser: { id: string; full_name?: string | null; email: string; role: string } | null = null;
-  try {
-    const { data: userByEmail } = await supabase
-      .from('users')
-      .select('id, full_name, email, role')
-      .ilike('email', session.user.email.trim())
-      .maybeSingle();
-
-    if (userByEmail) {
-      dbUser = userByEmail;
-    } else if (session.user.id) {
-      const { data: userById } = await supabase
-        .from('users')
-        .select('id, full_name, email, role')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      if (userById) dbUser = userById;
-    }
-  } catch (err) {
-    console.warn('Error consultando usuario en POST requerimiento-compra:', err);
-  }
-
-  if (!dbUser && session.user.id) {
-    dbUser = {
-      id: session.user.id,
-      full_name: session.user.name || session.user.email.split('@')[0],
-      email: session.user.email,
-      role: session.user.role || 'operator',
-    };
-  }
-
-  if (!dbUser || dbUser.role === 'pending') {
-    return NextResponse.json({ error: 'Usuario no autorizado o pendiente de aprobación' }, { status: 403 });
-  }
-
-  // 2. Extraer y validar body
-  const body = await req.json();
+  const dbUser = auth.ctx.user;
   const {
     project_id,
     cost_center,

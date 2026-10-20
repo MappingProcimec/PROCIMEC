@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { createAdminClient } from '@/lib/supabase';
+import { requireAuth } from '@/lib/auth-guard';
 
 export interface SupplierRecord {
   id: string;
@@ -86,8 +84,15 @@ const FALLBACK_SUPPLIERS: SupplierRecord[] = [
   },
 ];
 
-export async function GET() {
-  const supabase = createAdminClient();
+export async function GET(req: NextRequest) {
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'purchasing', 'compras', 'gerencia', 'management', 'finance', 'finanzas'],
+    tool: 'purchasing-suppliers',
+    req,
+  });
+  if (errorResponse) return errorResponse;
+
+  const supabase = ctx!.supabase;
 
   try {
     const { data, error } = await supabase
@@ -113,12 +118,14 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'purchasing', 'compras', 'gerencia', 'management', 'finance', 'finanzas'],
+    tool: 'purchasing-suppliers',
+    req,
+  });
+  if (errorResponse) return errorResponse;
 
-  const supabase = createAdminClient();
+  const supabase = ctx!.supabase;
 
   try {
     const body = await req.json();
@@ -148,7 +155,7 @@ export async function POST(req: NextRequest) {
     const { data: dbUser } = await supabase
       .from('users')
       .select('id, full_name, email')
-      .eq('email', session.user.email)
+      .eq('email', ctx!.email)
       .maybeSingle();
 
     const cleanNit = String(nit).trim();

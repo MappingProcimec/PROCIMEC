@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { createAdminClient } from '@/lib/supabase';
+import { requireAuth } from '@/lib/auth-guard';
 import { computeProjectFinancials } from '@/lib/projectFinancials';
 import { parseProjectTargets, encodeDescriptionWithMeta } from '@/app/api/admin/projects/route';
 import { ProjectFinancials } from '@/types';
@@ -9,13 +7,15 @@ import { ProjectFinancials } from '@/types';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'commercial', 'comercial', 'management', 'gerencia'],
+    form: 'cierre-comercial',
+    req,
+  });
+  if (errorResponse) return errorResponse;
 
-  const supabase = createAdminClient();
+  const supabase = ctx!.supabase;
 
   try {
     const { count } = await supabase
@@ -39,24 +39,16 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  }
+  const { ctx, errorResponse } = await requireAuth({
+    roles: ['admin', 'commercial', 'comercial', 'management', 'gerencia'],
+    form: 'cierre-comercial',
+    req: request,
+  });
+  if (errorResponse) return errorResponse;
 
   const body = await request.json();
-  const supabase = createAdminClient();
-
-  // 1. Obtener usuario en BD
-  const { data: dbUser, error: userError } = await supabase
-    .from('users')
-    .select('id, email, full_name, role')
-    .eq('email', session.user.email)
-    .single();
-
-  if (userError || !dbUser) {
-    return NextResponse.json({ error: 'Usuario no encontrado en la base de datos' }, { status: 404 });
-  }
+  const supabase = ctx!.supabase;
+  const dbUser = ctx!.dbUser;
 
   const {
     quote_code,
@@ -120,8 +112,8 @@ export async function POST(request: NextRequest) {
       sync_mode: sync_mode || 'sync_to_quote',
       opportunity_id: resolvedOppId,
       budget_id: resolvedBudgetId,
-      created_by_name: dbUser.full_name || session.user.name || 'Comercial',
-      created_by_email: dbUser.email || session.user.email,
+      created_by_name: dbUser.full_name || ctx!.fullName || 'Comercial',
+      created_by_email: dbUser.email || ctx!.email,
       result: closingResult,
       final_contract_value: closingResult === 'won' && final_contract_value ? Number(final_contract_value) : null,
       contract_number: closingResult === 'won' && contract_number ? String(contract_number).trim() : null,
