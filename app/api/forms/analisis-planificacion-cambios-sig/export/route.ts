@@ -9,6 +9,8 @@ import {
   SigChangeData,
 } from '@/lib/sig-templates';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
