@@ -40,7 +40,7 @@ URL de Contexto: ${params.contextUrl || 'No especificada'}
 
   if (params.feedbackHistory && params.feedbackHistory.length > 0) {
     prompt += `\nHISTORIAL DE OBSERVACIONES Y REFORMULACIÓN DEL ADMINISTRADOR:\n`;
-    params.feedbackHistory.forEach((fb, idx) => {
+    params.feedbackHistory.forEach((fb) => {
       prompt += `[Iteración ${fb.version} - ${fb.author}]: ${fb.message}\n`;
     });
     prompt += `\nINSTRUCCIÓN ADICIONAL: Ajusta el plan técnico para cumplir estrictamente con las observaciones indicadas por el administrador.`;

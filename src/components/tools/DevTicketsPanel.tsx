@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Lightbulb,
-  CheckCircle2,
   Clock,
   Play,
   RotateCcw,
@@ -14,7 +13,6 @@ import {
   AlertTriangle,
   RefreshCw,
   Search,
-  ChevronRight,
   ShieldAlert,
   Send,
   GitCommit

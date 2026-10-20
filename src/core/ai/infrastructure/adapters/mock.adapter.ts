@@ -14,15 +14,19 @@ export class MockAdapter implements AiPort {
     if (mockStructured !== undefined) this.mockStructuredResponse = mockStructured;
   }
 
-  public async generateText(_prompt: string, _options?: AiOptions): Promise<string> {
+  public async generateText(prompt: string, options?: AiOptions): Promise<string> {
+    void prompt;
+    void options;
     return this.mockTextResponse;
   }
 
   public async generateStructured<T>(
-    _prompt: string,
+    prompt: string,
     schema: z.ZodSchema<T>,
-    _options?: AiOptions
+    options?: AiOptions
   ): Promise<T> {
+    void prompt;
+    void options;
     if (this.mockStructuredResponse !== null) {
       const parseResult = schema.safeParse(this.mockStructuredResponse);
       if (parseResult.success) {

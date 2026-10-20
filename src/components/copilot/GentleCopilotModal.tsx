@@ -12,9 +12,7 @@ import {
   AlertTriangle,
   FileText,
   RotateCcw,
-  Layers,
   Activity,
-  ArrowRight,
   SlidersHorizontal,
 } from 'lucide-react';
 import type { FieldExtractionData, HseqAuditData } from '@/core/ai';
@@ -26,6 +24,17 @@ interface GentleCopilotModalProps {
     projectName?: string;
     client?: string;
   };
+}
+
+interface CustomSpeechRecognition {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: (event: { resultIndex: number; results: Array<Array<{ transcript: string }>> }) => void;
+  onerror: (event: { error: string }) => void;
+  onend: () => void;
+  start: () => void;
+  stop: () => void;
 }
 
 type CopilotTab = 'field_notes' | 'hseq_audit' | 'gpr_summary';
@@ -43,13 +52,17 @@ export function GentleCopilotModal({ isOpen, onClose, initialContext }: GentleCo
   const [auditData, setAuditData] = useState<HseqAuditData | null>(null);
   const [summaryResult, setSummaryResult] = useState<string | null>(null);
 
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
 
   // Inicializar Web Speech Recognition si el navegador lo soporta
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const windowWithSpeech = window as unknown as {
+        SpeechRecognition?: new () => CustomSpeechRecognition;
+        webkitSpeechRecognition?: new () => CustomSpeechRecognition;
+      };
       const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        windowWithSpeech.SpeechRecognition || windowWithSpeech.webkitSpeechRecognition;
 
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
@@ -57,7 +70,7 @@ export function GentleCopilotModal({ isOpen, onClose, initialContext }: GentleCo
         recognition.interimResults = true;
         recognition.lang = 'es-CO';
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: { resultIndex: number; results: Array<Array<{ transcript: string }>> }) => {
           let transcript = '';
           for (let i = event.resultIndex; i < event.results.length; i++) {
             transcript += event.results[i][0].transcript;
@@ -67,7 +80,7 @@ export function GentleCopilotModal({ isOpen, onClose, initialContext }: GentleCo
           }
         };
 
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event: { error: string }) => {
           console.warn('[SpeechRecognition] Error de audio:', event.error);
           setIsListening(false);
         };

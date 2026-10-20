@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { z } from 'zod';
 import {
   MockAdapter,
   ExtractFieldDataUseCase,
   AuditHseqComplianceUseCase,
-  fieldExtractionSchema,
 } from './index';
 
 describe('Gentle AI Architecture (Clean Architecture & Ports & Adapters)', () => {
