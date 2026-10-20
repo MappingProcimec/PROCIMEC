@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
+import { GentleCopilotFloatingButton } from '@/components/copilot';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -52,7 +53,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body className="font-sans bg-surface text-text-primary antialiased min-h-screen">
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <GentleCopilotFloatingButton />
+        </Providers>
       </body>
     </html>
   );

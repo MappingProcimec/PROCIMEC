@@ -115,9 +115,11 @@ Todo agente de Inteligencia Artificial y desarrollador que opere en este workspa
 
 ---
 
-Para especificaciones detalladas de interfaz y rendimiento, consultar:
+Para especificaciones detalladas de interfaz, rendimiento y memoria persistente, consultar:
 - [procimec_design_system.md](file:///.agents/rules/procimec_design_system.md)
 - [procimec_architecture.md](file:///.agents/rules/procimec_architecture.md)
 - [procimec_performance.md](file:///.agents/rules/procimec_performance.md)
+- [active_context.md](file:///.agents/engram/active_context.md) (Memoria Persistente Engram)
+- [decisions.md](file:///.agents/engram/decisions.md) (Registro de Decisiones Arquitectónicas)
 - [PRODUCT.md](file:///PRODUCT.md)
 
