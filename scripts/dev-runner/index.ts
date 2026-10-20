@@ -106,7 +106,7 @@ ${originalContent}
 INSTRUCCIÓN ESTRICTA: Devuelve ÚNICAMENTE el código fuente completo y definitivo del archivo.
 NO agregues explicaciones, NO agregues markdown (sin bloques \`\`\` al inicio o fin). Devuelve solo el código ejecutable.`;
 
-    const model = process.env.DEV_AI_MODEL || 'gemini-1.5-flash';
+    const model = process.env.DEV_AI_MODEL || 'gemini-2.5-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const res = await fetch(url, {
@@ -123,7 +123,11 @@ NO agregues explicaciones, NO agregues markdown (sin bloques \`\`\` al inicio o 
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(`Error en API de Gemini (${res.status}): ${errText.slice(0, 200)}`);
+      let hint = '';
+      if (res.status === 402 || errText.includes('prepayment') || errText.includes('depleted')) {
+        hint = ' (Créditos prepagados agotados. Genera una API Key gratis en https://aistudio.google.com/app/apikey)';
+      }
+      throw new Error(`Error en API de Gemini (${res.status}): ${errText.slice(0, 150)}${hint}`);
     }
 
     const data = await res.json();
