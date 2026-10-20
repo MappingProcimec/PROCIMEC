@@ -58,7 +58,7 @@ describe('requireAuth Guard', () => {
         }),
       }),
     };
-    vi.mocked(createAdminClient).mockReturnValue(mockSupabase as any);
+    vi.mocked(createAdminClient).mockReturnValue(mockSupabase as unknown as ReturnType<typeof createAdminClient>);
 
     const { errorResponse, ctx } = await requireAuth();
 
@@ -106,7 +106,7 @@ describe('requireAuth Guard', () => {
         return {};
       }),
     };
-    vi.mocked(createAdminClient).mockReturnValue(mockSupabase as any);
+    vi.mocked(createAdminClient).mockReturnValue(mockSupabase as unknown as ReturnType<typeof createAdminClient>);
 
     const { errorResponse, ctx } = await requireAuth({
       roles: ['commercial', 'gerencia'],
@@ -139,7 +139,7 @@ describe('requireAuth Guard', () => {
         }),
       }),
     };
-    vi.mocked(createAdminClient).mockReturnValue(mockSupabase as any);
+    vi.mocked(createAdminClient).mockReturnValue(mockSupabase as unknown as ReturnType<typeof createAdminClient>);
 
     const { errorResponse, ctx } = await requireAuth({
       roles: ['commercial', 'admin'],
@@ -173,7 +173,7 @@ describe('requireAuth Guard', () => {
         }),
       }),
     };
-    vi.mocked(createAdminClient).mockReturnValue(mockSupabase as any);
+    vi.mocked(createAdminClient).mockReturnValue(mockSupabase as unknown as ReturnType<typeof createAdminClient>);
 
     const { errorResponse, ctx } = await requireAuth({
       roles: ['purchasing'],

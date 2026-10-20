@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 
@@ -107,6 +107,8 @@ describe('Guardia de Seguridad de Rutas API (CI Security Guard)', () => {
   });
 });
 
+import { NextRequest } from 'next/server';
+
 // ============================================================================
 // PARTE 2: TESTS DE COMPORTAMIENTO (BEHAVIORAL TESTS)
 // ============================================================================
@@ -116,7 +118,7 @@ describe('Tests de Comportamiento de Rutas Protegidas y Mitigaciones', () => {
     // Importamos dinámicamente el handler corregido
     const { GET } = await import('@/app/api/suppliers/route');
 
-    const req = new Request('http://localhost:3000/api/suppliers', { method: 'GET' }) as any;
+    const req = new NextRequest('http://localhost:3000/api/suppliers', { method: 'GET' });
     const res = await GET(req);
 
     // Sin sesión mockeada, requireAuth() debe cortar la ejecución inmediatamente en 401
@@ -128,11 +130,11 @@ describe('Tests de Comportamiento de Rutas Protegidas y Mitigaciones', () => {
   it('PATCH /api/tools/commercial-pipeline rechaza a usuarios sin sesión o rol comercial', async () => {
     const { PATCH } = await import('@/app/api/tools/commercial-pipeline/route');
 
-    const req = new Request('http://localhost:3000/api/tools/commercial-pipeline', {
+    const req = new NextRequest('http://localhost:3000/api/tools/commercial-pipeline', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ proposal_id: 'prop-123', total_amount: 5000000 }),
-    }) as any;
+    });
 
     const res = await PATCH(req);
     expect(res.status).toBe(401);
