@@ -61,6 +61,21 @@ const nextConfig = {
             value: 'max-age=31536000; includeSubDomains; preload',
           },
           {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' blob: data: https://*.supabase.co https://lh3.googleusercontent.com",
+              "font-src 'self' data:",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com",
+              "worker-src 'self' blob:",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join('; '),
+          },
+          {
             key: 'Permissions-Policy',
             value: 'camera=(self), microphone=(), geolocation=(self)',
           },

@@ -10,3 +10,5 @@ Disallow: /tools/
 Disallow: /forms/
 Disallow: /projects/
 Disallow: /pending
+
+Sitemap: https://procimec.com/sitemap.xml

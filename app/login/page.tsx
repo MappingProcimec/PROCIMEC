@@ -114,6 +114,15 @@ export default function LoginPage() {
             Solo para personal autorizado de la organización.
             <br />El acceso es aprobado por el administrador.
           </p>
+
+          {/* Aviso de Consentimiento Habeas Data (Ley 1581 de 2012) */}
+          <div className="mt-4 pt-4 border-t border-white/10 text-[11px] text-white/50 text-center leading-relaxed">
+            Al iniciar sesión, autorizas a <strong className="text-white/80 font-semibold">PROCIMEC INGENIERÍA S.A.S.</strong> el tratamiento de tus datos de identidad corporativa conforme a la{' '}
+            <Link href="/privacy" className="text-accent underline hover:text-accent-light transition-colors">
+              Ley Estatutaria 1581 de 2012
+            </Link>{' '}
+            y nuestra Política de Privacidad.
+          </div>
         </div>
 
         <div className="flex justify-center gap-4 text-white/50 text-xs mt-6">

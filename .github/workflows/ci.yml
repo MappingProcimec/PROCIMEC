@@ -1,0 +1,45 @@
+name: CI/CD Pipeline - PROCIMEC PCM CLOUD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-build:
+    name: Type-Check, Lint, Test & Fast Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Static Type Checking (TypeScript)
+        run: npm run type-check
+
+      - name: Static Code Analysis (ESLint)
+        run: npm run lint
+
+      - name: Automated Unit Tests (Vitest)
+        run: npm test
+
+      - name: Production Build (Next.js)
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          DISABLE_PWA: 'false'
+        run: npm run build:fast
