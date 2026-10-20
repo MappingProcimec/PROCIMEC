@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase';
 import { isKnownAdmin } from '@/lib/admin-emails';
 import { fetchAllRows } from '@/lib/supabase-pagination';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function getUserInfo(token: { userId?: string; email?: string | null; role?: string }) {
+async function getUserInfo(
+  token: { userId?: string; email?: string | null; role?: string },
+  supabase: ReturnType<typeof createAdminClient>
+) {
   let role = token.role;
   let userId = token.userId;
 
@@ -49,7 +47,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
-  const { role, userId } = await getUserInfo(token);
+  const supabase = createAdminClient();
+  const { role, userId } = await getUserInfo(token, supabase);
 
   let hasAccess = role === 'dibujo' || role === 'admin';
   if (!hasAccess && userId) {
@@ -107,7 +106,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
-  const { role, userId } = await getUserInfo(token);
+  const supabase = createAdminClient();
+  const { role, userId } = await getUserInfo(token, supabase);
 
   if (role !== 'dibujo' && role !== 'admin') {
     return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });

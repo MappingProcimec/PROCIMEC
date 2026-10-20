@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
+import { createAdminClient } from '@/lib/supabase';
 import { isKnownAdmin } from '@/lib/admin-emails';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 /**
  * GET /api/dibujo/proyectos
@@ -21,6 +18,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
 
+  const supabase = createAdminClient();
   const email = token.email as string | undefined;
 
   // Verificar rol real en Supabase si el token dice pending

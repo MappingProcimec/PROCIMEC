@@ -46,4 +46,9 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: 1
           DISABLE_PWA: 'false'
+          NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co'
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder-anon-key'
+          SUPABASE_SERVICE_ROLE_KEY: 'placeholder-service-role-key'
+          NEXTAUTH_SECRET: 'placeholder-nextauth-secret-for-ci-build-only'
+          NEXTAUTH_URL: 'http://localhost:3000'
         run: npm run build
