@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
+import { logClientError } from '@/lib/telemetry';
 
 export default function GlobalError({
   error,
@@ -13,6 +14,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error('Error no controlado en la aplicación:', error);
+    logClientError(error, { digest: error?.digest });
   }, [error]);
 
   return (

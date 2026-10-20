@@ -50,6 +50,8 @@ export const authOptions: NextAuthOptions = {
           avatar_url: user.image || null,
           role: isAdmin ? 'admin' : 'pending',
           is_active: true,
+          consent_accepted_at: new Date().toISOString(),
+          consent_version: '2026-v2',
         });
         if (error) {
           console.error('Error creating user:', error);
@@ -59,10 +61,15 @@ export const authOptions: NextAuthOptions = {
         if (!existingUser.is_active) {
           return '/pending?reason=inactive';
         }
-        // Si es correo admin pero en la BD aun figura como pending, actualizarlo a admin automaticamente
+        // Actualizar marca temporal de consentimiento y versión activa de Habeas Data
+        const updates: Record<string, unknown> = {
+          consent_accepted_at: new Date().toISOString(),
+          consent_version: '2026-v2',
+        };
         if (isAdmin && existingUser.role !== 'admin') {
-          await supabase.from('users').update({ role: 'admin' }).eq('email', user.email);
+          updates.role = 'admin';
         }
+        await supabase.from('users').update(updates).eq('email', user.email);
       }
 
       return true;

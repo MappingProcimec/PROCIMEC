@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { extractTemplateTextSummary } from '@/lib/hseq-drive';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 // Generador de respaldo de alta fidelidad basado en los ítems reales de la columna izquierda
 function buildFallbackFromItems(
@@ -92,6 +93,25 @@ async function callGemini(apiKey: string, prompt: string): Promise<string | null
 }
 
 export async function POST(req: NextRequest) {
+  // Protección contra abusos y agotamiento de cuota de IA (Rate Limit: 20 req/min)
+  const clientIp = getClientIp(req);
+  const rateLimitKey = `hseq_guidance_${clientIp}`;
+  const rateLimit = checkRateLimit(rateLimitKey, 20, 60);
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Límite de consultas a la IA alcanzado. Por favor espera un momento antes de reintentar.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimit.resetSeconds),
+          'X-RateLimit-Limit': String(rateLimit.limit),
+          'X-RateLimit-Remaining': String(rateLimit.remaining),
+        },
+      }
+    );
+  }
+
   const session = await getServerSession(authOptions);
   if (!session || !session.user || session.user.role === 'pending' || session.user.isActive === false) {
     return NextResponse.json({ error: 'No autorizado para consultar asistencia de IA' }, { status: 403 });

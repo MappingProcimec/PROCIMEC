@@ -2,8 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { generateHseqEvidencePdf, InspectionMatrixItem } from '@/lib/hseq-drive';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 export async function POST(req: NextRequest) {
+  // Limitar generación intensiva de documentos PDF/Excel a 15 req/min por IP
+  const clientIp = getClientIp(req);
+  const rateLimit = checkRateLimit(`hseq_generate_${clientIp}`, 15, 60);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Límite de generación de documentos alcanzado. Por favor espera antes de generar otro reporte.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimit.resetSeconds),
+          'X-RateLimit-Limit': String(rateLimit.limit),
+          'X-RateLimit-Remaining': String(rateLimit.remaining),
+        },
+      }
+    );
+  }
+
   const session = await getServerSession(authOptions);
   if (!session || !session.user || session.user.role === 'pending' || session.user.isActive === false) {
     return NextResponse.json({ error: 'No autorizado para generar documentos HSEQ' }, { status: 403 });

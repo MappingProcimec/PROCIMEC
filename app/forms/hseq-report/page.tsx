@@ -16,6 +16,7 @@ import { PenTool, AlertCircle, Check, FileSpreadsheet, ExternalLink, ClipboardLi
 import { getActiveProjectId, setActiveProjectId } from '@/hooks/useActiveProject';
 import { useFormDraft, DraftRecoveryAlert } from '@/hooks/useFormDraft';
 import { useFormatVersion } from '@/hooks/useFormatVersion';
+import { enqueueOfflineItem, isOnline, registerOnlineSyncListener } from '@/lib/offline-queue';
 
 interface HseqTemplateOption {
   id: string;
@@ -198,6 +199,23 @@ export default function HseqReportPage() {
       if (draft.vehicleKilometraje) setVehicleKilometraje(draft.vehicleKilometraje);
     },
   });
+
+  // Escucha reactiva para sincronizar la cola offline cuando el dispositivo recupere señal
+  useEffect(() => {
+    const cleanup = registerOnlineSyncListener('hseq_inspections', async (queuedPayload) => {
+      try {
+        const res = await fetch('/api/hseq/drone-inspection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(queuedPayload),
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
+    });
+    return cleanup;
+  }, []);
 
   // 3. Consulta de Plantillas de Google Drive
   const {
@@ -486,58 +504,69 @@ export default function HseqReportPage() {
     }
 
     setIsSubmitting(true);
-    try {
-      const proj = selectedProject;
-      const costCenter = proj?.cost_center || proj?.code || 'PROCIMEC';
-      const location = proj?.location || 'En campo';
+    const proj = selectedProject;
+    const costCenter = proj?.cost_center || proj?.code || 'PROCIMEC';
+    const location = proj?.location || 'En campo';
 
+    const payload = {
+      templateId: selectedTemplateId,
+      templateCode: formatConfig.code,
+      templateTitle: formatConfig.pdfTitle || formatConfig.title,
+      templateVersion: formatConfig.version,
+      templateDate: formatConfig.templateDate || '16-sep-2026',
+      customItems: formatConfig.items,
+      customSections: formatConfig.sections,
+      projectId: selectedProjectId,
+      projectName: proj?.name || projectName,
+      costCenter,
+      location,
+      inspectionDate,
+      equipmentName: equipmentName.trim(),
+      equipmentBrandModel: equipmentBrandModel.trim(),
+      equipmentSerial: effectiveSerial,
+      serialAkula: isGprFormat ? gprAkulaSerial.trim() : undefined,
+      serialComputadora: isGprFormat ? gprPcSerial.trim() : undefined,
+      vehicleData: isVehiculoFormat
+        ? {
+            placa: effectiveSerial,
+            kilometraje: vehicleKilometraje.trim(),
+            nombre_conductor: conductorName.trim() || operatorSignName.trim(),
+            cedula_conductor: conductorCedula.trim(),
+            venc_tarjeta_propiedad: vencTarjetaPropiedad.trim(),
+            venc_soat: vencSoat.trim(),
+            venc_tecnomecanica: vencTecnomecanica.trim(),
+            venc_licencia: vencLicencia.trim(),
+            venc_manejo_defensivo: vencManejoDefensivo.trim(),
+            revisado_contratante: revisadoContratante,
+            venc_botiquin: vencBotiquin.trim(),
+            venc_extintor: vencExtintor.trim(),
+            venc_bateria: vencBateria.trim(),
+          }
+        : undefined,
+      itemsResponses,
+      criticalPoint,
+      generalObservations,
+      userRole: (session?.user as { role?: string })?.role || undefined,
+      operatorName: operatorSignName,
+      operatorSignatureDataUrl: operatorSignDataUrl,
+      sstaName: sstaSignName,
+      sstaSignatureDataUrl: sstaSignDataUrl,
+    };
+
+    // Si el navegador está sin señal celular, encolar localmente de inmediato
+    if (!isOnline()) {
+      enqueueOfflineItem('hseq_inspections', payload);
+      setSubmissionSuccess(true);
+      clearDraft();
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
       const res = await fetch('/api/hseq/drone-inspection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          templateId: selectedTemplateId,
-          templateCode: formatConfig.code,
-          templateTitle: formatConfig.pdfTitle || formatConfig.title,
-          templateVersion: formatConfig.version,
-          templateDate: formatConfig.templateDate || '16-sep-2026',
-          customItems: formatConfig.items,
-          customSections: formatConfig.sections,
-          projectId: selectedProjectId,
-          projectName: proj?.name || projectName,
-          costCenter,
-          location,
-          inspectionDate,
-          equipmentName: equipmentName.trim(),
-          equipmentBrandModel: equipmentBrandModel.trim(),
-          equipmentSerial: effectiveSerial,
-          serialAkula: isGprFormat ? gprAkulaSerial.trim() : undefined,
-          serialComputadora: isGprFormat ? gprPcSerial.trim() : undefined,
-          vehicleData: isVehiculoFormat
-            ? {
-                placa: effectiveSerial,
-                kilometraje: vehicleKilometraje.trim(),
-                nombre_conductor: conductorName.trim() || operatorSignName.trim(),
-                cedula_conductor: conductorCedula.trim(),
-                venc_tarjeta_propiedad: vencTarjetaPropiedad.trim(),
-                venc_soat: vencSoat.trim(),
-                venc_tecnomecanica: vencTecnomecanica.trim(),
-                venc_licencia: vencLicencia.trim(),
-                venc_manejo_defensivo: vencManejoDefensivo.trim(),
-                revisado_contratante: revisadoContratante,
-                venc_botiquin: vencBotiquin.trim(),
-                venc_extintor: vencExtintor.trim(),
-                venc_bateria: vencBateria.trim(),
-              }
-            : undefined,
-          itemsResponses,
-          criticalPoint,
-          generalObservations,
-          userRole: (session?.user as { role?: string })?.role || undefined,
-          operatorName: operatorSignName,
-          operatorSignatureDataUrl: operatorSignDataUrl,
-          sstaName: sstaSignName,
-          sstaSignatureDataUrl: sstaSignDataUrl,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -556,8 +585,15 @@ export default function HseqReportPage() {
       setSubmissionSuccess(true);
       clearDraft();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al procesar el formulario';
-      setSubmitError(message);
+      // Si falló por desconexión en caliente, retener en cola local
+      if (!isOnline() || (err instanceof TypeError && err.message.toLowerCase().includes('fetch'))) {
+        enqueueOfflineItem('hseq_inspections', payload);
+        setSubmissionSuccess(true);
+        clearDraft();
+      } else {
+        const message = err instanceof Error ? err.message : 'Error al procesar el formulario';
+        setSubmitError(message);
+      }
     } finally {
       setIsSubmitting(false);
     }

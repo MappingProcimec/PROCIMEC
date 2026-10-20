@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   validate-and-build:
-    name: Type-Check, Lint, Test & Fast Build
+    name: Security Audit, Type-Check, Lint, Test & Production Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -29,17 +29,20 @@ jobs:
       - name: Install Dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Security Vulnerability Audit (NPM Audit)
+        run: npm audit --audit-level=critical
+
       - name: Static Type Checking (TypeScript)
         run: npm run type-check
 
       - name: Static Code Analysis (ESLint)
         run: npm run lint
 
-      - name: Automated Unit Tests (Vitest)
+      - name: Automated Unit & Integration Tests (Vitest)
         run: npm test
 
-      - name: Production Build (Next.js)
+      - name: Full Production Build with PWA Validation (Next.js)
         env:
           NEXT_TELEMETRY_DISABLED: 1
           DISABLE_PWA: 'false'
-        run: npm run build:fast
+        run: npm run build

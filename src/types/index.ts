@@ -43,6 +43,11 @@ export interface ProjectFinancials {
   deductions_amount: number;
   execution_value: number;
   deductions_config: ProjectDeduction[];
+  iva_amount?: number;
+  withholdings_amount?: number;
+  net_disbursement_value?: number;
+  aiu_base_amount?: number;
+  is_aiu_regime?: boolean;
 }
 
 export interface Project {

@@ -9,15 +9,40 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development' || process.env.DISABLE_PWA === 'true',
   runtimeCaching: [
     {
+      // No cachear APIs en absoluto
       urlPattern: /\/api\/.*/i,
       handler: 'NetworkOnly',
     },
     {
-      urlPattern: /^https?.*/,
+      // Rutas privadas y autenticadas: NUNCA cachear HTML dinámico para prevenir fuga de datos cruzados entre operadores
+      urlPattern: /\/(dashboard|admin|projects|tools|forms|pending)(\/.*)?$/i,
+      handler: 'NetworkOnly',
+    },
+    {
+      // Assets estáticos de compilación de Next.js (JS, CSS)
+      urlPattern: /\/_next\/static\/.*/i,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'static-assets',
+        expiration: { maxEntries: 60, maxAgeSeconds: 30 * 24 * 60 * 60 },
+      },
+    },
+    {
+      // Fuentes e imágenes estáticas
+      urlPattern: /\.(?:png|jpg|jpeg|svg|webp|ico|woff2?)$/i,
+      handler: 'StaleWhileRevalidate',
+      options: {
+        cacheName: 'media-assets',
+        expiration: { maxEntries: 60, maxAgeSeconds: 7 * 24 * 60 * 60 },
+      },
+    },
+    {
+      // Rutas públicas base (landing, login, legal)
+      urlPattern: /^https?:\/\/[^\/]+(\/|\/login|\/privacy|\/terms)$/i,
       handler: 'NetworkFirst',
       options: {
-        cacheName: 'offlineCache',
-        expiration: { maxEntries: 200 },
+        cacheName: 'public-pages',
+        expiration: { maxEntries: 10, maxAgeSeconds: 24 * 60 * 60 },
       },
     },
   ],
@@ -40,6 +65,35 @@ const nextConfig = {
     ];
   },
   async headers() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    let supabaseHost = '';
+    try {
+      if (supabaseUrl) supabaseHost = new URL(supabaseUrl).host;
+    } catch {
+      supabaseHost = '';
+    }
+
+    const supabaseOrigins = supabaseHost
+      ? `https://${supabaseHost} wss://${supabaseHost}`
+      : 'https://*.supabase.co wss://*.supabase.co';
+
+    const supabaseImg = supabaseHost ? `https://${supabaseHost}` : 'https://*.supabase.co';
+
+    const cspDirectives = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      `img-src 'self' blob: data: ${supabaseImg} https://lh3.googleusercontent.com`,
+      "font-src 'self' data:",
+      `connect-src 'self' ${supabaseOrigins} https://generativelanguage.googleapis.com`,
+      "worker-src 'self' blob:",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "upgrade-insecure-requests",
+    ].join('; ');
+
     return [
       {
         source: '/:path*',
@@ -62,18 +116,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' blob: data: https://*.supabase.co https://lh3.googleusercontent.com",
-              "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com",
-              "worker-src 'self' blob:",
-              "frame-ancestors 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-            ].join('; '),
+            value: cspDirectives,
           },
           {
             key: 'Permissions-Policy',
