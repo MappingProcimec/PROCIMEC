@@ -11,6 +11,9 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
+    "devops": "tsx scripts/dev-runner/index.ts",
+    "devops:auth": "gemini",
+    "devops:all": "cmd /c scripts\\dev-runner\\start-runner.bat",
     "worker:dev": "tsx scripts/dev-runner/index.ts",
     "bot:telegram": "node bot-telegram/bot.js",
     "bot:whatsapp": "node bot-whatsapp/bot.js"

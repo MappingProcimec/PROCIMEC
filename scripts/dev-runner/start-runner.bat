@@ -1,17 +1,18 @@
 @echo off
-title PROCIMEC Autonomous Dev Engine
+title PROCIMEC Autonomous DevOps Engine
 cd /d "%~dp0\..\.."
 
 echo =======================================================
-echo   INICIANDO MOTOR COMPLETO PROCIMEC (DEV RUNNER + BOT)
+echo   PROCIMEC PCM CLOUD — AUTONOMOUS DEVOPS ENGINE
 echo =======================================================
+echo.
 
-:: 1. Iniciar Bot de Telegram en proceso separado minimizado
-echo [1/2] Iniciando Telegram Bot...
+:: 1. Iniciar Bot de Telegram en segundo plano / minimizado
+echo [1/2] Iniciando Telegram Bot (@procimec_dev_bot)...
 start "PROCIMEC Telegram Bot" /min cmd /c "cd /d "%~dp0\..\..\bot-telegram" && node bot.js"
 
-:: 2. Iniciar Runner Dev Autonomo
-echo [2/2] Iniciando Runner Dev Autonomo...
-npm run worker:dev
+:: 2. Iniciar Runner Autónomo CLI
+echo [2/2] Iniciando Runner DevOps CLI Continuo...
+npm run devops
 
 pause
