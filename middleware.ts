@@ -7,12 +7,13 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   const { pathname } = request.nextUrl;
 
-  // Rutas 100% públicas (landing, privacy, terms, login, logout, assets)
+  // Rutas 100% públicas (landing, privacy, terms, login, logout, assets, version health check)
   const isPublicRoute =
     pathname === '/' ||
     pathname === '/login' ||
     pathname === '/privacy' ||
     pathname === '/terms' ||
+    pathname === '/api/version' ||
     pathname === '/api/logout' ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next') ||
