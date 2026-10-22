@@ -6,7 +6,7 @@ import { resolveCanonicalFormCategory } from '@/lib/forms-categories';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== 'admin') {
+  if (!session || session.user.role === 'pending') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 

@@ -226,6 +226,28 @@ export function Navbar() {
           </nav>
         )}
 
+        {/* Non-admin active nav links */}
+        {!isAdmin && !isPending && (
+          <nav className="hidden md:flex items-center gap-1">
+            {[
+              { href: '/admin/forms', label: 'Formularios' },
+              { href: '/admin/tools', label: 'Herramientas' },
+            ].map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  pathname.startsWith(href)
+                    ? 'bg-primary-50 text-primary font-semibold'
+                    : 'text-text-secondary hover:bg-gray-100'
+                }`}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        )}
+
         {/* Right: badge + avatar */}
         <div className="flex items-center gap-2">
           {divisionName && <DivisionBadge divisionName={divisionName} />}
