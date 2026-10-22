@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     // 2. Obtener reportes de campo (GPR) acumulados de este proyecto
     const { data: rawReports, error: repErr } = await supabase
       .from('field_reports')
-      .select('id, report_date, localizador_name, operational_summary, detected_utilities, global_max_depth, created_at')
+      .select('id, report_date, localizador_name, operational_summary, detected_utilities, global_max_depth, created_at, antenna_frequency, gpr_equipment, terrain_conditions, weather_conditions, capture_method')
       .eq('project_id', targetProjectId)
       .order('report_date', { ascending: false });
 
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Consolidar métricas de entrada
+    // Consolidar métricas de entrada y construir lista de reportes estructurados
     let totalMl = 0;
     let totalM2 = 0;
     let maxDepthGlobal = 0;
@@ -130,6 +130,54 @@ export async function GET(request: NextRequest) {
       description?: string;
       report_date: string;
     }> = [];
+
+    const structuredFieldReports = reports.map((rep: {
+      id: string;
+      report_date: string;
+      localizador_name: string;
+      antenna_frequency?: string | null;
+      gpr_equipment?: string | null;
+      terrain_conditions?: string | null;
+      weather_conditions?: string | null;
+      capture_method?: string | null;
+      global_max_depth?: number | null;
+      operational_summary?: RawOperationalRow[] | null;
+      detected_utilities?: RawUtility[] | null;
+      created_at: string;
+    }) => {
+      let repMl = 0;
+      let repM2 = 0;
+      let repMaxDep = Number(rep.global_max_depth) || 0;
+
+      if (Array.isArray(rep.operational_summary)) {
+        rep.operational_summary.forEach((row) => {
+          repMl += Number(row.ml) || 0;
+          repM2 += Number(row.m2) || 0;
+          const d = Number(row.max_depth_m) || 0;
+          if (d > repMaxDep) repMaxDep = d;
+        });
+      }
+
+      const utilsCount = Array.isArray(rep.detected_utilities) ? rep.detected_utilities.length : 0;
+
+      return {
+        id: rep.id,
+        report_date: rep.report_date,
+        localizador_name: rep.localizador_name || 'Localizador',
+        antenna_frequency: rep.antenna_frequency || '400 MHz',
+        gpr_equipment: rep.gpr_equipment || 'GPR ProEx',
+        terrain_conditions: rep.terrain_conditions || 'Asfalto / Mixto',
+        weather_conditions: rep.weather_conditions || 'Despejado',
+        capture_method: rep.capture_method || 'Rueda odómetro',
+        global_max_depth: Number(repMaxDep.toFixed(2)),
+        total_ml: Number(repMl.toFixed(2)),
+        total_m2: Number(repM2.toFixed(2)),
+        utilities_count: utilsCount,
+        operational_summary: rep.operational_summary || [],
+        detected_utilities: rep.detected_utilities || [],
+        created_at: rep.created_at,
+      };
+    });
 
     reports?.forEach((rep: {
       id: string;
@@ -196,6 +244,7 @@ export async function GET(request: NextRequest) {
       raw_gpr_files_count: rawGprCount,
       gps_files_count: gpsCount,
       photos_count: photosCount,
+      field_reports: structuredFieldReports,
     };
 
     // 4. Buscar o crear el job activo para este proyecto
@@ -368,7 +417,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { projectId, costRates: customRates, notes } = body;
+    const { projectId, costRates: customRates, notes, selectedReportIds } = body;
 
     if (!projectId) {
       return NextResponse.json({ error: 'El projectId es obligatorio' }, { status: 400 });
@@ -382,7 +431,10 @@ export async function POST(request: NextRequest) {
       .select('id, operational_summary, detected_utilities, global_max_depth')
       .eq('project_id', projectId);
 
-    const reports = rawReports || [];
+    const allReports = rawReports || [];
+    const reports = (Array.isArray(selectedReportIds) && selectedReportIds.length > 0)
+      ? allReports.filter((r: { id: string }) => selectedReportIds.includes(r.id))
+      : allReports;
 
     let totalMl = 0;
     let totalM2 = 0;
@@ -418,6 +470,7 @@ export async function POST(request: NextRequest) {
       reports_count: reports?.length || 0,
       tramos_count: tramosCount,
       max_depth_m: Number(maxDepth.toFixed(2)),
+      selected_report_ids: Array.isArray(selectedReportIds) ? selectedReportIds : undefined,
     };
 
     // 2. Definir tarifas APU

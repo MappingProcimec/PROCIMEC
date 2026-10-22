@@ -31,6 +31,7 @@ export interface GprPipelineInputMetrics {
   reports_count: number;
   tramos_count: number;
   max_depth_m: number;
+  selected_report_ids?: string[];
 }
 
 export interface GprPipelineStep {
@@ -77,6 +78,37 @@ export interface GprPipelineJob {
   steps?: GprPipelineStep[];
 }
 
+export interface RawFieldReportItem {
+  id: string;
+  report_date: string;
+  localizador_name: string;
+  global_max_depth?: number | null;
+  antenna_frequency?: string | null;
+  gpr_equipment?: string | null;
+  terrain_conditions?: string | null;
+  weather_conditions?: string | null;
+  capture_method?: string | null;
+  operational_summary?: Array<{
+    sector?: string;
+    ml?: number;
+    m2?: number;
+    max_depth_m?: number;
+    observations?: string;
+  }> | null;
+  detected_utilities?: Array<{
+    type?: string;
+    diameter?: string;
+    estimated_depth_m?: number;
+    confidence?: string;
+    description?: string;
+  }> | null;
+  total_ml: number;
+  total_m2: number;
+  utilities_count: number;
+  files_count?: number;
+  created_at: string;
+}
+
 export interface ProjectGprDataSummary {
   project_id: string;
   project_name: string;
@@ -109,4 +141,5 @@ export interface ProjectGprDataSummary {
   raw_gpr_files_count: number;
   gps_files_count: number;
   photos_count: number;
+  field_reports?: RawFieldReportItem[];
 }
