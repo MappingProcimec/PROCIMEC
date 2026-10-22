@@ -31,6 +31,7 @@ import {
   Calculator,
   ChevronDown,
   ClipboardCheck,
+  Cpu,
   X
 } from 'lucide-react';
 
@@ -49,6 +50,11 @@ async function fetchToolsData(): Promise<Tool[]> {
 }
 
 const TOOL_META: Record<string, { description: string; tag: string; path?: string }> = {
+  'gpr-cad-studio': {
+    description: 'Estudio y orquestador inteligente de 5 pasos para procesamiento de datos crudos GPR, planos 2D DWG, modelos 3D RVT e informes con APU.',
+    tag: 'GPR / CAD / IA',
+    path: '/tools/gpr-cad-studio',
+  },
   'dev-tickets': {
     description: 'Gestión de tickets, especificación técnica por IA, aprobación exclusiva del admin y ciclo DevOps.',
     tag: 'DevOps / Admin',
@@ -179,6 +185,8 @@ const TOOL_META: Record<string, { description: string; tag: string; path?: strin
 function renderToolIcon(slug: string) {
   const props = { className: 'w-5 h-5 text-accent', strokeWidth: 1.75 };
   switch (slug) {
+    case 'gpr-cad-studio':
+      return <Cpu {...props} />;
     case 'radargrama':
     case 'gsf-processor':
       return <Radio {...props} />;

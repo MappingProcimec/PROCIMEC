@@ -829,5 +829,5 @@ export interface Supplier {
   evaluations_count?: number;
 }
 
-
-
+// ─── GPR & CAD/BIM AI Pipeline ─────────────────────────────────────────────
+export * from './gpr-pipeline';
