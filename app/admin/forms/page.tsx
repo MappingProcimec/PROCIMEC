@@ -34,10 +34,17 @@ import {
   Building2,
 } from 'lucide-react';
 
+import {
+  CANONICAL_CATEGORY_STYLES,
+  ORDERED_CANONICAL_KEYS,
+  resolveCanonicalFormCategory,
+} from '@/lib/forms-categories';
+
 interface Form {
   id: string;
   slug: string;
   name: string;
+  category?: string;
   description?: string;
   steps_count: number;
   has_attachments: boolean;
@@ -50,55 +57,6 @@ async function fetchFormsData(): Promise<Form[]> {
   return (json.data ?? []) as Form[];
 }
 
-const FORM_CATEGORY: Record<string, string> = {
-  'gpr-field-form': 'gpr',
-  'cad-register-form': 'cad',
-  'hseq-report': 'hseq',
-  'elaboracion-cartas': 'rrhh',
-  'registro-equipo': 'warehouse',
-  'despacho-equipo': 'warehouse',
-  'retorno-equipo': 'warehouse',
-  'requerimiento-compra': 'purchasing',
-  'orden-compra': 'purchasing',
-  'evaluacion-proveedor': 'purchasing',
-  'registro-proveedor': 'purchasing',
-  'registro-oportunidad': 'commercial',
-  'presupuesto-proyecto': 'commercial',
-  'cotizacion-comercial': 'commercial',
-  'cierre-comercial': 'commercial',
-  'solicitud-viaticos': 'finance',
-  'legalizacion-gastos': 'finance',
-  'registro-pago': 'finance',
-  'radicacion-factura': 'accounting',
-  'soporte-cobro': 'accounting',
-};
-
-const CATEGORY_STYLE: Record<string, { label: string; bg: string; border: string; text: string }> = {
-  gpr: { label: 'GPR / Geofísica', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800' },
-  cad: { label: 'CAD / BIM', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800' },
-  hseq: { label: 'HSEQ', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-800' },
-  rrhh: { label: 'Recursos Humanos', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-800' },
-  warehouse: { label: 'Almacén', bg: 'bg-amber-100/70', border: 'border-amber-300', text: 'text-amber-900' },
-  purchasing: { label: 'Compras', bg: 'bg-blue-100/70', border: 'border-blue-300', text: 'text-blue-900' },
-  commercial: { label: 'Comercial', bg: 'bg-emerald-100/70', border: 'border-emerald-300', text: 'text-emerald-900' },
-  finance: { label: 'Finanzas', bg: 'bg-violet-100/70', border: 'border-violet-300', text: 'text-violet-900' },
-  accounting: { label: 'Contabilidad', bg: 'bg-cyan-100/70', border: 'border-cyan-300', text: 'text-cyan-900' },
-  general: { label: 'General', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' },
-};
-
-const ORDERED_CATEGORY_KEYS = [
-  'all',
-  'gpr',
-  'cad',
-  'warehouse',
-  'purchasing',
-  'commercial',
-  'finance',
-  'accounting',
-  'hseq',
-  'rrhh',
-] as const;
-
 function renderFormIcon(slug: string) {
   const props = { className: 'w-5 h-5 text-accent', strokeWidth: 1.75 };
   switch (slug) {
@@ -107,6 +65,8 @@ function renderFormIcon(slug: string) {
     case 'cad-register-form':
       return <PenTool {...props} />;
     case 'hseq-report':
+    case 'analisis-planificacion-cambios-sig':
+    case 'cambios-sig':
       return <ShieldCheck {...props} />;
     case 'elaboracion-cartas':
       return <FileSignature {...props} />;
@@ -157,12 +117,12 @@ export default function AdminFormsPage() {
   });
 
   const categories = useMemo(() => {
-    return ORDERED_CATEGORY_KEYS.map((key) => {
+    return ORDERED_CANONICAL_KEYS.map((key) => {
       if (key === 'all') {
         return { key, label: 'Todas las áreas', count: forms.length };
       }
-      const catMeta = CATEGORY_STYLE[key] || { label: key };
-      const count = forms.filter((f) => (FORM_CATEGORY[f.slug] || 'general') === key).length;
+      const catMeta = CANONICAL_CATEGORY_STYLES[key];
+      const count = forms.filter((f) => resolveCanonicalFormCategory(f.slug, f.name) === key).length;
       return {
         key,
         label: catMeta.label,
@@ -173,7 +133,7 @@ export default function AdminFormsPage() {
 
   const filteredForms = useMemo(() => {
     return forms.filter((f) => {
-      const cat = FORM_CATEGORY[f.slug] || 'general';
+      const cat = resolveCanonicalFormCategory(f.slug, f.name);
       const matchesCategory = categoryFilter === 'all' || cat === categoryFilter;
       const s = search.toLowerCase().trim();
       const matchesSearch =
@@ -325,8 +285,8 @@ export default function AdminFormsPage() {
           ) : (
             <div className="divide-y divide-border">
               {filteredForms.map((form) => {
-                const catKey = FORM_CATEGORY[form.slug] || 'general';
-                const catStyle = CATEGORY_STYLE[catKey] || CATEGORY_STYLE.general;
+                const catKey = resolveCanonicalFormCategory(form.slug, form.name);
+                const catStyle = CANONICAL_CATEGORY_STYLES[catKey];
 
                 return (
                   <div
@@ -346,7 +306,7 @@ export default function AdminFormsPage() {
                           <span
                             className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${catStyle.bg} ${catStyle.border} ${catStyle.text}`}
                           >
-                            {catStyle.label}
+                            {catStyle.badgeLabel}
                           </span>
                           <span className="text-[10px] font-mono text-text-muted bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
                             {form.slug}

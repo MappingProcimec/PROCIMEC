@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase';
+import { resolveCanonicalFormCategory } from '@/lib/forms-categories';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -246,5 +247,10 @@ export async function GET() {
       return f;
     });
 
-  return NextResponse.json({ data: filtered });
+  const withCategory = filtered.map((f: FormRow) => ({
+    ...f,
+    category: resolveCanonicalFormCategory(f.slug, f.name),
+  }));
+
+  return NextResponse.json({ data: withCategory });
 }

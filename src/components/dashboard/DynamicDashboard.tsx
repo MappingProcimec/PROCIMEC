@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import type { ActivityRecord } from '@/lib/dashboard-activities';
 import { useActiveProject } from '@/hooks/useActiveProject';
+import { resolveCanonicalFormCategory } from '@/lib/forms-categories';
 
 interface Tool {
   id: string;
@@ -177,39 +178,6 @@ const CATEGORY_META: Record<string, CategoryMeta> = {
   },
 };
 
-const FORM_CATEGORY_MAP: Record<string, string> = {
-  // GPR
-  'gpr-field-form': 'gpr',
-  // CAD / BIM
-  'cad-register-form': 'cad',
-  'nueva-actividad': 'cad',
-  // HSEQ & SIG
-  'hseq-report': 'hseq',
-  'analisis-planificacion-cambios-sig': 'hseq',
-  // Almacén
-  'registro-equipo': 'warehouse',
-  'despacho-equipo': 'warehouse',
-  'retorno-equipo': 'warehouse',
-  // Compras
-  'requerimiento-compra': 'purchasing',
-  'orden-compra': 'purchasing',
-  'evaluacion-proveedor': 'purchasing',
-  'registro-proveedor': 'purchasing',
-  // Comercial
-  'registro-oportunidad': 'commercial',
-  'presupuesto-proyecto': 'commercial',
-  'cotizacion-comercial': 'commercial',
-  'cierre-comercial': 'commercial',
-  // Finanzas
-  'solicitud-viaticos': 'finance',
-  'legalizacion-gastos': 'finance',
-  'registro-pago': 'finance',
-  // Contabilidad
-  'radicacion-factura': 'accounting',
-  'soporte-cobro': 'accounting',
-  // RRHH
-  'elaboracion-cartas': 'rrhh',
-};
 
 const GREETINGS = [
   'bienvenido de nuevo',
@@ -517,7 +485,7 @@ export function DynamicDashboard({
             slug: found.slug,
             name: found.name,
             href: `/forms/${found.slug}`,
-            categoryKey: FORM_CATEGORY_MAP[found.slug] || 'universal',
+            categoryKey: resolveCanonicalFormCategory(found.slug, found.name),
           });
         }
       } else if (fav.startsWith('tool:')) {
@@ -546,7 +514,7 @@ export function DynamicDashboard({
           slug: f.slug,
           name: f.name,
           href: `/forms/${f.slug}`,
-          categoryKey: FORM_CATEGORY_MAP[f.slug] || 'universal',
+          categoryKey: resolveCanonicalFormCategory(f.slug, f.name),
         });
       });
       tools.slice(0, 2).forEach((t) => {
@@ -566,7 +534,7 @@ export function DynamicDashboard({
 
   // 1. Agrupar Formularios por Categoría Canónica
   const formsByCategory = forms.reduce<Record<string, Form[]>>((acc, f) => {
-    const cat = FORM_CATEGORY_MAP[f.slug] || 'universal';
+    const cat = resolveCanonicalFormCategory(f.slug, f.name);
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(f);
     return acc;
