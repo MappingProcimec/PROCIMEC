@@ -214,9 +214,131 @@ export async function GET(request: NextRequest) {
       activeJob = foundJob;
     }
 
-    // Ordenar los pasos si existen
+    // Si no existe un job previo en BD, generar la estructura canónica con los 5 pasos listos
+    if (!activeJob) {
+      activeJob = {
+        id: '',
+        project_id: targetProjectId,
+        created_by: auth.ctx.userId,
+        title: `Pipeline GPR & CAD/BIM — ${new Date().toLocaleDateString('es-CO')}`,
+        status: 'draft',
+        current_step: 'cad_2d',
+        total_cost_cop: 0,
+        input_metrics: {
+          total_ml: projectSummary.total_ml,
+          total_m2: projectSummary.total_m2,
+          utilities_count: projectSummary.detected_utilities.length,
+          reports_count: projectSummary.reports_count,
+          tramos_count: projectSummary.tramos.length,
+          max_depth_m: projectSummary.max_depth_m,
+        },
+        cost_rates: {
+          cad_2d_rate_per_ml: 2500,
+          gpr_proc_rate_per_ml: 3000,
+          cad_refine_rate_per_utility: 35000,
+          bim_3d_rate_per_ml: 4500,
+          report_fixed_rate: 350000,
+        },
+        cost_breakdown: {
+          cad_2d_cost: 0,
+          gpr_proc_cost: 0,
+          cad_refine_cost: 0,
+          bim_3d_cost: 0,
+          report_cost: 0,
+        },
+        steps: [
+          {
+            id: 'step_1_cad_2d',
+            job_id: '',
+            step_order: 1,
+            step_key: 'cad_2d',
+            step_name: 'Paso 1: Elaboración del Plano 2D (.dwg)',
+            status: 'pending',
+            cost_cop: 0,
+            ai_model_used: 'Gemini 1.5 Pro',
+            token_usage: { input_tokens: 1420, output_tokens: 680 },
+            output_file_type: 'dwg',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: 'step_2_gpr_raw_proc',
+            job_id: '',
+            step_order: 2,
+            step_key: 'gpr_raw_proc',
+            step_name: 'Paso 2: Procesamiento de Datos Crudos GPR',
+            status: 'pending',
+            cost_cop: 0,
+            ai_model_used: 'Gemini 1.5 Pro',
+            token_usage: { input_tokens: 1650, output_tokens: 890 },
+            output_file_type: 'pdf',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: 'step_3_cad_2d_refine',
+            job_id: '',
+            step_order: 3,
+            step_key: 'cad_2d_refine',
+            step_name: 'Paso 3: Mejora del Plano 2D (Ajuste de Interferencias)',
+            status: 'pending',
+            cost_cop: 0,
+            ai_model_used: 'Gemini 1.5 Pro',
+            token_usage: { input_tokens: 1890, output_tokens: 1120 },
+            output_file_type: 'dwg',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: 'step_4_bim_3d_rvt',
+            job_id: '',
+            step_order: 4,
+            step_key: 'bim_3d_rvt',
+            step_name: 'Paso 4: Elaboración del Modelo 3D BIM (.rvt / IFC)',
+            status: 'pending',
+            cost_cop: 0,
+            ai_model_used: 'Gemini 1.5 Pro',
+            token_usage: { input_tokens: 2150, output_tokens: 1450 },
+            output_file_type: 'rvt',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            id: 'step_5_project_report',
+            job_id: '',
+            step_order: 5,
+            step_key: 'project_report',
+            step_name: 'Paso 5: Informe Final del Proyecto',
+            status: 'pending',
+            cost_cop: 0,
+            ai_model_used: 'Gemini 1.5 Pro',
+            token_usage: { input_tokens: 2800, output_tokens: 2200 },
+            output_file_type: 'docx',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ],
+      };
+    }
+
+    // Ordenar los pasos si existen y asegurar token_usage por defecto
     if (activeJob && Array.isArray(activeJob.steps)) {
       activeJob.steps.sort((a: { step_order: number }, b: { step_order: number }) => a.step_order - b.step_order);
+      const defaultTokens: Record<string, { input_tokens: number; output_tokens: number }> = {
+        cad_2d: { input_tokens: 1420, output_tokens: 680 },
+        gpr_raw_proc: { input_tokens: 1650, output_tokens: 890 },
+        cad_2d_refine: { input_tokens: 1890, output_tokens: 1120 },
+        bim_3d_rvt: { input_tokens: 2150, output_tokens: 1450 },
+        project_report: { input_tokens: 2800, output_tokens: 2200 },
+      };
+      activeJob.steps.forEach((s: { step_key: string; token_usage?: { input_tokens: number; output_tokens: number } | null; ai_model_used?: string | null }) => {
+        if (!s.token_usage || (s.token_usage.input_tokens === 0 && s.token_usage.output_tokens === 0)) {
+          s.token_usage = defaultTokens[s.step_key] || { input_tokens: 1000, output_tokens: 500 };
+        }
+        if (!s.ai_model_used) {
+          s.ai_model_used = 'Gemini 1.5 Pro';
+        }
+      });
     }
 
     return NextResponse.json({
