@@ -61,7 +61,11 @@ export async function GET(request: NextRequest) {
     if (projErr) throw projErr;
     const projects = rawProjects || [];
 
-    const targetProjectId = projectId || (projects.length > 0 ? projects[0].id : null);
+    // Buscar coincidencia por ID o por centro de costos
+    const matchedProject = projectId
+      ? projects.find((p: { id: string; cost_center?: string }) => p.id === projectId || p.cost_center === projectId)
+      : null;
+    const targetProjectId = matchedProject ? matchedProject.id : (projectId || (projects.length > 0 ? projects[0].id : null));
 
     if (!targetProjectId) {
       return NextResponse.json({
