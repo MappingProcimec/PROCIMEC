@@ -9,8 +9,10 @@ export function DevTicketFab() {
   const { data: session, status } = useSession();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Disponible para colaboradores autenticados (Ley 3 y Ley 4)
-  if (status !== 'authenticated' || !session) {
+  const isAdmin = session?.user?.role === 'admin';
+
+  // Solo visible para administradores por ahora (Ley 3 y control de acceso)
+  if (status !== 'authenticated' || !session || !isAdmin) {
     return null;
   }
 
