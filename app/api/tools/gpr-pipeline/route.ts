@@ -195,7 +195,8 @@ export async function GET(request: NextRequest) {
     };
 
     // 4. Buscar o crear el job activo para este proyecto
-    let { data: activeJob, error: jobErr } = await supabase
+    let activeJob = null;
+    const { data: foundJob, error: jobErr } = await supabase
       .from('gpr_pipeline_jobs')
       .select('*, steps:gpr_pipeline_steps(*)')
       .eq('project_id', targetProjectId)
@@ -205,7 +206,8 @@ export async function GET(request: NextRequest) {
 
     if (jobErr) {
       console.warn('Aviso: Consulta de jobs falló o tabla en inicialización:', jobErr.message);
-      activeJob = null;
+    } else if (foundJob) {
+      activeJob = foundJob;
     }
 
     // Ordenar los pasos si existen

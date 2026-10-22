@@ -10,7 +10,6 @@ import {
   Download,
   CheckCircle2,
   Clock,
-  AlertCircle,
   FileCode,
   FileText,
   Boxes,
@@ -20,10 +19,8 @@ import {
   ChevronDown,
   Info,
   FolderArchive,
-  Search,
   Sparkles,
   Loader2,
-  ExternalLink,
 } from 'lucide-react';
 import {
   GprPipelineJob,
@@ -353,7 +350,7 @@ export function GprCadStudioPanel() {
               <Cpu className="w-10 h-10 text-accent/60 mx-auto" strokeWidth={1.5} />
               <h3 className="text-base font-bold text-white">No hay un trabajo activo para este proyecto</h3>
               <p className="text-xs text-text-muted max-w-md mx-auto">
-                Haz clic en <strong>"Inicializar Pipeline y Cuantificar APU"</strong> para consolidar los reportes de campo y habilitar la orquestación de los 5 pasos.
+                Haz clic en <strong>&quot;Inicializar Pipeline y Cuantificar APU&quot;</strong> para consolidar los reportes de campo y habilitar la orquestación de los 5 pasos.
               </p>
               <button
                 onClick={() => createJobMutation.mutate(currentProjectId)}

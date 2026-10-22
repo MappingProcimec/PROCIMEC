@@ -109,7 +109,6 @@ function buildEngineeringPrompt(
 
 // Simulación de respuesta estructurada de IA para cada paso (preparado para API Claude en Fase 4)
 function generateSimulatedOutput(stepKey: GprPipelineStepKey, projectName: string) {
-  const timestamp = Date.now();
   const cleanName = projectName.replace(/[^a-zA-Z0-9]/g, '_');
 
   switch (stepKey) {
