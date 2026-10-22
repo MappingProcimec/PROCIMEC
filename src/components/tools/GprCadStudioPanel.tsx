@@ -28,6 +28,9 @@ import {
   Calendar,
   User,
   AlertCircle,
+  Paperclip,
+  Camera,
+  ExternalLink,
 } from 'lucide-react';
 import {
   GprPipelineJob,
@@ -752,6 +755,46 @@ export function GprCadStudioPanel() {
                               Terreno: <strong className="text-text-primary">{report.terrain_conditions || 'Asfalto'}</strong>
                             </span>
                           </div>
+
+                          {/* Píldoras de Archivos Adjuntos (Datos Crudos, GPS, Fotos) */}
+                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                            <span className="text-[11px] text-text-muted font-semibold flex items-center gap-1">
+                              <Paperclip className="w-3.5 h-3.5 text-accent" />
+                              Adjuntos:
+                            </span>
+                            {(report.files_count && report.files_count > 0) ? (
+                              <>
+                                {(report.raw_gpr_count || 0) > 0 && (
+                                  <span className="text-[10px] font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200 flex items-center gap-1" title="Radargramas crudos procesables (Paso 2 DSP)">
+                                    <Cpu className="w-3 h-3 text-sky-600" />
+                                    {report.raw_gpr_count} {report.raw_gpr_count === 1 ? 'Dato Crudo GPR' : 'Datos Crudos GPR'}
+                                  </span>
+                                )}
+                                {(report.gps_count || 0) > 0 && (
+                                  <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200 flex items-center gap-1" title="Archivos de coordenadas y trazas GPS">
+                                    <Compass className="w-3 h-3 text-indigo-600" />
+                                    {report.gps_count} {report.gps_count === 1 ? 'Archivo GPS' : 'Archivos GPS'}
+                                  </span>
+                                )}
+                                {(report.photos_count || 0) > 0 && (
+                                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1" title="Fotografías de campo">
+                                    <Camera className="w-3 h-3 text-emerald-600" />
+                                    {report.photos_count} {report.photos_count === 1 ? 'Foto' : 'Fotos'}
+                                  </span>
+                                )}
+                                {((report.files_count || 0) - (report.raw_gpr_count || 0) - (report.gps_count || 0) - (report.photos_count || 0)) > 0 && (
+                                  <span className="text-[10px] font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+                                    +{(report.files_count || 0) - (report.raw_gpr_count || 0) - (report.gps_count || 0) - (report.photos_count || 0)} otros
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3 text-amber-600" />
+                                Sin archivos adjuntos
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -770,7 +813,7 @@ export function GprCadStudioPanel() {
                           type="button"
                           onClick={() => toggleExpandReport(report.id)}
                           className="btn-ghost p-1.5 text-text-secondary hover:text-text-primary rounded-lg border border-border cursor-pointer"
-                          title="Ver tramos e interferencias de esta inspección"
+                          title="Ver tramos, interferencias y adjuntos de esta inspección"
                         >
                           {isExpanded ? (
                             <ChevronDown className="w-4 h-4 text-accent" strokeWidth={2} />
@@ -781,7 +824,7 @@ export function GprCadStudioPanel() {
                       </div>
                     </div>
 
-                    {/* Detalle Desplegable: Tramos e Interferencias de esta inspección específica */}
+                    {/* Detalle Desplegable: Tramos, Interferencias y Adjuntos de esta inspección específica */}
                     {isExpanded && (
                       <div className="border-t border-border/70 p-4 bg-gray-50/50 space-y-4 text-xs animate-fade-in">
                         {/* Sub-bloque 1: Tramos del formulario */}
@@ -873,6 +916,71 @@ export function GprCadStudioPanel() {
                                   })}
                                 </tbody>
                               </table>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Sub-bloque 3: Archivos Adjuntos de esta inspección */}
+                        <div>
+                          <h5 className="font-bold text-text-primary text-[11px] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <Paperclip className="w-3.5 h-3.5 text-accent" />
+                            Archivos Adjuntos de esta Inspección ({report.files_count || 0})
+                          </h5>
+                          {(!report.files || report.files.length === 0) ? (
+                            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-lg text-amber-900 text-xs flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>
+                                Esta inspección <strong>no cuenta con archivos adjuntos cargados</strong> (sin radargramas crudos .dzt/.rd3, sin archivos GPS ni fotografías). Puedes seleccionarla para incluir sus tramos e interferencias en los planos 2D y 3D, pero no aportará datos crudos al informe geofísico DSP.
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {report.files.map((file) => (
+                                <div
+                                  key={file.id}
+                                  className="p-2.5 bg-white border border-border rounded-lg flex items-center justify-between gap-2 shadow-2xs hover:border-accent/40 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className="w-7 h-7 rounded bg-primary/5 flex items-center justify-center shrink-0 border border-border">
+                                      {file.file_type === 'raw_gpr' ? (
+                                        <Cpu className="w-3.5 h-3.5 text-sky-600" />
+                                      ) : file.file_type === 'gps' ? (
+                                        <Compass className="w-3.5 h-3.5 text-indigo-600" />
+                                      ) : file.file_type === 'photo' ? (
+                                        <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                                      ) : (
+                                        <FileText className="w-3.5 h-3.5 text-accent" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-semibold text-text-primary text-[11px] truncate" title={file.original_name}>
+                                        {file.original_name}
+                                      </p>
+                                      <span className="text-[10px] text-text-muted capitalize block">
+                                        {file.file_type === 'raw_gpr'
+                                          ? 'Dato Crudo GPR'
+                                          : file.file_type === 'gps'
+                                          ? 'Posición GPS'
+                                          : file.file_type === 'photo'
+                                          ? 'Foto de Campo'
+                                          : file.file_type}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {file.url && (
+                                    <a
+                                      href={file.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="btn-ghost p-1.5 text-accent hover:text-accent/80 rounded hover:bg-accent/10 shrink-0"
+                                      title="Abrir / Descargar archivo"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>

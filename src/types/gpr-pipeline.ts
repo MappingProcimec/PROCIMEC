@@ -78,6 +78,16 @@ export interface GprPipelineJob {
   steps?: GprPipelineStep[];
 }
 
+export interface ReportFileItem {
+  id: string;
+  field_report_id: string;
+  file_type: 'raw_gpr' | 'gps' | 'photo' | string;
+  original_name: string;
+  url?: string | null;
+  caption?: string | null;
+  created_at?: string;
+}
+
 export interface RawFieldReportItem {
   id: string;
   report_date: string;
@@ -106,6 +116,10 @@ export interface RawFieldReportItem {
   total_m2: number;
   utilities_count: number;
   files_count?: number;
+  raw_gpr_count?: number;
+  gps_count?: number;
+  photos_count?: number;
+  files?: ReportFileItem[];
   created_at: string;
 }
 

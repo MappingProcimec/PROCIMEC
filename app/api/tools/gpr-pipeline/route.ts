@@ -87,22 +87,55 @@ export async function GET(request: NextRequest) {
     if (repErr) throw repErr;
     const reports = rawReports || [];
 
-    // 3. Contar archivos adjuntos de campo (datos crudos, gps, fotos)
+    // 3. Contar y asociar archivos adjuntos de campo (datos crudos, gps, fotos)
     const reportIds = (reports || []).map((r: { id: string }) => r.id);
     let rawGprCount = 0;
     let gpsCount = 0;
     let photosCount = 0;
 
+    const filesByReportId: Record<string, Array<{
+      id: string;
+      field_report_id: string;
+      file_type: string;
+      original_name: string;
+      url?: string | null;
+      caption?: string | null;
+      created_at?: string;
+    }>> = {};
+
     if (reportIds.length > 0) {
-      const { data: files = [] } = await supabase
+      const { data: rawFiles = [] } = await supabase
         .from('report_files')
-        .select('id, file_type')
+        .select('id, field_report_id, file_type, original_name, storage_url, drive_download_url, drive_webview_url, caption, created_at')
         .in('field_report_id', reportIds);
 
-      files?.forEach((f: { file_type: string }) => {
+      (rawFiles || []).forEach((f: {
+        id: string;
+        field_report_id: string;
+        file_type: string;
+        original_name?: string | null;
+        storage_url?: string | null;
+        drive_download_url?: string | null;
+        drive_webview_url?: string | null;
+        caption?: string | null;
+        created_at?: string;
+      }) => {
         if (f.file_type === 'raw_gpr') rawGprCount++;
         else if (f.file_type === 'gps') gpsCount++;
         else if (f.file_type === 'photo') photosCount++;
+
+        if (!filesByReportId[f.field_report_id]) {
+          filesByReportId[f.field_report_id] = [];
+        }
+        filesByReportId[f.field_report_id].push({
+          id: f.id,
+          field_report_id: f.field_report_id,
+          file_type: f.file_type,
+          original_name: f.original_name || 'Archivo adjunto',
+          url: f.storage_url || f.drive_download_url || f.drive_webview_url || null,
+          caption: f.caption || null,
+          created_at: f.created_at,
+        });
       });
     }
 
@@ -159,6 +192,10 @@ export async function GET(request: NextRequest) {
       }
 
       const utilsCount = Array.isArray(rep.detected_utilities) ? rep.detected_utilities.length : 0;
+      const repFiles = filesByReportId[rep.id] || [];
+      const rawCount = repFiles.filter((f) => f.file_type === 'raw_gpr').length;
+      const gpsCountRep = repFiles.filter((f) => f.file_type === 'gps').length;
+      const photosCountRep = repFiles.filter((f) => f.file_type === 'photo').length;
 
       return {
         id: rep.id,
@@ -175,6 +212,11 @@ export async function GET(request: NextRequest) {
         utilities_count: utilsCount,
         operational_summary: rep.operational_summary || [],
         detected_utilities: rep.detected_utilities || [],
+        files_count: repFiles.length,
+        raw_gpr_count: rawCount,
+        gps_count: gpsCountRep,
+        photos_count: photosCountRep,
+        files: repFiles,
         created_at: rep.created_at,
       };
     });
