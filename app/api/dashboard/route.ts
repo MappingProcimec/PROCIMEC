@@ -184,6 +184,9 @@ export async function GET(req: NextRequest) {
       if (!toolSlugs.has('purchasing-suppliers')) {
         tools.push({ id: 'purchasing-suppliers', slug: 'purchasing-suppliers', name: 'Directorio y Gestión de Proveedores', category: 'purchasing' });
       }
+      if (!toolSlugs.has('gpr-cad-studio')) {
+        tools.push({ id: 'gpr-cad-studio', slug: 'gpr-cad-studio', name: 'Estudio de Procesamiento GPR & CAD/BIM AI', category: 'gpr' });
+      }
 
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('hseq-report')) {
@@ -284,6 +287,11 @@ export async function GET(req: NextRequest) {
       const formSlugs = new Set(forms.map((f) => f.slug));
       if (!formSlugs.has('radicacion-factura')) forms.push({ id: 'radicacion-factura', slug: 'radicacion-factura', name: 'Radicación de Factura Proveedor' });
       if (!formSlugs.has('soporte-cobro')) forms.push({ id: 'soporte-cobro', slug: 'soporte-cobro', name: 'Soporte de Cobro y Facturación' });
+    } else if (['localizador', 'operator', 'dibujo', 'drawing'].includes(dbUser.role)) {
+      const toolSlugs = new Set(tools.map((t) => t.slug));
+      if (!toolSlugs.has('gpr-cad-studio')) {
+        tools.push({ id: 'gpr-cad-studio', slug: 'gpr-cad-studio', name: 'Estudio de Procesamiento GPR & CAD/BIM AI', category: 'gpr' });
+      }
     }
 
     // Dejar un solo formulario unificado para Almacén y normalizar nombres corporativos

@@ -52,7 +52,7 @@ async function fetchToolsData(): Promise<Tool[]> {
 const TOOL_META: Record<string, { description: string; tag: string; path?: string }> = {
   'gpr-cad-studio': {
     description: 'Estudio y orquestador inteligente de 5 pasos para procesamiento de datos crudos GPR, planos 2D DWG, modelos 3D RVT e informes con APU.',
-    tag: 'GPR / CAD / IA',
+    tag: 'GPR / Geofísica',
     path: '/tools/gpr-cad-studio',
   },
   'dev-tickets': {

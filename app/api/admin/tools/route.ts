@@ -24,6 +24,16 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const tools = (data ?? []) as { id: string; slug: string; name: string; category: string; is_universal: boolean }[];
   const slugs = new Set(tools.map((t) => t.slug));
+  if (!slugs.has('gpr-cad-studio')) {
+    tools.push({
+      id: 'gpr-cad-studio-synthetic',
+      slug: 'gpr-cad-studio',
+      name: 'Estudio de Procesamiento GPR & CAD/BIM AI',
+      category: 'gpr',
+      is_universal: false,
+    });
+  }
+
   if (!slugs.has('evidence-board')) {
     tools.push({
       id: 'evidence-board-synthetic',
