@@ -98,6 +98,114 @@ const STEP_KEYS_ORDER: GprPipelineStepKey[] = [
   'project_report',
 ];
 
+interface DeliverableMetaInfo {
+  stepKey: GprPipelineStepKey;
+  stepNum: number;
+  title: string;
+  shortTitle: string;
+  ext: string;
+  formatBadge: string;
+  formatBadgeStyle: string;
+  standard: string;
+  software: string;
+  defaultFileName: (projectName: string) => string;
+  expectedOutput: string;
+  keyOutputs: { label: string; desc: string }[];
+}
+
+const CANONICAL_DELIVERABLES_META: Record<GprPipelineStepKey, DeliverableMetaInfo> = {
+  cad_2d: {
+    stepKey: 'cad_2d',
+    stepNum: 1,
+    title: 'Plano 2D Base Vectorial (.dxf / AutoCAD R2018)',
+    shortTitle: 'Plano 2D Base Vectorial',
+    ext: 'dxf',
+    formatBadge: 'DXF R2018',
+    formatBadgeStyle: 'bg-rose-50 text-rose-800 border-rose-200',
+    standard: 'NSR-10 / Cartografía Vial PROCIMEC',
+    software: 'AutoCAD 2018+, Civil 3D, QGIS, LibreCAD',
+    defaultFileName: (p) => `Plano_2D_Base_${p}.dxf`,
+    expectedOutput: 'Delineación vectorial de ejes viales, franjas de exploración delimitadas por tramo, abscisado K0+000 y rótulo oficial de PROCIMEC INGENIERÍA S.A.S.',
+    keyOutputs: [
+      { label: 'Ejes Viales', desc: 'Capa EJE_VIA (Color 1 Rojo, 0.30mm)' },
+      { label: 'Franja de Exploración', desc: 'Capa BORDE_EXPLORACION (Color 8 Gris)' },
+      { label: 'Abscisado y Rótulo', desc: 'Cotas cada 20m y membrete legal institucional' },
+    ],
+  },
+  gpr_raw_proc: {
+    stepKey: 'gpr_raw_proc',
+    stepNum: 2,
+    title: 'Informe Técnico DSP y Radargramas (.pdf / FOR-GPR-04)',
+    shortTitle: 'Informe Técnico DSP Geofísico',
+    ext: 'pdf',
+    formatBadge: 'PDF DSP',
+    formatBadgeStyle: 'bg-sky-50 text-sky-800 border-sky-200',
+    standard: 'FOR-GPR-04 v2 / ASTM D6432-19',
+    software: 'Adobe Acrobat Reader, Visores PDF de Navegador',
+    defaultFileName: (p) => `Reporte_Radargramas_DSP_${p}.pdf`,
+    expectedOutput: 'Cadena de procesamiento digital de señales: Corrección Time-Zero, Filtro Dewow, Compensación SEC Gain y calibración de Permitividad Dieléctrica (RDP εr=9.0, v=0.100 m/ns).',
+    keyOutputs: [
+      { label: 'Cadena DSP', desc: 'Time-Zero + Dewow + Ganancia SEC Exponencial' },
+      { label: 'Calibración Dieléctrica', desc: 'RDP εr = 9.0 | v = 0.100 m/ns' },
+      { label: 'Formato Oficial', desc: 'Plantilla de Geofísica FOR-GPR-04 v2' },
+    ],
+  },
+  cad_2d_refine: {
+    stepKey: 'cad_2d_refine',
+    stepNum: 3,
+    title: 'Plano 2D Mejorado con Redes e Interferencias (.dxf / AutoCAD)',
+    shortTitle: 'Plano 2D Mejorado con Redes',
+    ext: 'dxf',
+    formatBadge: 'DXF REDES',
+    formatBadgeStyle: 'bg-amber-50 text-amber-900 border-amber-200',
+    standard: 'ASCE 38-02 / CI/ASCE 38-22 Nivel de Calidad B',
+    software: 'AutoCAD Civil 3D, AutoCAD Map 3D, MicroStation',
+    defaultFileName: (p) => `Plano_2D_Interferencias_${p}.dxf`,
+    expectedOutput: 'Incrustación de todas las interferencias subterráneas detectadas con capas normalizadas por servicio, cotas Z de profundidad invert, diámetros y cuadro técnico de redes.',
+    keyOutputs: [
+      { label: 'Capas Normalizadas', desc: 'RED_GAS, RED_ACUEDUCTO, RED_ENERGIA, RED_TELECOM, etc.' },
+      { label: 'Cotas Z de Invert', desc: 'Profundidades reales estampadas en cada vértice' },
+      { label: 'Cuadro de Redes', desc: 'Tabla de diámetros, profundidades y nivel de confianza' },
+    ],
+  },
+  bim_3d_rvt: {
+    stepKey: 'bim_3d_rvt',
+    stepNum: 4,
+    title: 'Modelo 3D BIM Subterráneo (.ifc / Revit LOD 300)',
+    shortTitle: 'Modelo 3D BIM Subterráneo (IFC 4.0)',
+    ext: 'ifc',
+    formatBadge: 'IFC 4.0 LOD 300',
+    formatBadgeStyle: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+    standard: 'ISO 10303-21 / ISO 19650 / BIM LOD 300',
+    software: 'Autodesk Revit, Navisworks, BIM Vision, Solibri',
+    defaultFileName: (p) => `Modelo_3D_BIM_Subterraneo_${p}.ifc`,
+    expectedOutput: 'Modelado paramétrico volumétrico LOD 300 en IFC 4.0 abrible en Revit, tuberías continuas con cotas invert de enterramiento y matriz espacial de Clash Detection (<0.30m).',
+    keyOutputs: [
+      { label: 'Geometría Volumétrica', desc: 'Tuberías cilíndricas LOD 300 (IfcPipeSegment)' },
+      { label: 'Cotas Invert Z', desc: 'Z = -profundidad referenciada a la rasante' },
+      { label: 'Clash Detection', desc: 'Validación espacial de cruces y colisiones entre redes' },
+    ],
+  },
+  project_report: {
+    stepKey: 'project_report',
+    stepNum: 5,
+    title: 'Informe Técnico Final del Proyecto (.docx / FOR-GPR-05)',
+    shortTitle: 'Informe Técnico Final Word',
+    ext: 'docx',
+    formatBadge: 'DOCX OFICIAL',
+    formatBadgeStyle: 'bg-blue-50 text-blue-800 border-blue-200',
+    standard: 'FOR-GPR-05 v2 / ISO 9001:2015 & ISO 45001:2018',
+    software: 'Microsoft Word 365 / 2019+, LibreOffice Writer',
+    defaultFileName: (p) => `Informe_Final_Georadar_${p}.docx`,
+    expectedOutput: 'Informe consolidado bajo formato oficial FOR-GPR-05 v2 de PROCIMEC INGENIERÍA S.A.S. con resumen de metrajes, cuadro de interferencias y matriz de riesgos de rotura.',
+    keyOutputs: [
+      { label: 'Membrete Oficial', desc: 'Razón Social: PROCIMEC INGENIERÍA S.A.S.' },
+      { label: 'Consolidado Metrológico', desc: 'Metros lineales, área explorada y tramos' },
+      { label: 'Matriz de Riesgos', desc: 'Protocolo de excavación segura por servicio' },
+    ],
+  },
+};
+
 // Tarifas oficiales de Inferencia Google Gemini 1.5 Pro (USD por millón de tokens)
 const GEMINI_INPUT_RATE_USD = 3.50; // $3.50 USD / 1M input
 const GEMINI_OUTPUT_RATE_USD = 10.50; // $10.50 USD / 1M output
@@ -107,8 +215,8 @@ export function GprCadStudioPanel() {
   const queryClient = useQueryClient();
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   
-  // Reorganización canónica de pestañas: 1. Reportes y Datos de Campo, 2. Pipeline de Orquestación, 3. Costos API IA
-  const [activeTab, setActiveTab] = useState<'datos_campo' | 'pipeline' | 'costos_api'>('datos_campo');
+  // Reorganización canónica de pestañas: 1. Reportes y Datos de Campo, 2. Pipeline de Orquestación, 3. Entregables, 4. Costos API IA
+  const [activeTab, setActiveTab] = useState<'datos_campo' | 'pipeline' | 'entregables' | 'costos_api'>('datos_campo');
   
   const [expandedPromptStep, setExpandedPromptStep] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('');
@@ -313,7 +421,12 @@ export function GprCadStudioPanel() {
 
       // Si existe URL de descarga y hay reportes seleccionados, asegurar parámetro reportIds
       let downloadUrl = existing?.output_file_url;
-      if (downloadUrl && selectedReportIds.length > 0 && !downloadUrl.includes('reportIds=')) {
+      if (!downloadUrl && currentProjectId && (existing?.status === 'completed' || !!existing?.output_file_name)) {
+        const cleanName = (projectSummary?.project_name || 'Proyecto').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const rParam = selectedReportIds.length > 0 ? `&reportIds=${encodeURIComponent(selectedReportIds.join(','))}` : '';
+        const jParam = activeJob?.id ? `&jobId=${encodeURIComponent(activeJob.id)}` : '';
+        downloadUrl = `/api/tools/gpr-pipeline/download?projectId=${encodeURIComponent(currentProjectId)}${jParam}&stepKey=${key}&type=${meta.outputExt}&name=${cleanName}_${key}${rParam}`;
+      } else if (downloadUrl && selectedReportIds.length > 0 && !downloadUrl.includes('reportIds=')) {
         downloadUrl += `&reportIds=${encodeURIComponent(selectedReportIds.join(','))}`;
       }
 
@@ -328,7 +441,9 @@ export function GprCadStudioPanel() {
         output_file_name: existing?.output_file_name,
         output_file_url: downloadUrl,
         ai_prompt: existing?.ai_prompt,
+        ai_response: existing?.ai_response,
         execution_logs: existing?.execution_logs,
+        completed_at: existing?.completed_at,
         ai_model: existing?.ai_model_used || 'Gemini 1.5 Pro',
         input_tokens: inTok,
         output_tokens: outTok,
@@ -337,7 +452,36 @@ export function GprCadStudioPanel() {
         cost_cop_ai: costCop,
       };
     });
-  }, [activeJob?.steps, selectedReportIds]);
+  }, [activeJob?.steps, activeJob?.id, currentProjectId, projectSummary?.project_name, selectedReportIds]);
+
+  const completedDeliverablesCount = useMemo(() => {
+    return displaySteps.filter((s) => s.status === 'completed').length;
+  }, [displaySteps]);
+
+  const activeProjectName = useMemo(() => {
+    return projects.find((p) => p.id === currentProjectId)?.name || projectSummary?.project_name || 'Proyecto';
+  }, [projects, currentProjectId, projectSummary?.project_name]);
+
+  const projectCleanName = useMemo(() => {
+    return activeProjectName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  }, [activeProjectName]);
+
+  const formatDateTime = (isoDate?: string | null) => {
+    if (!isoDate) return 'Pendiente';
+    try {
+      const d = new Date(isoDate);
+      if (isNaN(d.getTime())) return isoDate;
+      return d.toLocaleString('es-CO', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return isoDate;
+    }
+  };
 
   // Ejecución transparente (auto-crea el job si no existe en BD)
   const handleExecuteSingleStep = async (stepKey: GprPipelineStepKey) => {
@@ -581,7 +725,7 @@ export function GprCadStudioPanel() {
         </div>
       </div>
 
-      {/* ── NAVEGACIÓN POR PESTAÑAS (ORDEN CANÓNICO: 1. DATOS CAMPO | 2. PIPELINE | 3. COSTOS API) ── */}
+      {/* ── NAVEGACIÓN POR PESTAÑAS (ORDEN CANÓNICO: 1. DATOS CAMPO | 2. PIPELINE | 3. ENTREGABLES | 4. COSTOS API) ── */}
       <div className="flex border-b border-border gap-2 text-xs font-semibold overflow-x-auto">
         {/* PESTAÑA 1 (IZQUIERDA): Reportes y Datos de Campo */}
         <button
@@ -599,7 +743,7 @@ export function GprCadStudioPanel() {
           </span>
         </button>
 
-        {/* PESTAÑA 2 (CENTRO): Pipeline de Orquestación */}
+        {/* PESTAÑA 2: Pipeline de Orquestación */}
         <button
           onClick={() => setActiveTab('pipeline')}
           className={`pb-2.5 px-3 border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
@@ -615,7 +759,29 @@ export function GprCadStudioPanel() {
           </span>
         </button>
 
-        {/* PESTAÑA 3 (DERECHA): Costos de Procesamiento API IA */}
+        {/* PESTAÑA 3: Entregables (NUEVA ENTRE PIPELINE Y COSTOS) */}
+        <button
+          onClick={() => setActiveTab('entregables')}
+          className={`pb-2.5 px-3 border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
+            activeTab === 'entregables'
+              ? 'border-accent text-accent font-bold'
+              : 'border-transparent text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          <FolderArchive className="w-4 h-4" strokeWidth={1.75} />
+          Entregables
+          <span
+            className={`ml-1 text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+              completedDeliverablesCount > 0
+                ? 'bg-accent/20 text-primary-900'
+                : 'bg-primary/10 text-primary-900'
+            }`}
+          >
+            {completedDeliverablesCount}/{displaySteps.length}
+          </span>
+        </button>
+
+        {/* PESTAÑA 4 (DERECHA): Costos de Procesamiento API IA */}
         <button
           onClick={() => setActiveTab('costos_api')}
           className={`pb-2.5 px-3 border-b-2 flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap ${
@@ -1179,7 +1345,298 @@ export function GprCadStudioPanel() {
         </div>
       )}
 
-      {/* ── TAB 3: COSTOS DE PROCESAMIENTO API IA ── */}
+      {/* ── TAB 3: ENTREGABLES (VISUALIZACIÓN DE SALIDAS DEL PIPELINE) ── */}
+      {activeTab === 'entregables' && (
+        <div className="space-y-5 animate-fade-in">
+          {/* BANNER PRINCIPAL DE ENTREGABLES */}
+          <div className="card p-5 bg-white border border-border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="p-1.5 rounded-lg bg-accent/20 text-primary-900">
+                  <FolderArchive className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                </span>
+                <h3 className="text-base font-bold text-text-primary">
+                  Dossier Técnico de Entregables de Ingeniería (CAD / BIM / GPR)
+                </h3>
+                <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                  completedDeliverablesCount === displaySteps.length
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-primary/10 text-primary-900 border-primary/20'
+                }`}>
+                  {completedDeliverablesCount} de {displaySteps.length} Listos
+                </span>
+              </div>
+              <p className="text-xs text-text-secondary">
+                Información de salida y archivos generados por el pipeline de orquestación con IA a partir de las inspecciones de campo seleccionadas ({activeMetrics.selected_count} formularios activos).
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+              {completedDeliverablesCount < displaySteps.length && (
+                <button
+                  onClick={handleExecuteAllSteps}
+                  disabled={executeStepMutation.isPending || createJobMutation.isPending || selectedReportIds.length === 0}
+                  className="btn-accent px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 shadow-xs transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                  title="Ejecutar los pasos pendientes del pipeline"
+                >
+                  {executeStepMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-primary-900" />
+                  ) : (
+                    <Play className="w-4 h-4 text-primary-900 fill-primary-900" />
+                  )}
+                  <span>Generar Entregables Faltantes</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setActiveTab('pipeline')}
+                className="btn-ghost px-3 py-2 text-xs font-semibold rounded-xl border border-border flex items-center gap-1.5 text-text-secondary hover:text-text-primary cursor-pointer"
+                title="Ir a la pestaña de Pipeline de Orquestación"
+              >
+                <Cpu className="w-3.5 h-3.5 text-accent" />
+                <span>Ver Pipeline</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('datos_campo')}
+                className="btn-ghost px-3 py-2 text-xs font-semibold rounded-xl border border-border flex items-center gap-1.5 text-text-secondary hover:text-text-primary cursor-pointer"
+                title="Modificar la selección de formularios diligenciados"
+              >
+                <Layers className="w-3.5 h-3.5 text-accent" />
+                <span>Datos Fuente ({activeMetrics.selected_count})</span>
+              </button>
+            </div>
+          </div>
+
+          {/* MÉTRICAS TÉCNICAS CONSOLIDADAS DEL PAQUETE ENTRADA-SALIDA */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-xl bg-gray-50 border border-border">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                Formularios Diligenciados
+              </span>
+              <span className="font-mono text-lg font-bold text-text-primary mt-0.5 block">
+                {activeMetrics.selected_count}{' '}
+                <span className="text-xs text-text-muted font-sans font-normal">/ {activeMetrics.total_available} seleccionados</span>
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-gray-50 border border-border">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                Metraje Total Trazado
+              </span>
+              <span className="font-mono text-lg font-bold text-accent mt-0.5 block">
+                {activeMetrics.total_ml.toLocaleString('es-CO')}{' '}
+                <span className="text-xs text-text-secondary font-sans font-normal">ML</span>
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-gray-50 border border-border">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                Área Explorada
+              </span>
+              <span className="font-mono text-lg font-bold text-text-primary mt-0.5 block">
+                {activeMetrics.total_m2.toLocaleString('es-CO')}{' '}
+                <span className="text-xs text-text-secondary font-sans font-normal">M²</span>
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-gray-50 border border-border">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                Redes e Interferencias
+              </span>
+              <span className="font-mono text-lg font-bold text-accent mt-0.5 block">
+                {activeMetrics.utilities_count}{' '}
+                <span className="text-xs text-text-secondary font-sans font-normal">detectadas</span>
+              </span>
+            </div>
+          </div>
+
+          {/* LISTA DETALLADA DE LOS 5 ENTREGABLES TÉCNICOS */}
+          <div className="space-y-4">
+            {displaySteps.map((step) => {
+              const meta = CANONICAL_DELIVERABLES_META[step.step_key];
+              const isExecuting =
+                executeStepMutation.isPending &&
+                (executeStepMutation.variables?.runAll ||
+                  executeStepMutation.variables?.stepKey === step.step_key);
+              const isCompleted = step.status === 'completed';
+
+              return (
+                <div
+                  key={`deliv_${step.step_key}`}
+                  className={`card transition-all border bg-white shadow-xs overflow-hidden ${
+                    isCompleted
+                      ? 'border-emerald-500/50 hover:shadow-sm'
+                      : isExecuting
+                      ? 'border-amber-500 ring-1 ring-amber-400'
+                      : 'border-border hover:border-accent/40'
+                  }`}
+                >
+                  {/* Encabezado de la Tarjeta del Entregable */}
+                  <div className="p-4 border-b border-border/70 bg-gradient-to-r from-gray-50/80 to-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shrink-0 border border-primary-700 shadow-xs">
+                        {getStepIcon(step.step_key)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-accent">
+                            Entregable #{meta.stepNum}
+                          </span>
+                          <span className="text-text-muted">·</span>
+                          <h4 className="text-sm font-bold text-text-primary">
+                            {meta.shortTitle}
+                          </h4>
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${meta.formatBadgeStyle}`}>
+                            {meta.formatBadge}
+                          </span>
+                          {isCompleted ? (
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Listo para Descarga
+                            </span>
+                          ) : isExecuting ? (
+                            <span className="text-[10px] font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded flex items-center gap-1 border border-amber-200">
+                              <Loader2 className="w-3 h-3 animate-spin text-amber-600" /> Generando con IA...
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-text-muted bg-gray-100 px-2 py-0.5 rounded flex items-center gap-1 border border-gray-200">
+                              <Clock className="w-3 h-3" /> Pendiente
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          {meta.title}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Botones de Acción */}
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      {isCompleted && step.output_file_url ? (
+                        <a
+                          href={step.output_file_url}
+                          download
+                          className="btn-accent px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 shadow-xs transition-transform active:scale-95 cursor-pointer text-primary-900"
+                          title={`Descargar ${step.output_file_name || meta.shortTitle}`}
+                        >
+                          <Download className="w-4 h-4 text-primary-900" strokeWidth={2} />
+                          <span>Descargar ({step.output_ext.toUpperCase()})</span>
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => handleExecuteSingleStep(step.step_key)}
+                          disabled={isExecuting || executeStepMutation.isPending || selectedReportIds.length === 0}
+                          className="btn-primary px-3.5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-transform active:scale-95 cursor-pointer disabled:opacity-50"
+                        >
+                          {isExecuting ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                          )}
+                          <span>Generar Entregable</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Cuerpo: Información de Salida del Procesamiento de IA */}
+                  <div className="p-4 space-y-3.5">
+                    {/* BLOQUE DESTACADO: INFORMACIÓN DE SALIDA ARROJADA POR EL PROCESAMIENTO */}
+                    {isCompleted ? (
+                      <div className="p-3.5 bg-accent/10 border border-accent/30 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-primary-900 flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-accent" strokeWidth={2} />
+                            Información de Salida del Procesamiento (Gemini 1.5 Pro)
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-accent bg-white px-2 py-0.5 rounded border border-accent/20">
+                            {step.ai_model} · {step.total_tokens.toLocaleString('es-CO')} tokens
+                          </span>
+                        </div>
+                        <p className="text-xs text-text-primary leading-relaxed font-medium">
+                          {step.ai_response || meta.expectedOutput}
+                        </p>
+                        {step.execution_logs && (
+                          <div className="pt-2 border-t border-accent/20 text-[11px] font-mono text-text-secondary flex items-start gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                            <span>{step.execution_logs}</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-3.5 bg-gray-50 border border-border/80 rounded-xl space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
+                            <Info className="w-3.5 h-3.5 text-text-muted" strokeWidth={1.75} />
+                            Salida Esperada tras Procesamiento en Pipeline
+                          </span>
+                          <span className="text-[10px] font-mono text-text-muted bg-white px-2 py-0.5 rounded border border-border">
+                            Listo para Procesar ({activeMetrics.selected_count} reportes)
+                          </span>
+                        </div>
+                        <p className="text-xs text-text-secondary leading-relaxed">
+                          {meta.expectedOutput}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* FICHA TÉCNICA Y METADATOS DEL ENTREGABLE */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+                      <div className="p-2.5 bg-surface rounded-lg border border-border/80">
+                        <span className="text-[10px] uppercase font-bold text-text-muted block">
+                          Archivo de Salida
+                        </span>
+                        <span className="font-mono text-xs font-bold text-text-primary truncate block mt-0.5" title={step.output_file_name || meta.defaultFileName(projectCleanName)}>
+                          {step.output_file_name || meta.defaultFileName(projectCleanName)}
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 bg-surface rounded-lg border border-border/80">
+                        <span className="text-[10px] uppercase font-bold text-text-muted block">
+                          Software Compatible
+                        </span>
+                        <span className="text-xs font-semibold text-text-secondary block mt-0.5 truncate" title={meta.software}>
+                          {meta.software}
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 bg-surface rounded-lg border border-border/80">
+                        <span className="text-[10px] uppercase font-bold text-text-muted block">
+                          Norma / Formato
+                        </span>
+                        <span className="text-xs font-semibold text-text-secondary block mt-0.5 truncate" title={meta.standard}>
+                          {meta.standard}
+                        </span>
+                      </div>
+
+                      <div className="p-2.5 bg-surface rounded-lg border border-border/80">
+                        <span className="text-[10px] uppercase font-bold text-text-muted block">
+                          Fecha de Generación
+                        </span>
+                        <span className="font-mono text-xs text-text-secondary block mt-0.5">
+                          {formatDateTime(step.completed_at)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* COMPONENTES TÉCNICOS CLAVE DEL ARCHIVO */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-xs">
+                      {meta.keyOutputs.map((k, kIdx) => (
+                        <div key={kIdx} className="p-2 rounded-lg bg-gray-50/80 border border-border/60">
+                          <span className="font-bold text-text-primary block text-[11px]">{k.label}:</span>
+                          <span className="text-text-secondary text-[11px] block">{k.desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 4: COSTOS DE PROCESAMIENTO API IA ── */}
       {activeTab === 'costos_api' && (
         <div className="card p-5 bg-white border border-border shadow-sm space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
