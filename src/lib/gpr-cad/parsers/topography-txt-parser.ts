@@ -7,6 +7,8 @@
  *    Ejemplo real PROCIMEC: "08TP  511  104288.639  101279.584  2571.245  AP-0.90-12"
  * 2. 5 Columnas canónicas: [PUNTO] [NORTE] [ESTE] [COTA] [DESCRIPCIÓN]
  * 3. Detección automática de traslados de estación, deltas, bases GPS, perfiles GPR y redes.
+ * 4. Detección de objetos puntuales (manholes, postes, lámparas, cajas, válvulas, sumideros).
+ * 5. Agrupación y unión de redes continuas (AP, ELE, FOP, GAS, ALC) con cota invert y diámetro.
  */
 
 export type TopoCategory = 
@@ -20,7 +22,24 @@ export type TopoCategory =
   | 'energia' 
   | 'estacion_delta' 
   | 'poste' 
+  | 'manhole'
+  | 'lampara'
+  | 'caja'
+  | 'valvula'
+  | 'sumidero'
   | 'punto';
+
+export type TopoObjectType =
+  | 'manhole'
+  | 'poste'
+  | 'lampara'
+  | 'caja'
+  | 'valvula'
+  | 'sumidero'
+  | 'estacion_delta'
+  | 'cogo_point';
+
+export type TopoServiceGroup = 'AP' | 'ELE' | 'FOP' | 'GAS' | 'ALC';
 
 export interface TopoStationSetup {
   stationId: string;        // Nombre de la estación armada (e.g. "GPS-1-PLACA", "AUX-01-VIA")
@@ -36,13 +55,17 @@ export interface TopoPoint {
   id: string;             // Identificador consecutivo real (e.g. "1", "511", "544")
   north: number;          // Norte (Coordenada Y en AutoCAD)
   east: number;           // Este (Coordenada X en AutoCAD)
-  elevation: number;      // Cota / Elevación Z
+  elevation: number;      // Cota / Elevación Z de terreno
   code: string;           // Código técnico original (e.g. "AP-0.90-12", "RG", "P-21-I", "GPS-01-PLA-JM")
   category: TopoCategory;
   layerName: string;
   isStationSetup: boolean; // Verdadero si corresponde a un traslado de estación / delta / base
+  objectType: TopoObjectType; // Tipo de bloque u objeto (manhole, poste, lampara, caja, cogo_point)
+  isLinearService: boolean;   // Verdadero si forma parte de una red de tubería/ductos continuos
+  serviceGroup?: TopoServiceGroup | null; // Prefijo de servicio para unión de líneas
   depth?: number;         // Profundidad extraída del código (e.g. 0.90 en AP-0.90-12)
   diameter?: string;      // Diámetro o ductos extraídos (e.g. 12" en AP-0.90-12 o 4 vías en FO-0.80-4)
+  invertElevation?: number; // Cota batea / invert: elevation - (depth || 0)
   rawLine?: string;
 }
 
@@ -54,6 +77,14 @@ export interface TopographyDataset {
   stationPoints: TopoPoint[];       // Puntos de control, deltas y estaciones ocupadas
   stationSetups: TopoStationSetup[];// Traslados de estación ocupada con altura instrumental (02TP)
   utilityPoints: TopoPoint[];       // Puntos de servicios públicos e interferencias
+  serviceLines: {                   // Redes unidas secuencialmente por servicio (AP, ELE, FOP, GAS, ALC)
+    ap: TopoPoint[];                // Red de Acueducto (AP)
+    ele: TopoPoint[];               // Red de Energía (ELE)
+    fop: TopoPoint[];               // Red de Telecomunicaciones (FOP / FO)
+    gas: TopoPoint[];               // Red de Gas (GAS / RG)
+    alc: TopoPoint[];               // Red de Alcantarillado (AR / ALL)
+  };
+  discreteObjects: TopoPoint[];     // Puntos con bloques puntuales (manholes, postes, lámparas, cajas)
   bounds: {
     minEast: number;
     maxEast: number;
@@ -112,12 +143,15 @@ function tokenizeLine(line: string): string[] {
 }
 
 /**
- * Clasifica un código de campo en su categoría y capa técnica correspondiente
+ * Clasifica un código de campo en su categoría, capa técnica, tipo de bloque y servicio lineal
  */
 function classifyCode(codeStr: string): {
   category: TopoCategory;
   layerName: string;
   isStationSetup: boolean;
+  objectType: TopoObjectType;
+  isLinearService: boolean;
+  serviceGroup?: TopoServiceGroup | null;
   depth?: number;
   diameter?: string;
 } {
@@ -144,40 +178,193 @@ function classifyCode(codeStr: string): {
       category: 'estacion_delta',
       layerName: 'ESTACIONES_DELTA',
       isStationSetup: true,
+      objectType: 'estacion_delta',
+      isLinearService: false,
     };
   }
 
-  // 2. PERFILES / PASADAS DE GEORRADAR (GPR)
-  // Ejemplo: "P-21-I", "P-20-I", "P-08-I", "P-01-I"
-  if (/^P-\d+(-[A-Z0-9]+)?$/.test(norm)) {
+  // 2. MANHOLES / POZOS DE INSPECCIÓN (REDES HÚMEDAS Y ALCANTARILLADO)
+  // Ejemplo: "MH", "MH-1", "MH_ALC", "POZO", "PZ-1", "MANHOLE", "CAMARA_ALC"
+  if (
+    norm === 'MH' ||
+    norm.startsWith('MH-') ||
+    norm.startsWith('MH_') ||
+    norm.startsWith('POZO') ||
+    norm.startsWith('PZ') ||
+    norm.includes('MANHOLE') ||
+    norm === 'CAMARA_ALC'
+  ) {
     return {
-      category: 'gpr_profile',
-      layerName: 'PERFILES_GPR',
+      category: 'manhole',
+      layerName: 'RED_ALCANTARILLADO',
       isStationSetup: false,
+      objectType: 'manhole',
+      isLinearService: false,
+      diameter: 'Pozo Manhole Ø1.20m',
     };
   }
 
-  // 3. AGUA POTABLE / ACUEDUCTO
+  // 3. POSTES DE URBANISMO / INFRAESTRUCTURA
+  // Ejemplo: "PST", "PST-1", "POSTE", "PST_CONC", "PST_MET"
+  if (norm === 'PST' || norm.startsWith('PST-') || norm.startsWith('PST_') || norm.includes('POSTE')) {
+    return {
+      category: 'poste',
+      layerName: 'POSTES_URBANISMO',
+      isStationSetup: false,
+      objectType: 'poste',
+      isLinearService: false,
+    };
+  }
+
+  // 4. LÁMPARAS / LUMINARIAS / REFLECTORES
+  // Ejemplo: "LAMP", "LAMP-1", "LUM", "LUMINARIA", "REFLECTOR"
+  if (norm === 'LAMP' || norm.startsWith('LAMP-') || norm.startsWith('LUM') || norm.includes('LUMINARIA') || norm.includes('REFLECTOR')) {
+    return {
+      category: 'lampara',
+      layerName: 'POSTES_URBANISMO',
+      isStationSetup: false,
+      objectType: 'lampara',
+      isLinearService: false,
+    };
+  }
+
+  // 5. CAJAS DE INSPECCIÓN / CÁMARAS DE PASO
+  // Ejemplo: "CAJA", "CAJA-1", "CJ", "CAM", "CAM-1", "T-V", "VAC-B", "CAJA_PULL"
+  if (
+    norm === 'CAJA' ||
+    norm.startsWith('CAJA-') ||
+    norm.startsWith('CJ') ||
+    norm === 'CAM' ||
+    norm.startsWith('CAM-') ||
+    norm.startsWith('T-V') ||
+    norm.includes('CAMARA') ||
+    norm === 'VAC-B'
+  ) {
+    return {
+      category: 'caja',
+      layerName: 'RED_TELECOM',
+      isStationSetup: false,
+      objectType: 'caja',
+      isLinearService: false,
+    };
+  }
+
+  // 6. VÁLVULAS (ACUEDUCTO / GAS)
+  // Ejemplo: "VALV", "VALV-1", "VAL", "V-AP", "V-GAS", "VALVULA"
+  if (norm === 'VALV' || norm.startsWith('VALV') || norm === 'VAL' || norm.startsWith('V-AP') || norm.startsWith('V-GAS') || norm.includes('VALVULA')) {
+    return {
+      category: 'valvula',
+      layerName: norm.includes('GAS') ? 'RED_GAS' : 'RED_ACUEDUCTO',
+      isStationSetup: false,
+      objectType: 'valvula',
+      isLinearService: false,
+    };
+  }
+
+  // 7. SUMIDEROS / REJILLAS PLUVIALES
+  // Ejemplo: "SUM", "SUM-1", "REJ", "REJ-1", "SUMIDERO", "SL"
+  if (norm === 'SUM' || norm.startsWith('SUM-') || norm === 'REJ' || norm.startsWith('REJ-') || norm.includes('SUMIDERO') || norm === 'SL') {
+    return {
+      category: 'sumidero',
+      layerName: 'RED_ALCANTARILLADO',
+      isStationSetup: false,
+      objectType: 'sumidero',
+      isLinearService: false,
+    };
+  }
+
+  // 8. AGUA POTABLE / ACUEDUCTO (RED LINEAL CONTINUA CON PROFUNDIDAD Y DIÁMETRO)
   // Ejemplo: "AP-0.90-12", "AP-1.10-8", "AP-0.40.-4", "AP-1.10.8", "ACUEDUCTO", "AGUA"
   if (norm.startsWith('AP-') || norm.startsWith('AP') || norm.includes('AGUA') || norm.includes('ACUEDUCTO')) {
-    const match = norm.match(/^AP[-_.]?(\d+(?:\.\d+)?)[-_.]?(\d+(?:\.\d+)?)?/);
+    const match = norm.match(/^(?:AP|AGUA|ACUEDUCTO)[-_.]?(\d+(?:\.\d+)?)[-_.]?(\d+(?:\.\d+)?)?/);
     return {
       category: 'acueducto',
       layerName: 'RED_ACUEDUCTO',
       isStationSetup: false,
+      objectType: 'cogo_point',
+      isLinearService: true,
+      serviceGroup: 'AP',
       depth: match && match[1] ? parseFloat(match[1]) : undefined,
       diameter: match && match[2] ? `${match[2]}"` : undefined,
     };
   }
 
-  // 4. ALCANTARILLADO / AGUAS LLUVIAS / REDES HÚMEDAS / POZOS
-  // Ejemplo: "AR-1.20-18", "ALL-0.50-10", "MH", "ALC", "PLUVIAL", "SANITARIO"
+  // 9. FIBRA ÓPTICA / TELECOMUNICACIONES (RED LINEAL CONTINUA CON PROFUNDIDAD Y VÍAS)
+  // Ejemplo: "FOP-0.80-4", "FOP-1.00-6", "FO-0.80-4", "FO-0.60-4-2X2", "FO-0.35-4-BAN", "BAN-0.85-4", "VAC-0.15-4", "TELECOM"
+  if (
+    norm.startsWith('FOP-') ||
+    norm.startsWith('FOP') ||
+    norm.startsWith('FO-') ||
+    norm.startsWith('FO') ||
+    norm.startsWith('BAN-') ||
+    norm.startsWith('VAC-') ||
+    norm.includes('TEL') ||
+    norm.includes('FIBRA') ||
+    norm.includes('DATOS')
+  ) {
+    const match = norm.match(/^(?:FOP|FO|BAN|VAC|TEL)[-_.]?(\d+(?:\.\d+)?)[-_.]?(\d+(?:\.\d+)?)?(?:[-_.]?(.*))?$/);
+    const config = match && match[3] ? ` (${match[3]})` : '';
+    return {
+      category: 'telecom',
+      layerName: 'RED_TELECOM',
+      isStationSetup: false,
+      objectType: 'cogo_point',
+      isLinearService: true,
+      serviceGroup: 'FOP',
+      depth: match && match[1] ? parseFloat(match[1]) : undefined,
+      diameter: match && match[2] ? `${match[2]} vías/ductos${config}` : (norm.startsWith('BAN') ? 'Bancada' : undefined),
+    };
+  }
+
+  // 10. ENERGÍA ELÉCTRICA (RED LINEAL CONTINUA CON PROFUNDIDAD Y DUCTOS)
+  // Ejemplo: "ELE-0.50-4", "ELE-0.65-4-3X2", "EE", "MT", "BT", "ENERGIA", "ELEC"
+  if (
+    norm.startsWith('ELE-') ||
+    norm.startsWith('ELE') ||
+    norm.startsWith('EE-') ||
+    norm === 'EE' ||
+    norm.includes('ENER') ||
+    norm.includes('ELEC') ||
+    norm === 'MT' ||
+    norm === 'BT'
+  ) {
+    const match = norm.match(/^(?:ELE|ELEC|EE)[-_.]?(\d+(?:\.\d+)?)[-_.]?(\d+(?:\.\d+)?)?(?:[-_.]?(.*))?$/);
+    const config = match && match[3] ? ` (${match[3]})` : '';
+    return {
+      category: 'energia',
+      layerName: 'RED_ENERGIA',
+      isStationSetup: false,
+      objectType: 'cogo_point',
+      isLinearService: true,
+      serviceGroup: 'ELE',
+      depth: match && match[1] ? parseFloat(match[1]) : undefined,
+      diameter: match && match[2] ? `${match[2]} ductos${config}` : undefined,
+    };
+  }
+
+  // 11. RED DE GAS (RED LINEAL CONTINUA CON PROFUNDIDAD Y DIÁMETRO)
+  // Ejemplo: "RG", "RG-0.80-2", "GAS-0.90-3", "GAS", "RED_GAS"
+  if (norm === 'RG' || norm.startsWith('RG-') || norm.startsWith('GAS-') || norm.includes('GAS')) {
+    const match = norm.match(/^(?:RG|GAS)[-_.]?(\d+(?:\.\d+)?)[-_.]?(\d+(?:\.\d+)?)?/);
+    return {
+      category: 'gas',
+      layerName: 'RED_GAS',
+      isStationSetup: false,
+      objectType: 'cogo_point',
+      isLinearService: true,
+      serviceGroup: 'GAS',
+      depth: match && match[1] ? parseFloat(match[1]) : undefined,
+      diameter: match && match[2] ? `${match[2]}"` : undefined,
+    };
+  }
+
+  // 12. ALCANTARILLADO CONTINUO / TUBERÍA (AR, ALL)
+  // Ejemplo: "AR-1.20-18", "ALL-0.50-10", "ALC", "PLUVIAL", "SANITARIO"
   if (
     norm.startsWith('AR-') ||
     norm.startsWith('AR') ||
     norm.startsWith('ALL-') ||
     norm.startsWith('ALL') ||
-    norm === 'MH' ||
     norm.includes('ALC') ||
     norm.includes('PLUV') ||
     norm.includes('SAN')
@@ -187,66 +374,39 @@ function classifyCode(codeStr: string): {
       category: 'alcantarillado',
       layerName: 'RED_ALCANTARILLADO',
       isStationSetup: false,
+      objectType: 'cogo_point',
+      isLinearService: true,
+      serviceGroup: 'ALC',
       depth: match && match[1] ? parseFloat(match[1]) : undefined,
-      diameter: match && match[2] ? `${match[2]}"` : (norm === 'MH' ? 'Pozo Manhole' : undefined),
+      diameter: match && match[2] ? `${match[2]}"` : undefined,
     };
   }
 
-  // 5. RED DE GAS
-  // Ejemplo: "RG", "GAS", "RED_GAS"
-  if (norm === 'RG' || norm.startsWith('RG-') || norm.includes('GAS')) {
+  // 13. PERFILES / PASADAS DE GEORRADAR (GPR)
+  // Ejemplo: "P-21-I", "P-20-I", "P-08-I", "P-01-I"
+  if (/^P-\d+(-[A-Z0-9]+)?$/.test(norm)) {
     return {
-      category: 'gas',
-      layerName: 'RED_GAS',
+      category: 'gpr_profile',
+      layerName: 'PERFILES_GPR',
       isStationSetup: false,
+      objectType: 'cogo_point',
+      isLinearService: false,
     };
   }
 
-  // 6. FIBRA ÓPTICA / TELECOMUNICACIONES / BANCADAS
-  // Ejemplo: "FO-0.80-4", "FO-0.60-4-2X2", "FO-0.35-4-BAN", "BAN-0.85-4", "VAC-0.15-4", "TELECOM"
-  if (
-    norm.startsWith('FO-') ||
-    norm.startsWith('FO') ||
-    norm.startsWith('BAN-') ||
-    norm.startsWith('VAC-') ||
-    norm.includes('TEL') ||
-    norm.includes('FIBRA') ||
-    norm.includes('DATOS')
-  ) {
-    const match = norm.match(/^(?:FO|BAN|VAC)[-_.]?(\d+(?:\.\d+)?)[-_.]?(\d+(?:\.\d+)?)?(?:[-_.]?(.*))?$/);
-    const config = match && match[3] ? ` (${match[3]})` : '';
+  // 14. VÍA / CALZADA / EJE (LÍNEA CONTINUA SIN BLOQUE POR PUNTO)
+  // Ejemplo: "VIA", "EJE", "EJE_VIA", "CALZADA", "CL"
+  if (norm === 'VIA' || norm.includes('EJE') || norm.includes('ALIN') || norm.includes('CALZADA') || norm === 'CL') {
     return {
-      category: 'telecom',
-      layerName: 'RED_TELECOM',
+      category: 'eje',
+      layerName: 'EJE_VIA',
       isStationSetup: false,
-      depth: match && match[1] ? parseFloat(match[1]) : undefined,
-      diameter: match && match[2] ? `${match[2]} ductos${config}` : (norm.startsWith('BAN') ? 'Bancada' : undefined),
+      objectType: 'cogo_point',
+      isLinearService: false,
     };
   }
 
-  // 7. ENERGÍA ELÉCTRICA
-  // Ejemplo: "ELE-0.50-4", "ELE-0.65-4-3X2", "EE", "MT", "BT", "ENERGIA", "ELEC"
-  if (
-    norm.startsWith('ELE-') ||
-    norm.startsWith('ELE') ||
-    norm === 'EE' ||
-    norm.includes('ENER') ||
-    norm.includes('ELEC') ||
-    norm === 'MT' ||
-    norm === 'BT'
-  ) {
-    const match = norm.match(/^ELE[-_.]?(\d+(?:\.\d+)?)[-_.]?(\d+(?:\.\d+)?)?(?:[-_.]?(.*))?$/);
-    const config = match && match[3] ? ` (${match[3]})` : '';
-    return {
-      category: 'energia',
-      layerName: 'RED_ENERGIA',
-      isStationSetup: false,
-      depth: match && match[1] ? parseFloat(match[1]) : undefined,
-      diameter: match && match[2] ? `${match[2]} ductos${config}` : undefined,
-    };
-  }
-
-  // 8. ANDÉN / BORDE DE VÍA / LÍMITES DE OBRA
+  // 15. ANDÉN / BORDE DE VÍA / LÍMITES DE OBRA
   // Ejemplo: "AND", "OBRA", "ANDEN", "BORDE", "SARDINEL", "IZQ", "DER"
   if (
     norm === 'AND' ||
@@ -261,26 +421,8 @@ function classifyCode(codeStr: string): {
       category: 'borde',
       layerName: 'BORDE_EXPLORACION',
       isStationSetup: false,
-    };
-  }
-
-  // 9. VÍA / CALZADA / EJE
-  // Ejemplo: "VIA", "EJE", "EJE_VIA", "CALZADA", "CL"
-  if (norm === 'VIA' || norm.includes('EJE') || norm.includes('ALIN') || norm.includes('CALZADA') || norm === 'CL') {
-    return {
-      category: 'eje',
-      layerName: 'EJE_VIA',
-      isStationSetup: false,
-    };
-  }
-
-  // 10. POSTES / MOBILIARIO / VÁLVULAS
-  // Ejemplo: "PST", "LAMP", "POSTE", "T-V", "CAMARA", "VALVULA"
-  if (norm === 'PST' || norm === 'LAMP' || norm === 'T-V' || norm.includes('POSTE')) {
-    return {
-      category: 'poste',
-      layerName: 'POSTES_URBANISMO',
-      isStationSetup: false,
+      objectType: 'cogo_point',
+      isLinearService: false,
     };
   }
 
@@ -288,6 +430,8 @@ function classifyCode(codeStr: string): {
     category: 'punto',
     layerName: 'PUNTOS_TOPOGRAFIA',
     isStationSetup: false,
+    objectType: 'cogo_point',
+    isLinearService: false,
   };
 }
 
@@ -373,6 +517,8 @@ export function parseTopographyTxt(rawText: string): TopographyDataset {
       if (!isNaN(north) && !isNaN(east) && !isNaN(elevation)) {
         const cls = classifyCode(code);
         codeSet.add(code);
+        const invZ = cls.depth !== undefined ? elevation - cls.depth : elevation;
+
         surveyPoints.push({
           id: pointId,
           north,
@@ -382,8 +528,12 @@ export function parseTopographyTxt(rawText: string): TopographyDataset {
           category: cls.category,
           layerName: cls.layerName,
           isStationSetup: cls.isStationSetup,
+          objectType: cls.objectType,
+          isLinearService: cls.isLinearService,
+          serviceGroup: cls.serviceGroup,
           depth: cls.depth,
           diameter: cls.diameter,
+          invertElevation: Number(invZ.toFixed(3)),
           rawLine: line,
         });
       }
@@ -407,6 +557,7 @@ export function parseTopographyTxt(rawText: string): TopographyDataset {
       const code = tokens.slice(5).join(' ').trim() || 'PUNTO';
       const cls = classifyCode(code);
       codeSet.add(code);
+      const invZ = cls.depth !== undefined ? zFromCol4 - cls.depth : zFromCol4;
 
       surveyPoints.push({
         id: pointId,
@@ -417,32 +568,41 @@ export function parseTopographyTxt(rawText: string): TopographyDataset {
         category: cls.category,
         layerName: cls.layerName,
         isStationSetup: cls.isStationSetup,
+        objectType: cls.objectType,
+        isLinearService: cls.isLinearService,
+        serviceGroup: cls.serviceGroup,
         depth: cls.depth,
         diameter: cls.diameter,
+        invertElevation: Number(invZ.toFixed(3)),
         rawLine: line,
       });
-    } else if (tokens.length >= 4 && !isNaN(nFromCol1) && !isNaN(eFromCol2)) {
-      // 5 columnas canónico: Punto en col 0, Norte en col 1, Este en col 2
+    } else if (tokens.length >= 4 && !isNaN(nFromCol1) && !isNaN(eFromCol2) && !isNaN(zFromCol3)) {
+      // 5 columnas estándar: [PUNTO] [NORTE] [ESTE] [COTA] [DESCRIPCIÓN]
       const pointId = tokens[0];
       const code = tokens.slice(4).join(' ').trim() || 'PUNTO';
       const cls = classifyCode(code);
       codeSet.add(code);
+      const invZ = cls.depth !== undefined ? zFromCol3 - cls.depth : zFromCol3;
 
       surveyPoints.push({
         id: pointId,
         north: nFromCol1,
         east: eFromCol2,
-        elevation: !isNaN(zFromCol3) ? zFromCol3 : 0.0,
+        elevation: zFromCol3,
         code,
         category: cls.category,
         layerName: cls.layerName,
         isStationSetup: cls.isStationSetup,
+        objectType: cls.objectType,
+        isLinearService: cls.isLinearService,
+        serviceGroup: cls.serviceGroup,
         depth: cls.depth,
         diameter: cls.diameter,
+        invertElevation: Number(invZ.toFixed(3)),
         rawLine: line,
       });
-    } else {
-      // Formato numérico mínimo N, E, Z
+    } else if (tokens.length >= 3) {
+      // Intento de rescate: 3 números seguidos (Norte, Este, Cota)
       const num0 = parseFloat(tokens[0]);
       const num1 = parseFloat(tokens[1]);
       const num2 = parseFloat(tokens[2]);
@@ -458,6 +618,9 @@ export function parseTopographyTxt(rawText: string): TopographyDataset {
           category: 'punto',
           layerName: 'PUNTOS_TOPOGRAFIA',
           isStationSetup: false,
+          objectType: 'cogo_point',
+          isLinearService: false,
+          invertElevation: num2,
           rawLine: line,
         });
       }
@@ -474,6 +637,14 @@ export function parseTopographyTxt(rawText: string): TopographyDataset {
   const gprProfilePoints: TopoPoint[] = [];
   const stationPoints: TopoPoint[] = [];
   const utilityPoints: TopoPoint[] = [];
+  const discreteObjects: TopoPoint[] = [];
+  const serviceLines = {
+    ap: [] as TopoPoint[],
+    ele: [] as TopoPoint[],
+    fop: [] as TopoPoint[],
+    gas: [] as TopoPoint[],
+    alc: [] as TopoPoint[],
+  };
 
   // Agregar las estaciones ocupadas (02TP) a la colección de estaciones y deltas
   stationSetups.forEach((setup) => {
@@ -486,6 +657,9 @@ export function parseTopographyTxt(rawText: string): TopographyDataset {
       category: 'estacion_delta',
       layerName: 'ESTACIONES_DELTA',
       isStationSetup: true,
+      objectType: 'estacion_delta',
+      isLinearService: false,
+      invertElevation: setup.elevation,
       rawLine: setup.rawLine,
     });
   });
@@ -494,12 +668,36 @@ export function parseTopographyTxt(rawText: string): TopographyDataset {
   surveyPoints.forEach((pt) => {
     if (pt.isStationSetup) {
       stationPoints.push(pt);
+      discreteObjects.push(pt);
+    } else if (pt.objectType !== 'cogo_point') {
+      // Manholes, postes, lámparas, cajas, válvulas, sumideros
+      discreteObjects.push(pt);
+      if (
+        pt.category === 'gas' ||
+        pt.category === 'acueducto' ||
+        pt.category === 'alcantarillado' ||
+        pt.category === 'telecom' ||
+        pt.category === 'energia' ||
+        pt.category === 'manhole' ||
+        pt.category === 'caja' ||
+        pt.category === 'valvula' ||
+        pt.category === 'sumidero'
+      ) {
+        utilityPoints.push(pt);
+      }
     } else if (pt.category === 'eje') {
       axisPoints.push(pt);
     } else if (pt.category === 'borde') {
       boundaryPoints.push(pt);
     } else if (pt.category === 'gpr_profile') {
       gprProfilePoints.push(pt);
+    } else if (pt.isLinearService && pt.serviceGroup) {
+      utilityPoints.push(pt);
+      if (pt.serviceGroup === 'AP') serviceLines.ap.push(pt);
+      else if (pt.serviceGroup === 'ELE') serviceLines.ele.push(pt);
+      else if (pt.serviceGroup === 'FOP') serviceLines.fop.push(pt);
+      else if (pt.serviceGroup === 'GAS') serviceLines.gas.push(pt);
+      else if (pt.serviceGroup === 'ALC') serviceLines.alc.push(pt);
     } else if (
       pt.category === 'gas' ||
       pt.category === 'acueducto' ||
@@ -556,6 +754,8 @@ export function parseTopographyTxt(rawText: string): TopographyDataset {
     stationPoints,
     stationSetups,
     utilityPoints,
+    serviceLines,
+    discreteObjects,
     bounds: {
       minEast: isFinite(minEast) ? minEast : 0,
       maxEast: isFinite(maxEast) ? maxEast : 0,
@@ -580,6 +780,14 @@ function createEmptyDataset(): TopographyDataset {
     stationPoints: [],
     stationSetups: [],
     utilityPoints: [],
+    serviceLines: {
+      ap: [],
+      ele: [],
+      fop: [],
+      gas: [],
+      alc: [],
+    },
+    discreteObjects: [],
     bounds: {
       minEast: 0,
       maxEast: 0,
