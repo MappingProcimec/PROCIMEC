@@ -34,6 +34,7 @@ import {
   UploadCloud,
   Eye,
   X,
+  Navigation,
 } from 'lucide-react';
 import {
   GprPipelineJob,
@@ -956,10 +957,18 @@ export function GprCadStudioPanel() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="text-sm font-bold text-white">Georreferenciación y Topografía (Estación Total .TXT)</h4>
                     {parsedTopoData && parsedTopoData.points.length > 0 ? (
-                      <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                        {parsedTopoData.points.length} Puntos Georreferenciados ({customTopoFileName || 'archivo.txt'})
-                      </span>
+                      <>
+                        <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          {parsedTopoData.points.length} Puntos Radiados ({customTopoFileName || 'archivo.txt'})
+                        </span>
+                        {parsedTopoData.stationSetups && parsedTopoData.stationSetups.length > 0 && (
+                          <span className="badge bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Navigation className="w-3 h-3 text-fuchsia-400" />
+                            {parsedTopoData.stationSetups.length} Traslados de Estación
+                          </span>
+                        )}
+                      </>
                     ) : (
                       <span className="badge bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
                         <AlertCircle className="w-3 h-3 text-amber-400" />
@@ -970,12 +979,15 @@ export function GprCadStudioPanel() {
                   <p className="text-xs text-white/70 mt-1">
                     {parsedTopoData && parsedTopoData.points.length > 0 ? (
                       <>
-                        Alineamiento: <strong className="text-accent">{parsedTopoData.axisPoints.length} puntos de eje</strong> ({parsedTopoData.totalAxisLength.toFixed(1)} ML) |
-                        Norte: <span className="font-mono text-white/90">{parsedTopoData.bounds.minNorth.toFixed(2)} - {parsedTopoData.bounds.maxNorth.toFixed(2)}</span> |
+                        Eje: <strong className="text-accent">{parsedTopoData.axisPoints.length} puntos VIA</strong> ({parsedTopoData.totalAxisLength.toFixed(1)} ML) |
+                        {parsedTopoData.stationSetups && parsedTopoData.stationSetups.length > 0 && (
+                          <> Estaciones: <span className="font-semibold text-fuchsia-300">{parsedTopoData.stationSetups.map((s) => s.stationId).join(', ')}</span> |</>
+                        )}
+                        {' '}Norte: <span className="font-mono text-white/90">{parsedTopoData.bounds.minNorth.toFixed(2)} - {parsedTopoData.bounds.maxNorth.toFixed(2)}</span> |
                         Este: <span className="font-mono text-white/90">{parsedTopoData.bounds.minEast.toFixed(2)} - {parsedTopoData.bounds.maxEast.toFixed(2)}</span>
                       </>
                     ) : (
-                      'Para que el Plano 2D (.DXF) se dibuje en las coordenadas reales del proyecto en AutoCAD Civil 3D, carga el archivo .txt exportado de la Estación Total (Punto, Norte, Este, Cota, Código).'
+                      'Para que el Plano 2D (.DXF) se dibuje en las coordenadas reales del proyecto en AutoCAD Civil 3D, carga el archivo .txt exportado de la Estación Total (08TP, 02TP traslados de estación, Punto, Norte, Este, Cota, Código).'
                     )}
                   </p>
                 </div>
@@ -1008,10 +1020,10 @@ export function GprCadStudioPanel() {
             </div>
           </div>
 
-          {/* Modal de Coordenadas de Topografía (P, N, E, Z, D) */}
+          {/* Modal de Coordenadas de Topografía (P, N, E, Z, D) y Traslados de Estación */}
           {showTopoPointsModal && parsedTopoData && (
             <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="bg-surface border border-border rounded-xl shadow-xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
+              <div className="bg-surface border border-border rounded-xl shadow-xl max-w-4xl w-full max-h-[88vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
                 <div className="p-4 border-b border-border flex items-center justify-between bg-surface-dark text-white">
                   <div>
                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -1019,7 +1031,7 @@ export function GprCadStudioPanel() {
                       Levantamiento Topográfico Georreferenciado — {customTopoFileName || 'archivo.txt'}
                     </h3>
                     <p className="text-xs text-white/70 mt-0.5">
-                      {parsedTopoData.points.length} puntos totales | {parsedTopoData.axisPoints.length} puntos en eje principal | Longitud: {parsedTopoData.totalAxisLength.toFixed(2)} ML
+                      {parsedTopoData.points.length} puntos de campo | {parsedTopoData.stationSetups?.length || 0} traslados de estación | {parsedTopoData.axisPoints.length} puntos en eje vial | Longitud: {parsedTopoData.totalAxisLength.toFixed(2)} ML
                     </p>
                   </div>
                   <button
@@ -1030,7 +1042,35 @@ export function GprCadStudioPanel() {
                   </button>
                 </div>
 
-                <div className="p-4 overflow-y-auto flex-1">
+                <div className="p-4 overflow-y-auto flex-1 space-y-4">
+                  {/* Bloque de Traslados de Estación Armada (02TP) */}
+                  {parsedTopoData.stationSetups && parsedTopoData.stationSetups.length > 0 && (
+                    <div className="border border-fuchsia-500/30 bg-fuchsia-500/5 rounded-lg p-3">
+                      <h4 className="text-xs font-bold text-fuchsia-900 dark:text-fuchsia-300 flex items-center gap-1.5 mb-2">
+                        <Navigation className="w-3.5 h-3.5 text-fuchsia-500" />
+                        Estaciones Ocupadas y Traslados de Estación (02TP — Capa ESTACIONES_DELTA)
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {parsedTopoData.stationSetups.map((stn, sIdx) => (
+                          <div key={sIdx} className="bg-white dark:bg-primary-900/60 border border-fuchsia-200 dark:border-fuchsia-800/40 rounded p-2 text-xs">
+                            <div className="flex items-center justify-between font-bold text-fuchsia-700 dark:text-fuchsia-300">
+                              <span>Estación: {stn.stationId}</span>
+                              <span className="font-mono text-[11px] bg-fuchsia-100 dark:bg-fuchsia-950 px-1.5 py-0.5 rounded">
+                                HI: {stn.instrumentHeight ? `${stn.instrumentHeight.toFixed(3)} m` : 'N/D'}
+                              </span>
+                            </div>
+                            <div className="mt-1 grid grid-cols-3 gap-1 font-mono text-[11px] text-text-secondary">
+                              <span>N: {stn.north.toFixed(3)}</span>
+                              <span>E: {stn.east.toFixed(3)}</span>
+                              <span>Z: {stn.elevation.toFixed(3)}m</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tabla General de Puntos Radiados (08TP) */}
                   <div className="table-container border border-border rounded-lg overflow-hidden">
                     <table className="w-full text-xs">
                       <thead className="bg-surface-secondary text-text-muted font-bold border-b border-border">
@@ -1040,23 +1080,48 @@ export function GprCadStudioPanel() {
                           <th className="py-2 px-3 text-right">ESTE (X)</th>
                           <th className="py-2 px-3 text-right">COTA (Z)</th>
                           <th className="py-2 px-3 text-left">CÓDIGO</th>
+                          <th className="py-2 px-3 text-left">CAPA CAD</th>
+                          <th className="py-2 px-3 text-left">METADATOS</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {parsedTopoData.points.slice(0, 200).map((pt, pIdx) => {
-                          const isAxis = (pt.code || '').toUpperCase().includes('EJE') || (pt.code || '').toUpperCase().includes('ALIN') || (pt.code || '').toUpperCase() === 'CL';
+                        {parsedTopoData.points.slice(0, 300).map((pt, pIdx) => {
+                          const isAxis = pt.category === 'eje';
+                          const isStation = pt.isStationSetup;
                           return (
-                            <tr key={pIdx} className={isAxis ? 'bg-accent/5 font-semibold' : 'hover:bg-gray-50'}>
-                              <td className="py-1.5 px-3 font-mono text-text-primary">{pt.id}</td>
+                            <tr key={pIdx} className={isStation ? 'bg-fuchsia-500/10 font-medium' : isAxis ? 'bg-accent/5 font-semibold' : 'hover:bg-gray-50 dark:hover:bg-primary-900/40'}>
+                              <td className="py-1.5 px-3 font-mono font-bold text-text-primary">{pt.id}</td>
                               <td className="py-1.5 px-3 text-right font-mono text-text-secondary">{pt.north.toFixed(4)}</td>
                               <td className="py-1.5 px-3 text-right font-mono text-text-secondary">{pt.east.toFixed(4)}</td>
                               <td className="py-1.5 px-3 text-right font-mono text-accent">{pt.elevation.toFixed(3)}</td>
+                              <td className="py-1.5 px-3 font-mono font-semibold">
+                                {pt.code}
+                              </td>
                               <td className="py-1.5 px-3">
                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  isAxis ? 'bg-accent/20 text-accent' : 'bg-gray-100 text-text-secondary'
+                                  isStation
+                                    ? 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-950 dark:text-fuchsia-300'
+                                    : pt.category === 'gas'
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                    : pt.category === 'acueducto'
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                    : pt.category === 'telecom'
+                                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300'
+                                    : pt.category === 'energia'
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                                    : pt.category === 'alcantarillado'
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                    : isAxis
+                                    ? 'bg-accent/20 text-accent'
+                                    : 'bg-gray-100 text-text-secondary dark:bg-primary-800'
                                 }`}>
-                                  {pt.code}
+                                  {pt.layerName}
                                 </span>
+                              </td>
+                              <td className="py-1.5 px-3 text-[11px] text-text-muted">
+                                {pt.depth !== undefined && `Prof: ${pt.depth.toFixed(2)}m `}
+                                {pt.diameter && `| ${pt.diameter}`}
+                                {!pt.depth && !pt.diameter && '-'}
                               </td>
                             </tr>
                           );
@@ -1064,9 +1129,9 @@ export function GprCadStudioPanel() {
                       </tbody>
                     </table>
                   </div>
-                  {parsedTopoData.points.length > 200 && (
+                  {parsedTopoData.points.length > 300 && (
                     <p className="text-center text-[11px] text-text-muted mt-2">
-                      Mostrando primeros 200 de {parsedTopoData.points.length} puntos. Todos los puntos se incluirán en el entregable .DXF.
+                      Mostrando primeros 300 de {parsedTopoData.points.length} puntos radiados. Todos los 544 puntos se incluyen en el entregable .DXF.
                     </p>
                   )}
                 </div>

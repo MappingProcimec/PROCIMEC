@@ -85,6 +85,36 @@ export function getUtilityLayer(type: string): { layer: string; color: number; l
   return { layer: 'RED_OTRAS', color: 6, label: 'INTERFERENCIA' }; // Magenta #6
 }
 
+// 18 Capas técnicas normalizadas PROCIMEC (AutoCAD / Civil 3D R12 AC1009)
+export const CANONICAL_CAD_LAYERS = [
+  { name: '0', color: 7 },
+  { name: 'EJE_VIA', color: 1 },                 // Rojo #1
+  { name: 'BORDE_EXPLORACION', color: 8 },        // Gris #8
+  { name: 'COTAS', color: 7 },                    // Blanco #7
+  { name: 'ROTULO_PROCIMEC', color: 7 },          // Blanco #7
+  { name: 'PUNTOS_TOPOGRAFIA', color: 7 },        // Blanco #7
+  { name: 'TEXTOS_TOPOGRAFIA', color: 8 },        // Gris #8
+  { name: 'ESTACIONES_DELTA', color: 6 },         // Magenta #6
+  { name: 'TEXTOS_ESTACIONES', color: 6 },        // Magenta #6
+  { name: 'PERFILES_GPR', color: 4 },             // Cian #4
+  { name: 'RED_GAS', color: 2 },                  // Amarillo #2
+  { name: 'RED_ACUEDUCTO', color: 5 },            // Azul #5
+  { name: 'RED_ENERGIA', color: 1 },              // Rojo #1
+  { name: 'RED_TELECOM', color: 30 },             // Naranja #30
+  { name: 'RED_ALCANTARILLADO', color: 3 },       // Verde #3
+  { name: 'RED_OTRAS', color: 6 },                // Magenta #6
+  { name: 'POSTES_URBANISMO', color: 9 },         // Gris claro #9
+  { name: 'TEXTOS_INTERFERENCIAS', color: 7 },    // Blanco #7
+];
+
+function addDxfLayersTable(lines: string[]) {
+  lines.push('0', 'TABLE', '2', 'LAYER', '70', `${CANONICAL_CAD_LAYERS.length}`);
+  CANONICAL_CAD_LAYERS.forEach((lyr) => {
+    lines.push('0', 'LAYER', '2', lyr.name, '70', '0', '62', `${lyr.color}`, '6', 'CONTINUOUS');
+  });
+  lines.push('0', 'ENDTAB');
+}
+
 /**
  * Generador del Plano 2D Base (.DXF) - Fase 1
  * Soporta georreferenciación nativa si se proporciona un TopographyDataset (.txt de Estación Total).
@@ -102,22 +132,9 @@ export function generateBase2dDxf(
   lines.push('9', '$ACADVER', '1', 'AC1009');
   lines.push('0', 'ENDSEC');
 
-  // 2. TABLES SECTION (Solo LAYER y STYLE)
+  // 2. TABLES SECTION (LAYER y STYLE)
   lines.push('0', 'SECTION', '2', 'TABLES');
-
-  // Capas canónicas para Base 2D (+ capas de topografía si existe georreferenciación)
-  const layerCount = hasTopo ? 7 : 5;
-  lines.push('0', 'TABLE', '2', 'LAYER', '70', `${layerCount}`);
-  lines.push('0', 'LAYER', '2', '0', '70', '0', '62', '7', '6', 'CONTINUOUS');
-  lines.push('0', 'LAYER', '2', 'EJE_VIA', '70', '0', '62', '1', '6', 'CONTINUOUS');
-  lines.push('0', 'LAYER', '2', 'BORDE_EXPLORACION', '70', '0', '62', '8', '6', 'CONTINUOUS');
-  lines.push('0', 'LAYER', '2', 'COTAS', '70', '0', '62', '7', '6', 'CONTINUOUS');
-  lines.push('0', 'LAYER', '2', 'ROTULO_PROCIMEC', '70', '0', '62', '7', '6', 'CONTINUOUS');
-  if (hasTopo) {
-    lines.push('0', 'LAYER', '2', 'PUNTOS_TOPOGRAFIA', '70', '0', '62', '7', '6', 'CONTINUOUS');
-    lines.push('0', 'LAYER', '2', 'TEXTOS_TOPOGRAFIA', '70', '0', '62', '8', '6', 'CONTINUOUS');
-  }
-  lines.push('0', 'ENDTAB');
+  addDxfLayersTable(lines);
 
   // Tabla STYLE (Estilo de texto STANDARD universal)
   lines.push('0', 'TABLE', '2', 'STYLE', '70', '1');
@@ -141,21 +158,50 @@ export function generateBase2dDxf(
     const axis = topography.axisPoints.length > 0 ? topography.axisPoints : pts;
     const bounds = topography.bounds;
 
-    // 1. Dibujar cada punto topográfico medido en campo
+    // 1. Dibujar traslados de estación armada (02TP) con símbolo delta triangular
+    if (topography.stationSetups && topography.stationSetups.length > 0) {
+      topography.stationSetups.forEach((setup) => {
+        addDxfStationDelta(lines, 'ESTACIONES_DELTA', setup.east, setup.north, setup.elevation, 1.2);
+        addDxfText(lines, 'TEXTOS_ESTACIONES', setup.east + 0.8, setup.north + 0.6, setup.elevation, 0.6, `ESTACION: ${setup.stationId}`);
+        if (setup.instrumentHeight) {
+          addDxfText(lines, 'TEXTOS_ESTACIONES', setup.east + 0.8, setup.north - 0.2, setup.elevation, 0.45, `HI = ${setup.instrumentHeight.toFixed(3)} m`);
+        }
+        addDxfText(lines, 'TEXTOS_ESTACIONES', setup.east + 0.8, setup.north - 0.7, setup.elevation, 0.45, `Z = ${setup.elevation.toFixed(2)} m`);
+      });
+    }
+
+    // 2. Dibujar cada punto del levantamiento (08TP) en su capa técnica respectiva
     pts.forEach((pt) => {
-      // Entidad POINT nativa de AutoCAD
-      addDxfPoint(lines, 'PUNTOS_TOPOGRAFIA', pt.east, pt.north, pt.elevation);
+      // Deltas o puntos de amarre en 08TP (e.g. GPS-01-PLA-JM, AUX-01-VIA)
+      if (pt.isStationSetup) {
+        addDxfStationDelta(lines, 'ESTACIONES_DELTA', pt.east, pt.north, pt.elevation, 0.9);
+        addDxfText(lines, 'TEXTOS_ESTACIONES', pt.east + 0.6, pt.north + 0.5, pt.elevation, 0.5, `DELTA: ${pt.code}`);
+        addDxfText(lines, 'TEXTOS_ESTACIONES', pt.east + 0.6, pt.north - 0.3, pt.elevation, 0.4, `Pto ${pt.id} | Z = ${pt.elevation.toFixed(2)}m`);
+        return;
+      }
 
-      // Marcador visual (círculo pequeño de radio 0.25m para Civil 3D)
-      addDxfCircle(lines, 'PUNTOS_TOPOGRAFIA', pt.east, pt.north, pt.elevation, 0.25);
+      const layer = pt.layerName || 'PUNTOS_TOPOGRAFIA';
+      addDxfPoint(lines, layer, pt.east, pt.north, pt.elevation);
+      addDxfCircle(lines, layer, pt.east, pt.north, pt.elevation, 0.25);
 
-      // Etiquetas topográficas estándar (Punto, Cota, Código)
-      addDxfText(lines, 'TEXTOS_TOPOGRAFIA', pt.east + 0.4, pt.north + 0.35, pt.elevation, 0.45, pt.id);
-      addDxfText(lines, 'TEXTOS_TOPOGRAFIA', pt.east + 0.4, pt.north - 0.2, pt.elevation, 0.35, `${pt.elevation.toFixed(2)} m`);
-      addDxfText(lines, 'TEXTOS_TOPOGRAFIA', pt.east + 0.4, pt.north - 0.7, pt.elevation, 0.35, pt.code);
+      // Decodificación de profundidad y diámetro en etiquetas
+      let labelDesc = pt.code;
+      if (pt.depth !== undefined && pt.diameter) {
+        labelDesc = `${pt.code} (Prof: ${pt.depth.toFixed(2)}m | ${pt.diameter})`;
+      } else if (pt.depth !== undefined) {
+        labelDesc = `${pt.code} (Prof: ${pt.depth.toFixed(2)}m)`;
+      }
+
+      const textLayer = pt.category === 'gas' || pt.category === 'acueducto' || pt.category === 'telecom' || pt.category === 'energia' || pt.category === 'alcantarillado'
+        ? 'TEXTOS_INTERFERENCIAS'
+        : 'TEXTOS_TOPOGRAFIA';
+
+      addDxfText(lines, textLayer, pt.east + 0.4, pt.north + 0.35, pt.elevation, 0.45, pt.id);
+      addDxfText(lines, textLayer, pt.east + 0.4, pt.north - 0.2, pt.elevation, 0.35, `${pt.elevation.toFixed(2)} m`);
+      addDxfText(lines, textLayer, pt.east + 0.4, pt.north - 0.7, pt.elevation, 0.35, labelDesc);
     });
 
-    // 2. Delinear el Eje de Vía en 3D uniendo los puntos del alineamiento
+    // 3. Delinear el Eje de Vía en 3D uniendo los puntos del alineamiento
     let accumDist = 0;
     const stepStation = 20.0;
     let nextStation = 0;
@@ -272,17 +318,18 @@ export function generateBase2dDxf(
       );
     }
 
-    // 3. Etiqueta informativa del alineamiento georreferenciado
+    // 4. Etiqueta informativa del alineamiento georreferenciado
     const titleX = axis[0].east;
     const titleY = axis[0].north + 6.0;
     const titleZ = axis[0].elevation;
-    addDxfText(lines, 'COTAS', titleX, titleY + 1.8, titleZ, 1.3, `ALINEAMIENTO GPR GEORREFERENCIADO (${axis.length} PUNTOS ET)`);
+    addDxfText(lines, 'COTAS', titleX, titleY + 1.8, titleZ, 1.3, `ALINEAMIENTO GPR GEORREFERENCIADO (${axis.length} PUNTOS EJE)`);
     addDxfText(lines, 'COTAS', titleX, titleY + 0.6, titleZ, 0.85, `LONGITUD TOTAL: ${topography.totalAxisLength.toFixed(2)} ML | SISTEMA DE COORDENADAS DE CAMPO`);
 
-    // 4. Rótulo Oficial PROCIMEC ubicado junto a las coordenadas del proyecto
+    // 5. Rótulo Oficial PROCIMEC ubicado junto a las coordenadas del proyecto
     const titleBoxX = bounds.maxEast + 25.0;
     const titleBoxY = bounds.minNorth;
-    addDxfTitleBlock(lines, project, titleBoxX, titleBoxY, `ESTACION TOTAL: ${pts.length} PTS`);
+    const setupsCount = topography.stationSetups ? topography.stationSetups.length : 0;
+    addDxfTitleBlock(lines, project, titleBoxX, titleBoxY, `ESTACION TOTAL: ${pts.length} PTS | ${setupsCount} ESTACIONES`);
 
   } else {
     // ═════════════════════════════════════════════════════════════════════════
@@ -368,28 +415,7 @@ export function generateRefined2dDxf(
 
   // 2. TABLES SECTION
   lines.push('0', 'SECTION', '2', 'TABLES');
-
-  // Layers normalizados (12 capas + 2 de topografía si existe)
-  const layerCount = hasTopo ? 14 : 12;
-  lines.push('0', 'TABLE', '2', 'LAYER', '70', `${layerCount}`);
-  lines.push('0', 'LAYER', '2', '0', '70', '0', '62', '7', '6', 'CONTINUOUS');
-  lines.push('0', 'LAYER', '2', 'EJE_VIA', '70', '0', '62', '8', '6', 'CONTINUOUS');
-  lines.push('0', 'LAYER', '2', 'BORDE_EXPLORACION', '70', '0', '62', '9', '6', 'CONTINUOUS');
-  lines.push('0', 'LAYER', '2', 'COTAS', '70', '0', '62', '7', '6', 'CONTINUOUS');
-  // Redes Técnicas
-  lines.push('0', 'LAYER', '2', 'RED_GAS', '70', '0', '62', '2', '6', 'CONTINUOUS');             // Amarillo #2
-  lines.push('0', 'LAYER', '2', 'RED_ACUEDUCTO', '70', '0', '62', '5', '6', 'CONTINUOUS');       // Azul #5
-  lines.push('0', 'LAYER', '2', 'RED_ENERGIA', '70', '0', '62', '1', '6', 'CONTINUOUS');         // Rojo #1
-  lines.push('0', 'LAYER', '2', 'RED_TELECOM', '70', '0', '62', '30', '6', 'CONTINUOUS');        // Naranja #30
-  lines.push('0', 'LAYER', '2', 'RED_ALCANTARILLADO', '70', '0', '62', '3', '6', 'CONTINUOUS');   // Verde #3
-  lines.push('0', 'LAYER', '2', 'RED_OTRAS', '70', '0', '62', '6', '6', 'CONTINUOUS');           // Magenta #6
-  lines.push('0', 'LAYER', '2', 'TEXTOS_INTERFERENCIAS', '70', '0', '62', '7', '6', 'CONTINUOUS');
-  lines.push('0', 'LAYER', '2', 'ROTULO_PROCIMEC', '70', '0', '62', '7', '6', 'CONTINUOUS');
-  if (hasTopo) {
-    lines.push('0', 'LAYER', '2', 'PUNTOS_TOPOGRAFIA', '70', '0', '62', '7', '6', 'CONTINUOUS');
-    lines.push('0', 'LAYER', '2', 'TEXTOS_TOPOGRAFIA', '70', '0', '62', '8', '6', 'CONTINUOUS');
-  }
-  lines.push('0', 'ENDTAB');
+  addDxfLayersTable(lines);
 
   // Tabla STYLE
   lines.push('0', 'TABLE', '2', 'STYLE', '70', '1');
@@ -411,16 +437,48 @@ export function generateRefined2dDxf(
     const axis = topography.axisPoints.length > 0 ? topography.axisPoints : pts;
     const bounds = topography.bounds;
 
-    // Puntos topográficos
+    // 1. Dibujar traslados de estación armada (02TP) con símbolo delta triangular
+    if (topography.stationSetups && topography.stationSetups.length > 0) {
+      topography.stationSetups.forEach((setup) => {
+        addDxfStationDelta(lines, 'ESTACIONES_DELTA', setup.east, setup.north, setup.elevation, 1.2);
+        addDxfText(lines, 'TEXTOS_ESTACIONES', setup.east + 0.8, setup.north + 0.6, setup.elevation, 0.6, `ESTACION: ${setup.stationId}`);
+        if (setup.instrumentHeight) {
+          addDxfText(lines, 'TEXTOS_ESTACIONES', setup.east + 0.8, setup.north - 0.2, setup.elevation, 0.45, `HI = ${setup.instrumentHeight.toFixed(3)} m`);
+        }
+        addDxfText(lines, 'TEXTOS_ESTACIONES', setup.east + 0.8, setup.north - 0.7, setup.elevation, 0.45, `Z = ${setup.elevation.toFixed(2)} m`);
+      });
+    }
+
+    // 2. Dibujar cada punto del levantamiento (08TP) clasificado en su capa técnica
     pts.forEach((pt) => {
-      addDxfPoint(lines, 'PUNTOS_TOPOGRAFIA', pt.east, pt.north, pt.elevation);
-      addDxfCircle(lines, 'PUNTOS_TOPOGRAFIA', pt.east, pt.north, pt.elevation, 0.25);
-      addDxfText(lines, 'TEXTOS_TOPOGRAFIA', pt.east + 0.4, pt.north + 0.35, pt.elevation, 0.45, pt.id);
-      addDxfText(lines, 'TEXTOS_TOPOGRAFIA', pt.east + 0.4, pt.north - 0.2, pt.elevation, 0.35, `${pt.elevation.toFixed(2)} m`);
-      addDxfText(lines, 'TEXTOS_TOPOGRAFIA', pt.east + 0.4, pt.north - 0.7, pt.elevation, 0.35, pt.code);
+      if (pt.isStationSetup) {
+        addDxfStationDelta(lines, 'ESTACIONES_DELTA', pt.east, pt.north, pt.elevation, 0.9);
+        addDxfText(lines, 'TEXTOS_ESTACIONES', pt.east + 0.6, pt.north + 0.5, pt.elevation, 0.5, `DELTA: ${pt.code}`);
+        addDxfText(lines, 'TEXTOS_ESTACIONES', pt.east + 0.6, pt.north - 0.3, pt.elevation, 0.4, `Pto ${pt.id} | Z = ${pt.elevation.toFixed(2)}m`);
+        return;
+      }
+
+      const layer = pt.layerName || 'PUNTOS_TOPOGRAFIA';
+      addDxfPoint(lines, layer, pt.east, pt.north, pt.elevation);
+      addDxfCircle(lines, layer, pt.east, pt.north, pt.elevation, 0.25);
+
+      let labelDesc = pt.code;
+      if (pt.depth !== undefined && pt.diameter) {
+        labelDesc = `${pt.code} (Prof: ${pt.depth.toFixed(2)}m | ${pt.diameter})`;
+      } else if (pt.depth !== undefined) {
+        labelDesc = `${pt.code} (Prof: ${pt.depth.toFixed(2)}m)`;
+      }
+
+      const textLayer = pt.category === 'gas' || pt.category === 'acueducto' || pt.category === 'telecom' || pt.category === 'energia' || pt.category === 'alcantarillado'
+        ? 'TEXTOS_INTERFERENCIAS'
+        : 'TEXTOS_TOPOGRAFIA';
+
+      addDxfText(lines, textLayer, pt.east + 0.4, pt.north + 0.35, pt.elevation, 0.45, pt.id);
+      addDxfText(lines, textLayer, pt.east + 0.4, pt.north - 0.2, pt.elevation, 0.35, `${pt.elevation.toFixed(2)} m`);
+      addDxfText(lines, textLayer, pt.east + 0.4, pt.north - 0.7, pt.elevation, 0.35, labelDesc);
     });
 
-    // Delinear Eje y Franjas
+    // 3. Delinear Eje y Franjas
     for (let i = 0; i < axis.length - 1; i++) {
       const p1 = axis[i];
       const p2 = axis[i + 1];
@@ -437,7 +495,7 @@ export function generateRefined2dDxf(
       }
     }
 
-    // Incrustar Redes en las Coordenadas del Eje Real
+    // 4. Incrustar Redes en las Coordenadas del Eje Real
     const totalLen = Math.max(topography.totalAxisLength, 20.0);
     utilities.forEach((util, uIdx) => {
       const layerInfo = getUtilityLayer(util.type);
@@ -492,7 +550,8 @@ export function generateRefined2dDxf(
     // Rótulo oficial posicionado
     const titleBoxX = bounds.maxEast + 25.0;
     const titleBoxY = bounds.minNorth;
-    addDxfTitleBlock(lines, project, titleBoxX, titleBoxY, `ESTACION TOTAL: ${pts.length} PTS`);
+    const setupsCount = topography.stationSetups ? topography.stationSetups.length : 0;
+    addDxfTitleBlock(lines, project, titleBoxX, titleBoxY, `ESTACION TOTAL: ${pts.length} PTS | ${setupsCount} ESTACIONES`);
 
   } else {
     // Modo Paramétrico Local (Fallback)
@@ -674,6 +733,31 @@ function addDxfCircle(
   lines.push('20', formatDxfCoord(cy));
   lines.push('30', formatDxfCoord(cz));
   lines.push('40', formatDxfCoord(Math.max(radius, 0.01), 0.1));
+}
+
+/**
+ * Dibuja el símbolo topográfico convencional de Estación Armada / Punto Delta de Control:
+ * Un triángulo equilátero centrado con un punto y círculo interior.
+ */
+function addDxfStationDelta(
+  lines: string[],
+  layer: string,
+  east: number,
+  north: number,
+  elevation: number,
+  size = 0.9
+) {
+  const h = size;
+  const halfB = size * 0.57735;
+  const v1 = { x: east, y: north + (2 / 3) * h };
+  const v2 = { x: east - halfB, y: north - (1 / 3) * h };
+  const v3 = { x: east + halfB, y: north - (1 / 3) * h };
+
+  addDxfLine(lines, layer, v1.x, v1.y, elevation, v2.x, v2.y, elevation);
+  addDxfLine(lines, layer, v2.x, v2.y, elevation, v3.x, v3.y, elevation);
+  addDxfLine(lines, layer, v3.x, v3.y, elevation, v1.x, v1.y, elevation);
+  addDxfPoint(lines, layer, east, north, elevation);
+  addDxfCircle(lines, layer, east, north, elevation, 0.15);
 }
 
 function addDxfText(
