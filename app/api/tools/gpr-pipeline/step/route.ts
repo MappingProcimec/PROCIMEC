@@ -122,7 +122,7 @@ function generateStepDeliverableMeta(
         fileName: `Plano_2D_Base_${cleanName}.dxf`,
         fileUrl: `${baseDownload}&type=dxf&name=Plano_2D_Base_${cleanName}`,
         fileType: 'dxf',
-        summary: `Plano 2D generado con éxito en formato AutoCAD DXF R2018. Delineación de ejes viales, franjas de exploración por tramo y rótulo oficial PROCIMEC INGENIERÍA S.A.S.`,
+        summary: `Plano 2D generado con éxito en formato AutoCAD DXF R12 / Universal. Delineación de ejes viales, franjas de exploración por tramo y rótulo oficial PROCIMEC INGENIERÍA S.A.S.`,
         tokens: { input_tokens: 1420, output_tokens: 680 },
       };
     case 'gpr_raw_proc':

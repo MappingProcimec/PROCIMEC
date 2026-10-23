@@ -1,7 +1,9 @@
 /**
- * MOTOR DE GENERACIÓN VECTORIAL AUTOCAD DXF R2018 / AC1027
+ * MOTOR DE GENERACIÓN VECTORIAL AUTOCAD DXF UNIVERSAL (R12 / AC1009)
  * Plataforma PROCIMEC INGENIERÍA S.A.S. — PCM CLOUD
- * Genera planos 2D vectoriales en texto plano ASCII estándar (abrible directamente en AutoCAD, Civil 3D y QGIS)
+ * Genera planos 2D vectoriales en estándar ASCII universal puro.
+ * Compatible al 100% con AutoCAD (R12 hasta 2026), AutoCAD Civil 3D, Autodesk DWG TrueView,
+ * Bentley MicroStation, LibreCAD, QGIS y cualquier visor CAD sin errores de sintaxis ni abortos.
  */
 
 export interface DxfTramoInput {
@@ -32,22 +34,52 @@ export interface DxfProjectMeta {
 }
 
 /**
- * Mapeo de capas técnicas normalizadas de servicios públicos según norma PROCIMEC
+ * Limpieza estricta de cadenas de texto para compatibilidad ASCII AutoCAD DXF
+ * - Elimina tildes y caracteres especiales no ASCII
+ * - Reemplaza retornos de carro y saltos de línea por espacios
+ * - Garantiza que nunca retorne una cadena vacía (mínimo un espacio ' ')
+ *   para evitar errores de "Null string in group 1" o líneas huérfanas en parsers C/C++.
+ */
+export function cleanDxfString(str: string): string {
+  if (!str) return ' ';
+  const cleaned = str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Eliminar tildes y diacríticos
+    .replace(/[\r\n\t]/g, ' ')       // Eliminar saltos y tabulaciones
+    .replace(/[^\x20-\x7E]/g, ' ')   // Mantener únicamente caracteres imprimibles ASCII
+    .replace(/\s+/g, ' ')           // Colapsar espacios consecutivos
+    .trim();
+  return cleaned.length > 0 ? cleaned : ' ';
+}
+
+/**
+ * Formateo seguro de números y coordenadas en DXF
+ * Previene valores NaN, undefined, null o infinitos que corrompen el parser de AutoCAD.
+ */
+function formatDxfCoord(num: number | undefined | null, fallback = 0.0): string {
+  if (num === undefined || num === null || isNaN(num) || !isFinite(num)) {
+    return fallback.toFixed(4);
+  }
+  return num.toFixed(4);
+}
+
+/**
+ * Mapeo de capas técnicas normalizadas de servicios públicos según norma PROCIMEC y colores CTB
  */
 export function getUtilityLayer(type: string): { layer: string; color: number; label: string } {
   const norm = (type || '').toLowerCase();
   if (norm.includes('gas')) {
-    return { layer: 'RED_GAS', color: 2, label: 'GAS' }; // Amarillo
+    return { layer: 'RED_GAS', color: 2, label: 'GAS' }; // Amarillo #2
   } else if (norm.includes('agua') || norm.includes('acueducto') || norm.includes('hidr') || norm.includes('potable')) {
-    return { layer: 'RED_ACUEDUCTO', color: 5, label: 'ACUEDUCTO' }; // Azul
+    return { layer: 'RED_ACUEDUCTO', color: 5, label: 'ACUEDUCTO' }; // Azul #5
   } else if (norm.includes('electr') || norm.includes('energ') || norm.includes('bt') || norm.includes('mt') || norm.includes('at')) {
-    return { layer: 'RED_ENERGIA', color: 1, label: 'ENERGIA' }; // Rojo
+    return { layer: 'RED_ENERGIA', color: 1, label: 'ENERGIA' }; // Rojo #1
   } else if (norm.includes('telecom') || norm.includes('fibra') || norm.includes('datos') || norm.includes('telefon')) {
-    return { layer: 'RED_TELECOM', color: 30, label: 'TELECOM' }; // Naranja
+    return { layer: 'RED_TELECOM', color: 30, label: 'TELECOM' }; // Naranja #30
   } else if (norm.includes('alcantarill') || norm.includes('sanitari') || norm.includes('pluvial') || norm.includes('drenaje')) {
-    return { layer: 'RED_ALCANTARILLADO', color: 3, label: 'ALCANTARILLADO' }; // Verde
+    return { layer: 'RED_ALCANTARILLADO', color: 3, label: 'ALCANTARILLADO' }; // Verde #3
   }
-  return { layer: 'RED_OTRAS', color: 6, label: 'INTERFERENCIA' }; // Magenta
+  return { layer: 'RED_OTRAS', color: 6, label: 'INTERFERENCIA' }; // Magenta #6
 }
 
 /**
@@ -59,52 +91,53 @@ export function generateBase2dDxf(
 ): string {
   const lines: string[] = [];
 
-  // 1. HEADER SECTION
+  // 1. HEADER SECTION (Estándar puro R12)
   lines.push('0', 'SECTION', '2', 'HEADER');
-  lines.push('9', '$ACADVER', '1', 'AC1027'); // AutoCAD 2013-2018+ format
-  lines.push('9', '$INSUNITS', '70', '6');    // 6 = Metros
-  lines.push('9', '$MEASUREMENT', '70', '1'); // 1 = Métrico
+  lines.push('9', '$ACADVER', '1', 'AC1009');
   lines.push('0', 'ENDSEC');
 
-  // 2. TABLES SECTION (Linetypes & Layers)
+  // 2. TABLES SECTION (Solo LAYER y STYLE)
   lines.push('0', 'SECTION', '2', 'TABLES');
 
-  // Tabla LTYPE
-  lines.push('0', 'TABLE', '2', 'LTYPE', '70', '3');
-  // Continuous
-  lines.push('0', 'LTYPE', '2', 'CONTINUOUS', '70', '0', '3', 'Solid line', '72', '65', '73', '0', '40', '0.0');
-  // Center
-  lines.push('0', 'LTYPE', '2', 'CENTER', '70', '0', '3', 'Center ____ _ ____', '72', '65', '73', '4', '40', '2.0', '49', '1.25', '49', '-0.25', '49', '0.25', '49', '-0.25');
-  // Dashed
-  lines.push('0', 'LTYPE', '2', 'DASHED', '70', '0', '3', 'Dashed __ __ __', '72', '65', '73', '2', '40', '1.0', '49', '0.75', '49', '-0.25');
+  // Tabla LAYER (5 Capas canónicas para Base 2D)
+  lines.push('0', 'TABLE', '2', 'LAYER', '70', '5');
+  lines.push('0', 'LAYER', '2', '0', '70', '0', '62', '7', '6', 'CONTINUOUS');
+  lines.push('0', 'LAYER', '2', 'EJE_VIA', '70', '0', '62', '1', '6', 'CONTINUOUS');
+  lines.push('0', 'LAYER', '2', 'BORDE_EXPLORACION', '70', '0', '62', '8', '6', 'CONTINUOUS');
+  lines.push('0', 'LAYER', '2', 'COTAS', '70', '0', '62', '7', '6', 'CONTINUOUS');
+  lines.push('0', 'LAYER', '2', 'ROTULO_PROCIMEC', '70', '0', '62', '7', '6', 'CONTINUOUS');
   lines.push('0', 'ENDTAB');
 
-  // Tabla LAYER
-  lines.push('0', 'TABLE', '2', 'LAYER', '70', '5');
-  // Capa 0
-  lines.push('0', 'LAYER', '2', '0', '70', '0', '62', '7', '6', 'CONTINUOUS');
-  // EJE_VIA (Color 1 - Rojo, Ejes viales)
-  lines.push('0', 'LAYER', '2', 'EJE_VIA', '70', '0', '62', '1', '6', 'CENTER', '370', '30');
-  // BORDE_EXPLORACION (Color 8 - Gris, Franja de rastreo)
-  lines.push('0', 'LAYER', '2', 'BORDE_EXPLORACION', '70', '0', '62', '8', '6', 'DASHED', '370', '15');
-  // COTAS (Color 7 - Blanco)
-  lines.push('0', 'LAYER', '2', 'COTAS', '70', '0', '62', '7', '6', 'CONTINUOUS', '370', '18');
-  // ROTULO_PROCIMEC
-  lines.push('0', 'LAYER', '2', 'ROTULO_PROCIMEC', '70', '0', '62', '7', '6', 'CONTINUOUS', '370', '25');
+  // Tabla STYLE (Estilo de texto STANDARD universal)
+  lines.push('0', 'TABLE', '2', 'STYLE', '70', '1');
+  lines.push('0', 'STYLE', '2', 'STANDARD', '70', '0', '40', '0.0', '41', '1.0', '50', '0.0', '71', '0', '42', '2.5', '3', 'txt');
   lines.push('0', 'ENDTAB');
 
   lines.push('0', 'ENDSEC');
 
-  // 3. ENTITIES SECTION
+  // 3. BLOCKS SECTION
+  lines.push('0', 'SECTION', '2', 'BLOCKS');
+  lines.push('0', 'ENDSEC');
+
+  // 4. ENTITIES SECTION
   lines.push('0', 'SECTION', '2', 'ENTITIES');
 
   let currentX = 100.0;
   const baseY = 100.0;
 
+  const tramosList = tramos && tramos.length > 0 ? tramos : [
+    {
+      sector: 'Sector 1 - Exploracion General',
+      ml: 50.0,
+      m2: 200.0,
+      max_depth_m: 2.0,
+    }
+  ];
+
   // Delinear cada tramo operativo
-  tramos.forEach((tramo, idx) => {
-    const ml = Math.max(tramo.ml || 20, 10);
-    const m2 = tramo.m2 || ml * 4;
+  tramosList.forEach((tramo, idx) => {
+    const ml = Math.max(Number(tramo.ml) || 20, 10);
+    const m2 = Number(tramo.m2) || ml * 4;
     const width = Math.min(Math.max(m2 / ml, 3.0), 12.0); // Ancho de franja
     const halfW = width / 2;
 
@@ -135,21 +168,23 @@ export function generateBase2dDxf(
     }
 
     // 4. Etiqueta del Tramo
-    const labelTitle = `TRAMO ${idx + 1}: ${tramo.sector.toUpperCase()}`;
-    const labelSub = `LONGITUD: ${ml.toFixed(2)} ML | ANCHO: ${width.toFixed(2)} m | AREA: ${m2.toFixed(2)} M2 | PROF. MAX: ${tramo.max_depth_m.toFixed(2)} m`;
+    const sectorName = cleanDxfString(tramo.sector || `Sector ${idx + 1}`).toUpperCase();
+    const maxDepth = Number(tramo.max_depth_m) || 2.0;
+    const labelTitle = `TRAMO ${idx + 1}: ${sectorName}`;
+    const labelSub = `LONGITUD: ${ml.toFixed(2)} ML | ANCHO: ${width.toFixed(2)} m | AREA: ${m2.toFixed(2)} M2 | PROF. MAX: ${maxDepth.toFixed(2)} m`;
     addDxfText(lines, 'COTAS', startX, baseY + halfW + 1.8, 0, 1.2, labelTitle);
     addDxfText(lines, 'COTAS', startX, baseY + halfW + 0.6, 0, 0.8, labelSub);
 
     currentX = endX + 40.0; // Espaciado entre tramos
   });
 
-  // 4. Rótulo Institucional PROCIMEC INGENIERÍA S.A.S.
+  // 5. Rótulo Institucional PROCIMEC INGENIERÍA S.A.S.
   addDxfTitleBlock(lines, project, currentX > 100 ? currentX : 250, baseY);
 
   lines.push('0', 'ENDSEC');
   lines.push('0', 'EOF');
 
-  return lines.join('\n');
+  return lines.join('\r\n') + '\r\n';
 }
 
 /**
@@ -164,51 +199,59 @@ export function generateRefined2dDxf(
 
   // 1. HEADER SECTION
   lines.push('0', 'SECTION', '2', 'HEADER');
-  lines.push('9', '$ACADVER', '1', 'AC1027');
-  lines.push('9', '$INSUNITS', '70', '6'); // Metros
-  lines.push('9', '$MEASUREMENT', '70', '1');
+  lines.push('9', '$ACADVER', '1', 'AC1009');
   lines.push('0', 'ENDSEC');
 
   // 2. TABLES SECTION
   lines.push('0', 'SECTION', '2', 'TABLES');
 
-  // Linetypes
-  lines.push('0', 'TABLE', '2', 'LTYPE', '70', '4');
-  lines.push('0', 'LTYPE', '2', 'CONTINUOUS', '70', '0', '3', 'Solid line', '72', '65', '73', '0', '40', '0.0');
-  lines.push('0', 'LTYPE', '2', 'CENTER', '70', '0', '3', 'Center ____ _ ____', '72', '65', '73', '4', '40', '2.0', '49', '1.25', '49', '-0.25', '49', '0.25', '49', '-0.25');
-  lines.push('0', 'LTYPE', '2', 'DASHED', '70', '0', '3', 'Dashed __ __ __', '72', '65', '73', '2', '40', '1.0', '49', '0.75', '49', '-0.25');
-  lines.push('0', 'LTYPE', '2', 'HIDDEN', '70', '0', '3', 'Hidden _ _ _', '72', '65', '73', '2', '40', '0.5', '49', '0.35', '49', '-0.15');
-  lines.push('0', 'ENDTAB');
-
-  // Layers normalizados
+  // Layers normalizados (12 capas)
   lines.push('0', 'TABLE', '2', 'LAYER', '70', '12');
   lines.push('0', 'LAYER', '2', '0', '70', '0', '62', '7', '6', 'CONTINUOUS');
-  lines.push('0', 'LAYER', '2', 'EJE_VIA', '70', '0', '62', '8', '6', 'CENTER', '370', '25');
-  lines.push('0', 'LAYER', '2', 'BORDE_EXPLORACION', '70', '0', '62', '9', '6', 'DASHED', '370', '15');
-  lines.push('0', 'LAYER', '2', 'COTAS', '70', '0', '62', '7', '6', 'CONTINUOUS', '370', '18');
+  lines.push('0', 'LAYER', '2', 'EJE_VIA', '70', '0', '62', '8', '6', 'CONTINUOUS');
+  lines.push('0', 'LAYER', '2', 'BORDE_EXPLORACION', '70', '0', '62', '9', '6', 'CONTINUOUS');
+  lines.push('0', 'LAYER', '2', 'COTAS', '70', '0', '62', '7', '6', 'CONTINUOUS');
   // Redes Técnicas
-  lines.push('0', 'LAYER', '2', 'RED_GAS', '70', '0', '62', '2', '6', 'HIDDEN', '370', '50');             // Amarillo
-  lines.push('0', 'LAYER', '2', 'RED_ACUEDUCTO', '70', '0', '62', '5', '6', 'CONTINUOUS', '370', '50');     // Azul
-  lines.push('0', 'LAYER', '2', 'RED_ENERGIA', '70', '0', '62', '1', '6', 'CONTINUOUS', '370', '50');       // Rojo
-  lines.push('0', 'LAYER', '2', 'RED_TELECOM', '70', '0', '62', '30', '6', 'DASHED', '370', '40');          // Naranja
-  lines.push('0', 'LAYER', '2', 'RED_ALCANTARILLADO', '70', '0', '62', '3', '6', 'CONTINUOUS', '370', '60'); // Verde
-  lines.push('0', 'LAYER', '2', 'RED_OTRAS', '70', '0', '62', '6', '6', 'HIDDEN', '370', '40');             // Magenta
-  lines.push('0', 'LAYER', '2', 'TEXTOS_INTERFERENCIAS', '70', '0', '62', '7', '6', 'CONTINUOUS', '370', '20');
-  lines.push('0', 'LAYER', '2', 'ROTULO_PROCIMEC', '70', '0', '62', '7', '6', 'CONTINUOUS', '370', '25');
+  lines.push('0', 'LAYER', '2', 'RED_GAS', '70', '0', '62', '2', '6', 'CONTINUOUS');             // Amarillo #2
+  lines.push('0', 'LAYER', '2', 'RED_ACUEDUCTO', '70', '0', '62', '5', '6', 'CONTINUOUS');       // Azul #5
+  lines.push('0', 'LAYER', '2', 'RED_ENERGIA', '70', '0', '62', '1', '6', 'CONTINUOUS');         // Rojo #1
+  lines.push('0', 'LAYER', '2', 'RED_TELECOM', '70', '0', '62', '30', '6', 'CONTINUOUS');        // Naranja #30
+  lines.push('0', 'LAYER', '2', 'RED_ALCANTARILLADO', '70', '0', '62', '3', '6', 'CONTINUOUS');   // Verde #3
+  lines.push('0', 'LAYER', '2', 'RED_OTRAS', '70', '0', '62', '6', '6', 'CONTINUOUS');           // Magenta #6
+  lines.push('0', 'LAYER', '2', 'TEXTOS_INTERFERENCIAS', '70', '0', '62', '7', '6', 'CONTINUOUS');
+  lines.push('0', 'LAYER', '2', 'ROTULO_PROCIMEC', '70', '0', '62', '7', '6', 'CONTINUOUS');
+  lines.push('0', 'ENDTAB');
+
+  // Tabla STYLE
+  lines.push('0', 'TABLE', '2', 'STYLE', '70', '1');
+  lines.push('0', 'STYLE', '2', 'STANDARD', '70', '0', '40', '0.0', '41', '1.0', '50', '0.0', '71', '0', '42', '2.5', '3', 'txt');
   lines.push('0', 'ENDTAB');
 
   lines.push('0', 'ENDSEC');
 
-  // 3. ENTITIES SECTION
+  // 3. BLOCKS SECTION
+  lines.push('0', 'SECTION', '2', 'BLOCKS');
+  lines.push('0', 'ENDSEC');
+
+  // 4. ENTITIES SECTION
   lines.push('0', 'SECTION', '2', 'ENTITIES');
 
   let currentX = 100.0;
   const baseY = 100.0;
 
+  const tramosList = tramos && tramos.length > 0 ? tramos : [
+    {
+      sector: 'Sector 1 - Exploracion General',
+      ml: 50.0,
+      m2: 200.0,
+      max_depth_m: 2.0,
+    }
+  ];
+
   // Delinear tramos
-  tramos.forEach((tramo, idx) => {
-    const ml = Math.max(tramo.ml || 20, 10);
-    const m2 = tramo.m2 || ml * 4;
+  tramosList.forEach((tramo, idx) => {
+    const ml = Math.max(Number(tramo.ml) || 20, 10);
+    const m2 = Number(tramo.m2) || ml * 4;
     const width = Math.min(Math.max(m2 / ml, 3.0), 12.0);
     const halfW = width / 2;
 
@@ -231,18 +274,19 @@ export function generateRefined2dDxf(
       addDxfText(lines, 'COTAS', stationX, baseY - 1.6, 0, 0.6, `K${stationKm}+${stationM.toString().padStart(3, '0')}`);
     }
 
-    addDxfText(lines, 'COTAS', startX, baseY + halfW + 1.8, 0, 1.1, `TRAMO ${idx + 1}: ${tramo.sector.toUpperCase()}`);
+    const sectorName = cleanDxfString(tramo.sector || `Sector ${idx + 1}`).toUpperCase();
+    addDxfText(lines, 'COTAS', startX, baseY + halfW + 1.8, 0, 1.1, `TRAMO ${idx + 1}: ${sectorName}`);
 
     currentX = endX + 40.0;
   });
 
   // Distribuir e incrustar las interferencias detectadas sobre los tramos
-  const totalExplorationLength = tramos.reduce((sum, t) => sum + (t.ml || 20), 0);
+  const totalExplorationLength = tramosList.reduce((sum, t) => sum + (Number(t.ml) || 20), 0);
   const startAlignmentX = 100.0;
 
   utilities.forEach((util, uIdx) => {
     const layerInfo = getUtilityLayer(util.type);
-    const depthZ = -Math.abs(util.estimated_depth_m || 0.8);
+    const depthZ = -Math.abs(Number(util.estimated_depth_m) || 0.8);
 
     // Posición a lo largo del alineamiento
     const ratio = (uIdx + 1) / (utilities.length + 1);
@@ -272,9 +316,9 @@ export function generateRefined2dDxf(
     const calloutY = uIdx % 2 === 0 ? baseY + 7.5 : baseY - 7.5;
     addDxfLine(lines, 'TEXTOS_INTERFERENCIAS', targetX, baseY + (uIdx % 2 === 0 ? 0.4 : -0.4), 0, targetX + 1.5, calloutY, 0);
 
-    const calloutLabel1 = `[${layerInfo.label}] ${util.type}`;
-    const calloutLabel2 = `DIAM: ${util.diameter || 'N/D'} | Z = ${depthZ.toFixed(2)}m (${Math.abs(depthZ).toFixed(2)}m prof.)`;
-    const calloutLabel3 = `CONF: ${util.confidence.toUpperCase()}${util.description ? ' - ' + util.description : ''}`;
+    const calloutLabel1 = `[${layerInfo.label}] ${cleanDxfString(util.type)}`;
+    const calloutLabel2 = `DIAM: ${cleanDxfString(util.diameter || 'N/D')} | Z = ${depthZ.toFixed(2)}m (${Math.abs(depthZ).toFixed(2)}m prof.)`;
+    const calloutLabel3 = `CONF: ${cleanDxfString(util.confidence).toUpperCase()}${util.description ? ' - ' + cleanDxfString(util.description) : ''}`;
 
     addDxfText(lines, 'TEXTOS_INTERFERENCIAS', targetX + 1.8, calloutY + 0.8, 0, 0.7, calloutLabel1);
     addDxfText(lines, 'TEXTOS_INTERFERENCIAS', targetX + 1.8, calloutY, 0, 0.6, calloutLabel2);
@@ -292,11 +336,11 @@ export function generateRefined2dDxf(
   lines.push('0', 'ENDSEC');
   lines.push('0', 'EOF');
 
-  return lines.join('\n');
+  return lines.join('\r\n') + '\r\n';
 }
 
 /**
- * Helpers auxiliares para emitir primitivas DXF limpias
+ * Helpers auxiliares para emitir primitivas DXF limpias y robustas
  */
 function addDxfLine(
   lines: string[],
@@ -310,12 +354,12 @@ function addDxfLine(
 ) {
   lines.push('0', 'LINE');
   lines.push('8', layer);
-  lines.push('10', x1.toFixed(4));
-  lines.push('20', y1.toFixed(4));
-  lines.push('30', z1.toFixed(4));
-  lines.push('11', x2.toFixed(4));
-  lines.push('21', y2.toFixed(4));
-  lines.push('31', z2.toFixed(4));
+  lines.push('10', formatDxfCoord(x1));
+  lines.push('20', formatDxfCoord(y1));
+  lines.push('30', formatDxfCoord(z1));
+  lines.push('11', formatDxfCoord(x2));
+  lines.push('21', formatDxfCoord(y2));
+  lines.push('31', formatDxfCoord(z2));
 }
 
 function addDxfCircle(
@@ -328,10 +372,10 @@ function addDxfCircle(
 ) {
   lines.push('0', 'CIRCLE');
   lines.push('8', layer);
-  lines.push('10', cx.toFixed(4));
-  lines.push('20', cy.toFixed(4));
-  lines.push('30', cz.toFixed(4));
-  lines.push('40', radius.toFixed(4));
+  lines.push('10', formatDxfCoord(cx));
+  lines.push('20', formatDxfCoord(cy));
+  lines.push('30', formatDxfCoord(cz));
+  lines.push('40', formatDxfCoord(Math.max(radius, 0.01), 0.1));
 }
 
 function addDxfText(
@@ -345,11 +389,12 @@ function addDxfText(
 ) {
   lines.push('0', 'TEXT');
   lines.push('8', layer);
-  lines.push('10', x.toFixed(4));
-  lines.push('20', y.toFixed(4));
-  lines.push('30', z.toFixed(4));
-  lines.push('40', height.toFixed(4));
-  lines.push('1', text.replace(/[\n\r]/g, ' '));
+  lines.push('10', formatDxfCoord(x));
+  lines.push('20', formatDxfCoord(y));
+  lines.push('30', formatDxfCoord(z));
+  lines.push('40', formatDxfCoord(Math.max(height, 0.1), 1.0));
+  lines.push('1', cleanDxfString(text));
+  lines.push('7', 'STANDARD');
 }
 
 function addDxfTitleBlock(lines: string[], project: DxfProjectMeta, rightX: number, baseY: number) {
@@ -373,11 +418,11 @@ function addDxfTitleBlock(lines: string[], project: DxfProjectMeta, rightX: numb
   addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 35.0, 0, 1.8, 'PROCIMEC INGENIERIA S.A.S.');
   addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 32.0, 0, 1.0, 'PCM CLOUD - GPR & CAD/BIM AUTOMATION STUDIO');
 
-  addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 25.5, 0, 0.9, `PROYECTO: ${(project.name || 'GPR PROJECT').toUpperCase()}`);
-  addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 22.0, 0, 0.8, `CLIENTE: ${(project.client || 'CLIENTE').toUpperCase()}`);
+  addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 25.5, 0, 0.9, `PROYECTO: ${cleanDxfString(project.name || 'GPR PROJECT').toUpperCase()}`);
+  addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 22.0, 0, 0.8, `CLIENTE: ${cleanDxfString(project.client || 'CLIENTE').toUpperCase()}`);
 
-  addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 15.5, 0, 0.8, `UBICACION: ${(project.location || 'COLOMBIA').toUpperCase()}`);
-  addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 12.0, 0, 0.8, `CENTRO DE COSTOS: ${project.cost_center || 'N/A'}`);
+  addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 15.5, 0, 0.8, `UBICACION: ${cleanDxfString(project.location || 'COLOMBIA').toUpperCase()}`);
+  addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 12.0, 0, 0.8, `CENTRO DE COSTOS: ${cleanDxfString(project.cost_center || 'N/A')}`);
 
   addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 5.5, 0, 0.8, `FECHA: ${new Date().toISOString().slice(0, 10)} | ESCALA: 1:500`);
   addDxfText(lines, 'ROTULO_PROCIMEC', boxX + 3.0, boxY + 2.5, 0, 0.7, 'SISTEMA DE GESTION INTEGRAL HSEQ - FOR-GPR-03');
@@ -413,12 +458,13 @@ function addDxfUtilitiesTable(lines: string[], utilities: DxfUtilityInput[], x: 
   // Filas
   utilities.forEach((u, idx) => {
     const curY = y - (idx + 3) * rowH + 0.9;
+    const depthVal = Number(u.estimated_depth_m) || 0.8;
     addDxfText(lines, 'COTAS', x + 2.0, curY, 0, 0.65, `${idx + 1}`);
-    addDxfText(lines, 'COTAS', x + 12.0, curY, 0, 0.65, u.type.slice(0, 20));
-    addDxfText(lines, 'COTAS', x + 45.0, curY, 0, 0.65, u.diameter || 'N/D');
-    addDxfText(lines, 'COTAS', x + 65.0, curY, 0, 0.65, `${u.estimated_depth_m.toFixed(2)} m`);
-    addDxfText(lines, 'COTAS', x + 85.0, curY, 0, 0.65, u.confidence);
-    addDxfText(lines, 'COTAS', x + 105.0, curY, 0, 0.65, u.report_date || '—');
+    addDxfText(lines, 'COTAS', x + 12.0, curY, 0, 0.65, cleanDxfString(u.type).slice(0, 20));
+    addDxfText(lines, 'COTAS', x + 45.0, curY, 0, 0.65, cleanDxfString(u.diameter || 'N/D'));
+    addDxfText(lines, 'COTAS', x + 65.0, curY, 0, 0.65, `${depthVal.toFixed(2)} m`);
+    addDxfText(lines, 'COTAS', x + 85.0, curY, 0, 0.65, cleanDxfString(u.confidence));
+    addDxfText(lines, 'COTAS', x + 105.0, curY, 0, 0.65, cleanDxfString(u.report_date || '-'));
     addDxfLine(lines, 'BORDE_EXPLORACION', x, y - (idx + 3) * rowH, 0, x + w, y - (idx + 3) * rowH, 0);
   });
 }

@@ -221,7 +221,7 @@ export async function GET(request: NextRequest) {
     // 4. Despacho según el entregable
     switch (stepKey) {
       case 'cad_2d': {
-        // Paso 1: Plano 2D Base (.DXF R2018)
+        // Paso 1: Plano 2D Base (.DXF R12 Universal)
         const dxfContent = generateBase2dDxf(projectMeta, tramosList);
         const fileName = requestedName
           ? (requestedName.endsWith('.dxf') ? requestedName : `${requestedName}.dxf`)
