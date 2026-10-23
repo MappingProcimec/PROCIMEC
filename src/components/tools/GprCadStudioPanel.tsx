@@ -35,6 +35,7 @@ import {
   Eye,
   X,
   Navigation,
+  Zap,
 } from 'lucide-react';
 import {
   GprPipelineJob,
@@ -66,8 +67,8 @@ const CANONICAL_STEP_INFO: Record<
     outputExt: 'dxf',
   },
   gpr_raw_proc: {
-    name: 'Paso 2: Procesamiento de Datos Crudos GPR (.pdf)',
-    desc: 'Informe técnico DSP geofísico: Time-Zero, Filtro Dewow, Ganancia SEC exponencial y calibración de RDP.',
+    name: 'Paso 2: Procesamiento de Datos Crudos GPR y Detección de Anomalías (.pdf)',
+    desc: 'Motor GSF-Processor: Filtrado DSP (Time-Zero, Dewow 2.0ns, Ganancia SEC 40dB, Pasa-banda) y detección geofísica de hipérbolas y redes (ASCE 38-02 / ASTM D6432).',
     defaultIn: 1650,
     defaultOut: 890,
     outputExt: 'pdf',
@@ -140,19 +141,19 @@ const CANONICAL_DELIVERABLES_META: Record<GprPipelineStepKey, DeliverableMetaInf
   gpr_raw_proc: {
     stepKey: 'gpr_raw_proc',
     stepNum: 2,
-    title: 'Informe Técnico DSP y Radargramas (.pdf / FOR-GPR-04)',
-    shortTitle: 'Informe Técnico DSP Geofísico',
+    title: 'Informe Técnico DSP y Detección de Anomalías (.pdf / FOR-GPR-04)',
+    shortTitle: 'Informe Técnico DSP y Detección',
     ext: 'pdf',
-    formatBadge: 'PDF DSP',
+    formatBadge: 'PDF DSP + DET',
     formatBadgeStyle: 'bg-sky-50 text-sky-800 border-sky-200',
-    standard: 'FOR-GPR-04 v2 / ASTM D6432-19',
+    standard: 'FOR-GPR-04 v2 / ASCE 38-02 / ASTM D6432',
     software: 'Adobe Acrobat Reader, Visores PDF de Navegador',
     defaultFileName: (p) => `Reporte_Radargramas_DSP_${p}.pdf`,
-    expectedOutput: 'Cadena de procesamiento digital de señales: Corrección Time-Zero, Filtro Dewow, Compensación SEC Gain y calibración de Permitividad Dieléctrica (RDP εr=9.0, v=0.100 m/ns).',
+    expectedOutput: 'Procesamiento digital de señales (Time-Zero, Dewow 2.0ns, SEC Gain 40dB, Pasa-banda) y detección automática de difracciones hiperbólicas y redes de servicios públicos por perfil.',
     keyOutputs: [
-      { label: 'Cadena DSP', desc: 'Time-Zero + Dewow + Ganancia SEC Exponencial' },
-      { label: 'Calibración Dieléctrica', desc: 'RDP εr = 9.0 | v = 0.100 m/ns' },
-      { label: 'Formato Oficial', desc: 'Plantilla de Geofísica FOR-GPR-04 v2' },
+      { label: 'Cadena DSP (GSF-Processor)', desc: 'Time-Zero + Dewow 2.0ns + Ganancia SEC 40dB + Pasa-Banda' },
+      { label: 'Detección Geofísica', desc: 'Identificación de hipérbolas R²>=0.70 y redes subterráneas Z' },
+      { label: 'Formato Oficial', desc: 'Plantilla Institucional de Geofísica FOR-GPR-04 v2' },
     ],
   },
   cad_2d_refine: {
@@ -1039,6 +1040,46 @@ export function GprCadStudioPanel() {
                     disabled={isUploadingTopo}
                   />
                 </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Archivos Crudos de Georadar (.GSF / .RD3 / .DZT) — Motor GSF-Processor */}
+          <div className="card p-4.5 bg-surface-dark text-white border border-border-dark shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-sky-500/20 flex items-center justify-center shrink-0 border border-sky-500/40 text-sky-400">
+                  <Cpu className="w-5 h-5 text-sky-400" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm font-bold text-white">Perfiles y Archivos Crudos de Georadar (.GSF / .RD3 / .DZT)</h4>
+                    <span className="badge bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Layers className="w-3 h-3 text-sky-400" />
+                      {projectSummary?.raw_gpr_files_count || 0} Archivos Crudos Registrados
+                    </span>
+                    <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-emerald-400" />
+                      Motor GSF-Processor Integrado
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/70 mt-1">
+                    En el <strong>Paso 2</strong>, el pipeline ejecutará la misma arquitectura de procesamiento DSP (Time-Zero, Dewow 2.0ns, Ganancia SEC 40dB y Filtro Pasa-Banda) y el motor de detección geofísica de hipérbolas y tuberías subterráneas (ASCE 38-02 / ASTM D6432) del Procesador Web GSF.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                <a
+                  href="/tools/gsf-processor"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-accent px-3.5 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 text-primary-900 cursor-pointer shadow-xs hover:opacity-95"
+                  title="Abrir la Estación de Trabajo y Procesador Web GSF en una pestaña nueva"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Abrir Procesador GSF</span>
+                </a>
               </div>
             </div>
           </div>

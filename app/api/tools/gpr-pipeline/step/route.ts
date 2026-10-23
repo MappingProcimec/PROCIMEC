@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase';
 import { GprPipelineStepKey } from '@/types/gpr-pipeline';
 import { getTopographyForPipeline } from '@/lib/gpr-cad/services/topography-service';
 import { TopographyDataset } from '@/lib/gpr-cad/parsers/topography-txt-parser';
+import { processAllGprProfilesForProject } from '@/lib/gpr-cad/services/gpr-raw-processor-service';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -361,6 +362,29 @@ export async function POST(request: NextRequest) {
 
       const completedAt = new Date().toISOString();
 
+      let stepAiResponse = deliverableMeta.summary;
+      let stepLogs = `[${new Date().toLocaleTimeString('es-CO')}] Paso ejecutado exitosamente con Gemini 1.5 Pro. Entregable generado: ${deliverableMeta.fileName} basado en ${reports.length} reportes seleccionados (${activeMetrics.total_ml} ML, ${activeMetrics.utilities_count} interferencias).`;
+
+      if (sKey === 'gpr_raw_proc') {
+        try {
+          const gprResult = await processAllGprProfilesForProject({
+            projectId: job.project_id,
+            selectedReportIds: activeSelectedReportIds || undefined,
+            supabase,
+            antennaFreqMHz: 400,
+          });
+
+          stepAiResponse = gprResult.executiveSummary;
+          stepLogs =
+            `[${new Date().toLocaleTimeString('es-CO')}] Motor GSF-Processor activado para ${gprResult.profilesCount} perfiles GPR.\n` +
+            `[${new Date().toLocaleTimeString('es-CO')}] 1. DSP aplicado a cada perfil: Time-Zero automático, Filtro Dewow (2.0 ns), Compensación de Ganancia SEC exponencial (40 dB) y Filtro Pasa-Banda (200-800 MHz).\n` +
+            `[${new Date().toLocaleTimeString('es-CO')}] 2. Detección geofísica ejecutada: ${gprResult.totalHyperbolas} difracciones hiperbólicas (R² >= 0.70) y ${gprResult.totalUtilities} redes de servicios públicos identificadas.\n` +
+            `[${new Date().toLocaleTimeString('es-CO')}] 3. Entregable FOR-GPR-04 v2 generado: ${deliverableMeta.fileName} (${gprResult.profilesCount} perfiles documentados).`;
+        } catch (procErr) {
+          console.error('Error procesando perfiles con gsf-processor:', procErr);
+        }
+      }
+
       // Guardar resultado y marcar paso como 'completed'
       const { data: updatedStep } = await supabase
         .from('gpr_pipeline_steps')
@@ -370,10 +394,10 @@ export async function POST(request: NextRequest) {
           output_file_url: deliverableMeta.fileUrl,
           output_file_type: deliverableMeta.fileType,
           ai_prompt: prompt,
-          ai_response: deliverableMeta.summary,
+          ai_response: stepAiResponse,
           ai_model_used: 'Gemini 1.5 Pro',
           token_usage: deliverableMeta.tokens,
-          execution_logs: `[${new Date().toLocaleTimeString('es-CO')}] Paso ejecutado exitosamente con Gemini 1.5 Pro. Entregable generado: ${deliverableMeta.fileName} basado en ${reports.length} reportes seleccionados (${activeMetrics.total_ml} ML, ${activeMetrics.utilities_count} interferencias).`,
+          execution_logs: stepLogs,
           completed_at: completedAt,
           updated_at: completedAt,
         })

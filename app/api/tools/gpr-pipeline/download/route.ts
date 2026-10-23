@@ -5,6 +5,7 @@ import { GprPipelineStepKey } from '@/types/gpr-pipeline';
 import { generateBase2dDxf, generateRefined2dDxf } from '@/lib/gpr-cad/generators/dxf-generator';
 import { getTopographyForPipeline } from '@/lib/gpr-cad/services/topography-service';
 import { generateGprDspReportPdf } from '@/lib/gpr-cad/generators/gpr-dsp-report-generator';
+import { processAllGprProfilesForProject } from '@/lib/gpr-cad/services/gpr-raw-processor-service';
 import { generateIfc4Model } from '@/lib/gpr-cad/generators/ifc-bim-generator';
 import { generateProjectReportDocx } from '@/lib/gpr-cad/generators/project-report-generator';
 
@@ -244,13 +245,28 @@ export async function GET(request: NextRequest) {
       }
 
       case 'gpr_raw_proc': {
-        // Paso 2: Informe de Radargramas y Filtros DSP (.PDF)
+        // Paso 2: Procesar perfiles GPR con motor idéntico a /tools/gsf-processor (DSP + Detección)
+        let processedProfiles = undefined;
+        try {
+          const gprResult = await processAllGprProfilesForProject({
+            projectId: projectId || job?.project_id || '',
+            selectedReportIds: selectedReportIds || undefined,
+            supabase,
+            antennaFreqMHz: detectedAntenna ? parseInt(detectedAntenna) || 400 : 400,
+          });
+          processedProfiles = gprResult.profiles;
+        } catch (procErr) {
+          console.error('Error procesando perfiles en download:', procErr);
+        }
+
+        // Paso 2: Generar informe técnico formal A4 Landscape de Radargramas y Filtros DSP (.PDF)
         const pdfBuffer = await generateGprDspReportPdf({
           project: projectMeta,
           metrics,
           tramos: tramosList,
-          antennaFrequency: detectedAntenna,
-          gprEquipment: detectedEquipment,
+          antennaFrequency: detectedAntenna || undefined,
+          gprEquipment: detectedEquipment || undefined,
+          profiles: processedProfiles,
         });
 
         const fileName = requestedName
