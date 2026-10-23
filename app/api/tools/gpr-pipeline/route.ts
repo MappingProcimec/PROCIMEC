@@ -351,7 +351,7 @@ export async function GET(request: NextRequest) {
             status: 'pending',
             cost_cop: 0,
             ai_model_used: 'Gemini 1.5 Pro',
-            token_usage: { input_tokens: 1420, output_tokens: 680 },
+            token_usage: null,
             output_file_type: 'dwg',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -365,7 +365,7 @@ export async function GET(request: NextRequest) {
             status: 'pending',
             cost_cop: 0,
             ai_model_used: 'Gemini 1.5 Pro',
-            token_usage: { input_tokens: 1650, output_tokens: 890 },
+            token_usage: null,
             output_file_type: 'pdf',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -379,7 +379,7 @@ export async function GET(request: NextRequest) {
             status: 'pending',
             cost_cop: 0,
             ai_model_used: 'Gemini 1.5 Pro',
-            token_usage: { input_tokens: 1890, output_tokens: 1120 },
+            token_usage: null,
             output_file_type: 'dwg',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -393,7 +393,7 @@ export async function GET(request: NextRequest) {
             status: 'pending',
             cost_cop: 0,
             ai_model_used: 'Gemini 1.5 Pro',
-            token_usage: { input_tokens: 2150, output_tokens: 1450 },
+            token_usage: null,
             output_file_type: 'rvt',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -407,7 +407,7 @@ export async function GET(request: NextRequest) {
             status: 'pending',
             cost_cop: 0,
             ai_model_used: 'Gemini 1.5 Pro',
-            token_usage: { input_tokens: 2800, output_tokens: 2200 },
+            token_usage: null,
             output_file_type: 'docx',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -416,7 +416,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Ordenar los pasos si existen y asegurar token_usage por defecto
+    // Ordenar los pasos si existen y asegurar token_usage solo si el paso está completado
     if (activeJob && Array.isArray(activeJob.steps)) {
       activeJob.steps.sort((a: { step_order: number }, b: { step_order: number }) => a.step_order - b.step_order);
       const defaultTokens: Record<string, { input_tokens: number; output_tokens: number }> = {
@@ -426,9 +426,14 @@ export async function GET(request: NextRequest) {
         bim_3d_rvt: { input_tokens: 2150, output_tokens: 1450 },
         project_report: { input_tokens: 2800, output_tokens: 2200 },
       };
-      activeJob.steps.forEach((s: { step_key: string; token_usage?: { input_tokens: number; output_tokens: number } | null; ai_model_used?: string | null }) => {
-        if (!s.token_usage || (s.token_usage.input_tokens === 0 && s.token_usage.output_tokens === 0)) {
-          s.token_usage = defaultTokens[s.step_key] || { input_tokens: 1000, output_tokens: 500 };
+      activeJob.steps.forEach((s: { step_key: string; status?: string; token_usage?: { input_tokens: number; output_tokens: number } | null; ai_model_used?: string | null }) => {
+        if (s.status === 'completed') {
+          if (!s.token_usage || (s.token_usage.input_tokens === 0 && s.token_usage.output_tokens === 0)) {
+            s.token_usage = defaultTokens[s.step_key] || { input_tokens: 1000, output_tokens: 500 };
+          }
+        } else {
+          // Si el paso no está completado, no computar tokens como consumidos
+          s.token_usage = null;
         }
         if (!s.ai_model_used) {
           s.ai_model_used = 'Gemini 1.5 Pro';

@@ -518,11 +518,23 @@ export function GprCadStudioPanel() {
     return STEP_KEYS_ORDER.map((key, idx) => {
       const existing = currentSteps.find((s) => s.step_key === key);
       const meta = CANONICAL_STEP_INFO[key];
-      const inTok = existing?.token_usage?.input_tokens ?? meta.defaultIn;
-      const outTok = existing?.token_usage?.output_tokens ?? meta.defaultOut;
+      const isCompleted = existing?.status === 'completed';
+
+      // Tokens reales consumidos (únicamente calculados si el paso ya fue completado)
+      const inTok = isCompleted ? (existing?.token_usage?.input_tokens ?? meta.defaultIn) : 0;
+      const outTok = isCompleted ? (existing?.token_usage?.output_tokens ?? meta.defaultOut) : 0;
       const totalTok = inTok + outTok;
-      const costUsd = (inTok / 1_000_000) * GEMINI_INPUT_RATE_USD + (outTok / 1_000_000) * GEMINI_OUTPUT_RATE_USD;
+      const costUsd = isCompleted
+        ? (inTok / 1_000_000) * GEMINI_INPUT_RATE_USD + (outTok / 1_000_000) * GEMINI_OUTPUT_RATE_USD
+        : 0;
       const costCop = Math.round(costUsd * USD_TO_COP);
+
+      // Valores proyectados / estimados para referencia presupuestal cuando aún no se ha ejecutado
+      const estInTok = meta.defaultIn;
+      const estOutTok = meta.defaultOut;
+      const estTotalTok = estInTok + estOutTok;
+      const estCostUsd = (estInTok / 1_000_000) * GEMINI_INPUT_RATE_USD + (estOutTok / 1_000_000) * GEMINI_OUTPUT_RATE_USD;
+      const estCostCop = Math.round(estCostUsd * USD_TO_COP);
 
       // Si existe URL de descarga y hay reportes seleccionados, asegurar parámetro reportIds
       let downloadUrl = existing?.output_file_url;
@@ -555,6 +567,11 @@ export function GprCadStudioPanel() {
         total_tokens: totalTok,
         cost_usd: costUsd,
         cost_cop_ai: costCop,
+        estimated_input_tokens: estInTok,
+        estimated_output_tokens: estOutTok,
+        estimated_total_tokens: estTotalTok,
+        estimated_cost_usd: estCostUsd,
+        estimated_cost_cop: estCostCop,
       };
     });
   }, [activeJob?.steps, activeJob?.id, currentProjectId, projectSummary?.project_name, selectedReportIds]);
@@ -650,6 +667,12 @@ export function GprCadStudioPanel() {
   const grandTotalTokens = totalInputTokens + totalOutputTokens;
   const grandTotalCostUsd = useMemo(() => displaySteps.reduce((acc, s) => acc + s.cost_usd, 0), [displaySteps]);
   const grandTotalCostCopAi = Math.round(grandTotalCostUsd * USD_TO_COP);
+
+  const projectedTotalCostUsd = useMemo(
+    () => displaySteps.reduce((acc, s) => acc + (s.status === 'completed' ? s.cost_usd : s.estimated_cost_usd), 0),
+    [displaySteps]
+  );
+  const projectedTotalCostCop = Math.round(projectedTotalCostUsd * USD_TO_COP);
 
   const formatCop = (val?: number) => {
     if (val === undefined || isNaN(val)) return '$ 0 COP';
@@ -1619,7 +1642,16 @@ export function GprCadStudioPanel() {
                     </button>
 
                     <span className="font-mono text-[10px]">
-                      Costo Inferencia: <strong>{formatCop(step.cost_cop_ai)}</strong> (${step.cost_usd.toFixed(4)} USD)
+                      {step.status === 'completed' ? (
+                        <>
+                          Costo Inferencia: <strong className="text-primary-900">{formatCop(step.cost_cop_ai)}</strong> (${step.cost_usd.toFixed(4)} USD)
+                        </>
+                      ) : (
+                        <span className="text-text-muted">
+                          Costo Incurrido: <strong className="text-text-secondary">$ 0 COP</strong>{' '}
+                          <span className="text-[9px] opacity-80">(Est. ~{formatCop(step.estimated_cost_cop)})</span>
+                        </span>
+                      )}
                     </span>
                   </div>
 
@@ -1954,18 +1986,23 @@ export function GprCadStudioPanel() {
                 Liquidación de Costos de Cómputo e Inferencia de IA (Gemini 1.5 Pro)
               </h3>
               <p className="text-xs text-text-secondary mt-0.5">
-                Contabilización transparente de tokens de entrada y salida consumidos en los 5 pasos del proyecto
+                Contabilización transparente de tokens de entrada y salida consumidos en los pasos ejecutados del proyecto
               </p>
             </div>
 
             <div className="text-right">
-              <span className="text-xs text-text-muted block">Gasto Total Acumulado</span>
+              <span className="text-xs text-text-muted block">Gasto Real Acumulado ({completedStepsCount}/5 pasos)</span>
               <span className="font-mono text-xl font-bold text-accent">
                 {formatCop(grandTotalCostCopAi)}
               </span>
               <span className="text-[10px] text-text-muted font-mono block">
                 (${grandTotalCostUsd.toFixed(4)} USD)
               </span>
+              {completedStepsCount < displaySteps.length && (
+                <span className="text-[10px] text-text-muted font-mono block mt-0.5">
+                  Proyección total (5 pasos): ~{formatCop(projectedTotalCostCop)} (${projectedTotalCostUsd.toFixed(4)} USD)
+                </span>
+              )}
             </div>
           </div>
 
@@ -1986,39 +2023,76 @@ export function GprCadStudioPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {displaySteps.map((step) => (
-                    <tr key={step.id} className="hover:bg-gray-50/80">
-                      <td className="py-3 px-4 font-semibold text-text-primary">
-                        <div className="flex items-center gap-2">
-                          {getStepIcon(step.step_key)}
-                          <span>{step.step_name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-text-muted">{step.ai_model}</td>
-                      <td className="font-mono text-right py-3 px-4 text-text-secondary">{step.input_tokens.toLocaleString('es-CO')}</td>
-                      <td className="font-mono text-right py-3 px-4 text-text-secondary">{step.output_tokens.toLocaleString('es-CO')}</td>
-                      <td className="font-mono text-right py-3 px-4 font-bold text-text-primary">{step.total_tokens.toLocaleString('es-CO')}</td>
-                      <td className="font-mono text-right py-3 px-4 text-text-secondary">${step.cost_usd.toFixed(4)}</td>
-                      <td className="font-mono text-right py-3 px-4 font-bold text-primary-900">{formatCop(step.cost_cop_ai)}</td>
-                      <td className="py-3 px-4 text-center">
-                        <span
-                          className={`badge text-[10px] ${
-                            step.status === 'completed'
-                              ? 'badge-success'
-                              : step.status === 'running'
-                              ? 'badge-warning'
-                              : 'badge-neutral'
-                          }`}
-                        >
-                          {step.status === 'completed' ? 'Completado' : step.status === 'running' ? 'En Proceso' : 'Pendiente'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {displaySteps.map((step) => {
+                    const isCompleted = step.status === 'completed';
+                    return (
+                      <tr key={step.id} className="hover:bg-gray-50/80">
+                        <td className="py-3 px-4 font-semibold text-text-primary">
+                          <div className="flex items-center gap-2">
+                            {getStepIcon(step.step_key)}
+                            <span>{step.step_name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-text-muted">{step.ai_model}</td>
+                        <td className="font-mono text-right py-3 px-4 text-text-secondary">
+                          {isCompleted ? (
+                            step.input_tokens.toLocaleString('es-CO')
+                          ) : (
+                            <span className="text-text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="font-mono text-right py-3 px-4 text-text-secondary">
+                          {isCompleted ? (
+                            step.output_tokens.toLocaleString('es-CO')
+                          ) : (
+                            <span className="text-text-muted">—</span>
+                          )}
+                        </td>
+                        <td className="font-mono text-right py-3 px-4 font-bold text-text-primary">
+                          {isCompleted ? (
+                            step.total_tokens.toLocaleString('es-CO')
+                          ) : (
+                            <span className="text-text-muted font-normal text-[11px]">
+                              — <span className="text-[10px] opacity-75">(Est. ~{step.estimated_total_tokens.toLocaleString('es-CO')})</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="font-mono text-right py-3 px-4 text-text-secondary">
+                          {isCompleted ? (
+                            `$${step.cost_usd.toFixed(4)}`
+                          ) : (
+                            <span className="text-text-muted">$0.0000</span>
+                          )}
+                        </td>
+                        <td className="font-mono text-right py-3 px-4 font-bold text-primary-900">
+                          {isCompleted ? (
+                            formatCop(step.cost_cop_ai)
+                          ) : (
+                            <span className="text-text-muted font-normal text-[11px]">
+                              $ 0 COP <span className="text-[10px] opacity-75">(Est. ~{formatCop(step.estimated_cost_cop)})</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span
+                            className={`badge text-[10px] ${
+                              step.status === 'completed'
+                                ? 'badge-success'
+                                : step.status === 'running'
+                                ? 'badge-warning'
+                                : 'badge-neutral'
+                            }`}
+                          >
+                            {step.status === 'completed' ? 'Completado' : step.status === 'running' ? 'En Proceso' : 'Pendiente'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {/* Fila Totalizadora */}
                   <tr className="bg-gray-50 font-bold border-t-2 border-border">
                     <td colSpan={2} className="py-3.5 px-4 text-text-primary uppercase text-[11px]">
-                      Totales Consolidados de Inferencia
+                      Totales Consolidados Consumidos ({completedStepsCount} de 5 Pasos)
                     </td>
                     <td className="font-mono text-right py-3.5 px-4 text-text-secondary">{totalInputTokens.toLocaleString('es-CO')}</td>
                     <td className="font-mono text-right py-3.5 px-4 text-text-secondary">{totalOutputTokens.toLocaleString('es-CO')}</td>
