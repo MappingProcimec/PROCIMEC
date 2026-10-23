@@ -1,4 +1,4 @@
-import { GPRDataset, parseGSFBuffer, DX_DEF, DIELECTRICO_DEF, VENTANA_TIEMPO_NS_DEF } from '@/lib/gpr/gsfParser';
+import { GPRDataset, parseGSFBuffer, DX_DEF } from '@/lib/gpr/gsfParser';
 import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP } from '@/lib/gpr/dspEngine';
 import { DetectionConfig, DetectionResults, DEFAULT_DETECTION_CONFIG } from '@/lib/gpr/detectionTypes';
 import { runAnomalyDetections } from '@/lib/gpr/detectionEngine';
@@ -51,6 +51,7 @@ export interface GprRawProcessingResult {
   totalUtilities: number;
   totalBrightSpots: number;
   totalVoids: number;
+  totalDelaminations: number;
   profiles: ProcessedGprProfileItem[];
   executiveSummary: string;
 }
@@ -79,7 +80,6 @@ function createSyntheticDatasetForTramo(
 
   for (let t = 0; t < numTraces; t++) {
     const trace = new Float32Array(numSamples);
-    const traceX = t * traceDistanceStepM;
 
     // 1. Pulso directo / Onda aérea y de suelo en la parte superior (Time-Zero)
     for (let s = 15; s < 35; s++) {
@@ -103,12 +103,11 @@ function createSyntheticDatasetForTramo(
       const uDepth = Math.max(0.4, Number(u.estimated_depth_m) || 0.85);
       const uCenterTrace = Math.round(numTraces * ((uIdx + 1) / (utilities.length + 1)));
       const uCenterTimeNs = (2 * uDepth) / velocity;
-      const uCenterSample = Math.round(uCenterTimeNs / sampleIntervalNs);
 
       const dxM = (t - uCenterTrace) * traceDistanceStepM;
       if (Math.abs(dxM) < 1.8) {
         // Ecuación hiperbólica de difracción: t(x) = sqrt(t0^2 + 4x^2 / v^2)
-        const tNs = Math.sqrt(uCenterTimeNs * uCenterCenter(uCenterTimeNs, dxM, velocity));
+        const tNs = Math.sqrt(uCenterTimeNs * uCenterTimeNs + (4 * dxM * dxM) / (velocity * velocity));
         const sampleIdx = Math.round(tNs / sampleIntervalNs);
         if (sampleIdx >= 0 && sampleIdx < numSamples) {
           const amp = Math.exp(-Math.abs(dxM) / 0.6) * 14000;
@@ -168,10 +167,6 @@ function createSyntheticDatasetForTramo(
     maxAmplitude: 32000,
     createdTime: Date.now(),
   };
-}
-
-function uCenterCenter(t0: number, dx: number, v: number): number {
-  return t0 + (4 * dx * dx) / (v * v * (t0 > 0 ? t0 : 1));
 }
 
 /**
@@ -447,11 +442,13 @@ export async function processAllGprProfilesForProject(params: {
         const utilCount = detections.pipesUtilities?.markers?.length || 0;
         const brightCount = detections.brightSpots?.markers?.length || 0;
         const voidCount = detections.subslabVoids?.markers?.length || 0;
+        const delamCount = detections.delaminations?.markers?.length || 0;
 
         totalHyp += hypCount;
         totalUtils += utilCount;
         totalBright += brightCount;
         totalVoids += voidCount;
+        totalDelam += delamCount;
 
         const markersSummary = [
           ...(detections.pipesUtilities?.markers || []).map((m) => ({
@@ -505,7 +502,7 @@ export async function processAllGprProfilesForProject(params: {
             utilitiesCount: utilCount,
             brightSpotsCount: brightCount,
             voidsCount: voidCount,
-            delaminationsCount: 0,
+            delaminationsCount: delamCount,
             markers: markersSummary,
           },
           summaryText: markersSummary.length > 0
@@ -530,6 +527,7 @@ export async function processAllGprProfilesForProject(params: {
     totalUtilities: totalUtils,
     totalBrightSpots: totalBright,
     totalVoids,
+    totalDelaminations: totalDelam,
     profiles: profileItems,
     executiveSummary,
   };

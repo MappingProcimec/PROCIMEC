@@ -309,7 +309,7 @@ export function GprCadStudioPanel() {
       setCustomTopoFileName(activeJob?.input_metrics?.topography_file_name || 'estacion_total.txt');
       setParsedTopoData(parseTopographyTxt(savedTxt));
     }
-  }, [activeJob?.input_metrics?.topography_txt, customTopoTxt]);
+  }, [activeJob?.input_metrics?.topography_txt, activeJob?.input_metrics?.topography_file_name, customTopoTxt]);
 
   // Si hay un archivo adjunto en el reporte y no se ha cargado topografía manual, intentar leerlo automáticamente
   useEffect(() => {
