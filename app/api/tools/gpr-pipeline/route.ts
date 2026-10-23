@@ -600,10 +600,12 @@ export async function POST(request: NextRequest) {
       data: fullJob,
       message: 'Pipeline inicializado exitosamente con cuantificación de costos APU.',
     }, { status: 201 });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Error POST /api/tools/gpr-pipeline:', err);
+    const postgrestErr = err as { message?: string; details?: string; hint?: string };
+    const errMsg = postgrestErr?.message || (err instanceof Error ? err.message : 'Error al inicializar pipeline');
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Error al inicializar pipeline' },
+      { error: errMsg },
       { status: 500 }
     );
   }

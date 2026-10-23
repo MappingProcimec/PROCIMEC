@@ -388,10 +388,12 @@ export async function POST(request: NextRequest) {
         ? 'Pipeline completo ejecutado exitosamente sobre los reportes seleccionados.'
         : `Paso ${stepKey} ejecutado exitosamente sobre los reportes seleccionados.`,
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Error POST /api/tools/gpr-pipeline/step:', err);
+    const postgrestErr = err as { message?: string; details?: string; hint?: string };
+    const errMsg = postgrestErr?.message || (err instanceof Error ? err.message : 'Error al ejecutar paso del pipeline');
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Error al ejecutar paso del pipeline' },
+      { error: errMsg },
       { status: 500 }
     );
   }

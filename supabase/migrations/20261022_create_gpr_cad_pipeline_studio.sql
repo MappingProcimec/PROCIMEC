@@ -93,39 +93,39 @@ CREATE INDEX IF NOT EXISTS idx_gpr_pipeline_steps_order ON public.gpr_pipeline_s
 CREATE OR REPLACE FUNCTION public.fn_initialize_gpr_pipeline_steps()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- 1. Elaboración del Plano 2D
+    -- 1. Elaboración del Plano 2D Base
     INSERT INTO public.gpr_pipeline_steps (
         job_id, step_order, step_key, step_name, status, output_file_type
     ) VALUES (
-        NEW.id, 1, 'cad_2d', '1. Elaboración del Plano 2D (.dwg / .dxf)', 'pending', 'dwg'
+        NEW.id, 1, 'cad_2d', 'Paso 1: Elaboración del Plano 2D Base (.dxf / .dwg)', 'pending', 'dxf'
     );
 
     -- 2. Procesamiento de Datos Crudos GPR
     INSERT INTO public.gpr_pipeline_steps (
         job_id, step_order, step_key, step_name, status, output_file_type
     ) VALUES (
-        NEW.id, 2, 'gpr_raw_proc', '2. Procesamiento de Datos Crudos GPR (Filtros y Radargramas)', 'pending', 'pdf'
+        NEW.id, 2, 'gpr_raw_proc', 'Paso 2: Procesamiento de Datos Crudos GPR (.pdf)', 'pending', 'pdf'
     );
 
     -- 3. Mejora y Ajuste del Plano 2D
     INSERT INTO public.gpr_pipeline_steps (
         job_id, step_order, step_key, step_name, status, output_file_type
     ) VALUES (
-        NEW.id, 3, 'cad_2d_refine', '3. Mejora y Calibración de Interferencias en Plano 2D', 'pending', 'dwg'
+        NEW.id, 3, 'cad_2d_refine', 'Paso 3: Mejora del Plano 2D con Interferencias (.dxf / .dwg)', 'pending', 'dxf'
     );
 
-    -- 4. Elaboración del Modelo 3D
+    -- 4. Elaboración del Modelo 3D BIM
     INSERT INTO public.gpr_pipeline_steps (
         job_id, step_order, step_key, step_name, status, output_file_type
     ) VALUES (
-        NEW.id, 4, 'bim_3d_rvt', '4. Elaboración del Modelo 3D BIM (.rvt / IFC)', 'pending', 'rvt'
+        NEW.id, 4, 'bim_3d_rvt', 'Paso 4: Elaboración del Modelo 3D BIM (.ifc / .rvt)', 'pending', 'ifc'
     );
 
     -- 5. Informe Final del Proyecto
     INSERT INTO public.gpr_pipeline_steps (
         job_id, step_order, step_key, step_name, status, output_file_type
     ) VALUES (
-        NEW.id, 5, 'project_report', '5. Informe Final del Proyecto y Resumen Ejecutivo', 'pending', 'docx'
+        NEW.id, 5, 'project_report', 'Paso 5: Informe Final del Proyecto (.docx)', 'pending', 'docx'
     );
 
     RETURN NEW;
@@ -143,6 +143,7 @@ ALTER TABLE public.gpr_pipeline_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gpr_pipeline_steps ENABLE ROW LEVEL SECURITY;
 
 -- Políticas de RLS para gpr_pipeline_jobs
+DROP POLICY IF EXISTS "Permitir lectura a usuarios autenticados con acceso al proyecto" ON public.gpr_pipeline_jobs;
 CREATE POLICY "Permitir lectura a usuarios autenticados con acceso al proyecto"
     ON public.gpr_pipeline_jobs
     FOR SELECT
@@ -161,6 +162,7 @@ CREATE POLICY "Permitir lectura a usuarios autenticados con acceso al proyecto"
         )
     );
 
+DROP POLICY IF EXISTS "Permitir inserción y actualización a roles autorizados" ON public.gpr_pipeline_jobs;
 CREATE POLICY "Permitir inserción y actualización a roles autorizados"
     ON public.gpr_pipeline_jobs
     FOR ALL
@@ -174,6 +176,7 @@ CREATE POLICY "Permitir inserción y actualización a roles autorizados"
     );
 
 -- Políticas de RLS para gpr_pipeline_steps
+DROP POLICY IF EXISTS "Permitir lectura de pasos del pipeline" ON public.gpr_pipeline_steps;
 CREATE POLICY "Permitir lectura de pasos del pipeline"
     ON public.gpr_pipeline_steps
     FOR SELECT
@@ -185,6 +188,7 @@ CREATE POLICY "Permitir lectura de pasos del pipeline"
         )
     );
 
+DROP POLICY IF EXISTS "Permitir actualización de pasos a roles autorizados" ON public.gpr_pipeline_steps;
 CREATE POLICY "Permitir actualización de pasos a roles autorizados"
     ON public.gpr_pipeline_steps
     FOR ALL
