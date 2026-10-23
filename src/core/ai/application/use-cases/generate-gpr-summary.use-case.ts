@@ -76,8 +76,6 @@ export function parseProjectDescriptionAndTargets(rawDescription?: string | null
   }
 
   const raw = String(rawDescription);
-  // Eliminar cualquier residuo de etiquetas de metas en comentarios HTML
-  const clean = raw.replace(/\n?<!--PROJECT_TARGETS:\{.*?\}-->/g, '').trim();
 
   let targetMl: number | undefined;
   let targetM2: number | undefined;
@@ -90,6 +88,13 @@ export function parseProjectDescriptionAndTargets(rawDescription?: string | null
       if (parsed.target_m2) targetM2 = Number(parsed.target_m2);
     } catch {}
   }
+
+  // Eliminar TODO comentario HTML (tanto PROJECT_TARGETS como PROJECT_FINANCIALS y cualquier residuo)
+  const clean = raw
+    .replace(/\s*<!--[\s\S]*?-->/g, '')
+    .replace(/\s*\{"contract_value":[\s\S]*?\}/g, '')
+    .replace(/\s*\{"target_ml":[\s\S]*?\}/g, '')
+    .trim();
 
   let formattedTargetText = '';
   if (targetMl && targetM2) {
@@ -125,7 +130,7 @@ export function buildDeterministicSummary(project: ProjectContext, report: GprRe
   const totalMl = (report.operational_summary || []).reduce((acc, row) => acc + (Number(row.ml) || 0), 0);
   const totalM2 = (report.operational_summary || []).reduce((acc, row) => acc + (Number(row.m2) || 0), 0);
 
-  const { scopeProse } = parseProjectDescriptionAndTargets(project.description);
+  const { cleanDescription, formattedTargetText } = parseProjectDescriptionAndTargets(project.description);
 
   const utilities = report.detected_utilities || [];
   const utilitiesDetails = utilities
@@ -143,12 +148,32 @@ export function buildDeterministicSummary(project: ProjectContext, report: GprRe
   const projectIdent = project.name ? `${project.name} (${project.client || 'Cliente'})` : 'el proyecto asignado';
   const locationText = project.location ? ` en la localización ${project.location}` : '';
 
-  let summary = `Durante la jornada operativa del ${report.report_date} en ${projectIdent}${locationText}${scopeProse}, la cuadrilla de georadar liderada por ${report.localizador_name} ejecutó el barrido geofísico subsuperficial empleando ${report.gpr_equipment || 'sistema GPR'}. `;
+  let scopeSentence = '';
+  if (cleanDescription && formattedTargetText) {
+    const descPrefix = cleanDescription.toLowerCase().startsWith('proyecto') ? cleanDescription : `proyecto "${cleanDescription}"`;
+    scopeSentence = `, en el marco del ${descPrefix} (${formattedTargetText})`;
+  } else if (cleanDescription) {
+    const descPrefix = cleanDescription.toLowerCase().startsWith('proyecto') ? cleanDescription : `proyecto "${cleanDescription}"`;
+    scopeSentence = `, en el marco del ${descPrefix}`;
+  } else if (formattedTargetText) {
+    scopeSentence = `, ${formattedTargetText}`;
+  }
 
-  if (totalMl > 0) {
-    summary += `Se consolidó un avance volumétrico de ${totalMl.toFixed(1)} metros lineales (ML) correspondientes a ${totalM2.toFixed(1)} m² de área de exploración subsuperficial, alcanzando una profundidad de investigación de hasta ${report.global_max_depth ? Number(report.global_max_depth).toFixed(2) : '1.50'} m bajo condiciones de terreno catalogadas como ${report.terrain_conditions || 'estándar'}${report.weather_conditions ? ` y clima ${report.weather_conditions}` : ''}. `;
+  let summary = `Durante la jornada operativa del ${report.report_date} en ${projectIdent}${locationText}${scopeSentence}, la cuadrilla de georadar liderada por ${report.localizador_name} ejecutó el barrido geofísico subsuperficial empleando ${report.gpr_equipment || 'sistema GPR'}. `;
+
+  const maxDepthStr = report.global_max_depth ? Number(report.global_max_depth).toFixed(2) : '1.50';
+  const terrainStr = report.terrain_conditions || 'estándar';
+  const weatherStr = report.weather_conditions ? ` y clima ${report.weather_conditions}` : '';
+
+  // Volumetría limpia: evita "0.0 m²" si no se registró área
+  if (totalMl > 0 && totalM2 > 0) {
+    summary += `Se consolidó un avance volumétrico de ${totalMl.toFixed(1)} metros lineales (ML) correspondientes a ${totalM2.toFixed(1)} m² de área de exploración subsuperficial, alcanzando una profundidad de investigación de hasta ${maxDepthStr} m bajo condiciones de terreno catalogadas como ${terrainStr}${weatherStr}. `;
+  } else if (totalMl > 0) {
+    summary += `Se consolidó un avance volumétrico de ${totalMl.toFixed(1)} metros lineales (ML) de exploración lineal, alcanzando una profundidad de investigación de hasta ${maxDepthStr} m bajo condiciones de terreno catalogadas como ${terrainStr}${weatherStr}. `;
+  } else if (totalM2 > 0) {
+    summary += `Se consolidó un avance volumétrico de ${totalM2.toFixed(1)} m² de área de exploración subsuperficial, alcanzando una profundidad de investigación de hasta ${maxDepthStr} m bajo condiciones de terreno catalogadas como ${terrainStr}${weatherStr}. `;
   } else {
-    summary += `Se llevaron a cabo verificaciones electromagnéticas y de georadar bajo condiciones de terreno ${report.terrain_conditions || 'estándar'}. `;
+    summary += `Se llevaron a cabo verificaciones electromagnéticas y de georadar bajo condiciones de terreno ${terrainStr}${weatherStr}. `;
   }
 
   if (utilitiesDetails.length > 0) {
@@ -165,7 +190,7 @@ export function buildDeterministicSummary(project: ProjectContext, report: GprRe
 
   if (report.cad_priority) {
     summary += `El registro se clasifica con prioridad CAD/BIM ${report.cad_priority.toUpperCase()}`;
-    if (report.processing_recommendations) {
+    if (report.processing_recommendations && report.processing_recommendations.trim().length > 0) {
       summary += `, recomendándose para procesamiento en gabinete: ${report.processing_recommendations.trim()}.`;
     } else {
       summary += ` para su oportuna incorporación en los planos técnicos oficiales.`;
@@ -177,12 +202,15 @@ export function buildDeterministicSummary(project: ProjectContext, report: GprRe
 
 /**
  * Caso de Uso: Generación de Resumen Ejecutivo de Georadar (GPR).
- * Aplica Clean Architecture desacoplando el proveedor de IA y garantizando fallback determinista.
+ * Aplica Clean Architecture desacoplando el proveedor de IA y garantizando fallback determinista de alta fidelidad.
  */
 export class GenerateGprSummaryUseCase {
   constructor(private readonly aiPort: AiPort) {}
 
-  public async execute(project: ProjectContext, report: GprReportContext): Promise<string> {
+  public async executeResult(
+    project: ProjectContext,
+    report: GprReportContext
+  ): Promise<{ summary: string; isAiGenerated: boolean }> {
     const { cleanDescription, targetMl, formattedTargetText } = parseProjectDescriptionAndTargets(project.description);
 
     const totalMl = (report.operational_summary || []).reduce((acc, row) => acc + (Number(row.ml) || 0), 0);
@@ -197,6 +225,15 @@ export class GenerateGprSummaryUseCase {
       const desc = (u.description || u.notes) ? `Notas: ${u.description || u.notes}` : '';
       return `[Hallazgo ${i + 1}] ${type} | ${diam} | ${prof} | ${conf} | ${desc}`.trim();
     }).join('\n');
+
+    const volumetricText =
+      totalMl > 0 && totalM2 > 0
+        ? `${totalMl.toFixed(1)} metros lineales (ML) correspondientes a ${totalM2.toFixed(1)} m² de área de exploración subsuperficial`
+        : totalMl > 0
+        ? `${totalMl.toFixed(1)} metros lineales (ML) de exploración lineal`
+        : totalM2 > 0
+        ? `${totalM2.toFixed(1)} m² de exploración subsuperficial`
+        : 'Verificaciones electromagnéticas sin volumetría acumulada';
 
     const prompt = `Actúa como Ingeniero Geofísico Senior y Director de Operaciones en PROCIMEC Ingeniería S.A.S.
 Genera una síntesis técnica ejecutiva, concisa y de alto nivel formal (entre 80 y 140 palabras en un solo párrafo sólido en español técnico de ingeniería) para el Reporte Diario de Operación de Georadar (GPR).
@@ -217,7 +254,7 @@ INFORMACIÓN OPERATIVA DE CAMPO:
 - Posicionamiento: ${report.positioning_equipment || 'GPS GNSS'} | Método: ${report.capture_method || 'Perfil continuo'}
 - Condiciones de terreno: ${report.terrain_conditions || 'Normal'} | Clima: ${report.weather_conditions || 'Despejado'}
 - Profundidad máxima explorada: ${report.global_max_depth || '1.50'} metros
-- Volumetría registrada hoy: ${totalMl.toFixed(1)} metros lineales (ML) correspondientes a ${totalM2.toFixed(1)} m² de área de exploración subsuperficial en ${(report.operational_summary || []).length} sector(es)
+- Volumetría registrada hoy: ${volumetricText} en ${(report.operational_summary || []).length} sector(es)
 - Redes y Servicios Públicos Detectados:
 ${formattedUtilities || 'Sin servicios subterráneos reportados en la jornada'}
 - Observaciones y anomalías: ${report.anomalies_notes || 'Sin anomalías registradas'}
@@ -228,9 +265,9 @@ ${formattedUtilities || 'Sin servicios subterráneos reportados en la jornada'}
 REGLAS DE REDACCIÓN OBLIGATORIAS:
 1. Menciona obligatoriamente el nombre del proyecto (${project.name}), el cliente (${project.client}), la ubicación (${project.location || 'sitio'}) y la descripción limpia del proyecto en prosa natural.
 2. Si existen metas globales (${formattedTargetText}), intégralas de manera fluida y elegante en la redacción.
-3. NUNCA incluyas etiquetas técnicas como <!--PROJECT_TARGETS:...--> ni código JSON en el texto final.
-4. IMPORTANTE: Cuando menciones la volumetría (${totalM2.toFixed(1)} m²), aclara expresamente que corresponden a "área de exploración subsuperficial".
-5. IMPORTANTE: Menciona explícitamente a qué servicios públicos específicos se refiere el levantamiento indicando su diámetro y profundidad estimada.
+3. NUNCA incluyas etiquetas técnicas como <!--PROJECT_TARGETS:...--> ni comentarios HTML ni código JSON en el texto final.
+4. IMPORTANTE: Si no se registró área en m² (es 0), NUNCA digas "0.0 m²".
+5. IMPORTANTE: Menciona explícitamente a qué servicios públicos específicos se refiere el levantamiento indicando su diámetro y profundidad estimada si aplican.
 6. Cero emojis, sin saludos ni despedidas, mantén una redacción concisa, rigurosa y asertiva en tercera persona.`;
 
     try {
@@ -241,17 +278,26 @@ REGLAS DE REDACCIÓN OBLIGATORIAS:
       });
 
       if (text && text.length > 50) {
-        return text
+        const cleaned = text
           .replace(/<!--[\s\S]*?-->/g, '')
-          .replace(/\{"target_ml":[\s\S]*?\}/g, '')
+          .replace(/\{"[\s\S]*?\}/g, '')
           .replace(/\r?\n+/g, ' ')
           .replace(/\s+/g, ' ')
           .trim();
+        return { summary: cleaned, isAiGenerated: true };
       }
     } catch (err) {
-      console.warn('[GenerateGprSummaryUseCase] Fallback determinista activado por error de IA:', err);
+      console.warn('[GenerateGprSummaryUseCase] Fallback determinista activado por error de IA o API inactiva:', err);
     }
 
-    return buildDeterministicSummary(project, report);
+    return {
+      summary: buildDeterministicSummary(project, report),
+      isAiGenerated: false,
+    };
+  }
+
+  public async execute(project: ProjectContext, report: GprReportContext): Promise<string> {
+    const result = await this.executeResult(project, report);
+    return result.summary;
   }
 }

@@ -77,7 +77,7 @@ export default function SuccessPage() {
 🏢 *Cliente:* ${clientName}
 📅 *Fecha:* ${reportDate}
 👷 *Localizador Responsable:* ${localizadorName}
-${aiSummary ? `\n*Síntesis Técnica Operacional (Google Gemini AI):*\n${aiSummary}\n` : ''}
+${aiSummary ? `\n*Síntesis Técnica Operacional:*\n${aiSummary}\n` : ''}
 📄 *Descargar Reporte Oficial (PDF):*
 ${pdfUrl || 'Disponible en plataforma PROCIMEC'}
 
@@ -108,13 +108,13 @@ _Plataforma Integral PROCIMEC Ingeniería S.A.S._`;
           </p>
         </div>
 
-        {/* Tarjeta de Síntesis de Google Gemini AI (si está disponible) */}
+        {/* Tarjeta de Síntesis Técnica Operacional */}
         {aiSummary && (
           <div className="card p-5 mb-5 bg-[#1E2229] border border-amber-500/30 text-white rounded-xl shadow-md animate-fade-in">
             <div className="flex items-center gap-2 mb-2 text-amber-400">
               <Sparkles className="w-4 h-4" strokeWidth={1.75} />
               <span className="text-xs font-bold uppercase tracking-wider">
-                Síntesis Técnica Operacional (Google Gemini AI)
+                Síntesis Técnica Operacional
               </span>
             </div>
             <p className="text-sm text-slate-200 leading-relaxed font-sans">

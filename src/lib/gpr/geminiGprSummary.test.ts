@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { formatDiameter, parseProjectDescriptionAndTargets } from './geminiGprSummary';
+import {
+  formatDiameter,
+  parseProjectDescriptionAndTargets,
+  buildDeterministicSummary,
+} from './geminiGprSummary';
 
 describe('GPR Gemini Summary Utility Functions', () => {
   describe('formatDiameter', () => {
@@ -29,6 +33,14 @@ describe('GPR Gemini Summary Utility Functions', () => {
       expect(result.formattedTargetText).toContain('ML');
     });
 
+    it('should clean embedded PROJECT_FINANCIALS comments and JSON without leaking', () => {
+      const desc = 'PROYECTO DE APOYO<!--PROJECT_FINANCIALS:{"contract_value":100000000,"deductions_percentage":24}-->';
+      const result = parseProjectDescriptionAndTargets(desc);
+      expect(result.cleanDescription).toBe('PROYECTO DE APOYO');
+      expect(result.cleanDescription).not.toContain('<!--');
+      expect(result.cleanDescription).not.toContain('contract_value');
+    });
+
     it('should handle clean description without tags gracefully', () => {
       const desc = 'Exploración de servicios en planta';
       const result = parseProjectDescriptionAndTargets(desc);
@@ -40,6 +52,37 @@ describe('GPR Gemini Summary Utility Functions', () => {
       const result = parseProjectDescriptionAndTargets(null);
       expect(result.cleanDescription).toBe('');
       expect(result.targetMl).toBeUndefined();
+    });
+  });
+
+  describe('buildDeterministicSummary', () => {
+    it('should NEVER output 0.0 m2 when area is zero', () => {
+      const project = {
+        name: 'DESARROLLO',
+        client: 'PROCIMEC',
+        location: 'BARRANQUILLA',
+        description: 'PROYECTO DE APOYO<!--PROJECT_FINANCIALS:{"contract_value":100000000}-->',
+      };
+      const report = {
+        report_date: '2026-10-19',
+        localizador_name: 'Marcelo Barraza',
+        gpr_equipment: 'GPR',
+        global_max_depth: 6,
+        terrain_conditions: 'Asfalto',
+        weather_conditions: 'Soleado',
+        cad_priority: 'Media',
+        operational_summary: [
+          { ml: 100, m2: 0 },
+          { ml: 50, m2: 0 },
+        ],
+      };
+
+      const summary = buildDeterministicSummary(project, report);
+      expect(summary).not.toContain('0.0 m²');
+      expect(summary).not.toContain('<!--PROJECT_FINANCIALS');
+      expect(summary).toContain('150.0 metros lineales (ML) de exploración lineal');
+      expect(summary).toContain('Marcelo Barraza');
+      expect(summary).toContain('DESARROLLO (PROCIMEC)');
     });
   });
 });

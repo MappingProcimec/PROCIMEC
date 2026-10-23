@@ -15,6 +15,7 @@ export interface GeneratePdfOptions {
   project: ProjectContext;
   report: GprReportContext;
   aiSummary: string;
+  isAiGenerated?: boolean;
   photos?: ReportPhoto[];
 }
 
@@ -23,7 +24,7 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
   pdfBuffer: Buffer;
   pdfBase64: string;
 }> {
-  const { project, report, aiSummary, photos = [] } = options;
+  const { project, report, aiSummary, isAiGenerated, photos = [] } = options;
 
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -172,13 +173,18 @@ export async function generateGprDailyPdf(options: GeneratePdfOptions): Promise<
 
   doc.roundedRect(marginX, curY, contentWidth, summaryBoxHeight, 2, 2, 'FD');
 
-  // Etiqueta distintiva de IA
+  // Etiqueta distintiva (Refleja si fue generado con IA o generador operacional)
+  const badgeText = isAiGenerated
+    ? 'SÍNTESIS TÉCNICA EJECUTIVA (GOOGLE GEMINI AI)'
+    : 'SÍNTESIS TÉCNICA OPERACIONAL DE CAMPO';
+  const badgeWidth = Math.max(68, doc.getTextWidth(badgeText) + 5);
+
   doc.setFillColor(...COLOR_CHARCOAL);
-  doc.roundedRect(marginX + 4, curY + 3, 76, 5.5, 1, 1, 'F');
+  doc.roundedRect(marginX + 4, curY + 3, badgeWidth, 5.5, 1, 1, 'F');
   doc.setTextColor(...COLOR_AMBER);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
-  doc.text('SÍNTESIS TÉCNICA EJECUTIVA (GOOGLE GEMINI AI)', marginX + 6, curY + 6.8);
+  doc.text(badgeText, marginX + 6, curY + 6.8);
 
   doc.setTextColor(30, 41, 59);
   doc.setFont('helvetica', 'normal');

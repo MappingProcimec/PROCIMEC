@@ -3,7 +3,12 @@ import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import { generateFieldReportDocx } from '@/lib/docx-generator';
 import { FieldReport, Project, ReportFile, AppUser } from '@/types';
-import { generateGprExecutiveSummary, ProjectContext, GprReportContext } from '@/lib/gpr/geminiGprSummary';
+import {
+  generateGprExecutiveSummaryResult,
+  buildDeterministicSummary,
+  ProjectContext,
+  GprReportContext
+} from '@/lib/gpr/geminiGprSummary';
 import { generateGprDailyPdf, ReportPhoto } from '@/lib/gpr/gprDailyPdfGenerator';
 import { sendGprReportEmail } from '@/lib/gpr/gprMailer';
 
@@ -363,13 +368,17 @@ export async function PUT(request: NextRequest) {
         }
       }
 
-      // 5. Síntesis Técnica Ejecutiva con Google Gemini AI (o fallback inteligente)
+      // 5. Síntesis Técnica Ejecutiva (con IA o Generador Operacional Determinista de Alta Fidelidad)
       let aiSummary = '';
+      let isAiGenerated = false;
       try {
-        aiSummary = await generateGprExecutiveSummary(projectContext, reportContext);
+        const summaryRes = await generateGprExecutiveSummaryResult(projectContext, reportContext);
+        aiSummary = summaryRes.summary;
+        isAiGenerated = summaryRes.isAiGenerated;
       } catch (aiErr) {
         console.warn('Aviso en generación de síntesis con Gemini:', aiErr);
-        aiSummary = `Operación de georadar en el proyecto ${project.name} para ${project.client}. Exploración ejecutada por ${fieldReport.localizador_name} con registro fotográfico y volumétrico oficial consolidado en base de datos.`;
+        aiSummary = buildDeterministicSummary(projectContext, reportContext);
+        isAiGenerated = false;
       }
 
       // 6. Generación del Reporte Corto Diario en PDF con jsPDF
@@ -377,6 +386,7 @@ export async function PUT(request: NextRequest) {
         project: projectContext,
         report: reportContext,
         aiSummary,
+        isAiGenerated,
         photos: preparedPhotos,
       });
 

@@ -185,7 +185,7 @@ ${report.pdf_report_url || 'Disponible en plataforma'}`;
                         <div className="mt-2.5 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-slate-700 dark:text-slate-300">
                           <div className="flex items-center gap-1.5 font-bold text-[10px] text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
                             <Sparkles className="w-3 h-3" strokeWidth={1.75} />
-                            Síntesis Gemini AI
+                            Síntesis Operacional
                           </div>
                           <p className="line-clamp-2 italic">{report.ai_summary}</p>
                         </div>

@@ -6,6 +6,7 @@
 
 import {
   generateGprSummaryUseCase,
+  buildDeterministicSummary,
   formatDiameter,
   parseProjectDescriptionAndTargets,
   type ProjectContext,
@@ -13,6 +14,7 @@ import {
 } from '@/core/ai';
 
 export {
+  buildDeterministicSummary,
   formatDiameter,
   parseProjectDescriptionAndTargets,
   type ProjectContext,
@@ -20,7 +22,17 @@ export {
 };
 
 /**
- * Consulta la IA o el generador determinista para sintetizar un párrafo técnico ejecutivo del día.
+ * Consulta la IA o el generador determinista para sintetizar un párrafo técnico ejecutivo del día con metadatos.
+ */
+export async function generateGprExecutiveSummaryResult(
+  project: ProjectContext,
+  report: GprReportContext
+): Promise<{ summary: string; isAiGenerated: boolean }> {
+  return generateGprSummaryUseCase.executeResult(project, report);
+}
+
+/**
+ * Consulta la IA o el generador determinista para sintetizar un párrafo técnico ejecutivo del día (string directo).
  */
 export async function generateGprExecutiveSummary(
   project: ProjectContext,
