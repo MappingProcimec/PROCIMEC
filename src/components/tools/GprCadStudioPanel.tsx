@@ -31,6 +31,9 @@ import {
   Paperclip,
   Camera,
   ExternalLink,
+  UploadCloud,
+  Eye,
+  X,
 } from 'lucide-react';
 import {
   GprPipelineJob,
@@ -39,6 +42,7 @@ import {
 } from '@/types/gpr-pipeline';
 import { getActiveProjectId, setActiveProjectId } from '@/hooks/useActiveProject';
 import { getUtilityLayer } from '@/lib/gpr-cad/generators/dxf-generator';
+import { parseTopographyTxt, TopographyDataset } from '@/lib/gpr-cad/parsers/topography-txt-parser';
 
 interface ProjectOption {
   id: string;
@@ -225,6 +229,13 @@ export function GprCadStudioPanel() {
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [expandedReports, setExpandedReports] = useState<Record<string, boolean>>({});
 
+  // Estado para georreferenciación y archivo .txt de Estación Total
+  const [customTopoTxt, setCustomTopoTxt] = useState<string>('');
+  const [customTopoFileName, setCustomTopoFileName] = useState<string>('');
+  const [parsedTopoData, setParsedTopoData] = useState<TopographyDataset | null>(null);
+  const [showTopoPointsModal, setShowTopoPointsModal] = useState<boolean>(false);
+  const [isUploadingTopo, setIsUploadingTopo] = useState<boolean>(false);
+
   // 1. Sincronización inicial con el proyecto activo de Mi Panel (localStorage)
   useEffect(() => {
     const activeStoredId = getActiveProjectId();
@@ -274,6 +285,47 @@ export function GprCadStudioPanel() {
   const projectSummary: ProjectGprDataSummary | null = data?.projectSummary || null;
   const activeJob: GprPipelineJob | null = data?.activeJob || null;
 
+  // Buscar si alguno de los reportes seleccionados tiene un archivo de topografía .txt adjunto
+  const attachedTxtFile = useMemo(() => {
+    const reports = projectSummary?.field_reports || [];
+    for (const r of reports) {
+      if (selectedReportIds.includes(r.id) && r.files) {
+        const found = r.files.find(
+          (f) => f.original_name?.toLowerCase().endsWith('.txt') || f.file_type === 'gps'
+        );
+        if (found) return { file: found, reportDate: r.report_date };
+      }
+    }
+    return null;
+  }, [projectSummary?.field_reports, selectedReportIds]);
+
+  // Si el job activo ya tiene topografía persistida, cargarla
+  useEffect(() => {
+    const savedTxt = activeJob?.input_metrics?.topography_txt;
+    if (savedTxt && !customTopoTxt) {
+      setCustomTopoTxt(savedTxt);
+      setCustomTopoFileName(activeJob?.input_metrics?.topography_file_name || 'estacion_total.txt');
+      setParsedTopoData(parseTopographyTxt(savedTxt));
+    }
+  }, [activeJob?.input_metrics?.topography_txt, customTopoTxt]);
+
+  // Si hay un archivo adjunto en el reporte y no se ha cargado topografía manual, intentar leerlo automáticamente
+  useEffect(() => {
+    if (attachedTxtFile?.file?.url && !customTopoTxt && !parsedTopoData) {
+      fetch(attachedTxtFile.file.url)
+        .then((res) => (res.ok ? res.text() : null))
+        .then((text) => {
+          if (text && text.trim().length > 0) {
+            setCustomTopoTxt(text);
+            setCustomTopoFileName(attachedTxtFile.file.original_name);
+            const parsed = parseTopographyTxt(text);
+            setParsedTopoData(parsed);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [attachedTxtFile, customTopoTxt, parsedTopoData]);
+
   // Inicializar la selección de reportes cuando se cargan los datos del proyecto
   useEffect(() => {
     const reports = projectSummary?.field_reports || [];
@@ -296,13 +348,58 @@ export function GprCadStudioPanel() {
     }
   }, [projectSummary?.field_reports, activeJob?.input_metrics?.selected_report_ids, currentProjectId]);
 
+  // Carga y procesamiento local de archivo .txt de Estación Total
+  const handleTopoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingTopo(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        setCustomTopoTxt(text);
+        setCustomTopoFileName(file.name);
+        const parsed = parseTopographyTxt(text);
+        setParsedTopoData(parsed);
+
+        // Guardar en el pipeline job activo
+        try {
+          await fetch('/api/tools/gpr-pipeline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: currentProjectId,
+              selectedReportIds,
+              topographyTxt: text,
+              topographyFileName: file.name,
+            }),
+          });
+          setStatusMessage(`Topografía georreferenciada guardada: ${parsed.points.length} puntos de ${file.name}`);
+          queryClient.invalidateQueries({ queryKey: ['gpr-pipeline'] });
+          setTimeout(() => setStatusMessage(''), 5000);
+        } catch (err) {
+          console.error('Error guardando topografía:', err);
+        } finally {
+          setIsUploadingTopo(false);
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // 3. Mutación para inicializar o recalcular Job
   const createJobMutation = useMutation({
     mutationFn: async ({ pId, reportIds }: { pId: string; reportIds?: string[] }) => {
       const res = await fetch('/api/tools/gpr-pipeline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: pId, selectedReportIds: reportIds }),
+        body: JSON.stringify({
+          projectId: pId,
+          selectedReportIds: reportIds,
+          topographyTxt: customTopoTxt || undefined,
+          topographyFileName: customTopoFileName || undefined,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Error al inicializar pipeline');
@@ -336,7 +433,14 @@ export function GprCadStudioPanel() {
       const res = await fetch('/api/tools/gpr-pipeline/step', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId, stepKey, runAll, projectId, selectedReportIds: reportIds }),
+        body: JSON.stringify({
+          jobId,
+          stepKey,
+          runAll,
+          projectId,
+          selectedReportIds: reportIds,
+          topographyTxt: customTopoTxt || undefined,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Error al ejecutar paso');
@@ -840,6 +944,144 @@ export function GprCadStudioPanel() {
               </button>
             </div>
           </div>
+
+          {/* Card de Georreferenciación y Estación Total (.TXT) */}
+          <div className="card p-4.5 bg-surface-dark text-white border border-border-dark shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center shrink-0 border border-accent/40 text-accent">
+                  <Compass className="w-5 h-5 text-accent" strokeWidth={1.75} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm font-bold text-white">Georreferenciación y Topografía (Estación Total .TXT)</h4>
+                    {parsedTopoData && parsedTopoData.points.length > 0 ? (
+                      <span className="badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        {parsedTopoData.points.length} Puntos Georreferenciados ({customTopoFileName || 'archivo.txt'})
+                      </span>
+                    ) : (
+                      <span className="badge bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 text-amber-400" />
+                        Modo Esquemático Local (Sin archivo .txt)
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-white/70 mt-1">
+                    {parsedTopoData && parsedTopoData.points.length > 0 ? (
+                      <>
+                        Alineamiento: <strong className="text-accent">{parsedTopoData.axisPoints.length} puntos de eje</strong> ({parsedTopoData.totalAxisLength.toFixed(1)} ML) |
+                        Norte: <span className="font-mono text-white/90">{parsedTopoData.bounds.minNorth.toFixed(2)} - {parsedTopoData.bounds.maxNorth.toFixed(2)}</span> |
+                        Este: <span className="font-mono text-white/90">{parsedTopoData.bounds.minEast.toFixed(2)} - {parsedTopoData.bounds.maxEast.toFixed(2)}</span>
+                      </>
+                    ) : (
+                      'Para que el Plano 2D (.DXF) se dibuje en las coordenadas reales del proyecto en AutoCAD Civil 3D, carga el archivo .txt exportado de la Estación Total (Punto, Norte, Este, Cota, Código).'
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                {parsedTopoData && parsedTopoData.points.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTopoPointsModal(true)}
+                    className="btn-ghost px-3 py-1.5 text-xs font-semibold rounded-lg border border-white/20 text-white hover:bg-white/10 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-accent" />
+                    <span>Ver Coordenadas ({parsedTopoData.points.length})</span>
+                  </button>
+                )}
+
+                <label className="btn-accent px-3.5 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer text-primary-900 shadow-xs hover:opacity-95">
+                  <UploadCloud className="w-3.5 h-3.5" />
+                  <span>{parsedTopoData ? 'Reemplazar .TXT' : 'Cargar Estación Total (.TXT)'}</span>
+                  <input
+                    type="file"
+                    accept=".txt,.csv"
+                    className="hidden"
+                    onChange={handleTopoFileUpload}
+                    disabled={isUploadingTopo}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Modal de Coordenadas de Topografía (P, N, E, Z, D) */}
+          {showTopoPointsModal && parsedTopoData && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-surface border border-border rounded-xl shadow-xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
+                <div className="p-4 border-b border-border flex items-center justify-between bg-surface-dark text-white">
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Compass className="w-4 h-4 text-accent" />
+                      Levantamiento Topográfico Georreferenciado — {customTopoFileName || 'archivo.txt'}
+                    </h3>
+                    <p className="text-xs text-white/70 mt-0.5">
+                      {parsedTopoData.points.length} puntos totales | {parsedTopoData.axisPoints.length} puntos en eje principal | Longitud: {parsedTopoData.totalAxisLength.toFixed(2)} ML
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowTopoPointsModal(false)}
+                    className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-4 overflow-y-auto flex-1">
+                  <div className="table-container border border-border rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead className="bg-surface-secondary text-text-muted font-bold border-b border-border">
+                        <tr>
+                          <th className="py-2 px-3 text-left">PUNTO</th>
+                          <th className="py-2 px-3 text-right">NORTE (Y)</th>
+                          <th className="py-2 px-3 text-right">ESTE (X)</th>
+                          <th className="py-2 px-3 text-right">COTA (Z)</th>
+                          <th className="py-2 px-3 text-left">CÓDIGO</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {parsedTopoData.points.slice(0, 200).map((pt, pIdx) => {
+                          const isAxis = (pt.code || '').toUpperCase().includes('EJE') || (pt.code || '').toUpperCase().includes('ALIN') || (pt.code || '').toUpperCase() === 'CL';
+                          return (
+                            <tr key={pIdx} className={isAxis ? 'bg-accent/5 font-semibold' : 'hover:bg-gray-50'}>
+                              <td className="py-1.5 px-3 font-mono text-text-primary">{pt.id}</td>
+                              <td className="py-1.5 px-3 text-right font-mono text-text-secondary">{pt.north.toFixed(4)}</td>
+                              <td className="py-1.5 px-3 text-right font-mono text-text-secondary">{pt.east.toFixed(4)}</td>
+                              <td className="py-1.5 px-3 text-right font-mono text-accent">{pt.elevation.toFixed(3)}</td>
+                              <td className="py-1.5 px-3">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  isAxis ? 'bg-accent/20 text-accent' : 'bg-gray-100 text-text-secondary'
+                                }`}>
+                                  {pt.code}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {parsedTopoData.points.length > 200 && (
+                    <p className="text-center text-[11px] text-text-muted mt-2">
+                      Mostrando primeros 200 de {parsedTopoData.points.length} puntos. Todos los puntos se incluirán en el entregable .DXF.
+                    </p>
+                  )}
+                </div>
+
+                <div className="p-3 bg-surface-secondary border-t border-border flex justify-end">
+                  <button
+                    onClick={() => setShowTopoPointsModal(false)}
+                    className="btn-primary px-4 py-1.5 text-xs font-bold rounded-lg cursor-pointer"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Lista de Formularios Llenados (Uno por cada vez que se diligenció) */}
           {!projectSummary?.field_reports || projectSummary.field_reports.length === 0 ? (

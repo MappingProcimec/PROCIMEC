@@ -32,6 +32,9 @@ export interface GprPipelineInputMetrics {
   tramos_count: number;
   max_depth_m: number;
   selected_report_ids?: string[];
+  topography_txt?: string;
+  topography_points_count?: number;
+  topography_file_name?: string;
 }
 
 export interface GprPipelineStep {

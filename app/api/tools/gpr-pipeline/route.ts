@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import { GprPipelineCostRates, GprPipelineCostBreakdown, GprPipelineInputMetrics } from '@/types/gpr-pipeline';
+import { parseTopographyTxt } from '@/lib/gpr-cad/parsers/topography-txt-parser';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -462,7 +463,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { projectId, costRates: customRates, notes, selectedReportIds } = body;
+    const { projectId, costRates: customRates, notes, selectedReportIds, topographyTxt, topographyFileName } = body;
 
     if (!projectId) {
       return NextResponse.json({ error: 'El projectId es obligatorio' }, { status: 400 });
@@ -516,7 +517,14 @@ export async function POST(request: NextRequest) {
       tramos_count: tramosCount,
       max_depth_m: Number(maxDepth.toFixed(2)),
       selected_report_ids: Array.isArray(selectedReportIds) ? selectedReportIds : undefined,
+      topography_txt: topographyTxt || undefined,
+      topography_file_name: topographyFileName || undefined,
     };
+
+    if (topographyTxt) {
+      const parsedTopo = parseTopographyTxt(topographyTxt);
+      inputMetrics.topography_points_count = parsedTopo.points.length;
+    }
 
     // 2. Definir tarifas APU
     const defaultRates: GprPipelineCostRates = {

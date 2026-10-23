@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import { GprPipelineStepKey } from '@/types/gpr-pipeline';
 import { generateBase2dDxf, generateRefined2dDxf } from '@/lib/gpr-cad/generators/dxf-generator';
+import { getTopographyForPipeline } from '@/lib/gpr-cad/services/topography-service';
 import { generateGprDspReportPdf } from '@/lib/gpr-cad/generators/gpr-dsp-report-generator';
 import { generateIfc4Model } from '@/lib/gpr-cad/generators/ifc-bim-generator';
 import { generateProjectReportDocx } from '@/lib/gpr-cad/generators/project-report-generator';
@@ -218,11 +219,18 @@ export async function GET(request: NextRequest) {
 
     const cleanProjectName = projectMeta.name.replace(/[^a-zA-Z0-9_-]/g, '_');
 
-    // 4. Despacho según el entregable
+    // 4. Obtener topografía georreferenciada de Estación Total si existe
+    const topography = await getTopographyForPipeline({
+      jobId,
+      projectId,
+      reportIds: selectedReportIds,
+    });
+
+    // 5. Despacho según el entregable
     switch (stepKey) {
       case 'cad_2d': {
-        // Paso 1: Plano 2D Base (.DXF R12 Universal)
-        const dxfContent = generateBase2dDxf(projectMeta, tramosList);
+        // Paso 1: Plano 2D Base (.DXF R12 Universal con Georreferenciación)
+        const dxfContent = generateBase2dDxf(projectMeta, tramosList, topography);
         const fileName = requestedName
           ? (requestedName.endsWith('.dxf') ? requestedName : `${requestedName}.dxf`)
           : `Plano_2D_Base_${cleanProjectName}.dxf`;
@@ -258,8 +266,8 @@ export async function GET(request: NextRequest) {
       }
 
       case 'cad_2d_refine': {
-        // Paso 3: Plano 2D Mejorado con Interferencias y Cotas Z (.DXF R2018)
-        const dxfRefined = generateRefined2dDxf(projectMeta, tramosList, utilitiesList);
+        // Paso 3: Plano 2D Mejorado con Interferencias y Cotas Z Georreferenciadas (.DXF R12 Universal)
+        const dxfRefined = generateRefined2dDxf(projectMeta, tramosList, utilitiesList, topography);
         const fileName = requestedName
           ? (requestedName.endsWith('.dxf') ? requestedName : `${requestedName}.dxf`)
           : `Plano_2D_Interferencias_${cleanProjectName}.dxf`;

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase';
 import { GprPipelineStepKey } from '@/types/gpr-pipeline';
+import { getTopographyForPipeline } from '@/lib/gpr-cad/services/topography-service';
+import { TopographyDataset } from '@/lib/gpr-cad/parsers/topography-txt-parser';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -12,6 +14,7 @@ interface StepExecutionPayload {
   stepKey?: GprPipelineStepKey;
   runAll?: boolean;
   selectedReportIds?: string[];
+  topographyTxt?: string;
 }
 
 interface RawFieldReport {
@@ -110,11 +113,14 @@ function generateStepDeliverableMeta(
   projectName: string,
   jobId: string,
   projectId: string,
-  reportIds?: string[]
+  reportIds?: string[],
+  topography?: TopographyDataset | null
 ) {
   const cleanName = projectName.replace(/[^a-zA-Z0-9_-]/g, '_');
   const rParam = reportIds && reportIds.length > 0 ? `&reportIds=${encodeURIComponent(reportIds.join(','))}` : '';
   const baseDownload = `/api/tools/gpr-pipeline/download?jobId=${encodeURIComponent(jobId)}&projectId=${encodeURIComponent(projectId)}&stepKey=${stepKey}${rParam}`;
+  const hasTopo = Boolean(topography && topography.points.length > 0);
+  const topoCount = topography?.points.length || 0;
 
   switch (stepKey) {
     case 'cad_2d':
@@ -122,7 +128,9 @@ function generateStepDeliverableMeta(
         fileName: `Plano_2D_Base_${cleanName}.dxf`,
         fileUrl: `${baseDownload}&type=dxf&name=Plano_2D_Base_${cleanName}`,
         fileType: 'dxf',
-        summary: `Plano 2D generado con éxito en formato AutoCAD DXF R12 / Universal. Delineación de ejes viales, franjas de exploración por tramo y rótulo oficial PROCIMEC INGENIERÍA S.A.S.`,
+        summary: hasTopo
+          ? `Plano 2D generado con éxito en formato AutoCAD DXF R12 con GEORREFERENCIACIÓN REAL (${topoCount} puntos de Estación Total). Delineación de ejes y bordes sobre coordenadas de campo, abscisado progresivo K y rótulo oficial PROCIMEC INGENIERÍA S.A.S.`
+          : `Plano 2D generado con éxito en formato AutoCAD DXF R12 / Universal. Delineación de ejes viales, franjas de exploración por tramo y rótulo oficial PROCIMEC INGENIERÍA S.A.S.`,
         tokens: { input_tokens: 1420, output_tokens: 680 },
       };
     case 'gpr_raw_proc':
@@ -138,7 +146,9 @@ function generateStepDeliverableMeta(
         fileName: `Plano_2D_Interferencias_${cleanName}.dxf`,
         fileUrl: `${baseDownload}&type=dxf&name=Plano_2D_Interferencias_${cleanName}`,
         fileType: 'dxf',
-        summary: `Plano 2D mejorado con éxito. Incrustación de todas las redes subterráneas con capas normalizadas por servicio, cotas Z, etiquetas técnicas y cuadro de interferencias.`,
+        summary: hasTopo
+          ? `Plano 2D mejorado con éxito sobre COORDENADAS REALES (${topoCount} puntos de campo). Incrustación de redes subterráneas con capas normalizadas por servicio, cotas Z reales, etiquetas técnicas y cuadro consolidado de interferencias.`
+          : `Plano 2D mejorado con éxito. Incrustación de todas las redes subterráneas con capas normalizadas por servicio, cotas Z, etiquetas técnicas y cuadro de interferencias.`,
         tokens: { input_tokens: 1890, output_tokens: 1120 },
       };
     case 'bim_3d_rvt':
@@ -264,6 +274,14 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Obtener topografía georreferenciada de Estación Total si existe
+    const topography = await getTopographyForPipeline({
+      jobId,
+      projectId: job.project_id,
+      reportIds: activeSelectedReportIds,
+      customTxt: body.topographyTxt,
+    });
+
     const activeMetrics = {
       total_ml: Number(filteredMl.toFixed(2)),
       total_m2: Number(filteredM2.toFixed(2)),
@@ -272,6 +290,8 @@ export async function POST(request: NextRequest) {
       tramos_count: filteredTramos,
       max_depth_m: Number(filteredMaxDepth.toFixed(2)),
       selected_report_ids: activeSelectedReportIds || undefined,
+      topography_txt: body.topographyTxt || (job.input_metrics as { topography_txt?: string })?.topography_txt || undefined,
+      topography_points_count: topography?.points.length || undefined,
     };
 
     // Actualizar input_metrics en el job
@@ -335,7 +355,8 @@ export async function POST(request: NextRequest) {
         job.projects?.name || 'Proyecto',
         jobId,
         job.project_id,
-        activeSelectedReportIds || undefined
+        activeSelectedReportIds || undefined,
+        topography
       );
 
       const completedAt = new Date().toISOString();
