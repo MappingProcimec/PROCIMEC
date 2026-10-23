@@ -889,6 +889,7 @@ export function GprCadStudioPanel() {
                             <span className="text-[11px] font-mono font-semibold text-text-muted bg-gray-100 px-2 py-0.5 rounded border border-gray-200 flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-text-muted" />
                               {report.report_date}
+                              {report.report_time ? ` (${report.report_time})` : ''}
                             </span>
 
                             <span className="text-[11px] font-semibold text-text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10 flex items-center gap-1">

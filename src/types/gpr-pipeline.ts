@@ -91,6 +91,7 @@ export interface ReportFileItem {
 export interface RawFieldReportItem {
   id: string;
   report_date: string;
+  report_time?: string | null;
   localizador_name: string;
   global_max_depth?: number | null;
   antenna_frequency?: string | null;

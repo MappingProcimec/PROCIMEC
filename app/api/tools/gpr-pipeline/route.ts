@@ -80,9 +80,10 @@ export async function GET(request: NextRequest) {
     // 2. Obtener reportes de campo (GPR) acumulados de este proyecto
     const { data: rawReports, error: repErr } = await supabase
       .from('field_reports')
-      .select('id, report_date, localizador_name, operational_summary, detected_utilities, global_max_depth, created_at, antenna_frequency, gpr_equipment, terrain_conditions, weather_conditions, capture_method')
+      .select('id, report_date, report_time, localizador_name, operational_summary, detected_utilities, global_max_depth, created_at, antenna_frequency, gpr_equipment, terrain_conditions, weather_conditions, capture_method')
       .eq('project_id', targetProjectId)
-      .order('report_date', { ascending: false });
+      .order('report_date', { ascending: false })
+      .order('created_at', { ascending: false });
 
     if (repErr) throw repErr;
     const reports = rawReports || [];
@@ -167,6 +168,7 @@ export async function GET(request: NextRequest) {
     const structuredFieldReports = reports.map((rep: {
       id: string;
       report_date: string;
+      report_time?: string | null;
       localizador_name: string;
       antenna_frequency?: string | null;
       gpr_equipment?: string | null;
@@ -200,6 +202,7 @@ export async function GET(request: NextRequest) {
       return {
         id: rep.id,
         report_date: rep.report_date,
+        report_time: rep.report_time || null,
         localizador_name: rep.localizador_name || 'Localizador',
         antenna_frequency: rep.antenna_frequency || '400 MHz',
         gpr_equipment: rep.gpr_equipment || 'GPR ProEx',
