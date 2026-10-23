@@ -13,58 +13,133 @@ import { useEffect, useState } from 'react';
 import { UploadedFile } from '@/types';
 import { BackButton } from '@/components/BackButton';
 import { Radio, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 async function uploadFileToSupabase(
   fileItem: UploadedFile,
   fieldReportId: string,
   onProgress: (percent: number) => void
 ): Promise<{ storageUrl: string; storagePath: string }> {
-  const formData = new FormData();
-  formData.append('file', fileItem.file);
-  formData.append('fieldReportId', fieldReportId);
-  formData.append('fileType', fileItem.fileType || 'photo');
-  if (fileItem.caption) {
-    formData.append('caption', fileItem.caption);
+  // 1. Obtener URL de carga firmada (JSON liviano de ~200B que nunca excede el límite de Vercel)
+  const urlRes = await fetch('/api/reports/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'get-upload-url',
+      fieldReportId,
+      fileName: fileItem.file.name,
+      fileType: fileItem.fileType || 'photo',
+      fileSize: fileItem.file.size,
+      mimeType: fileItem.file.type || 'application/octet-stream',
+    }),
+  });
+
+  if (!urlRes.ok) {
+    const errText = await urlRes.text();
+    let msg = `Error al solicitar carga para ${fileItem.file.name}`;
+    try {
+      const parsed = JSON.parse(errText);
+      msg = parsed.error || msg;
+    } catch {
+      msg = errText.substring(0, 150) || msg;
+    }
+    throw new Error(msg);
   }
 
-  return new Promise((resolve, reject) => {
+  const { data: signData } = await urlRes.json();
+  const { signedUrl, token, storagePath, publicUrl } = signData;
+
+  // 2. Transferir archivo directamente a Supabase Storage con seguimiento de progreso en tiempo real
+  await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/reports/upload', true);
+    xhr.open('PUT', signedUrl, true);
+    xhr.setRequestHeader('x-upsert', 'true');
 
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
+      if (e.lengthComputable && onProgress) {
         onProgress(Math.round((e.loaded / e.total) * 100));
       }
     };
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const res = JSON.parse(xhr.responseText);
-          if (res.data?.storageUrl) {
-            resolve({
-              storageUrl: res.data.storageUrl,
-              storagePath: res.data.storagePath,
-            });
-            return;
-          }
-          reject(new Error('Respuesta del servidor incompleta al almacenar archivo'));
-        } catch {
-          reject(new Error('Error al interpretar respuesta de subida'));
-        }
+        resolve();
       } else {
-        try {
-          const errRes = JSON.parse(xhr.responseText);
-          reject(new Error(errRes.error || `Error ${xhr.status} al guardar archivo en la nube`));
-        } catch {
-          reject(new Error(`Error ${xhr.status} al guardar archivo`));
-        }
+        // Fallback automático con Supabase JS SDK si XHR directo reporta fallo
+        supabase.storage
+          .from('evidencias')
+          .uploadToSignedUrl(storagePath, token, fileItem.file, { upsert: true })
+          .then(({ error: uploadErr }) => {
+            if (uploadErr) {
+              reject(new Error(`Error al transferir ${fileItem.file.name} a la nube: ${uploadErr.message}`));
+            } else {
+              resolve();
+            }
+          })
+          .catch((sdkErr) => {
+            reject(new Error(`Fallo en almacenamiento: ${sdkErr instanceof Error ? sdkErr.message : 'Error desconocido'}`));
+          });
       }
     };
 
-    xhr.onerror = () => reject(new Error('Error de conexión al subir archivo'));
+    xhr.onerror = () => {
+      // Fallback con Supabase SDK ante error de conexión en XHR
+      supabase.storage
+        .from('evidencias')
+        .uploadToSignedUrl(storagePath, token, fileItem.file, { upsert: true })
+        .then(({ error: uploadErr }) => {
+          if (uploadErr) {
+            reject(new Error(`Fallo de conexión al subir ${fileItem.file.name}: ${uploadErr.message}`));
+          } else {
+            resolve();
+          }
+        })
+        .catch((sdkErr) => {
+          reject(new Error(`Fallo de red: ${sdkErr instanceof Error ? sdkErr.message : 'Error de red'}`));
+        });
+    };
+
+    const formData = new FormData();
+    formData.append('cacheControl', '3600');
+    formData.append('', fileItem.file);
     xhr.send(formData);
   });
+
+  if (onProgress) onProgress(100);
+
+  // 3. Confirmar y persistir registro en la tabla report_files
+  const confirmRes = await fetch('/api/reports/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'confirm-upload',
+      fieldReportId,
+      fileType: fileItem.fileType || 'photo',
+      originalName: fileItem.file.name,
+      storagePath,
+      storageUrl: publicUrl,
+      sizeBytes: fileItem.file.size,
+      mimeType: fileItem.file.type || 'application/octet-stream',
+      caption: fileItem.caption || '',
+    }),
+  });
+
+  if (!confirmRes.ok) {
+    const errText = await confirmRes.text();
+    let msg = `Error al registrar archivo ${fileItem.file.name}`;
+    try {
+      const parsed = JSON.parse(errText);
+      msg = parsed.error || msg;
+    } catch {
+      msg = errText.substring(0, 150) || msg;
+    }
+    throw new Error(msg);
+  }
+
+  return {
+    storageUrl: publicUrl,
+    storagePath,
+  };
 }
 
 export default function NewReportPage() {
@@ -165,13 +240,37 @@ export default function NewReportPage() {
         ...store.section3.photoFiles.map(f => ({ fileItem: { ...f, fileType: 'photo' as const }, type: 'photo' as const })),
       ];
 
-      for (let i = 0; i < allFileItems.length; i++) {
-        const { fileItem } = allFileItems[i];
-        setUploadStatusMsg(`Almacenando archivo ${i + 1} de ${allFileItems.length}: ${fileItem.file.name}`);
+      const totalFiles = allFileItems.length;
+      if (totalFiles > 0) {
+        let completed = 0;
+        const CONCURRENCY = 3; // Subida concurrente de 3 archivos en paralelo para máxima velocidad y estabilidad
+        const queue = [...allFileItems];
 
-        await uploadFileToSupabase(fileItem, fieldReportId, (percent) => {
-          updateFileProgress(fileItem.id, percent);
-        });
+        const runWorker = async () => {
+          while (queue.length > 0) {
+            const current = queue.shift();
+            if (!current) break;
+            const { fileItem } = current;
+
+            setUploadStatusMsg(
+              `Almacenando archivo ${completed + 1} de ${totalFiles}: ${fileItem.file.name}`
+            );
+
+            await uploadFileToSupabase(fileItem, fieldReportId, (percent) => {
+              updateFileProgress(fileItem.id, percent);
+            });
+
+            completed++;
+            updateFileProgress(fileItem.id, 100);
+            setUploadStatusMsg(`Almacenados ${completed} de ${totalFiles} archivos...`);
+          }
+        };
+
+        const workers = Array.from(
+          { length: Math.min(CONCURRENCY, totalFiles) },
+          () => runWorker()
+        );
+        await Promise.all(workers);
       }
 
       // 3. Finalizar y generar Reporte Diario en PDF asistido por Google Gemini AI
