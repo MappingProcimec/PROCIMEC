@@ -11,8 +11,16 @@ import {
   X,
   Radio,
   Crosshair,
+  Sparkles,
+  Layers,
+  ShieldCheck,
 } from 'lucide-react';
-import { DetectionConfig, DetectionResults, AnomalyMarker } from '@/lib/gpr/detectionTypes';
+import {
+  DetectionConfig,
+  DetectionResults,
+  AnomalyMarker,
+  DetectionEngineMode,
+} from '@/lib/gpr/detectionTypes';
 
 export type ColorPalette = 'grayscale' | 'seismic' | 'bone' | 'sepia' | 'jet';
 
@@ -30,6 +38,9 @@ interface CanvasViewerProps {
   showHyperbolaTool: boolean;
   detectionConfig?: DetectionConfig;
   detectionResults?: DetectionResults;
+  advancedDetectionResults?: DetectionResults;
+  detectionEngineMode?: DetectionEngineMode;
+  onDetectionEngineModeChange?: (mode: DetectionEngineMode) => void;
   selectedMarker?: AnomalyMarker | null;
   onSelectMarker?: (marker: AnomalyMarker | null) => void;
 }
@@ -48,6 +59,9 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   showHyperbolaTool,
   detectionConfig,
   detectionResults,
+  advancedDetectionResults,
+  detectionEngineMode = 'comparison',
+  onDetectionEngineModeChange,
   selectedMarker: externalSelectedMarker,
   onSelectMarker,
 }) => {
@@ -113,21 +127,53 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     }, 120);
   }, []);
 
-  // Gather all active anomaly markers
-  const allActiveMarkers: AnomalyMarker[] = useMemo(() => {
-    if (!detectionResults || !detectionConfig) return [];
+  // Viewport detection layer overlay mode ('advanced' | 'classic' | 'both')
+  const [viewportOverlayMode, setViewportOverlayMode] = useState<'advanced' | 'classic' | 'both'>(
+    detectionEngineMode === 'classic' ? 'classic' : detectionEngineMode === 'advanced' ? 'advanced' : 'both'
+  );
+
+  useEffect(() => {
+    if (detectionEngineMode === 'comparison') {
+      setViewportOverlayMode('both');
+    } else if (detectionEngineMode === 'classic') {
+      setViewportOverlayMode('classic');
+    } else if (detectionEngineMode === 'advanced') {
+      setViewportOverlayMode('advanced');
+    }
+  }, [detectionEngineMode]);
+
+  // Extract active anomaly markers from a given result set
+  const extractActiveMarkers = useCallback((results?: DetectionResults, config?: DetectionConfig) => {
+    if (!results || !config) return [];
     const list: AnomalyMarker[] = [];
-    if (detectionConfig.brightSpot?.enabled) list.push(...(detectionResults.brightSpots?.markers || []));
-    if (detectionConfig.hyperbola?.enabled) list.push(...(detectionResults.hyperbolas?.markers || []));
-    if (detectionConfig.delamination?.enabled) list.push(...(detectionResults.delaminations?.markers || []));
-    if (detectionConfig.subslabVoid?.enabled) list.push(...(detectionResults.subslabVoids?.markers || []));
-    if (detectionConfig.diffuseScattering?.enabled) list.push(...(detectionResults.diffuseScattering?.markers || []));
-    if (detectionConfig.jointInfiltration?.enabled) list.push(...(detectionResults.jointInfiltrations?.markers || []));
-    if (detectionConfig.dielectricShadow?.enabled) list.push(...(detectionResults.dielectricShadows?.markers || []));
-    if (detectionConfig.thicknessVariation?.enabled) list.push(...(detectionResults.thicknessVariations?.markers || []));
-    if (detectionConfig.pipeUtility?.enabled) list.push(...(detectionResults.pipesUtilities?.markers || []));
+    if (config.brightSpot?.enabled) list.push(...(results.brightSpots?.markers || []));
+    if (config.hyperbola?.enabled) list.push(...(results.hyperbolas?.markers || []));
+    if (config.delamination?.enabled) list.push(...(results.delaminations?.markers || []));
+    if (config.subslabVoid?.enabled) list.push(...(results.subslabVoids?.markers || []));
+    if (config.diffuseScattering?.enabled) list.push(...(results.diffuseScattering?.markers || []));
+    if (config.jointInfiltration?.enabled) list.push(...(results.jointInfiltrations?.markers || []));
+    if (config.dielectricShadow?.enabled) list.push(...(results.dielectricShadows?.markers || []));
+    if (config.thicknessVariation?.enabled) list.push(...(results.thicknessVariations?.markers || []));
+    if (config.pipeUtility?.enabled) list.push(...(results.pipesUtilities?.markers || []));
     return list;
-  }, [detectionResults, detectionConfig]);
+  }, []);
+
+  const classicActiveMarkers = useMemo(
+    () => extractActiveMarkers(detectionResults, detectionConfig),
+    [detectionResults, detectionConfig, extractActiveMarkers]
+  );
+
+  const advancedActiveMarkers = useMemo(
+    () => extractActiveMarkers(advancedDetectionResults, detectionConfig),
+    [advancedDetectionResults, detectionConfig, extractActiveMarkers]
+  );
+
+  // Gather all active anomaly markers based on current viewport overlay mode
+  const allActiveMarkers: AnomalyMarker[] = useMemo(() => {
+    if (viewportOverlayMode === 'classic') return classicActiveMarkers;
+    if (viewportOverlayMode === 'advanced') return advancedActiveMarkers;
+    return [...advancedActiveMarkers, ...classicActiveMarkers];
+  }, [viewportOverlayMode, classicActiveMarkers, advancedActiveMarkers]);
 
   // Find co-located or nearby markers for the hovered marker (within 0.35m and 6ns)
   const coLocatedHoveredMarkers = useMemo(() => {
@@ -652,6 +698,54 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
     return plotMetrics.marginTop + normY * plotMetrics.plotHeight;
   };
 
+  // Partition rendered markers according to viewportOverlayMode
+  const renderedMarkers = useMemo(() => {
+    const showClassic = viewportOverlayMode === 'classic' || viewportOverlayMode === 'both';
+    const showAdvanced = viewportOverlayMode === 'advanced' || viewportOverlayMode === 'both';
+
+    return {
+      brightSpots: [
+        ...(showClassic ? detectionResults?.brightSpots.markers || [] : []),
+        ...(showAdvanced ? advancedDetectionResults?.brightSpots.markers || [] : []),
+      ],
+      hyperbolas: [
+        ...(showClassic ? detectionResults?.hyperbolas.markers || [] : []),
+        ...(showAdvanced ? advancedDetectionResults?.hyperbolas.markers || [] : []),
+      ],
+      delaminations: [
+        ...(showClassic ? detectionResults?.delaminations.markers || [] : []),
+        ...(showAdvanced ? advancedDetectionResults?.delaminations.markers || [] : []),
+      ],
+      subslabVoids: [
+        ...(showClassic ? detectionResults?.subslabVoids.markers || [] : []),
+        ...(showAdvanced ? advancedDetectionResults?.subslabVoids.markers || [] : []),
+      ],
+      diffuseScattering: [
+        ...(showClassic ? detectionResults?.diffuseScattering.markers || [] : []),
+        ...(showAdvanced ? advancedDetectionResults?.diffuseScattering.markers || [] : []),
+      ],
+      jointInfiltrations: [
+        ...(showClassic ? detectionResults?.jointInfiltrations.markers || [] : []),
+        ...(showAdvanced ? advancedDetectionResults?.jointInfiltrations.markers || [] : []),
+      ],
+      dielectricShadows: [
+        ...(showClassic ? detectionResults?.dielectricShadows.markers || [] : []),
+        ...(showAdvanced ? advancedDetectionResults?.dielectricShadows.markers || [] : []),
+      ],
+      thicknessVariations: [
+        ...(showAdvanced
+          ? advancedDetectionResults?.thicknessVariations.markers || []
+          : showClassic
+          ? detectionResults?.thicknessVariations.markers || []
+          : []),
+      ],
+      pipesUtilities: [
+        ...(showClassic ? detectionResults?.pipesUtilities.markers || [] : []),
+        ...(showAdvanced ? advancedDetectionResults?.pipesUtilities.markers || [] : []),
+      ],
+    };
+  }, [viewportOverlayMode, detectionResults, advancedDetectionResults]);
+
   return (
     <div className="flex-1 flex flex-col bg-surface overflow-hidden relative">
       {/* Fila 1: Metadatos Fijos del Perfil (Altura fija de 32px, 100% estable sin saltos de tamaño) */}
@@ -722,6 +816,53 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
       {/* Main Canvas Area */}
       <div ref={containerRef} className="flex-1 relative bg-white overflow-hidden flex items-center justify-center p-2">
         <div className="relative w-full h-full">
+          {/* Floating Viewport Layer Overlay Selector */}
+          {(classicActiveMarkers.length > 0 || advancedActiveMarkers.length > 0) && (
+            <div className="absolute top-2 right-2 z-20 flex items-center gap-1 bg-slate-900/95 backdrop-blur-md px-2 py-1 rounded-xl border border-slate-700 shadow-xl text-[10.5px]">
+              <span className="text-slate-400 font-semibold text-[10px] hidden sm:flex items-center gap-1 pr-1 border-r border-slate-700">
+                <Layers className="w-3 h-3 text-amber-400" />
+                Capa:
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewportOverlayMode('advanced')}
+                className={`px-2 py-0.5 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                  viewportOverlayMode === 'advanced'
+                    ? 'bg-[#EAA023] text-primary-900 shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Ver detecciones calculadas con el motor avanzado v2"
+              >
+                <Sparkles className="w-2.5 h-2.5" />
+                <span>Avanzado ({advancedActiveMarkers.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewportOverlayMode('classic')}
+                className={`px-2 py-0.5 rounded-lg font-bold transition cursor-pointer ${
+                  viewportOverlayMode === 'classic'
+                    ? 'bg-slate-700 text-white shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Ver detecciones calculadas con el motor clásico v1"
+              >
+                <span>Clásico ({classicActiveMarkers.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewportOverlayMode('both')}
+                className={`px-2 py-0.5 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
+                  viewportOverlayMode === 'both'
+                    ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-primary-900 shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+                title="Comparar ambas capas superpuestas"
+              >
+                <span>Comparar Ambos</span>
+              </button>
+            </div>
+          )}
+
           <canvas
             ref={canvasRef}
             onMouseDown={handleMouseDown}
@@ -750,12 +891,15 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
               </defs>
 
               <g clipPath="url(#gpr-plot-area-clip)">
-                {/* 1. BRIGHT SPOT MARKERS: Dashed cyan-blue horizontal line (1px, #00BFFF) */}
+                {/* 1. BRIGHT SPOT MARKERS: Cyan line with center envelope dot */}
                 {detectionConfig?.brightSpot.enabled &&
-                  detectionResults?.brightSpots.markers.map((m) => {
+                  renderedMarkers.brightSpots.map((m) => {
                     const x1 = getCanvasXFromDistM(m.xStartM);
                     const x2 = getCanvasXFromDistM(m.xEndM);
+                    const xc = getCanvasXFromDistM(m.xCenterM);
                     const y = getCanvasYFromTimeNs(m.timeNs);
+                    const isV2 = m.engineVersion === 'v2_advanced';
+
                     return (
                       <g key={m.id} className="pointer-events-auto">
                         <line
@@ -763,10 +907,22 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           y1={y}
                           x2={x2}
                           y2={y}
-                          stroke="#00BFFF"
-                          strokeWidth="1"
-                          strokeDasharray="4,2"
+                          stroke={isV2 ? '#00E5FF' : '#00BFFF'}
+                          strokeWidth={isV2 ? '2' : '1'}
+                          strokeDasharray={isV2 ? 'none' : '4,2'}
+                          opacity={viewportOverlayMode === 'both' && !isV2 ? 0.6 : 1}
                         />
+                        {isV2 && (
+                          <circle
+                            cx={xc}
+                            cy={y}
+                            r="3.5"
+                            fill="#00E5FF"
+                            stroke="#FFFFFF"
+                            strokeWidth="1"
+                            className="pointer-events-none"
+                          />
+                        )}
                         {/* Interactive invisible hit area */}
                         <line
                           x1={x1}
@@ -785,20 +941,35 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                     );
                   })}
 
-                {/* 2. HYPERBOLA MARKERS: Orange-red circle (radius 8px, #FF4500) */}
+                {/* 2. HYPERBOLA MARKERS: Diffraction apex with semblance halo */}
                 {detectionConfig?.hyperbola.enabled &&
-                  detectionResults?.hyperbolas.markers.map((m) => {
+                  renderedMarkers.hyperbolas.map((m) => {
                     const cx = getCanvasXFromDistM(m.xCenterM);
                     const cy = getCanvasYFromTimeNs(m.timeNs);
+                    const isV2 = m.engineVersion === 'v2_advanced';
+
                     return (
                       <g key={m.id} className="pointer-events-auto">
+                        {isV2 && (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r="13"
+                            fill="none"
+                            stroke="#EAA023"
+                            strokeWidth="1.5"
+                            strokeDasharray="3,2"
+                            className="pointer-events-none"
+                          />
+                        )}
                         <circle
                           cx={cx}
                           cy={cy}
-                          r="8"
-                          fill="#FF4500"
+                          r={isV2 ? '8.5' : '8'}
+                          fill={isV2 ? '#EAA023' : '#FF4500'}
                           stroke="#FFFFFF"
-                          strokeWidth="1.5"
+                          strokeWidth={isV2 ? '2' : '1.5'}
+                          opacity={viewportOverlayMode === 'both' && !isV2 ? 0.6 : 1}
                           className="cursor-pointer hover:opacity-80 transition"
                           onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
                           onMouseMove={handleMarkerMouseMove}
@@ -809,12 +980,14 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                     );
                   })}
 
-                {/* 3. DELAMINATION MARKERS: Solid gold horizontal line (1px, #FFD700) */}
+                {/* 3. DELAMINATION MARKERS: Solid gold horizontal line */}
                 {detectionConfig?.delamination.enabled &&
-                  detectionResults?.delaminations.markers.map((m) => {
+                  renderedMarkers.delaminations.map((m) => {
                     const x1 = getCanvasXFromDistM(m.xStartM);
                     const x2 = getCanvasXFromDistM(m.xEndM);
                     const y = getCanvasYFromTimeNs(m.timeNs);
+                    const isV2 = m.engineVersion === 'v2_advanced';
+
                     return (
                       <g key={m.id} className="pointer-events-auto">
                         <line
@@ -822,10 +995,10 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           y1={y}
                           x2={x2}
                           y2={y}
-                          stroke="#FFD700"
-                          strokeWidth="1.5"
+                          stroke={isV2 ? '#FFD700' : '#E67E22'}
+                          strokeWidth={isV2 ? '2.5' : '1.5'}
+                          opacity={viewportOverlayMode === 'both' && !isV2 ? 0.6 : 1}
                         />
-                        {/* Interactive hit area */}
                         <line
                           x1={x1}
                           y1={y}
@@ -843,11 +1016,13 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                     );
                   })}
 
-                {/* 4. SUB-SLAB VOID MARKERS: Filled red circle (radius 12px, #FF0000) with pulsing animation */}
+                {/* 4. SUB-SLAB VOID MARKERS: Filled red circle with pulsing ring and amber halo */}
                 {detectionConfig?.subslabVoid.enabled &&
-                  detectionResults?.subslabVoids.markers.map((m) => {
+                  renderedMarkers.subslabVoids.map((m) => {
                     const cx = getCanvasXFromDistM(m.xCenterM);
                     const cy = getCanvasYFromTimeNs(m.timeNs);
+                    const isV2 = m.engineVersion === 'v2_advanced';
+
                     return (
                       <g
                         key={m.id}
@@ -857,13 +1032,13 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                         onMouseLeave={() => handleMarkerMouseLeave(m)}
                         onClick={() => setSelectedMarker(m)}
                       >
-                        {m.isCritical && detectionConfig.subslabVoid.pulsingCritical && (
+                        {m.isCritical && (
                           <circle
                             cx={cx}
                             cy={cy}
-                            r="12"
+                            r={isV2 ? '15' : '12'}
                             fill="none"
-                            stroke="#FF0000"
+                            stroke={isV2 ? '#EAA023' : '#FF0000'}
                             strokeWidth="2.5"
                             className="pointer-events-none"
                             style={{ pointerEvents: 'none' }}
@@ -875,23 +1050,26 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                         <circle
                           cx={cx}
                           cy={cy}
-                          r="12"
-                          fill="#FF0000"
-                          stroke="#FFFFFF"
-                          strokeWidth="2"
+                          r={isV2 ? '12.5' : '12'}
+                          fill={isV2 ? '#D50000' : '#FF0000'}
+                          stroke={isV2 ? '#EAA023' : '#FFFFFF'}
+                          strokeWidth={isV2 ? '2.5' : '2'}
+                          opacity={viewportOverlayMode === 'both' && !isV2 ? 0.6 : 1}
                           className="hover:opacity-90 transition shadow"
                         />
                       </g>
                     );
                   })}
 
-                {/* 5. DIFFUSE SCATTERING MARKERS: Orange semi-transparent rectangle (#FF6600, 25% opacity) */}
+                {/* 5. DIFFUSE SCATTERING MARKERS: Semi-transparent rectangle */}
                 {detectionConfig?.diffuseScattering.enabled &&
-                  detectionResults?.diffuseScattering.markers.map((m) => {
+                  renderedMarkers.diffuseScattering.map((m) => {
                     const x1 = getCanvasXFromDistM(m.xStartM);
                     const x2 = getCanvasXFromDistM(m.xEndM);
                     const y1 = getCanvasYFromTimeNs(m.timeNs);
                     const y2 = getCanvasYFromTimeNs(m.timeEndNs || m.timeNs + 15);
+                    const isV2 = m.engineVersion === 'v2_advanced';
+
                     return (
                       <rect
                         key={m.id}
@@ -899,9 +1077,12 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                         y={Math.min(y1, y2)}
                         width={Math.max(4, Math.abs(x2 - x1))}
                         height={Math.max(8, Math.abs(y2 - y1))}
-                        fill="#FF6600"
-                        fillOpacity="0.25"
-                        stroke="none"
+                        fill={isV2 ? '#EAA023' : '#FF6600'}
+                        fillOpacity={isV2 ? '0.30' : '0.25'}
+                        stroke={isV2 ? '#EAA023' : 'none'}
+                        strokeWidth="1"
+                        strokeDasharray={isV2 ? '4,2' : 'none'}
+                        opacity={viewportOverlayMode === 'both' && !isV2 ? 0.6 : 1}
                         className="pointer-events-auto cursor-pointer hover:fill-opacity-40 transition"
                         onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
                         onMouseMove={handleMarkerMouseMove}
@@ -911,21 +1092,24 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                     );
                   })}
 
-                {/* 6. JOINT INFILTRATION MARKERS: Purple circle (radius 6px, stroke 2px, #9B59B6) */}
+                {/* 6. JOINT INFILTRATION MARKERS: Circle with purple/amber accent */}
                 {detectionConfig?.jointInfiltration.enabled &&
-                  detectionResults?.jointInfiltrations.markers.map((m) => {
+                  renderedMarkers.jointInfiltrations.map((m) => {
                     const cx = getCanvasXFromDistM(m.xCenterM);
                     const cy = getCanvasYFromTimeNs(m.timeNs);
+                    const isV2 = m.engineVersion === 'v2_advanced';
+
                     return (
                       <circle
                         key={m.id}
                         cx={cx}
                         cy={cy}
-                        r="6"
-                        fill="#FFFFFF"
+                        r={isV2 ? '7' : '6'}
+                        fill={isV2 ? '#EAA023' : '#FFFFFF'}
                         stroke="#9B59B6"
-                        strokeWidth="2.5"
-                        className="pointer-events-auto cursor-pointer hover:stroke-purple-300 hover:fill-purple-100 transition-colors"
+                        strokeWidth={isV2 ? '3' : '2.5'}
+                        opacity={viewportOverlayMode === 'both' && !isV2 ? 0.6 : 1}
+                        className="pointer-events-auto cursor-pointer hover:stroke-purple-300 transition-colors"
                         onMouseEnter={(e) => handleMarkerMouseEnter(e, m)}
                         onMouseMove={handleMarkerMouseMove}
                         onMouseLeave={() => handleMarkerMouseLeave(m)}
@@ -934,12 +1118,14 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                     );
                   })}
 
-                {/* 7. DIELECTRIC SHADOW MARKERS: Gray vertical dashed line (1px, #808080) + vertical band (opacity 20%) */}
+                {/* 7. DIELECTRIC SHADOW MARKERS: Vertical band */}
                 {detectionConfig?.dielectricShadow.enabled &&
-                  detectionResults?.dielectricShadows.markers.map((m) => {
+                  renderedMarkers.dielectricShadows.map((m) => {
                     const x1 = getCanvasXFromDistM(m.xStartM);
                     const x2 = getCanvasXFromDistM(m.xEndM);
                     const cx = getCanvasXFromDistM(m.xCenterM);
+                    const isV2 = m.engineVersion === 'v2_advanced';
+
                     return (
                       <g
                         key={m.id}
@@ -954,8 +1140,8 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           y={plotMetrics.marginTop}
                           width={Math.max(4, Math.abs(x2 - x1))}
                           height={plotMetrics.plotHeight}
-                          fill="#808080"
-                          fillOpacity="0.20"
+                          fill={isV2 ? '#475569' : '#808080'}
+                          fillOpacity="0.22"
                           stroke="none"
                           className="hover:fill-opacity-35 transition"
                         />
@@ -964,19 +1150,19 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           y1={plotMetrics.marginTop}
                           x2={cx}
                           y2={plotMetrics.marginTop + plotMetrics.plotHeight}
-                          stroke="#808080"
-                          strokeWidth="1"
+                          stroke={isV2 ? '#EAA023' : '#808080'}
+                          strokeWidth={isV2 ? '1.5' : '1'}
                           strokeDasharray="4,3"
                         />
                       </g>
                     );
                   })}
 
-                {/* 8. THICKNESS VARIATION MARKERS: Dotted green line (#2ECC71) following t2(x), turns red (#E74C3C) on anomaly */}
+                {/* 8. THICKNESS VARIATION MARKERS */}
                 {detectionConfig?.thicknessVariation.enabled &&
-                  (detectionResults?.thicknessVariations.markers.length ?? 0) > 0 &&
+                  renderedMarkers.thicknessVariations.length > 0 &&
                   (() => {
-                    const firstMarker = detectionResults?.thicknessVariations.markers[0];
+                    const firstMarker = renderedMarkers.thicknessVariations[0];
                     if (!firstMarker) return null;
                     const pts = firstMarker.curvePoints || [];
                     if (pts.length < 2) return null;
@@ -1012,11 +1198,12 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                     return segments;
                   })()}
 
-                {/* 9. PIPES & UTILITIES (SEG STANDARD): Double concentric ring in Yellow variations */}
+                {/* 9. PIPES & UTILITIES (ASCE 38-02 / SEG): Double concentric ring in Yellow */}
                 {detectionConfig?.pipeUtility.enabled &&
-                  detectionResults?.pipesUtilities.markers.map((m) => {
+                  renderedMarkers.pipesUtilities.map((m) => {
                     const cx = getCanvasXFromDistM(m.xCenterM);
                     const cy = getCanvasYFromTimeNs(m.timeNs);
+                    const isV2 = m.engineVersion === 'v2_advanced';
                     const pipeColor =
                       m.pipeMaterial === 'Metálica (Acero / Conductor)'
                         ? '#FFE600'
@@ -1033,43 +1220,43 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                         onMouseLeave={() => handleMarkerMouseLeave(m)}
                         onClick={() => setSelectedMarker(m)}
                       >
-                        {/* Outer Glow / Dashed Target Ring */}
+                        {/* Outer Glow Ring */}
                         <circle
                           cx={cx}
                           cy={cy}
-                          r="13"
+                          r={isV2 ? '16' : '13'}
                           fill="none"
-                          stroke={pipeColor}
-                          strokeWidth="1.8"
+                          stroke={isV2 ? '#EAA023' : pipeColor}
+                          strokeWidth={isV2 ? '2' : '1.8'}
                           strokeDasharray="2,2"
-                          className="opacity-90 pointer-events-none"
+                          className="opacity-95 pointer-events-none"
                           style={{ pointerEvents: 'none' }}
                         />
-                        {/* Semi-transparent Middle Ring */}
+                        {/* Middle Ring */}
                         <circle
                           cx={cx}
                           cy={cy}
-                          r="8.5"
+                          r={isV2 ? '10' : '8.5'}
                           fill={pipeColor}
-                          fillOpacity="0.30"
+                          fillOpacity={isV2 ? '0.38' : '0.30'}
                           stroke={pipeColor}
                           strokeWidth="2"
                           className="hover:stroke-[3px] transition-all"
                         />
-                        {/* Solid Inner Core */}
+                        {/* Core */}
                         <circle
                           cx={cx}
                           cy={cy}
-                          r="3"
+                          r={isV2 ? '3.5' : '3'}
                           fill={pipeColor}
                           stroke="#000000"
                           strokeWidth="0.8"
                         />
-                        {/* Diameter Text Label */}
+                        {/* Label */}
                         <text
-                          x={cx + 15}
+                          x={cx + 17}
                           y={cy + 4}
-                          fill={pipeColor}
+                          fill={isV2 ? '#EAA023' : pipeColor}
                           fontSize="9.5"
                           fontFamily="monospace"
                           fontWeight="bold"
@@ -1079,7 +1266,7 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                           className="pointer-events-none select-none"
                           style={{ pointerEvents: 'none' }}
                         >
-                          Ø{m.pipeDiameterMm}mm
+                          {isV2 ? `v2 Ø${m.pipeDiameterMm}mm` : `Ø${m.pipeDiameterMm}mm`}
                         </text>
                       </g>
                     );
@@ -1101,8 +1288,14 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
         >
           <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
             <strong className="text-sky-300 font-semibold">{hoveredMarker.title}</strong>
-            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono">
-              {hoveredMarker.severityLabel}
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                hoveredMarker.engineVersion === 'v2_advanced'
+                  ? 'bg-[#EAA023] text-primary-900'
+                  : 'bg-slate-800 text-slate-300'
+              }`}
+            >
+              {hoveredMarker.engineVersion === 'v2_advanced' ? 'v2 Avanzado' : 'v1 Clásico'}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px] text-slate-300 font-mono pt-0.5">
@@ -1114,31 +1307,46 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
           {coLocatedHoveredMarkers.length > 0 && (
             <div className="mt-1 pt-1 border-t border-slate-800 text-[10px] text-amber-300 flex items-center gap-1 font-sans">
               <span className="font-bold">+{coLocatedHoveredMarkers.length} en esta zona:</span>
-              <span className="truncate text-slate-300 font-mono">{coLocatedHoveredMarkers.map((c: AnomalyMarker) => c.title).join(', ')}</span>
+              <span className="truncate text-slate-300 font-mono">
+                {coLocatedHoveredMarkers.map((c: AnomalyMarker) => c.title).join(', ')}
+              </span>
             </div>
           )}
           <p className="text-[9px] text-slate-400 italic pt-0.5">
             {coLocatedHoveredMarkers.length > 0
-              ? 'Click para ver y alternar entre detecciones'
-              : 'Click para ver ficha técnica detallada'}
+              ? 'Click para alternar entre detecciones'
+              : 'Click para ver ficha geofísica'}
           </p>
         </div>
       )}
 
       {/* Detail Card Modal on Marker Click */}
       {selectedMarker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-border max-w-md w-full overflow-hidden text-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-border max-w-lg w-full overflow-hidden text-xs">
+            {/* Modal Top Header */}
             <div className="p-4 bg-primary text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-sm">{selectedMarker.title}</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <span className="font-bold text-sm truncate">{selectedMarker.title}</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold shadow-xs flex items-center gap-1 ${
+                    selectedMarker.engineVersion === 'v2_advanced'
+                      ? 'bg-[#EAA023] text-primary-900'
+                      : 'bg-white/20 text-white'
+                  }`}
+                >
+                  {selectedMarker.engineVersion === 'v2_advanced' && <Sparkles className="w-2.5 h-2.5" />}
+                  {selectedMarker.engineVersion === 'v2_advanced'
+                    ? 'Motor Avanzado v2 (Geofísico)'
+                    : 'Motor Clásico v1 (SEG)'}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/15 text-white/90">
                   {selectedMarker.severityLabel}
                 </span>
               </div>
               <button
                 onClick={() => setSelectedMarker(null)}
-                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer flex-shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1156,18 +1364,22 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
                   {coLocatedSelectedMarkers.map((item: AnomalyMarker) => {
                     const isCurrent = item.id === selectedMarker.id;
+                    const isAdv = item.engineVersion === 'v2_advanced';
                     return (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => setSelectedMarker(item)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex-shrink-0 ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex-shrink-0 flex items-center gap-1 ${
                           isCurrent
                             ? 'bg-[#1E2229] text-[#EAA023] ring-1 ring-[#EAA023] shadow-xs'
+                            : isAdv
+                            ? 'bg-amber-50 text-amber-950 border border-amber-300 hover:bg-amber-100'
                             : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-300'
                         }`}
                       >
-                        {item.title}
+                        {isAdv && <Sparkles className="w-2.5 h-2.5 text-amber-600" />}
+                        <span>{item.title}</span>
                       </button>
                     );
                   })}
@@ -1175,7 +1387,35 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
               </div>
             )}
 
-            <div className="p-4 space-y-3.5 max-h-[75vh] overflow-y-auto">
+            <div className="p-4 space-y-3 max-h-[75vh] overflow-y-auto">
+              {/* Certeza Geofísica Bar */}
+              {typeof selectedMarker.confidenceScore === 'number' && (
+                <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700 flex items-center justify-between shadow-xs">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[11px] font-semibold text-slate-200">Índice de Certeza Geofísica:</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-24 bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
+                      <div
+                        className={`h-full rounded-full ${
+                          selectedMarker.confidenceScore >= 80
+                            ? 'bg-emerald-400'
+                            : selectedMarker.confidenceScore >= 60
+                            ? 'bg-[#EAA023]'
+                            : 'bg-amber-500'
+                        }`}
+                        style={{ width: `${selectedMarker.confidenceScore}%` }}
+                      />
+                    </div>
+                    <span className="font-mono font-bold text-xs text-emerald-300">
+                      {selectedMarker.confidenceScore}%
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Ubicación Geofísica */}
               <div className="bg-surface p-3 rounded-xl border border-border">
                 <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
                   Ubicación Geofísica
@@ -1188,15 +1428,37 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
                 </div>
               </div>
 
-              <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-200">
+              {/* Criterio Matemático Disparado */}
+              <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200">
                 <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider block mb-1">
                   Criterio Matemático Disparado
                 </span>
-                <code className="text-xs font-mono font-bold text-primary block bg-white p-2 rounded-lg border border-blue-200/80 break-words">
+                <code className="text-xs font-mono font-bold text-primary block bg-white p-2.5 rounded-lg border border-blue-200/80 break-words leading-relaxed">
                   {selectedMarker.mathCriterion}
                 </code>
               </div>
 
+              {/* Justificación Científica y Comparativa vs Motor Clásico */}
+              {(selectedMarker.scientificJustification || selectedMarker.comparisonNote) && (
+                <div className="bg-amber-50/80 p-3 rounded-xl border border-amber-200/90 space-y-1.5 text-xs">
+                  <span className="text-[10px] font-bold text-amber-950 uppercase tracking-wider block flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    Fundamento Científico y Comparativa vs Motor Clásico
+                  </span>
+                  {selectedMarker.scientificJustification && (
+                    <p className="text-[11px] text-amber-900 leading-snug">
+                      <strong>Criterio Geofísico:</strong> {selectedMarker.scientificJustification}
+                    </p>
+                  )}
+                  {selectedMarker.comparisonNote && (
+                    <p className="text-[10.5px] text-amber-800 leading-snug">
+                      <strong>Diferencial de Detección:</strong> {selectedMarker.comparisonNote}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Valores Medidos */}
               <div>
                 <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block mb-1.5">
                   Valores Medidos

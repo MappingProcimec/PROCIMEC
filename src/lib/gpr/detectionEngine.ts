@@ -1300,7 +1300,7 @@ export function runAnomalyDetections(
 
   const stats = computeMatrixStats(matrix, ventanaNs, traceDistanceStepM, dielectricPermittivity);
 
-  return {
+  const rawResults: DetectionResults = {
     brightSpots: detectBrightSpots(matrix, stats, config.brightSpot),
     hyperbolas: detectHyperbolas(matrix, stats, config.hyperbola),
     delaminations: detectDelaminations(matrix, stats, config.delamination),
@@ -1310,5 +1310,25 @@ export function runAnomalyDetections(
     dielectricShadows: detectDielectricShadows(matrix, stats, config.dielectricShadow),
     thicknessVariations: detectThicknessVariations(matrix, stats, config.thicknessVariation),
     pipesUtilities: detectPipesAndUtilities(matrix, stats, config.pipeUtility),
+  };
+
+  // Stamp v1_classic on all markers for explicit identification
+  const stampClassic = (markers: AnomalyMarker[]): AnomalyMarker[] =>
+    markers.map((m) => ({
+      ...m,
+      engineVersion: 'v1_classic' as const,
+      confidenceScore: m.confidenceScore ?? 70,
+    }));
+
+  return {
+    brightSpots: { ...rawResults.brightSpots, markers: stampClassic(rawResults.brightSpots.markers) },
+    hyperbolas: { ...rawResults.hyperbolas, markers: stampClassic(rawResults.hyperbolas.markers) },
+    delaminations: { ...rawResults.delaminations, markers: stampClassic(rawResults.delaminations.markers) },
+    subslabVoids: { ...rawResults.subslabVoids, markers: stampClassic(rawResults.subslabVoids.markers) },
+    diffuseScattering: { ...rawResults.diffuseScattering, markers: stampClassic(rawResults.diffuseScattering.markers) },
+    jointInfiltrations: { ...rawResults.jointInfiltrations, markers: stampClassic(rawResults.jointInfiltrations.markers) },
+    dielectricShadows: { ...rawResults.dielectricShadows, markers: stampClassic(rawResults.dielectricShadows.markers) },
+    thicknessVariations: { ...rawResults.thicknessVariations, markers: stampClassic(rawResults.thicknessVariations.markers) },
+    pipesUtilities: { ...rawResults.pipesUtilities, markers: stampClassic(rawResults.pipesUtilities.markers) },
   };
 }

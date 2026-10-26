@@ -34,6 +34,8 @@ import {
   XCircle,
   Eye,
   SlidersHorizontal,
+  Scale,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   DetectionConfig,
@@ -43,6 +45,8 @@ import {
   getAllMarkers,
   createSensitivityPreset,
   AnomalyMarker,
+  DetectionEngineMode,
+  calculateComparisonStats,
 } from '@/lib/gpr/detectionTypes';
 
 interface DSPOptionsPanelProps {
@@ -62,6 +66,9 @@ interface DSPOptionsPanelProps {
   detectionConfig?: DetectionConfig;
   onDetectionConfigChange?: (cfg: DetectionConfig) => void;
   detectionResults?: DetectionResults;
+  advancedDetectionResults?: DetectionResults;
+  detectionEngineMode?: DetectionEngineMode;
+  onDetectionEngineModeChange?: (mode: DetectionEngineMode) => void;
   onSelectMarker?: (marker: AnomalyMarker | null) => void;
 }
 
@@ -273,6 +280,9 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   detectionConfig = DEFAULT_DETECTION_CONFIG,
   onDetectionConfigChange,
   detectionResults,
+  advancedDetectionResults,
+  detectionEngineMode = 'comparison',
+  onDetectionEngineModeChange,
   onSelectMarker,
 }) => {
   // Main tabs en orden requerido: Process (primero), Detección, Detalles, Calibración
@@ -283,8 +293,25 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
   const [showAnomalyList, setShowAnomalyList] = useState<boolean>(false);
   const [selectedSensitivity, setSelectedSensitivity] = useState<'alta' | 'estandar' | 'estricta' | null>('estandar');
   const [activeFieldMacro, setActiveFieldMacro] = useState<'hormigon' | 'pavimento' | 'tuberias' | 'restablecer' | null>(null);
-  const totalAnomalies = getTotalAnomaliesCount(detectionResults);
-  const allDetectedMarkers = getAllMarkers(detectionResults);
+  const [anomalyEngineFilter, setAnomalyEngineFilter] = useState<'all' | 'advanced' | 'classic'>('all');
+
+  const classicTotal = getTotalAnomaliesCount(detectionResults);
+  const advancedTotal = getTotalAnomaliesCount(advancedDetectionResults);
+  const comparisonStats = calculateComparisonStats(detectionResults, advancedDetectionResults);
+
+  const totalAnomalies = detectionEngineMode === 'advanced'
+    ? advancedTotal
+    : detectionEngineMode === 'classic'
+    ? classicTotal
+    : (advancedTotal > 0 ? advancedTotal : classicTotal);
+
+  const classicMarkers = getAllMarkers(detectionResults);
+  const advancedMarkers = getAllMarkers(advancedDetectionResults);
+  const allDetectedMarkers = anomalyEngineFilter === 'advanced'
+    ? advancedMarkers
+    : anomalyEngineFilter === 'classic'
+    ? classicMarkers
+    : [...advancedMarkers, ...classicMarkers];
 
   useEffect(() => {
     if (detectionConfig) {
@@ -1840,6 +1867,61 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 </div>
               </div>
 
+              {/* Selector de Motor de Detección: Clásico vs Avanzado vs Comparativa */}
+              <div className="space-y-1 pt-1 border-t border-slate-700/80">
+                <div className="flex items-center justify-between text-[10px] text-slate-300 font-semibold mb-1">
+                  <span className="flex items-center gap-1">
+                    <Scale className="w-3 h-3 text-[#EAA023]" />
+                    Modo de Análisis:
+                  </span>
+                  <span className="text-[9px] font-mono text-[#EAA023] font-bold">
+                    {detectionEngineMode === 'advanced'
+                      ? 'Geofísico Avanzado v2'
+                      : detectionEngineMode === 'classic'
+                      ? 'Clásico v1'
+                      : 'Comparativa A/B'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1 bg-slate-950/80 p-1 rounded-xl border border-slate-700/60 text-[9.5px]">
+                  <button
+                    type="button"
+                    onClick={() => onDetectionEngineModeChange?.('classic')}
+                    className={`py-1 px-1 rounded-lg font-bold transition text-center cursor-pointer ${
+                      detectionEngineMode === 'classic'
+                        ? 'bg-slate-200 text-slate-900 shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Motor Clásico SEG: Detección por umbral de amplitud escalar (μ + kσ)"
+                  >
+                    Clásico (v1)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDetectionEngineModeChange?.('advanced')}
+                    className={`py-1 px-1 rounded-lg font-bold transition text-center cursor-pointer ${
+                      detectionEngineMode === 'advanced'
+                        ? 'bg-[#EAA023] text-primary-900 font-bold shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Motor Avanzado: Envolvente Hilbert, semblanza multicanal e inversión de polaridad Fresnel"
+                  >
+                    Avanzado (v2)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDetectionEngineModeChange?.('comparison')}
+                    className={`py-1 px-1 rounded-lg font-bold transition text-center cursor-pointer ${
+                      detectionEngineMode === 'comparison'
+                        ? 'bg-gradient-to-r from-amber-400 to-[#EAA023] text-primary-900 font-bold shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Comparativa Lado a Lado: Visualización simultánea de ambos algoritmos con métricas"
+                  >
+                    Lado a Lado
+                  </button>
+                </div>
+              </div>
+
               {/* Sensitivity Presets Bar */}
               <div className="space-y-1.5 pt-1 border-t border-slate-700/80">
                 <div className="flex items-center justify-between text-[10.5px]">
@@ -1906,6 +1988,59 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
               </div>
             </div>
 
+            {/* TARJETA COMPARATIVA A/B GEOFÍSICA (LADO A LADO) */}
+            {detectionEngineMode === 'comparison' && (
+              <div className="p-3 bg-gradient-to-br from-slate-950 to-slate-900 rounded-2xl border border-amber-500/40 shadow-md space-y-2.5">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#EAA023]" />
+                    <span className="font-bold text-xs text-white">Comparativa de Motores A/B</span>
+                  </div>
+                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-[#EAA023] border border-amber-500/30 font-bold">
+                    Criterios SEG & ASTM D6432
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  {/* Motor Clásico v1 */}
+                  <div className="p-2 bg-slate-900/90 rounded-xl border border-slate-800 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400 font-bold text-[9.5px]">Motor Clásico (v1)</span>
+                      <span className="text-[11px] font-mono font-bold text-slate-200">{classicTotal}</span>
+                    </div>
+                    <p className="text-[9px] text-slate-400 leading-tight">
+                      Umbrales escalares de amplitud bruta (μ + kσ). Alta tasa de falsas alarmas por ruido o reverberación.
+                    </p>
+                  </div>
+
+                  {/* Motor Avanzado v2 */}
+                  <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/30 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#EAA023] font-bold text-[9.5px]">Motor Geofísico (v2)</span>
+                      <span className="text-[11px] font-mono font-bold text-white">{advancedTotal}</span>
+                    </div>
+                    <p className="text-[9px] text-amber-200/90 leading-tight">
+                      Envolvente Hilbert, coherencia Neidell-Taner, doblete Fresnel e inversión de polaridad.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-1.5 flex items-center justify-between text-[10px] font-mono text-slate-300 border-t border-slate-800/80">
+                  <div className="flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <span>Reducción Falsas Alarmas:</span>{' '}
+                    <strong className="text-emerald-400 font-bold">-{comparisonStats.reductionPercent}%</strong>
+                  </div>
+                  <div>
+                    <span>Semblanza S:</span>{' '}
+                    <strong className="text-[#EAA023] font-bold">
+                      {comparisonStats.avgSemblance.toFixed(2)}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ------------------------------------------------------------ */}
             {/* ROW 1: TUBERÍAS Y SERVICIOS ENTERRADOS                       */}
             {/* ------------------------------------------------------------ */}
@@ -1919,11 +2054,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     <Zap className="w-3 h-3 text-amber-600" strokeWidth={2} />
                   </div>
                   <span>Tuberías y Servicios</span>
-                  {(detectionResults?.pipesUtilities.count ?? 0) > 0 && (
-                    <span className="text-[10px] bg-amber-200 text-amber-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-300">
-                      {detectionResults?.pipesUtilities.count}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(detectionResults?.pipesUtilities.count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-slate-200 text-slate-800 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-300" title="Motor Clásico v1">
+                        v1: {detectionResults?.pipesUtilities.count}
+                      </span>
+                    )}
+                    {advancedDetectionResults && (
+                      <span className="text-[10px] bg-[#EAA023] text-primary-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-500 shadow-2xs" title="Motor Avanzado Geofísico v2">
+                        v2: {advancedDetectionResults?.pipesUtilities.count ?? 0}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -1946,6 +2088,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
 
               {detectionOpenSections.pipeUtility && (
                 <div className="p-3 pt-0 border-t border-border/60 space-y-3 mt-1.5 text-xs">
+                  {/* Tarjeta Comparativa Matemática Científica */}
+                  <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-1.5 font-mono text-[10px]">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-[#EAA023] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#EAA023]" />
+                        Comparativa Científica Geofísica (ASCE 38-02)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        v1: {detectionResults?.pipesUtilities.count ?? 0} vs v2: {advancedDetectionResults?.pipesUtilities.count ?? 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                      <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700">
+                        <strong className="text-slate-300 block mb-0.5">Clásico (v1):</strong>
+                        <p className="text-slate-400 leading-tight">
+                          Cresta de amplitud escalar 1D con ajuste cuadrático simple. Susceptible a ruido de suelo.
+                        </p>
+                      </div>
+                      <div className="p-1.5 bg-amber-500/10 rounded border border-amber-500/30">
+                        <strong className="text-[#EAA023] block mb-0.5">Avanzado (v2):</strong>
+                        <p className="text-amber-100 leading-tight">
+                          Semblanza multicanal Neidell-Taner (S ≥ 0.75), curvatura hiperbólica y discriminación clave-solera.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Material Filter */}
                   <div className="space-y-1">
                     <label className="text-text-secondary font-medium text-[11px] block">
@@ -2047,18 +2216,6 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                     />
                   </div>
 
-                  {/* Physics info */}
-                  <div className="p-2 bg-amber-50/70 rounded-xl border border-amber-200/80 text-[10.5px] text-amber-900 space-y-1 font-mono">
-                    <div className="font-bold flex items-center gap-1 text-amber-950">
-                      <span>Criterio Geofísico (ASCE 38-02):</span>
-                    </div>
-                    <p className="text-[10px] text-amber-800 leading-tight">
-                      • Diámetro: D = c · Δt_solera / (2√ε_int)
-                      <br />• Metal: Inversión 180° (R ≈ -1.0) y ringing
-                      <br />• Plástico: Fase 0° (R &gt; 0, sin inversión)
-                    </p>
-                  </div>
-
                   {/* Result badge */}
                   <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs font-semibold">
                     <span>Resultado:</span>
@@ -2102,11 +2259,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Droplets className="w-4 h-4 text-sky-500" />
                   <span>Bright Spot (Acumulación de Agua)</span>
-                  {(detectionResults?.brightSpots.count ?? 0) > 0 && (
-                    <span className="text-[10px] bg-sky-200 text-sky-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-sky-300">
-                      {detectionResults?.brightSpots.count}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(detectionResults?.brightSpots.count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-slate-200 text-slate-800 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-300" title="Motor Clásico v1">
+                        v1: {detectionResults?.brightSpots.count}
+                      </span>
+                    )}
+                    {advancedDetectionResults && (
+                      <span className="text-[10px] bg-[#EAA023] text-primary-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-500 shadow-2xs" title="Motor Avanzado Geofísico v2">
+                        v2: {advancedDetectionResults?.brightSpots.count ?? 0}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2131,6 +2295,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <p className="text-[10px] text-text-muted leading-relaxed">
                     Identifica zonas de saturación hídrica mediante alta permitividad (εr ≈ 81), inversión de fase e incremento anómalo de amplitud.
                   </p>
+
+                  {/* Tarjeta Comparativa Matemática Científica */}
+                  <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-1.5 font-mono text-[10px]">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-[#EAA023] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#EAA023]" />
+                        Comparativa Científica Geofísica (Bright Spot)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        v1: {detectionResults?.brightSpots.count ?? 0} vs v2: {advancedDetectionResults?.brightSpots.count ?? 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                      <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700">
+                        <strong className="text-slate-300 block mb-0.5">Clásico (v1):</strong>
+                        <p className="text-slate-400 leading-tight">
+                          Umbral escalar simple A &gt; μ + 2.5σ. Alertas masivas por cualquier pico de amplitud.
+                        </p>
+                      </div>
+                      <div className="p-1.5 bg-amber-500/10 rounded border border-amber-500/30">
+                        <strong className="text-[#EAA023] block mb-0.5">Avanzado (v2):</strong>
+                        <p className="text-amber-100 leading-tight">
+                          Envolvente Hilbert E(t), polaridad negativa Fresnel R ≈ -0.47 y sombra de atenuación subyacente.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
                     <div>
@@ -2220,7 +2411,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* ------------------------------------------------------------ */}
-            {/* ROW 2: HIPÉRBOLAS DE DIFRACCIÓN (ACERO / DISCONTINUIDADES)   */}
+            {/* ROW 3: HIPÉRBOLAS DE DIFRACCIÓN (ACERO / DISCONTINUIDADES)   */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -2230,11 +2421,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <CircleDot className="w-4 h-4 text-rose-500" />
                   <span>Hipérbolas de Difracción (Acero / Discontinuidades)</span>
-                  {(detectionResults?.hyperbolas.count ?? 0) > 0 && (
-                    <span className="text-[10px] bg-rose-200 text-rose-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-rose-300">
-                      {detectionResults?.hyperbolas.count}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(detectionResults?.hyperbolas.count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-slate-200 text-slate-800 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-300" title="Motor Clásico v1">
+                        v1: {detectionResults?.hyperbolas.count}
+                      </span>
+                    )}
+                    {advancedDetectionResults && (
+                      <span className="text-[10px] bg-[#EAA023] text-primary-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-500 shadow-2xs" title="Motor Avanzado Geofísico v2">
+                        v2: {advancedDetectionResults?.hyperbolas.count ?? 0}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2259,6 +2457,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <p className="text-[10px] text-text-muted leading-relaxed">
                     Detección analítica de ramas de difracción t(x) = √(t₀² + 4Δx²/v²) originadas por varillas de acero, tuberías y bordes estructurales.
                   </p>
+
+                  {/* Tarjeta Comparativa Matemática Científica */}
+                  <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-1.5 font-mono text-[10px]">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-[#EAA023] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#EAA023]" />
+                        Comparativa Científica Geofísica (Difracción)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        v1: {detectionResults?.hyperbolas.count ?? 0} vs v2: {advancedDetectionResults?.hyperbolas.count ?? 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                      <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700">
+                        <strong className="text-slate-300 block mb-0.5">Clásico (v1):</strong>
+                        <p className="text-slate-400 leading-tight">
+                          Reconocimiento geométrico simple de 3 puntos. Puede confundir ruido con ramas hiperbólicas.
+                        </p>
+                      </div>
+                      <div className="p-1.5 bg-amber-500/10 rounded border border-amber-500/30">
+                        <strong className="text-[#EAA023] block mb-0.5">Avanzado (v2):</strong>
+                        <p className="text-amber-100 leading-tight">
+                          Semblanza Neidell-Taner multicanal continua (S ≥ 0.70) y coherencia de fase a lo largo de asíntotas.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
                     <div>
@@ -2370,7 +2595,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* ------------------------------------------------------------ */}
-            {/* ROW 3: DELAMINACIÓN (SEPARACIÓN ENTRE CAPAS)                 */}
+            {/* ROW 4: DELAMINACIÓN (SEPARACIÓN ENTRE CAPAS)                 */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -2380,11 +2605,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Layers className="w-4 h-4 text-amber-500" />
                   <span>Delaminación (Separación entre Capas)</span>
-                  {(detectionResults?.delaminations.count ?? 0) > 0 && (
-                    <span className="text-[10px] bg-amber-200 text-amber-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-300">
-                      {detectionResults?.delaminations.count}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(detectionResults?.delaminations.count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-slate-200 text-slate-800 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-300" title="Motor Clásico v1">
+                        v1: {detectionResults?.delaminations.count}
+                      </span>
+                    )}
+                    {advancedDetectionResults && (
+                      <span className="text-[10px] bg-[#EAA023] text-primary-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-500 shadow-2xs" title="Motor Avanzado Geofísico v2">
+                        v2: {advancedDetectionResults?.delaminations.count ?? 0}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2409,6 +2641,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <p className="text-[10px] text-text-muted leading-relaxed">
                     Identifica desprendimientos y huecos milimétricos entre capas de asfalto y losa por atenuación del eco subyacente.
                   </p>
+
+                  {/* Tarjeta Comparativa Matemática Científica */}
+                  <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-1.5 font-mono text-[10px]">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-[#EAA023] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#EAA023]" />
+                        Comparativa Científica Geofísica (Delaminación)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        v1: {detectionResults?.delaminations.count ?? 0} vs v2: {advancedDetectionResults?.delaminations.count ?? 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                      <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700">
+                        <strong className="text-slate-300 block mb-0.5">Clásico (v1):</strong>
+                        <p className="text-slate-400 leading-tight">
+                          Medición de caída de amplitud profunda (&gt; 40%). Puede ser sesgado por atenuación natural.
+                        </p>
+                      </div>
+                      <div className="p-1.5 bg-amber-500/10 rounded border border-amber-500/30">
+                        <strong className="text-[#EAA023] block mb-0.5">Avanzado (v2):</strong>
+                        <p className="text-amber-100 leading-tight">
+                          Interferencia de capa delgada de Widess (b ≤ λ/4) y discontinuidad abrupta en la fase instantánea θ(t).
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
                     {/* Fixed Info */}
@@ -2473,7 +2732,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* ------------------------------------------------------------ */}
-            {/* ROW 4: VACÍO SUB-LOSA (ALTA CRITICIDAD)                       */}
+            {/* ROW 5: VACÍO SUB-LOSA (ALTA CRITICIDAD)                       */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -2483,11 +2742,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <AlertTriangle className="w-4 h-4 text-red-600" />
                   <span>Vacío Sub-losa (Alta Criticidad)</span>
-                  {(detectionResults?.subslabVoids.count ?? 0) > 0 && (
-                    <span className="text-[10px] bg-red-200 text-red-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-red-300">
-                      {detectionResults?.subslabVoids.count}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(detectionResults?.subslabVoids.count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-slate-200 text-slate-800 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-300" title="Motor Clásico v1">
+                        v1: {detectionResults?.subslabVoids.count}
+                      </span>
+                    )}
+                    {advancedDetectionResults && (
+                      <span className="text-[10px] bg-[#EAA023] text-primary-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-500 shadow-2xs" title="Motor Avanzado Geofísico v2">
+                        v2: {advancedDetectionResults?.subslabVoids.count ?? 0}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2512,6 +2778,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <p className="text-[10px] text-text-muted leading-relaxed">
                     Cavidad o socavación inferior bajo pavimento rígido. Detecta interfaz concreto-aire R₂ y fondo aire-suelo R₃ con pérdida energética posterior.
                   </p>
+
+                  {/* Tarjeta Comparativa Matemática Científica */}
+                  <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-1.5 font-mono text-[10px]">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-[#EAA023] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#EAA023]" />
+                        Comparativa Científica Geofísica (Vacío Sub-losa)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        v1: {detectionResults?.subslabVoids.count ?? 0} vs v2: {advancedDetectionResults?.subslabVoids.count ?? 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                      <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700">
+                        <strong className="text-slate-300 block mb-0.5">Clásico (v1):</strong>
+                        <p className="text-slate-400 leading-tight">
+                          Umbral de amplitud R₂ &gt; μ + 2σ y pérdida &gt; 35%. Falsas alarmas por atenuación del lecho.
+                        </p>
+                      </div>
+                      <div className="p-1.5 bg-amber-500/10 rounded border border-amber-500/30">
+                        <strong className="text-[#EAA023] block mb-0.5">Avanzado (v2):</strong>
+                        <p className="text-amber-100 leading-tight">
+                          Doblete físico de Fresnel: R₁ &gt; 0 (losa-aire) y R₂ &lt; 0 (aire-suelo) con retardo Δt ∈ [0.67, 3.0] ns a c=0.30 m/ns.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
                     {/* Fixed Info Badges */}
@@ -2630,7 +2923,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* ------------------------------------------------------------ */}
-            {/* ROW 5: SCATTERING DIFUSO (FISURACIÓN MASIVA)                 */}
+            {/* ROW 6: SCATTERING DIFUSO (FISURACIÓN MASIVA)                 */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -2640,11 +2933,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Grid className="w-4 h-4 text-orange-500" />
                   <span>Scattering Difuso (Fisuración Masiva)</span>
-                  {(detectionResults?.diffuseScattering.count ?? 0) > 0 && (
-                    <span className="text-[10px] bg-orange-200 text-orange-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-orange-300">
-                      {detectionResults?.diffuseScattering.count}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(detectionResults?.diffuseScattering.count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-slate-200 text-slate-800 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-300" title="Motor Clásico v1">
+                        v1: {detectionResults?.diffuseScattering.count}
+                      </span>
+                    )}
+                    {advancedDetectionResults && (
+                      <span className="text-[10px] bg-[#EAA023] text-primary-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-500 shadow-2xs" title="Motor Avanzado Geofísico v2">
+                        v2: {advancedDetectionResults?.diffuseScattering.count ?? 0}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2669,6 +2969,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <p className="text-[10px] text-text-muted leading-relaxed">
                     Identifica dispersión difusa e incoherencia de fase por microfisuras o degradación volumétrica del hormigón.
                   </p>
+
+                  {/* Tarjeta Comparativa Matemática Científica */}
+                  <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-1.5 font-mono text-[10px]">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-[#EAA023] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#EAA023]" />
+                        Comparativa Científica Geofísica (Scattering)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        v1: {detectionResults?.diffuseScattering.count ?? 0} vs v2: {advancedDetectionResults?.diffuseScattering.count ?? 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                      <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700">
+                        <strong className="text-slate-300 block mb-0.5">Clásico (v1):</strong>
+                        <p className="text-slate-400 leading-tight">
+                          Coeficiente de variación escalar CV_A. No distingue entre ruido ambiental y fisuración real.
+                        </p>
+                      </div>
+                      <div className="p-1.5 bg-amber-500/10 rounded border border-amber-500/30">
+                        <strong className="text-[#EAA023] block mb-0.5">Avanzado (v2):</strong>
+                        <p className="text-amber-100 leading-tight">
+                          Pérdida de correlación espacial multicanal (γ &lt; 0.45) por dispersión micrométrica Mie/Rayleigh.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
                     <div>
@@ -2777,7 +3104,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* ------------------------------------------------------------ */}
-            {/* ROW 6: INFILTRACIÓN EN JUNTAS (PATRÓN PERIÓDICO)             */}
+            {/* ROW 7: INFILTRACIÓN EN JUNTAS (PATRÓN PERIÓDICO)             */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -2787,11 +3114,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <GitCommit className="w-4 h-4 text-purple-600" />
                   <span>Infiltración en Juntas (Patrón Periódico)</span>
-                  {(detectionResults?.jointInfiltrations.count ?? 0) > 0 && (
-                    <span className="text-[10px] bg-purple-200 text-purple-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-purple-300">
-                      {detectionResults?.jointInfiltrations.count}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(detectionResults?.jointInfiltrations.count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-slate-200 text-slate-800 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-300" title="Motor Clásico v1">
+                        v1: {detectionResults?.jointInfiltrations.count}
+                      </span>
+                    )}
+                    {advancedDetectionResults && (
+                      <span className="text-[10px] bg-[#EAA023] text-primary-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-500 shadow-2xs" title="Motor Avanzado Geofísico v2">
+                        v2: {advancedDetectionResults?.jointInfiltrations.count ?? 0}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2816,6 +3150,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <p className="text-[10px] text-text-muted leading-relaxed">
                     Detecta anomalías de humedad recurrentes en juntas de dilatación o contracción con periodicidad L_j.
                   </p>
+
+                  {/* Tarjeta Comparativa Matemática Científica */}
+                  <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-1.5 font-mono text-[10px]">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-[#EAA023] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#EAA023]" />
+                        Comparativa Científica Geofísica (Infiltración en Juntas)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        v1: {detectionResults?.jointInfiltrations.count ?? 0} vs v2: {advancedDetectionResults?.jointInfiltrations.count ?? 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                      <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700">
+                        <strong className="text-slate-300 block mb-0.5">Clásico (v1):</strong>
+                        <p className="text-slate-400 leading-tight">
+                          Índice IDF empírico simple. No ajusta con referencia base de centro de losa seca.
+                        </p>
+                      </div>
+                      <div className="p-1.5 bg-amber-500/10 rounded border border-amber-500/30">
+                        <strong className="text-[#EAA023] block mb-0.5">Avanzado (v2):</strong>
+                        <p className="text-amber-100 leading-tight">
+                          Ratio de envolvente analítica Hilbert normalizada con losa sana a periodicidad espacial L_j.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
                     <div>
@@ -2908,7 +3269,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* ------------------------------------------------------------ */}
-            {/* ROW 7: SOMBRA DIELÉCTRICA (PÉRDIDA PREMATURA DE SEÑAL)       */}
+            {/* ROW 8: SOMBRA DIELÉCTRICA (PÉRDIDA PREMATURA DE SEÑAL)       */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -2918,11 +3279,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Moon className="w-4 h-4 text-slate-600" />
                   <span>Sombra Dieléctrica (Pérdida Prematura de Señal)</span>
-                  {(detectionResults?.dielectricShadows.count ?? 0) > 0 && (
-                    <span className="text-[10px] bg-slate-300 text-slate-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-400">
-                      {detectionResults?.dielectricShadows.count}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(detectionResults?.dielectricShadows.count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-slate-200 text-slate-800 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-400" title="Motor Clásico v1">
+                        v1: {detectionResults?.dielectricShadows.count}
+                      </span>
+                    )}
+                    {advancedDetectionResults && (
+                      <span className="text-[10px] bg-[#EAA023] text-primary-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-500 shadow-2xs" title="Motor Avanzado Geofísico v2">
+                        v2: {advancedDetectionResults?.dielectricShadows.count ?? 0}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -2947,6 +3315,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <p className="text-[10px] text-text-muted leading-relaxed">
                     Extinción anticipada del pulso por alta conductividad (suelos arcillosos, humedad salina o escoria metálica).
                   </p>
+
+                  {/* Tarjeta Comparativa Matemática Científica */}
+                  <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-1.5 font-mono text-[10px]">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-[#EAA023] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#EAA023]" />
+                        Comparativa Científica Geofísica (Atenuación α)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        v1: {detectionResults?.dielectricShadows.count ?? 0} vs v2: {advancedDetectionResults?.dielectricShadows.count ?? 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                      <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700">
+                        <strong className="text-slate-300 block mb-0.5">Clásico (v1):</strong>
+                        <p className="text-slate-400 leading-tight">
+                          Umbral de caída fija &lt; 5% respecto a superficie. Sesgo por ganancia no uniforme.
+                        </p>
+                      </div>
+                      <div className="p-1.5 bg-amber-500/10 rounded border border-amber-500/30">
+                        <strong className="text-[#EAA023] block mb-0.5">Avanzado (v2):</strong>
+                        <p className="text-amber-100 leading-tight">
+                          Regresión exponencial semi-logarítmica del coeficiente de atenuación dieléctrica α (dB/m).
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
                     <div>
@@ -3052,7 +3447,7 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
             </div>
 
             {/* ------------------------------------------------------------ */}
-            {/* ROW 8: VARIACIÓN DE ESPESOR (INCONSISTENCIA ESTRUCTURAL)      */}
+            {/* ROW 9: VARIACIÓN DE ESPESOR (INCONSISTENCIA ESTRUCTURAL)      */}
             {/* ------------------------------------------------------------ */}
             <div className="bg-gray-50 rounded-2xl border border-border overflow-hidden transition shadow-2xs">
               <button
@@ -3062,11 +3457,18 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                 <div className="flex items-center gap-2 text-primary font-bold text-xs">
                   <Ruler className="w-4 h-4 text-emerald-600" />
                   <span>Variación de Espesor (Inconsistencia Estructural)</span>
-                  {(detectionResults?.thicknessVariations.count ?? 0) > 0 && (
-                    <span className="text-[10px] bg-emerald-200 text-emerald-950 font-mono font-bold px-1.5 py-0.2 rounded-full border border-emerald-300">
-                      {detectionResults?.thicknessVariations.count}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(detectionResults?.thicknessVariations.count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-slate-200 text-slate-800 font-mono font-bold px-1.5 py-0.2 rounded-full border border-slate-300" title="Motor Clásico v1">
+                        v1: {detectionResults?.thicknessVariations.count}
+                      </span>
+                    )}
+                    {advancedDetectionResults && (
+                      <span className="text-[10px] bg-[#EAA023] text-primary-900 font-mono font-bold px-1.5 py-0.2 rounded-full border border-amber-500 shadow-2xs" title="Motor Avanzado Geofísico v2">
+                        v2: {advancedDetectionResults?.thicknessVariations.count ?? 0}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -3091,6 +3493,33 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   <p className="text-[10px] text-text-muted leading-relaxed">
                     Trazado automático de interfaz asfalto-base t₂(x) y detección de variaciones excesivas de espesor constructivo.
                   </p>
+
+                  {/* Tarjeta Comparativa Matemática Científica */}
+                  <div className="p-2.5 bg-slate-900 text-white rounded-xl border border-slate-700/80 space-y-1.5 font-mono text-[10px]">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-[#EAA023] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-[#EAA023]" />
+                        Comparativa Científica Geofísica (Espesor y Estratos)
+                      </span>
+                      <span className="text-[9px] text-slate-400">
+                        v1: {detectionResults?.thicknessVariations.count ?? 0} vs v2: {advancedDetectionResults?.thicknessVariations.count ?? 0}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                      <div className="p-1.5 bg-slate-800/80 rounded border border-slate-700">
+                        <strong className="text-slate-300 block mb-0.5">Clásico (v1):</strong>
+                        <p className="text-slate-400 leading-tight">
+                          Detección de pico temporal t₂(x) con media móvil 1D. Salta con atenuación y ruido.
+                        </p>
+                      </div>
+                      <div className="p-1.5 bg-amber-500/10 rounded border border-amber-500/30">
+                        <strong className="text-[#EAA023] block mb-0.5">Avanzado (v2):</strong>
+                        <p className="text-amber-100 leading-tight">
+                          Seguimiento de horizonte por continuidad de fase instantánea θ(t) y estabilidad de velocidad v.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-white p-2.5 rounded-xl border border-border space-y-2.5">
                     <div className="flex items-center justify-between bg-emerald-50/70 p-2 rounded-lg border border-emerald-200/80 text-[10px]">
@@ -3198,6 +3627,43 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                   </span>
                 </div>
 
+                {/* Filtro por Motor de Detección en Explorador */}
+                <div className="grid grid-cols-3 gap-1 bg-gray-100 p-1 rounded-xl text-[10px] font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setAnomalyEngineFilter('all')}
+                    className={`py-1 rounded-lg text-center transition cursor-pointer font-semibold ${
+                      anomalyEngineFilter === 'all'
+                        ? 'bg-primary text-white shadow-xs'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Todas ({classicMarkers.length + advancedMarkers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnomalyEngineFilter('advanced')}
+                    className={`py-1 rounded-lg text-center transition cursor-pointer font-bold ${
+                      anomalyEngineFilter === 'advanced'
+                        ? 'bg-[#EAA023] text-primary-900 shadow-xs'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Avanzadas v2 ({advancedMarkers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnomalyEngineFilter('classic')}
+                    className={`py-1 rounded-lg text-center transition cursor-pointer font-semibold ${
+                      anomalyEngineFilter === 'classic'
+                        ? 'bg-slate-700 text-white shadow-xs'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    Clásicas v1 ({classicMarkers.length})
+                  </button>
+                </div>
+
                 {allDetectedMarkers.length === 0 ? (
                   <p className="text-[11px] text-text-muted text-center py-4">
                     No se han detectado anomalías con los parámetros actuales. Pruebe reduciendo umbrales o seleccionando el preset &quot;Auditoría (Alta)&quot;.
@@ -3208,22 +3674,49 @@ export const DSPOptionsPanel: React.FC<DSPOptionsPanelProps> = ({
                       <div
                         key={m.id}
                         onClick={() => onSelectMarker?.(m)}
-                        className="p-2 bg-gray-50 hover:bg-amber-50/70 border border-border hover:border-accent rounded-xl cursor-pointer transition text-left space-y-1 group"
+                        className={`p-2 border rounded-xl cursor-pointer transition text-left space-y-1 group ${
+                          m.engineVersion === 'v2_advanced'
+                            ? 'bg-amber-50/40 hover:bg-amber-50/90 border-amber-300 hover:border-amber-500'
+                            : 'bg-gray-50 hover:bg-slate-100 border-border hover:border-slate-400'
+                        }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-[11px] text-primary group-hover:text-amber-900">
-                            {m.title}
-                          </span>
-                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-gray-200/80 text-text-secondary group-hover:bg-amber-200 group-hover:text-amber-950 font-bold">
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {m.engineVersion === 'v2_advanced' ? (
+                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-[#EAA023] text-primary-900 border border-amber-500 shadow-2xs flex-shrink-0">
+                                v2 Geofísico
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-200 text-slate-800 border border-slate-300 flex-shrink-0">
+                                v1 Clásico
+                              </span>
+                            )}
+                            <span className="font-bold text-[11px] text-primary truncate group-hover:text-amber-900">
+                              {m.title}
+                            </span>
+                          </div>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-gray-200/80 text-text-secondary group-hover:bg-amber-200 group-hover:text-amber-950 font-bold flex-shrink-0">
                             {m.severityLabel}
                           </span>
                         </div>
+
                         <div className="grid grid-cols-2 gap-x-2 text-[10px] font-mono text-text-muted">
                           <div>Dist: <span className="text-text-primary font-bold">{m.xCenterM.toFixed(2)} m</span></div>
                           <div>Prof: <span className="text-purple-700 font-bold">{m.depthM.toFixed(2)} m</span></div>
                           <div>TWT: <span className="text-amber-700 font-bold">{m.timeNs.toFixed(1)} ns</span></div>
-                          <div>Severidad: <span className="text-emerald-700 font-bold">{m.severity.toFixed(2)}</span></div>
+                          {m.engineVersion === 'v2_advanced' && m.confidenceScore ? (
+                            <div>Confianza: <span className="text-emerald-700 font-bold">{(m.confidenceScore * 100).toFixed(0)}%</span></div>
+                          ) : (
+                            <div>Severidad: <span className="text-emerald-700 font-bold">{m.severity.toFixed(2)}</span></div>
+                          )}
                         </div>
+
+                        {m.engineVersion === 'v2_advanced' && m.semblanceScore && (
+                          <div className="text-[9px] font-mono text-slate-600 bg-white/70 px-1.5 py-0.5 rounded border border-amber-200/60 flex items-center justify-between">
+                            <span>Semblanza S: <strong>{m.semblanceScore.toFixed(2)}</strong></span>
+                            {m.fresnelRadiusM && <span>r_Fresnel: {m.fresnelRadiusM.toFixed(2)}m</span>}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

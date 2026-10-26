@@ -22,8 +22,10 @@ import {
   DEFAULT_DETECTION_CONFIG,
   EMPTY_DETECTION_RESULTS,
   AnomalyMarker,
+  DetectionEngineMode,
 } from '@/lib/gpr/detectionTypes';
 import { runAnomalyDetections } from '@/lib/gpr/detectionEngine';
+import { runAdvancedAnomalyDetections } from '@/lib/gpr/advancedDetectionEngine';
 import {
   Upload,
   FileSpreadsheet,
@@ -115,6 +117,8 @@ export default function RadargramaWorkstationPage() {
   // Anomaly Detection State per dataset (map dataset ID -> DetectionConfig)
   const [detectionConfigMap, setDetectionConfigMap] = useState<Record<string, DetectionConfig>>({});
   const [detectionResultsMap, setDetectionResultsMap] = useState<Record<string, DetectionResults>>({});
+  const [advancedDetectionResultsMap, setAdvancedDetectionResultsMap] = useState<Record<string, DetectionResults>>({});
+  const [detectionEngineMode, setDetectionEngineMode] = useState<DetectionEngineMode>('comparison');
   const [selectedAnomalyMarker, setSelectedAnomalyMarker] = useState<AnomalyMarker | null>(null);
 
   // Macro Manager & Batch Processing state
@@ -147,6 +151,10 @@ export default function RadargramaWorkstationPage() {
 
   const activeDetectionResults = activeDatasetId && detectionResultsMap[activeDatasetId]
     ? detectionResultsMap[activeDatasetId]
+    : EMPTY_DETECTION_RESULTS;
+
+  const activeAdvancedDetectionResults = activeDatasetId && advancedDetectionResultsMap[activeDatasetId]
+    ? advancedDetectionResultsMap[activeDatasetId]
     : EMPTY_DETECTION_RESULTS;
 
   const handleDetectionConfigChange = (newConfig: DetectionConfig) => {
@@ -186,6 +194,7 @@ export default function RadargramaWorkstationPage() {
     // Recompute DSP matrices and run anomaly detections immediately for all affected datasets
     const newMatrices: Record<string, Float32Array[]> = {};
     const newDetections: Record<string, DetectionResults> = {};
+    const newAdvDetections: Record<string, DetectionResults> = {};
 
     datasets.forEach((ds) => {
       if (datasetIds.includes(ds.id)) {
@@ -199,12 +208,21 @@ export default function RadargramaWorkstationPage() {
           options.dielectricPermittivity,
           configToApply
         );
+        const advResults = runAdvancedAnomalyDetections(
+          matrix,
+          options.ventanaNs,
+          options.traceDistanceStepM,
+          options.dielectricPermittivity,
+          configToApply
+        );
         newDetections[ds.id] = results;
+        newAdvDetections[ds.id] = advResults;
       }
     });
 
     setProcessedMatrices((prev) => ({ ...prev, ...newMatrices }));
     setDetectionResultsMap((prev) => ({ ...prev, ...newDetections }));
+    setAdvancedDetectionResultsMap((prev) => ({ ...prev, ...newAdvDetections }));
 
     setBatchToast(`Procesamiento DSP y configuración de detección aplicados a ${datasetIds.length} perfiles.`);
     setTimeout(() => setBatchToast(null), 3500);
@@ -245,9 +263,21 @@ export default function RadargramaWorkstationPage() {
       activeDetectionConfig
     );
 
+    const advResults = runAdvancedAnomalyDetections(
+      activeProcessedMatrix,
+      activeOptions.ventanaNs,
+      activeOptions.traceDistanceStepM,
+      activeOptions.dielectricPermittivity,
+      activeDetectionConfig
+    );
+
     setDetectionResultsMap((prev) => ({
       ...prev,
       [activeDatasetId]: results,
+    }));
+    setAdvancedDetectionResultsMap((prev) => ({
+      ...prev,
+      [activeDatasetId]: advResults,
     }));
   }, [
     activeDatasetId,
@@ -783,6 +813,9 @@ export default function RadargramaWorkstationPage() {
                 showHyperbolaTool={showHyperbolaTool}
                 detectionConfig={activeDetectionConfig}
                 detectionResults={activeDetectionResults}
+                advancedDetectionResults={activeAdvancedDetectionResults}
+                detectionEngineMode={detectionEngineMode}
+                onDetectionEngineModeChange={setDetectionEngineMode}
                 selectedMarker={selectedAnomalyMarker}
                 onSelectMarker={setSelectedAnomalyMarker}
               />
@@ -807,6 +840,9 @@ export default function RadargramaWorkstationPage() {
                 detectionConfig={activeDetectionConfig}
                 onDetectionConfigChange={handleDetectionConfigChange}
                 detectionResults={activeDetectionResults}
+                advancedDetectionResults={activeAdvancedDetectionResults}
+                detectionEngineMode={detectionEngineMode}
+                onDetectionEngineModeChange={setDetectionEngineMode}
                 onSelectMarker={setSelectedAnomalyMarker}
               />
             </div>
