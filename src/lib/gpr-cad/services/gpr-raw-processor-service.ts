@@ -67,9 +67,8 @@ function createSyntheticDatasetForTramo(
   antennaFreqMHz: number = 400
 ): GPRDataset {
   const lengthM = Math.max(10, Number(tramo.ml) || 25);
-  const tracesPerMeter = 112;
-  const numTraces = Math.min(600, Math.max(120, Math.round(lengthM * tracesPerMeter)));
-  const numSamples = 512;
+  const numTraces = Math.min(180, Math.max(80, Math.round(lengthM * 4)));
+  const numSamples = 256;
   const timeWindowNs = 90.0;
   const sampleIntervalNs = timeWindowNs / numSamples;
   const traceDistanceStepM = lengthM / numTraces;
@@ -147,7 +146,7 @@ function createSyntheticDatasetForTramo(
       antennaFreqMHz,
       dielectricPermittivity: permittivity,
       traceDistanceStepM,
-      tracesPerMeter,
+      tracesPerMeter: traceDistanceStepM > 0 ? 1 / traceDistanceStepM : 4,
       zeroOffsetNs: 0,
       byteOffsetData: 937,
       traceHeaderBytes: 0,
@@ -284,14 +283,15 @@ export async function processAllGprProfilesForProject(params: {
 
   // 4. Si hay archivos crudos reales adjuntos con storage_url, intentar descargar y parsear
   const processedFileNames = new Set<string>();
+  const targetFiles = rawFiles.slice(0, 3);
 
-  for (const f of rawFiles) {
+  for (const f of targetFiles) {
     let dataset: GPRDataset | null = null;
     const name = f.original_name || `Perfil_GPR_${f.id.slice(0, 6)}.gsf`;
 
     if (f.storage_url && (name.toLowerCase().endsWith('.gsf') || name.toLowerCase().endsWith('.rd3'))) {
       try {
-        const resp = await fetch(f.storage_url, { signal: AbortSignal.timeout(6000) });
+        const resp = await fetch(f.storage_url, { signal: AbortSignal.timeout(2000) });
         if (resp.ok) {
           const buffer = await resp.arrayBuffer();
           if (buffer.byteLength > 1000) {

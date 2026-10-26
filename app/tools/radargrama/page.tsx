@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from '@/components/layout/Navbar';
 import { BackButton } from '@/components/BackButton';
-import { GPRDataset, GPRTrace, GSFHeader, parseGSFBuffer, buildDatasetFromHeader, CABECERA_DEFAULT, DX_DEF, DIELECTRICO_DEF, VENTANA_TIEMPO_NS_DEF, TRAZAS_POR_METRO_DEF } from '@/lib/gpr/gsfParser';
+import { GPRDataset, GSFHeader, parseGSFBuffer, buildDatasetFromHeader, DX_DEF, DIELECTRICO_DEF, VENTANA_TIEMPO_NS_DEF } from '@/lib/gpr/gsfParser';
 import { DSPOptions, DEFAULT_DSP_OPTIONS, processRadargramDSP, GPRMacro, calculateResolution } from '@/lib/gpr/dspEngine';
 import { CanvasViewer, ColorPalette } from '@/components/radargrama/CanvasViewer';
 import { DSPOptionsPanel } from '@/components/radargrama/DSPOptionsPanel';
@@ -333,93 +333,6 @@ export default function RadargramaWorkstationPage() {
     }));
   };
 
-  // Generate Synthetic Demo GSF Radargram for testing if no file uploaded
-  const handleLoadDemoDataset = () => {
-    const numTraces = 400;
-    const numSamples = 512;
-    const sampleIntervalNs = 90.0 / numSamples;
-    const traceDistanceStepM = DX_DEF;
-
-    const rawMatrix: Float32Array[] = [];
-    const processedMatrix: Float32Array[] = [];
-    const traces: GPRTrace[] = [];
-
-    for (let t = 0; t < numTraces; t++) {
-      const trace = new Float32Array(numSamples);
-      const xM = t * traceDistanceStepM;
-
-      for (let s = 0; s < numSamples; s++) {
-        const tNs = s * sampleIntervalNs;
-        let amp = 0;
-
-        amp += 6000 * Math.sin((tNs - 4.5) * 1.2) * Math.exp(-Math.pow((tNs - 4.5) / 1.6, 2));
-        amp += 2800 * Math.sin((tNs - 18.0) * 0.9) * Math.exp(-Math.pow((tNs - 18.0) / 2.0, 2));
-        amp += 2000 * Math.sin((tNs - 36.0) * 0.7) * Math.exp(-Math.pow((tNs - 36.0) / 2.5, 2));
-
-        const dist1 = xM - (180 * traceDistanceStepM);
-        const tHyp1 = Math.sqrt(24.0 * 24.0 + (4 * dist1 * dist1) / (0.122 * 0.122));
-        amp += 4500 * Math.sin((tNs - tHyp1) * 1.1) * Math.exp(-Math.pow((tNs - tHyp1) / 1.8, 2));
-        amp += (Math.random() - 0.5) * 150;
-
-        trace[s] = amp;
-      }
-
-      rawMatrix.push(trace);
-      processedMatrix.push(new Float32Array(trace));
-
-      traces.push({
-        id: t + 1,
-        positionM: xM,
-        timeZeroShiftNs: 0,
-        elevationM: 0,
-        rawSamples: trace,
-        processedSamples: trace,
-      });
-    }
-
-    const demoHeader: GSFHeader = {
-      title: 'Radargrama_Demostracion_PROCIMEC',
-      version: 1.0,
-      numTraces,
-      numSamples,
-      sampleIntervalNs,
-      timeWindowNs: 90.0,
-      antennaFreqMHz: 400,
-      dielectricPermittivity: 6.0,
-      traceDistanceStepM,
-      tracesPerMeter: TRAZAS_POR_METRO_DEF,
-      zeroOffsetNs: 0,
-      byteOffsetData: CABECERA_DEFAULT,
-      traceHeaderBytes: 0,
-      bytesPerSample: 2,
-      dataType: 'int16',
-      headerSize: CABECERA_DEFAULT,
-      ventanaNsHdr: 90,
-      muestrasHdr: 512,
-      erHdr: 6.0,
-      totalTrazasHdr: 400,
-      stepHdr: DX_DEF,
-    };
-
-    const demoBuffer = new ArrayBuffer(CABECERA_DEFAULT + numTraces * numSamples * 2);
-
-    const demoDataset: GPRDataset = {
-      id: `demo_${Date.now()}`,
-      filename: 'Perfil_Akula9000C_Demo.gsf',
-      rawBuffer: demoBuffer,
-      header: demoHeader,
-      traces,
-      rawMatrix,
-      processedMatrix,
-      minAmplitude: -6500,
-      maxAmplitude: 6500,
-      createdTime: Date.now(),
-    };
-
-    setDatasets((prev) => [...prev, demoDataset]);
-    setDspOptionsMap((prev) => ({ ...prev, [demoDataset.id]: { ...DEFAULT_DSP_OPTIONS } }));
-    setActiveDatasetId(demoDataset.id);
-  };
 
   // Update active options
   const handleDSPOptionsChange = (newOptions: DSPOptions) => {
@@ -913,7 +826,7 @@ export default function RadargramaWorkstationPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex items-center justify-center pt-2">
                 <label className="btn-primary btn-sm cursor-pointer shadow-glow">
                   <Upload className="w-4 h-4" />
                   <span>Seleccionar Archivo .GSF</span>
@@ -925,15 +838,6 @@ export default function RadargramaWorkstationPage() {
                     className="hidden"
                   />
                 </label>
-                <button
-                  type="button"
-                  onClick={handleLoadDemoDataset}
-                  className="btn-outline btn-sm font-semibold text-text-secondary hover:text-text-primary"
-                  title="Cargar perfil de demostración sintético"
-                >
-                  <Activity className="w-4 h-4 text-amber-500" />
-                  <span>Cargar Demo</span>
-                </button>
               </div>
             </div>
           </div>
