@@ -84,7 +84,11 @@ export function parseFormatName(rawName: string): { code: string; title: string 
   };
 }
 
-// ─── Localizador y Buscador de Plantillas Oficiales Locales ───────────────────
+// ─── Cache en memoria de buffers de plantillas para máximo rendimiento (O(1)) ───
+const templateBufferCache = new Map<string, { buffer: Buffer; timestamp: number }>();
+const TEMPLATE_BUFFER_TTL = 10 * 60 * 1000; // 10 minutos de caché en memoria
+
+// ─── Localizador y Buscador Síncrono de Plantillas Oficiales Locales ──────────
 export function findTemplateBuffer(templateFileId: string, templateCode?: string): Buffer | null {
   const dirs = [
     path.join(process.cwd(), 'public', 'templates'),
@@ -130,23 +134,140 @@ export function findTemplateBuffer(templateFileId: string, templateCode?: string
   return null;
 }
 
-// ─── Exploración Local de Plantillas Oficiales (PCM CLOUD) ───────────────────
+// ─── Obtención Asíncrona Resiliente de Plantilla Oficial (Supabase Storage -> Local -> Drive) ───
+export async function fetchTemplateBuffer(
+  templateFileId?: string,
+  templateCode?: string,
+  fallbackName?: string
+): Promise<Buffer | null> {
+  const cacheKey = `${templateFileId || ''}__${templateCode || ''}__${fallbackName || ''}`.toUpperCase().trim();
+  const cached = templateBufferCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < TEMPLATE_BUFFER_TTL) {
+    return cached.buffer;
+  }
+
+  const targetCode = (templateCode || '').toUpperCase().trim();
+  const targetId = (templateFileId || '').trim();
+
+  // 1. Prioridad 1: Descargar desde Supabase Storage (Bucket 'templates')
+  try {
+    const supabase = createAdminClient();
+
+    // 1.1 Si targetId coincide directamente con un nombre de archivo .xlsx
+    if (targetId && targetId.toLowerCase().endsWith('.xlsx')) {
+      const { data, error } = await supabase.storage.from('templates').download(targetId);
+      if (!error && data) {
+        const buf = Buffer.from(await data.arrayBuffer());
+        templateBufferCache.set(cacheKey, { buffer: buf, timestamp: Date.now() });
+        return buf;
+      }
+    }
+
+    // 1.2 Listar archivos en bucket 'templates' y buscar coincidencia por código o nombre
+    const { data: storageFiles, error: listError } = await supabase.storage.from('templates').list();
+    if (!listError && storageFiles && storageFiles.length > 0) {
+      let matchedName: string | null = null;
+
+      for (const file of storageFiles) {
+        if (!file.name.toLowerCase().endsWith('.xlsx')) continue;
+        const upper = file.name.toUpperCase();
+        if (targetId && upper === targetId.toUpperCase()) {
+          matchedName = file.name;
+          break;
+        }
+        if (targetCode && upper.includes(targetCode)) {
+          matchedName = file.name;
+          break;
+        }
+        if (targetId && upper.includes(targetId.toUpperCase())) {
+          matchedName = file.name;
+          break;
+        }
+        const parsed = parseFormatName(file.name);
+        if (targetCode && parsed.code === targetCode) {
+          matchedName = file.name;
+          break;
+        }
+      }
+
+      if (matchedName) {
+        const { data, error } = await supabase.storage.from('templates').download(matchedName);
+        if (!error && data) {
+          const buf = Buffer.from(await data.arrayBuffer());
+          templateBufferCache.set(cacheKey, { buffer: buf, timestamp: Date.now() });
+          return buf;
+        }
+      }
+    }
+  } catch (supaErr) {
+    console.warn('Aviso descargando plantilla desde Supabase Storage:', supaErr);
+  }
+
+  // 2. Prioridad 2: Buscar en archivos locales (public/templates y formatos/)
+  const localBuf = findTemplateBuffer(targetId, targetCode || fallbackName);
+  if (localBuf) {
+    templateBufferCache.set(cacheKey, { buffer: localBuf, timestamp: Date.now() });
+    return localBuf;
+  }
+
+  return null;
+}
+
+// ─── Exploración de Plantillas Oficiales (Supabase Storage + Local PCM CLOUD) ─
 export async function scanHseqTemplates(forceRefresh = false): Promise<HseqTemplateItem[]> {
   const now = Date.now();
   if (forceRefresh) {
     cachedTemplates = null;
     lastScanTimestamp = 0;
+    templateBufferCache.clear();
   } else if (cachedTemplates && now - lastScanTimestamp < CACHE_TTL_MS) {
     return cachedTemplates;
   }
 
   const results: HseqTemplateItem[] = [];
   const seenCodes = new Set<string>();
-  const templatesDir = path.join(process.cwd(), 'public', 'templates');
 
-  if (fs.existsSync(templatesDir)) {
+  // 1. Exploración prioritaria en Supabase Storage (Bucket 'templates')
+  try {
+    const supabase = createAdminClient();
+    const { data: storageFiles, error: storageError } = await supabase.storage.from('templates').list();
+    if (!storageError && storageFiles && storageFiles.length > 0) {
+      for (const file of storageFiles) {
+        if (!file.name.toLowerCase().endsWith('.xlsx')) continue;
+        const { code, title } = parseFormatName(file.name);
+        if (seenCodes.has(code)) continue;
+        seenCodes.add(code);
+
+        const { data: publicUrlData } = supabase.storage.from('templates').getPublicUrl(file.name);
+
+        results.push({
+          id: file.name,
+          name: file.name,
+          code,
+          title,
+          folderId: 'supabase_templates',
+          folderName: 'Formatos Oficiales Supabase',
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          modifiedTime: file.updated_at || file.created_at || undefined,
+          webViewLink: publicUrlData?.publicUrl || `/templates/${encodeURIComponent(file.name)}`,
+          size: String(file.metadata?.size || ''),
+        });
+      }
+    }
+  } catch (supaErr) {
+    console.warn('Aviso escaneando plantillas en Supabase Storage:', supaErr);
+  }
+
+  // 2. Exploración secundaria en carpetas locales (public/templates y formatos/)
+  const localDirs = [
+    path.join(process.cwd(), 'public', 'templates'),
+    path.join(process.cwd(), 'formatos'),
+  ];
+
+  for (const dir of localDirs) {
+    if (!fs.existsSync(dir)) continue;
     try {
-      const files = fs.readdirSync(templatesDir);
+      const files = fs.readdirSync(dir);
       for (const file of files) {
         if (!file.toLowerCase().endsWith('.xlsx')) continue;
         const isForTemplate =
@@ -157,7 +278,7 @@ export async function scanHseqTemplates(forceRefresh = false): Promise<HseqTempl
         if (seenCodes.has(code)) continue;
         seenCodes.add(code);
 
-        const fullPath = path.join(templatesDir, file);
+        const fullPath = path.join(dir, file);
         const stats = fs.statSync(fullPath);
 
         results.push({
@@ -165,8 +286,8 @@ export async function scanHseqTemplates(forceRefresh = false): Promise<HseqTempl
           name: file,
           code,
           title,
-          folderId: 'public_templates',
-          folderName: 'Formatos Oficiales PCM CLOUD',
+          folderId: 'local_templates',
+          folderName: 'Formatos Oficiales Locales',
           mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           modifiedTime: stats.mtime.toISOString(),
           webViewLink: `/templates/${encodeURIComponent(file)}`,
@@ -174,7 +295,7 @@ export async function scanHseqTemplates(forceRefresh = false): Promise<HseqTempl
         });
       }
     } catch (err) {
-      console.error('Error escaneando plantillas locales en public/templates:', err);
+      console.warn(`Error escaneando plantillas locales en ${dir}:`, err);
     }
   }
 
@@ -796,7 +917,7 @@ export async function parseExcelTemplateSchema(
 
   let buffer = customBuffer;
   if (!buffer && templateFileId) {
-    buffer = findTemplateBuffer(templateFileId, fallbackName) || undefined;
+    buffer = (await fetchTemplateBuffer(templateFileId, undefined, fallbackName)) || undefined;
   }
 
   if (!buffer) {

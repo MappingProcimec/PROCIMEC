@@ -253,6 +253,15 @@ export default function HseqReportPage() {
     const hasEstacion = raw.some(
       (t) => t.code.includes('025') || t.title.toLowerCase().includes('estacion') || t.title.toLowerCase().includes('estación')
     );
+    const hasGps = raw.some(
+      (t) => t.code.includes('026') || t.title.toLowerCase().includes('gps')
+    );
+    const hasGpr = raw.some(
+      (t) => t.code.includes('027') || t.title.toLowerCase().includes('gpr') || t.title.toLowerCase().includes('georadar')
+    );
+    const hasLocalizador = raw.some(
+      (t) => t.code.includes('028') || t.title.toLowerCase().includes('localizador')
+    );
     const hasVehiculo = raw.some(
       (t) => t.code.includes('029') || t.title.toLowerCase().includes('vehiculo') || t.title.toLowerCase().includes('vehículo')
     );
@@ -261,36 +270,72 @@ export default function HseqReportPage() {
 
     if (!hasDrone) {
       extra.push({
-        id: 'hseq-drone-preoperational',
+        id: 'FOR-HSEQ-024_Inspeccion_preoperacional_Drone.xlsx',
         code: 'FOR-HSEQ-024',
         title: 'INSPECCIÓN PRE-OPERACIONAL DE DRONE',
-        name: 'FOR-HSEQ-024 Inspección Pre-operacional de Drone.xlsx',
-        folderName: '24. Procedimientos y formatos',
-        folderId: 'folder-24',
+        name: 'FOR-HSEQ-024_Inspeccion_preoperacional_Drone.xlsx',
+        folderName: 'Formatos Oficiales Supabase',
+        folderId: 'supabase_templates',
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
     }
 
     if (!hasEstacion) {
       extra.push({
-        id: 'hseq-estacion-total',
+        id: 'FOR-HSEQ-025_Inspeccion_preoperacional_Estacion_Total.xlsx',
         code: 'FOR-HSEQ-025',
         title: 'INSPECCIÓN PRE-OPERACIONAL DE ESTACIÓN TOTAL',
-        name: 'FOR-HSEQ-025 Inspección Pre-operacional de Estación Total.xlsx',
-        folderName: '24. Procedimientos y formatos',
-        folderId: 'folder-24',
+        name: 'FOR-HSEQ-025_Inspeccion_preoperacional_Estacion_Total.xlsx',
+        folderName: 'Formatos Oficiales Supabase',
+        folderId: 'supabase_templates',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+    }
+
+    if (!hasGps) {
+      extra.push({
+        id: 'FOR-HSEQ-026_Inspeccion_preoperacional_GPS.xlsx',
+        code: 'FOR-HSEQ-026',
+        title: 'INSPECCIÓN PRE-OPERACIONAL DE GPS DIFERENCIAL',
+        name: 'FOR-HSEQ-026_Inspeccion_preoperacional_GPS.xlsx',
+        folderName: 'Formatos Oficiales Supabase',
+        folderId: 'supabase_templates',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+    }
+
+    if (!hasGpr) {
+      extra.push({
+        id: 'FOR-HSEQ-027_Inspeccion_preoperacional_GPR.xlsx',
+        code: 'FOR-HSEQ-027',
+        title: 'INSPECCIÓN PRE-OPERACIONAL DE GEORADAR (GPR)',
+        name: 'FOR-HSEQ-027_Inspeccion_preoperacional_GPR.xlsx',
+        folderName: 'Formatos Oficiales Supabase',
+        folderId: 'supabase_templates',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+    }
+
+    if (!hasLocalizador) {
+      extra.push({
+        id: 'FOR-HSEQ-028_Inspeccion_preoperacional_Localizador_EM.xlsx',
+        code: 'FOR-HSEQ-028',
+        title: 'INSPECCIÓN PRE-OPERACIONAL DE LOCALIZADOR ELECTROMAGNÉTICO',
+        name: 'FOR-HSEQ-028_Inspeccion_preoperacional_Localizador_EM.xlsx',
+        folderName: 'Formatos Oficiales Supabase',
+        folderId: 'supabase_templates',
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
     }
 
     if (!hasVehiculo) {
       extra.push({
-        id: 'hseq-vehiculo-preoperational',
+        id: 'FOR-HSEQ-029_Inspeccion_preoperacional_Vehiculo.xlsx',
         code: 'FOR-HSEQ-029',
         title: 'INSPECCIÓN PRE-OPERACIONAL DE VEHÍCULO',
-        name: 'FOR-Inspección preoperacional del vehículo.xlsx',
-        folderName: '24. Procedimientos y formatos',
-        folderId: 'folder-24',
+        name: 'FOR-HSEQ-029_Inspeccion_preoperacional_Vehiculo.xlsx',
+        folderName: 'Formatos Oficiales Supabase',
+        folderId: 'supabase_templates',
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
     }

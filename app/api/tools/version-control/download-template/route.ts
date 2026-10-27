@@ -1655,6 +1655,43 @@ export async function GET(req: NextRequest) {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // CASO 1.2: PLANTILLA OFICIAL EN SUPABASE STORAGE (Bucket 'templates')
+    // ──────────────────────────────────────────────────────────────────────────
+    try {
+      const supabase = createAdminClient();
+      const { data: storageFiles } = await supabase.storage.from('templates').list();
+      if (storageFiles && storageFiles.length > 0) {
+        const matched = storageFiles.find((f) => {
+          const u = f.name.toUpperCase();
+          return u.includes(code.toUpperCase());
+        });
+        if (matched) {
+          const { data, error } = await supabase.storage.from('templates').download(matched.name);
+          if (!error && data) {
+            const fileBuf = Buffer.from(await data.arrayBuffer());
+            const ext = path.extname(matched.name).toLowerCase() || '.xlsx';
+            const contentType =
+              ext === '.xlsx'
+                ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                : ext === '.docx'
+                ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                : 'application/octet-stream';
+
+            return new NextResponse(new Uint8Array(fileBuf), {
+              status: 200,
+              headers: {
+                'Content-Type': contentType,
+                'Content-Disposition': `attachment; filename="${code}_v${activeVersion}_Plantilla_Oficial${ext}"`,
+              },
+            });
+          }
+        }
+      }
+    } catch (supaErr) {
+      console.warn('Aviso verificando plantilla en Supabase Storage:', supaErr);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // CASO 1.5: ARCHIVO FÍSICO LOCAL OFICIAL VIGENTE (.xlsx o .docx)
     // ──────────────────────────────────────────────────────────────────────────
     if (meta.localFilePath) {

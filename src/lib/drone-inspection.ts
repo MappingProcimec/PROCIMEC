@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PROCIMEC_LOGO_BASE64 } from './logo-base64';
-import { getDriveClient } from './hseq-drive';
+import { getDriveClient, fetchTemplateBuffer } from './hseq-drive';
 
 import crypto from 'crypto';
 
@@ -721,8 +721,23 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
 
   let loaded = false;
 
-  // 1. Intentar descargar archivo original desde Google Drive si hay templateId
-  if (payload.templateId && !payload.templateId.startsWith('hseq-') && !payload.templateId.startsWith('folder-')) {
+  // 1. Cargar plantilla oficial prioritariamente desde Supabase Storage (o cache local/Drive)
+  try {
+    const templateBuffer = await fetchTemplateBuffer(
+      payload.templateId,
+      payload.formatCode,
+      payload.formatTitle
+    );
+    if (templateBuffer) {
+      await wb.xlsx.load(templateBuffer as any);
+      loaded = true;
+    }
+  } catch (err) {
+    console.warn('Aviso cargando plantilla con fetchTemplateBuffer:', err);
+  }
+
+  // 2. Si no se obtuvo de Supabase ni local, intentar Google Drive si hay templateId real
+  if (!loaded && payload.templateId && !payload.templateId.startsWith('hseq-') && !payload.templateId.startsWith('folder-')) {
     try {
       const drive = await getDriveClient();
       const res = await drive.files.get(
@@ -734,15 +749,17 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
         loaded = true;
       }
     } catch (e) {
-      console.warn('Aviso cargando plantilla desde Drive, recurriendo a plantilla oficial local:', e);
+      console.warn('Aviso cargando plantilla desde Drive:', e);
     }
   }
 
-  // 2. Si no se obtuvo de Drive, cargar la copia oficial de Carpeta 24
+  // 3. Fallback a nombres heredados en disco local
   if (!loaded) {
     const templateFileName = isEstacion
       ? 'FOR-Inspección pre-operacional Estación Total.xlsx'
-      : 'FOR-Inspección pre-operacional Drone.xlsx';
+      : isDrone
+      ? 'FOR-Inspección pre-operacional Drone.xlsx'
+      : 'FOR-Inspección preoperacional del vehículo.xlsx';
 
     const localCandidates = [
       path.join(process.cwd(), 'public', 'templates', templateFileName),
@@ -759,8 +776,14 @@ export async function fillHseqExcelTemplate(payload: HseqPdfGenerationPayload & 
     }
   }
 
+  // 4. Salvaguarda infalible: si por alguna desconexión no se cargó archivo, generar hoja base institucional
   if (!loaded) {
-    throw new Error('No fue posible cargar la plantilla Excel oficial de Carpeta 24.');
+    console.warn('Generando plantilla base institucional de contingencia para asegurar la inspección...');
+    const wsFallback = wb.addWorksheet(payload.formatTitle?.slice(0, 30) || 'Inspección');
+    wsFallback.getCell('A1').value = `PROCIMEC INGENIERÍA S.A.S. — ${payload.formatTitle || 'INSPECCIÓN'}`;
+    wsFallback.getCell('A2').value = `Código: ${payload.formatCode || 'FOR-HSEQ'} | Fecha: ${payload.inspectionDate}`;
+    wsFallback.getCell('A3').value = `Proyecto: ${payload.projectName} | Equipo: ${payload.equipmentName}`;
+    loaded = true;
   }
 
   const ws = wb.worksheets[0];
