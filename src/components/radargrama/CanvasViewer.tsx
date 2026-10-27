@@ -61,7 +61,6 @@ export const CanvasViewer: React.FC<CanvasViewerProps> = ({
   detectionResults,
   advancedDetectionResults,
   detectionEngineMode = 'comparison',
-  onDetectionEngineModeChange,
   selectedMarker: externalSelectedMarker,
   onSelectMarker,
 }) => {

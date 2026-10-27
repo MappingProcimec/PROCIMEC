@@ -314,7 +314,6 @@ export function detectAdvancedBrightSpots(
     let startT = -1;
     let peakT = -1;
     let maxEnv = 0;
-    let minAmp = 0;
 
     for (let t = 0; t < numTraces; t++) {
       const env = envelopes[t][s];
@@ -331,12 +330,10 @@ export function detectAdvancedBrightSpots(
           startT = t;
           peakT = t;
           maxEnv = env;
-          minAmp = rawAmp;
         } else {
           if (env > maxEnv) {
             maxEnv = env;
             peakT = t;
-            minAmp = rawAmp;
           }
         }
       } else {
@@ -357,7 +354,6 @@ export function detectAdvancedBrightSpots(
             // Attenuation Shadow validation: Check energy drop directly underneath
             let underEnergy = 0;
             let lateralEnergy = 0;
-            let checkCount = 0;
 
             const sUnderStart = Math.min(numSamples - 1, s + 3);
             const sUnderEnd = Math.min(numSamples - 1, s + shadowCheckDepthSamples);
@@ -368,7 +364,6 @@ export function detectAdvancedBrightSpots(
               const leftBaselineT = Math.max(0, startT - 6);
               const rightBaselineT = Math.min(numTraces - 1, t + 6);
               lateralEnergy += ((envelopes[leftBaselineT]?.[us] || 0) + (envelopes[rightBaselineT]?.[us] || 0)) / 2;
-              checkCount++;
             }
 
             const shadowRatio = lateralEnergy > 0 ? underEnergy / lateralEnergy : 1.0;
